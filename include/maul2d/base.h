@@ -10,6 +10,21 @@
 #include <stddef.h>
 #include <stdint.h>
 
+/// Marks the public API. Shared builds export it (dllexport and
+/// dllimport on Windows, default visibility elsewhere); maul2d_EXPORTS
+/// is defined by CMake while the library itself compiles.
+#if defined(MAUL2D_SHARED) && defined(_WIN32)
+#if defined(maul2d_EXPORTS)
+#define M2_API __declspec(dllexport) extern
+#else
+#define M2_API __declspec(dllimport) extern
+#endif
+#elif defined(MAUL2D_SHARED) && (defined(__GNUC__) || defined(__clang__))
+#define M2_API __attribute__((visibility("default"))) extern
+#else
+#define M2_API extern
+#endif
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -21,13 +36,13 @@ extern "C"
 
     /// Library version, encoded as major * 10000 + minor * 100 + patch.
     /// Thread class: reader (callable from any thread, no world required).
-    int32_t m2GetVersion(void);
+    M2_API int32_t m2GetVersion(void);
 
     /// The SIMD backend this library was COMPILED against: "avx2", "neon"
     /// or "scalar". It is a compile-time choice, and every backend produces
     /// bit-identical results by contract; this only reports which kernels
     /// the binary carries. Thread class: reader.
-    const char* m2GetSimdBackend(void);
+    M2_API const char* m2GetSimdBackend(void);
 
     /// Whether the CPU running this call actually supports the compiled
     /// backend: 1 if it can run, 0 if not. An "avx2" binary needs AVX2 and
@@ -36,19 +51,19 @@ extern "C"
     /// on a CPU that returns 0 aborts loudly rather than trapping on an
     /// illegal instruction; check this first for a graceful path, or build
     /// with -DMAUL2D_SIMD=scalar for a portable binary. Thread class: reader.
-    int32_t m2CpuSupportsBackend(void);
+    M2_API int32_t m2CpuSupportsBackend(void);
 
     /// Routes every internal allocation through your hooks. Set BEFORE
     /// creating any world and never change it while worlds exist. The
     /// zeroFn contract: returned memory must be zero-initialized.
     typedef void* m2AllocZeroedFn(size_t bytes);
     typedef void m2FreeFn(void* memory);
-    void m2SetAllocator(m2AllocZeroedFn* allocZeroed, m2FreeFn* freeFn);
+    M2_API void m2SetAllocator(m2AllocZeroedFn* allocZeroed, m2FreeFn* freeFn);
 
     /// FNV-1a 64-bit hash over a byte range. This is the hash used by the
     /// determinism gates; its constants are frozen and will never change.
     /// Thread class: reader (pure function).
-    uint64_t m2Hash64(uint64_t seed, const void* data, int32_t byteCount);
+    M2_API uint64_t m2Hash64(uint64_t seed, const void* data, int32_t byteCount);
 
 /// Seed value for m2Hash64 chains (FNV-1a offset basis).
 #define M2_HASH_INIT 14695981039346656037ULL
@@ -65,7 +80,7 @@ extern "C"
         m2_errorCapacity = 2, // a fixed pool, slot table or allocation ran out
         m2_errorConfig = 3,   // the CPU cannot run the compiled SIMD backend
     } m2Result;
-    m2Result m2LastResult(void);
+    M2_API m2Result m2LastResult(void);
 
     /// Host assert hook (integration audit A2/A5), contextful from
     /// day one: called before the default print-and-abort for every
@@ -75,10 +90,10 @@ extern "C"
     /// harnesses, engine diagnostics). NULL restores the default.
     /// Observer machinery: never touches simulation state.
     typedef int m2AssertFn(const char* condition, const char* file, int line, void* context);
-    void m2SetAssertHandler(m2AssertFn* handler, void* context);
+    M2_API void m2SetAssertHandler(m2AssertFn* handler, void* context);
 
     /// Internal assertion failure sink (debug builds only). Prints and traps.
-    void m2AssertFail(const char* condition, const char* file, int line);
+    M2_API void m2AssertFail(const char* condition, const char* file, int line);
 
 #if defined(NDEBUG)
 #define M2_ASSERT(cond) ((void)0)

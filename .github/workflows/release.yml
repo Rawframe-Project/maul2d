@@ -82,7 +82,7 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev libglu1-mesa-dev libxkbcommon-dev
       - name: configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DMAUL2D_TESTBED=ON
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DMAUL2D_BUILD_TESTBED=ON
       - name: build
         run: cmake --build build --config Release --target testbed -j 4
       - name: stage and archive

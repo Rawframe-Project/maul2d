@@ -1,7 +1,9 @@
-add_executable(sample_car car.c)
-target_link_libraries(sample_car PRIVATE maul2d)
-maul2d_apply_flags(sample_car)
+# In-tree samples: small programs built with the library. The minimal/
+# subdirectory is a separate project that consumes the installed
+# package instead; CI builds it against a fresh install.
 
-add_executable(sample_replay replay.c)
-target_link_libraries(sample_replay PRIVATE maul2d)
-maul2d_apply_flags(sample_replay)
+foreach(sample car replay)
+    add_executable(sample_${sample} ${sample}.c)
+    target_link_libraries(sample_${sample} PRIVATE maul2d)
+    maul_apply_flags(sample_${sample})
+endforeach()

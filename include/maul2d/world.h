@@ -94,19 +94,19 @@ extern "C"
 
     /// Returns a def with pinned defaults and a valid cookie.
     /// Thread class: reader (pure).
-    m2WorldDef m2DefaultWorldDef(void);
+    M2_API m2WorldDef m2DefaultWorldDef(void);
 
     /// Create a world. Returns the null id on invalid def (missing cookie,
     /// nonpositive capacity) or if the world registry is full.
     /// Thread class: writer (registry).
-    m2WorldId m2CreateWorld(const m2WorldDef* def);
+    M2_API m2WorldId m2CreateWorld(const m2WorldDef* def);
 
     /// Destroy a world and everything in it. Ids into it become stale.
     /// Thread class: writer.
-    void m2DestroyWorld(m2WorldId worldId);
+    M2_API void m2DestroyWorld(m2WorldId worldId);
 
     /// Generation-checked liveness. Thread class: reader.
-    bool m2World_IsValid(m2WorldId worldId);
+    M2_API bool m2World_IsValid(m2WorldId worldId);
 
     /// Walk the whole world and check its invariants: finiteness of
     /// every live transform, velocity and particle, endpoint liveness
@@ -115,14 +115,14 @@ extern "C"
     /// false; true means the world is sound. Pure reader; costs a
     /// full walk, so call it from debug paths. Building with
     /// -DMAUL2D_VALIDATE=ON runs it automatically after every step.
-    bool m2World_Validate(m2WorldId worldId);
+    M2_API bool m2World_Validate(m2WorldId worldId);
 
     /// Changing gravity wakes every sleeping dynamic body: a stack
     /// must not float against a world that turned upside down. (The
     /// reference leaves sleepers floating; Maul picks honesty.) The
     /// change is journaled. Thread class: writer / reader.
-    void m2World_SetGravity(m2WorldId worldId, m2Vec2 gravity);
-    m2Vec2 m2World_GetGravity(m2WorldId worldId);
+    M2_API void m2World_SetGravity(m2WorldId worldId, m2Vec2 gravity);
+    M2_API m2Vec2 m2World_GetGravity(m2WorldId worldId);
 
     /// Global wind: an ambient air velocity and a linear drag coefficient
     /// (>= 0). Each step every dynamic awake body feels a force equal to
@@ -134,8 +134,8 @@ extern "C"
     /// defeat sleeping. Regional wind is a density-0 fluid volume; this is
     /// the global case. Journaled and snapshot state. Thread class:
     /// writer / reader. Any out pointer may be NULL.
-    void m2World_SetWind(m2WorldId worldId, m2Vec2 velocity, float linearDrag);
-    void m2World_GetWind(m2WorldId worldId, m2Vec2* velocity, float* linearDrag);
+    M2_API void m2World_SetWind(m2WorldId worldId, m2Vec2 velocity, float linearDrag);
+    M2_API void m2World_GetWind(m2WorldId worldId, m2Vec2* velocity, float* linearDrag);
 
     /// World-wide sleep master switch, journaled. Disabling wakes
     /// every sleeping dynamic body (a sleeper must not outlive the
@@ -155,11 +155,11 @@ extern "C"
         int32_t internalValue;
     } m2ExplosionDef;
 
-    m2ExplosionDef m2DefaultExplosionDef(void);
-    void m2World_Explode(m2WorldId worldId, const m2ExplosionDef* def);
+    M2_API m2ExplosionDef m2DefaultExplosionDef(void);
+    M2_API void m2World_Explode(m2WorldId worldId, const m2ExplosionDef* def);
 
-    void m2World_EnableSleeping(m2WorldId worldId, bool flag);
-    bool m2World_IsSleepingEnabled(m2WorldId worldId);
+    M2_API void m2World_EnableSleeping(m2WorldId worldId, bool flag);
+    M2_API bool m2World_IsSleepingEnabled(m2WorldId worldId);
 
     /// Debug drawing: the engine walks its state and calls back; you
     /// render. Polygon vertices arrive BODY-LOCAL with the body's f64
@@ -187,7 +187,7 @@ extern "C"
         void* context;
     } m2DebugDraw;
 
-    void m2World_Draw(m2WorldId worldId, const m2DebugDraw* draw);
+    M2_API void m2World_Draw(m2WorldId worldId, const m2DebugDraw* draw);
 
     /// Diagnostics. Counters are derived from simulation state and are
     /// therefore deterministic; profile times are wall-clock and are
@@ -228,44 +228,44 @@ extern "C"
     /// State-derived and deterministic (f64 accumulation in canonical
     /// body order) - twin worlds report identical bits. Sleeping
     /// bodies contribute zero by construction. Thread class: reader.
-    double m2World_GetKineticEnergy(m2WorldId worldId);
+    M2_API double m2World_GetKineticEnergy(m2WorldId worldId);
 
-    m2Profile m2World_GetProfile(m2WorldId worldId);
-    m2Counters m2World_GetCounters(m2WorldId worldId);
+    M2_API m2Profile m2World_GetProfile(m2WorldId worldId);
+    M2_API m2Counters m2World_GetCounters(m2WorldId worldId);
 
     /// Advance the simulation. dt in seconds, substepCount >= 1.
     /// Deterministic: identical worlds and inputs produce bit-identical
     /// state on every supported platform. Thread class: writer.
-    void m2World_Step(m2WorldId worldId, float dt, int32_t substepCount);
+    M2_API void m2World_Step(m2WorldId worldId, float dt, int32_t substepCount);
 
     /// Steps taken since creation (restored by m2World_Restore).
     /// Thread class: reader.
-    uint64_t m2World_GetStepCount(m2WorldId worldId);
+    M2_API uint64_t m2World_GetStepCount(m2WorldId worldId);
 
     /// Snapshot size in bytes for this world. Thread class: reader.
-    int32_t m2World_SnapshotSize(m2WorldId worldId);
+    M2_API int32_t m2World_SnapshotSize(m2WorldId worldId);
 
     /// Write a full snapshot into caller memory. Returns bytes written,
     /// or 0 if capacity is insufficient. Thread class: reader.
-    int32_t m2World_Snapshot(m2WorldId worldId, void* buffer, int32_t capacity);
+    M2_API int32_t m2World_Snapshot(m2WorldId worldId, void* buffer, int32_t capacity);
 
     /// Restore a snapshot taken from a world with the same def shape.
     /// Returns false on header mismatch. All sim state - bodies, id pools,
     /// step counter - returns to the snapshot instant, bit-exactly.
     /// Thread class: writer.
-    bool m2World_Restore(m2WorldId worldId, const void* buffer, int32_t size);
+    M2_API bool m2World_Restore(m2WorldId worldId, const void* buffer, int32_t size);
 
     /// Deterministic state hash (alive bodies in index order + globals).
     /// Present in all builds: this is the desync-forensics primitive.
     /// Thread class: reader.
-    uint64_t m2World_Hash(m2WorldId worldId);
+    M2_API uint64_t m2World_Hash(m2WorldId worldId);
 
     /// Per-world persistent memory footprint in bytes (integration
     /// audit D1): everything create allocated for this world,
     /// including the world struct itself. Fixed for the world's
     /// lifetime (pools never grow; the journal buffer is the
     /// host's). Thread class: reader.
-    int64_t m2World_MemoryBytes(m2WorldId worldId);
+    M2_API int64_t m2World_MemoryBytes(m2WorldId worldId);
 
     /// Per-subsystem hashes for hunting a divergence: run your twin
     /// simulations, compare parts each step, and the first field
@@ -281,7 +281,7 @@ extern "C"
         uint64_t joints;    // constraint accumulator memory
         uint64_t particles; // fluid state including the jelly nets
     } m2WorldHashParts;
-    m2WorldHashParts m2World_HashParts(m2WorldId worldId);
+    M2_API m2WorldHashParts m2World_HashParts(m2WorldId worldId);
 
     typedef struct m2FluidVolumeId
     {
@@ -312,16 +312,17 @@ extern "C"
         int32_t internalValue;
     } m2FluidVolumeDef;
 
-    m2FluidVolumeDef m2DefaultFluidVolumeDef(void);
+    M2_API m2FluidVolumeDef m2DefaultFluidVolumeDef(void);
     /// Thread class: writer. Journaled.
-    m2FluidVolumeId m2World_CreateFluidVolume(m2WorldId worldId, const m2FluidVolumeDef* def);
-    void m2World_DestroyFluidVolume(m2FluidVolumeId volumeId);
-    bool m2FluidVolume_IsValid(m2FluidVolumeId volumeId);
+    M2_API m2FluidVolumeId m2World_CreateFluidVolume(m2WorldId worldId,
+                                                     const m2FluidVolumeDef* def);
+    M2_API void m2World_DestroyFluidVolume(m2FluidVolumeId volumeId);
+    M2_API bool m2FluidVolume_IsValid(m2FluidVolumeId volumeId);
     /// Move the waterline at runtime (a rising tide, a draining tank).
     /// Journaled. Thread class: writer.
-    void m2FluidVolume_SetSurface(m2FluidVolumeId volumeId, double surface);
-    double m2FluidVolume_GetSurface(m2FluidVolumeId volumeId);
-    uint64_t m2FluidVolume_GetUserData(m2FluidVolumeId volumeId);
+    M2_API void m2FluidVolume_SetSurface(m2FluidVolumeId volumeId, double surface);
+    M2_API double m2FluidVolume_GetSurface(m2FluidVolumeId volumeId);
+    M2_API uint64_t m2FluidVolume_GetUserData(m2FluidVolumeId volumeId);
 
     /// Command journal (the replay primitive). StartJournal embeds a
     /// full snapshot into the caller's buffer, then records every
@@ -335,11 +336,11 @@ extern "C"
     /// Thread class: writer.
     /// The journal's fixed cost: header plus the embedded snapshot.
     /// Size tapes as this plus room for your ops. Thread class: reader.
-    int32_t m2World_JournalBaseSize(m2WorldId worldId);
+    M2_API int32_t m2World_JournalBaseSize(m2WorldId worldId);
 
-    bool m2World_StartJournal(m2WorldId worldId, void* buffer, int32_t capacity);
-    int32_t m2World_StopJournal(m2WorldId worldId);
-    bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size);
+    M2_API bool m2World_StartJournal(m2WorldId worldId, void* buffer, int32_t capacity);
+    M2_API int32_t m2World_StopJournal(m2WorldId worldId);
+    M2_API bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size);
 
     static const m2WorldId m2_nullWorldId = {0, 0};
 

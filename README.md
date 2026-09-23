@@ -85,7 +85,7 @@ The samples show the API at work:
 
 The interactive testbed (built on raylib, which the library itself
 does not use) runs in the browser or natively with
-`-DMAUL2D_TESTBED=ON`. Its twelve scenes include a platformer on the
+`-DMAUL2D_BUILD_TESTBED=ON`. Its twelve scenes include a platformer on the
 character mover, a machinery hall, particle goo and a rewind ring.
 
 ## Determinism

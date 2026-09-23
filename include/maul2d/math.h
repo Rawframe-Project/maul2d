@@ -9,6 +9,8 @@
 #ifndef MAUL2D_MATH_H
 #define MAUL2D_MATH_H
 
+#include "maul2d/base.h"
+
 #include <stdint.h>
 
 #ifdef __cplusplus
@@ -136,28 +138,28 @@ extern "C"
     /// Valid input range is |radians| <= 1.0e6f (asserted in debug); beyond
     /// float precision limits an angle is meaningless anyway, and the
     /// deterministic fallback is the clamped boundary, never NaN.
-    float m2UnwindAngle(float radians);
+    M2_API float m2UnwindAngle(float radians);
 
     /// Build a rotation from an angle. Deterministic across platforms:
     /// does not call libm; never returns NaN (out-of-range input falls
     /// back deterministically, see m2UnwindAngle). Accuracy is a
     /// documented approximation, identical bits everywhere.
-    m2Rot m2MakeRot(float radians);
+    M2_API m2Rot m2MakeRot(float radians);
 
     /// Deterministic atan2 replacement. Returns 0 for (0, 0) instead of NaN.
-    float m2Atan2(float y, float x);
+    M2_API float m2Atan2(float y, float x);
 
     /// Renormalize a rotation. Every rotation composition site must call
     /// this immediately (drift control is part of the determinism contract).
     /// A degenerate input (zero or non-finite magnitude) returns the
     /// identity rotation - never NaN, never a non-unit result.
-    m2Rot m2NormalizeRot(m2Rot q);
+    M2_API m2Rot m2NormalizeRot(m2Rot q);
 
     /// Compose two rotations (q followed by r), renormalized.
-    m2Rot m2MulRot(m2Rot q, m2Rot r);
+    M2_API m2Rot m2MulRot(m2Rot q, m2Rot r);
 
     /// True if the rotation is unit length within tolerance.
-    int m2IsNormalizedRot(m2Rot q);
+    M2_API int m2IsNormalizedRot(m2Rot q);
 
 #ifdef __cplusplus
 }

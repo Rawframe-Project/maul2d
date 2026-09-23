@@ -17,6 +17,8 @@ Work toward 0.0.1, the first release of the reworked library.
   debug-only assert.
 - `bench/`: benchmark scenes that time Maul2D and pin their final
   world hashes in `bench/pins.txt`. CI fails when a pin moves.
+- `MAUL2D_BUILD_SHARED` builds a shared library. Public functions
+  carry the `M2_API` export macro and everything else is hidden.
 
 ### Changed
 
@@ -26,6 +28,18 @@ Work toward 0.0.1, the first release of the reworked library.
   `M2_ASSERT` is kept for internal invariants; every refusal instead
   records its reason for `m2LastResult` and, for a stale or wrong-kind
   id, counts in `m2Counters.misuse`.
+- The CMake options follow one family scheme: `MAUL2D_BUILD_TESTS`,
+  `_BUILD_SAMPLES`, `_BUILD_BENCH`, `_BUILD_TOOLS`, `_BUILD_TESTBED`,
+  `_BUILD_SHARED`, `_INSTALL`, `_WERROR`, `_SANITIZE`, `_TSAN` and
+  `_COVERAGE`. Tests, samples, benchmarks and tools default to on only
+  when the project is built on its own, not when it is added with
+  `add_subdirectory`.
+- Warnings are errors only with `MAUL2D_WERROR=ON` (CI turns it on),
+  so a newer compiler no longer breaks a consumer's build.
+- The CMake modules in `cmake/`, the package config template and the
+  pkg-config template are shared with the sibling engine. The pkg-
+  config file is relocatable and no longer lists a thread library the
+  engine does not use.
 
 ### Removed
 

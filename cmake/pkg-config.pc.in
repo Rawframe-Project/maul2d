@@ -1,0 +1,12 @@
+# Relocatable: every path derives from this file's own location, so any
+# install prefix works without reconfiguring.
+libdir=${pcfiledir}/..
+prefix=${pcfiledir}/../..
+includedir=${prefix}/@CMAKE_INSTALL_INCLUDEDIR@
+
+Name: @PROJECT_NAME@
+Description: @PROJECT_DESCRIPTION@
+Version: @PROJECT_VERSION@
+Libs: -L${libdir} -l@PROJECT_NAME@
+Libs.private: -lm
+Cflags: -I${includedir} @MAUL_PKG_CFLAGS@

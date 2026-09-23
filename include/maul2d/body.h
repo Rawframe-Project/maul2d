@@ -68,51 +68,52 @@ extern "C"
     } m2BodyDef;
 
     /// Returns a def with pinned defaults and a valid cookie.
-    m2BodyDef m2DefaultBodyDef(void);
+    M2_API m2BodyDef m2DefaultBodyDef(void);
 
     /// Create a body. Returns the null id on invalid def, stale world,
     /// or exhausted capacity (diagnostic in debug builds).
     /// Thread class: writer.
-    m2BodyId m2CreateBody(m2WorldId worldId, const m2BodyDef* def);
+    M2_API m2BodyId m2CreateBody(m2WorldId worldId, const m2BodyDef* def);
 
     /// Destroy a body. The id becomes stale; the slot is recycled FIFO
     /// with a generation bump, and retires instead of wrapping.
     /// Thread class: writer.
-    void m2DestroyBody(m2BodyId bodyId);
+    M2_API void m2DestroyBody(m2BodyId bodyId);
 
     /// Generation-checked liveness. Thread class: reader.
-    bool m2Body_IsValid(m2BodyId bodyId);
+    M2_API bool m2Body_IsValid(m2BodyId bodyId);
 
-    m2Transform m2Body_GetTransform(m2BodyId bodyId);
-    m2Pos2 m2Body_GetPosition(m2BodyId bodyId);
-    m2Rot m2Body_GetRotation(m2BodyId bodyId);
-    m2Vec2 m2Body_GetLinearVelocity(m2BodyId bodyId);
-    float m2Body_GetAngularVelocity(m2BodyId bodyId);
-    uint64_t m2Body_GetUserData(m2BodyId bodyId);
+    M2_API m2Transform m2Body_GetTransform(m2BodyId bodyId);
+    M2_API m2Pos2 m2Body_GetPosition(m2BodyId bodyId);
+    M2_API m2Rot m2Body_GetRotation(m2BodyId bodyId);
+    M2_API m2Vec2 m2Body_GetLinearVelocity(m2BodyId bodyId);
+    M2_API float m2Body_GetAngularVelocity(m2BodyId bodyId);
+    M2_API uint64_t m2Body_GetUserData(m2BodyId bodyId);
 
     /// Sleep state (topic-06). Setters and new contacts wake bodies;
     /// waking is island-transitive at the next step.
-    bool m2Body_IsAwake(m2BodyId bodyId);
+    M2_API bool m2Body_IsAwake(m2BodyId bodyId);
 
     /// Manual sleep control: false forces the body to sleep NOW
     /// (velocities zero, like the reference), true wakes it.
     /// Journaled. Thread class: writer.
-    void m2Body_SetAwake(m2BodyId bodyId, bool awake);
-    void m2Body_SetBullet(m2BodyId bodyId, bool flag);
-    void m2Body_SetUserData(m2BodyId bodyId, uint64_t userData);
+    M2_API void m2Body_SetAwake(m2BodyId bodyId, bool awake);
+    M2_API void m2Body_SetBullet(m2BodyId bodyId, bool flag);
+    M2_API void m2Body_SetUserData(m2BodyId bodyId, uint64_t userData);
 
     /// Contact dominance (a rival lesson worth keeping): in a pair,
     /// the higher-dominance body acts as unmovable toward the lower
     /// one. Statics outrank everything. Enemies stop pushing the
     /// player. Contacts only; joints are unaffected. Journaled.
-    void m2Body_SetDominance(m2BodyId bodyId, int8_t dominance);
-    int8_t m2Body_GetDominance(m2BodyId bodyId);
+    M2_API void m2Body_SetDominance(m2BodyId bodyId, int8_t dominance);
+    M2_API int8_t m2Body_GetDominance(m2BodyId bodyId);
 
     /// Kinematic follow: sets the velocities that carry the body to
     /// the target pose over one step of the given dt. Applies via
     /// the journaled velocity setters, so replays are free.
-    void m2Body_SetTargetTransform(m2BodyId bodyId, m2Pos2 position, m2Rot rotation, float dt);
-    m2BodyType m2Body_GetType(m2BodyId bodyId);
+    M2_API void m2Body_SetTargetTransform(m2BodyId bodyId, m2Pos2 position, m2Rot rotation,
+                                          float dt);
+    M2_API m2BodyType m2Body_GetType(m2BodyId bodyId);
 
     /// Mass properties: mass in kg, body-local centroid, rotational
     /// inertia about the body ORIGIN. SetMassData overrides what the
@@ -125,49 +126,49 @@ extern "C"
         float rotationalInertia; // about the body origin
     } m2MassData;
 
-    void m2Body_SetMassData(m2BodyId bodyId, m2MassData massData);
-    m2MassData m2Body_GetMassData(m2BodyId bodyId);
-    void m2Body_ApplyMassFromShapes(m2BodyId bodyId);
+    M2_API void m2Body_SetMassData(m2BodyId bodyId, m2MassData massData);
+    M2_API m2MassData m2Body_GetMassData(m2BodyId bodyId);
+    M2_API void m2Body_ApplyMassFromShapes(m2BodyId bodyId);
 
     /// Disable removes the body from simulation without destroying it:
     /// shapes leave the broadphase (contacts end, riders wake), joints
     /// stay attached but inert, queries no longer see it. Enable puts
     /// it back where it is. Both journaled. Thread class: writer.
-    void m2Body_Disable(m2BodyId bodyId);
-    void m2Body_Enable(m2BodyId bodyId);
-    bool m2Body_IsEnabled(m2BodyId bodyId);
-    m2Vec2 m2Body_GetLocalCenter(m2BodyId bodyId); // body-frame center of mass
-    bool m2Body_IsBullet(m2BodyId bodyId);
-    float m2Body_GetGravityScale(m2BodyId bodyId);
+    M2_API void m2Body_Disable(m2BodyId bodyId);
+    M2_API void m2Body_Enable(m2BodyId bodyId);
+    M2_API bool m2Body_IsEnabled(m2BodyId bodyId);
+    M2_API m2Vec2 m2Body_GetLocalCenter(m2BodyId bodyId); // body-frame center of mass
+    M2_API bool m2Body_IsBullet(m2BodyId bodyId);
+    M2_API float m2Body_GetGravityScale(m2BodyId bodyId);
 
     /// Editor and integration walk: fills ids with up to capacity
     /// live body handles in ascending slot order and returns the
     /// TRUE total, even when it exceeds capacity. Thread class:
     /// reader.
-    int32_t m2World_GetBodies(m2WorldId worldId, m2BodyId* ids, int32_t capacity);
+    M2_API int32_t m2World_GetBodies(m2WorldId worldId, m2BodyId* ids, int32_t capacity);
 
     /// Frame helpers (pure math on the body's pose) and the joint
     /// walk (ascending slot order, truthful total).
-    m2Pos2 m2Body_GetWorldPoint(m2BodyId bodyId, m2Vec2 localPoint);
-    m2Vec2 m2Body_GetLocalPoint(m2BodyId bodyId, m2Pos2 worldPoint);
-    m2Vec2 m2Body_GetWorldVector(m2BodyId bodyId, m2Vec2 localVector);
-    m2Vec2 m2Body_GetLocalVector(m2BodyId bodyId, m2Vec2 worldVector);
-    m2Vec2 m2Body_GetWorldPointVelocity(m2BodyId bodyId, m2Pos2 worldPoint);
-    m2Vec2 m2Body_GetLocalPointVelocity(m2BodyId bodyId, m2Vec2 localPoint);
-    m2Pos2 m2Body_GetWorldCenterOfMass(m2BodyId bodyId);
-    float m2Body_GetRotationalInertia(m2BodyId bodyId); // about the center of mass
-    m2WorldId m2Body_GetWorld(m2BodyId bodyId);
+    M2_API m2Pos2 m2Body_GetWorldPoint(m2BodyId bodyId, m2Vec2 localPoint);
+    M2_API m2Vec2 m2Body_GetLocalPoint(m2BodyId bodyId, m2Pos2 worldPoint);
+    M2_API m2Vec2 m2Body_GetWorldVector(m2BodyId bodyId, m2Vec2 localVector);
+    M2_API m2Vec2 m2Body_GetLocalVector(m2BodyId bodyId, m2Vec2 worldVector);
+    M2_API m2Vec2 m2Body_GetWorldPointVelocity(m2BodyId bodyId, m2Pos2 worldPoint);
+    M2_API m2Vec2 m2Body_GetLocalPointVelocity(m2BodyId bodyId, m2Vec2 localPoint);
+    M2_API m2Pos2 m2Body_GetWorldCenterOfMass(m2BodyId bodyId);
+    M2_API float m2Body_GetRotationalInertia(m2BodyId bodyId); // about the center of mass
+    M2_API m2WorldId m2Body_GetWorld(m2BodyId bodyId);
 
     /// The tight AABB enclosing every shape on the body (fat tree
     /// margins excluded); a shapeless body returns a point at its
     /// origin. Thread class: reader.
-    m2AABBResult m2Body_ComputeAABB(m2BodyId bodyId);
+    M2_API m2AABBResult m2Body_ComputeAABB(m2BodyId bodyId);
 
     /// Setters wake nothing yet (no sleep system in this slice) but are
     /// already journal-shaped: every mutation is a discrete command.
     /// Thread class: writer.
-    void m2Body_SetLinearVelocity(m2BodyId bodyId, m2Vec2 velocity);
-    void m2Body_SetAngularVelocity(m2BodyId bodyId, float velocity);
+    M2_API void m2Body_SetLinearVelocity(m2BodyId bodyId, m2Vec2 velocity);
+    M2_API void m2Body_SetAngularVelocity(m2BodyId bodyId, float velocity);
 
     /// Impulses act instantly on the velocity; the world point's arm
     /// is measured from the center of mass. Dynamic bodies only; the
@@ -177,46 +178,46 @@ extern "C"
     /// plus everything it was touching wake up (a sleeping stack must
     /// notice its support vanishing). Teleporting is not a sweep - no
     /// tunneling protection applies. Journaled. Thread class: writer.
-    void m2Body_SetTransform(m2BodyId bodyId, m2Pos2 position, m2Rot rotation);
+    M2_API void m2Body_SetTransform(m2BodyId bodyId, m2Pos2 position, m2Rot rotation);
 
     /// Converts the body's type in place. Becoming static zeroes the
     /// velocities; becoming dynamic recomputes mass from the shapes.
     /// The body and everything it touches wake, proxies migrate to the
     /// right tree, and stale pairs end with proper events. Journaled.
     /// Thread class: writer.
-    void m2Body_SetType(m2BodyId bodyId, m2BodyType type);
+    M2_API void m2Body_SetType(m2BodyId bodyId, m2BodyType type);
 
-    void m2Body_ApplyLinearImpulse(m2BodyId bodyId, m2Vec2 impulse, m2Pos2 worldPoint);
-    void m2Body_ApplyLinearImpulseToCenter(m2BodyId bodyId, m2Vec2 impulse);
+    M2_API void m2Body_ApplyLinearImpulse(m2BodyId bodyId, m2Vec2 impulse, m2Pos2 worldPoint);
+    M2_API void m2Body_ApplyLinearImpulseToCenter(m2BodyId bodyId, m2Vec2 impulse);
 
     /// Continuous forces: accumulated across calls, applied during the
     /// step, cleared when it ends. Waking is implied. Journaled.
     /// Thread class: writer.
-    void m2Body_ApplyForce(m2BodyId bodyId, m2Vec2 force, m2Pos2 worldPoint);
-    void m2Body_ApplyForceToCenter(m2BodyId bodyId, m2Vec2 force);
-    void m2Body_ApplyTorque(m2BodyId bodyId, float torque);
+    M2_API void m2Body_ApplyForce(m2BodyId bodyId, m2Vec2 force, m2Pos2 worldPoint);
+    M2_API void m2Body_ApplyForceToCenter(m2BodyId bodyId, m2Vec2 force);
+    M2_API void m2Body_ApplyTorque(m2BodyId bodyId, float torque);
 
     /// Runtime body dynamics tuning, journaled. Fixed rotation zeroes
     /// the angular velocity and recomputes inertia; disabling sleep
     /// wakes the body so it cannot stay asleep illegally.
-    void m2Body_SetLinearDamping(m2BodyId bodyId, float damping);
-    float m2Body_GetLinearDamping(m2BodyId bodyId);
-    void m2Body_SetAngularDamping(m2BodyId bodyId, float damping);
-    float m2Body_GetAngularDamping(m2BodyId bodyId);
-    void m2Body_SetGravityScale(m2BodyId bodyId, float scale);
-    void m2Body_SetFixedRotation(m2BodyId bodyId, bool flag);
-    bool m2Body_IsFixedRotation(m2BodyId bodyId);
+    M2_API void m2Body_SetLinearDamping(m2BodyId bodyId, float damping);
+    M2_API float m2Body_GetLinearDamping(m2BodyId bodyId);
+    M2_API void m2Body_SetAngularDamping(m2BodyId bodyId, float damping);
+    M2_API float m2Body_GetAngularDamping(m2BodyId bodyId);
+    M2_API void m2Body_SetGravityScale(m2BodyId bodyId, float scale);
+    M2_API void m2Body_SetFixedRotation(m2BodyId bodyId, bool flag);
+    M2_API bool m2Body_IsFixedRotation(m2BodyId bodyId);
 
     /// Set or read the per-axis motion locks. angularZ is the same lock as
     /// fixedRotation, so setting it here also fixes the rotation (and
     /// m2Body_IsFixedRotation reflects it). Changing a lock wakes the body
     /// and, for angularZ, recomputes the inertia. Journaled and snapshot
     /// state. Thread class: writer / reader.
-    void m2Body_SetMotionLocks(m2BodyId bodyId, m2MotionLocks locks);
-    m2MotionLocks m2Body_GetMotionLocks(m2BodyId bodyId);
-    void m2Body_EnableSleep(m2BodyId bodyId, bool flag);
-    bool m2Body_IsSleepEnabled(m2BodyId bodyId);
-    void m2Body_ApplyAngularImpulse(m2BodyId bodyId, float impulse);
+    M2_API void m2Body_SetMotionLocks(m2BodyId bodyId, m2MotionLocks locks);
+    M2_API m2MotionLocks m2Body_GetMotionLocks(m2BodyId bodyId);
+    M2_API void m2Body_EnableSleep(m2BodyId bodyId, bool flag);
+    M2_API bool m2Body_IsSleepEnabled(m2BodyId bodyId);
+    M2_API void m2Body_ApplyAngularImpulse(m2BodyId bodyId, float impulse);
 
     static const m2BodyId m2_nullBodyId = {0, 0, 0};
 
