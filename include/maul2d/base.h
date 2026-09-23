@@ -50,22 +50,19 @@ extern "C"
 /// Seed value for m2Hash64 chains (FNV-1a offset basis).
 #define M2_HASH_INIT 14695981039346656037ULL
 
-    /// Typed results (integration audit A4), Maul3D parity: APIs
-    /// that refuse with a null id record WHY here. Read the reason
-    /// with m2LastResult immediately after a refusal, on the same
-    /// thread that made the call (create/destroy are host-serialized
-    /// by the threading contract, so a plain slot suffices and adds
-    /// no synchronization to healthy paths). Success paths do not
-    /// clear it: it is a refusal diagnostic, not a status register.
+    /// Why the last call on this thread refused. Every API that rejects
+    /// its input (a bad def, a stale or wrong-kind id, a full pool)
+    /// records the reason here before it returns its null result. The
+    /// slot is per thread and success paths do not clear it: read it
+    /// right after the refusal you care about.
     typedef enum m2Result
     {
         m2_success = 0,
-        m2_errorInvalid = 1,  // bad def, stale id, wrong body type
-        m2_errorCapacity = 2, // a fixed pool or slot table ran out
-        m2_errorConfig = 3,   // CPU backend or config-hash mismatch
+        m2_errorInvalid = 1,  // bad def or argument, stale id, wrong body or joint type
+        m2_errorCapacity = 2, // a fixed pool, slot table or allocation ran out
+        m2_errorConfig = 3,   // the CPU cannot run the compiled SIMD backend
     } m2Result;
     m2Result m2LastResult(void);
-    void m2SetLastResult(m2Result reason); // internal use; hosts read
 
     /// Host assert hook (integration audit A2/A5), contextful from
     /// day one: called before the default print-and-abort for every

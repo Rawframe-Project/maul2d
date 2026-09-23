@@ -865,7 +865,7 @@ int32_t m2World_FillPolygonWithParticles(m2WorldId worldId, const m2Polygon* pol
     m2World* world = m2World_GetInternal(worldId);
     if (world == NULL || polygon == NULL || polygon->count < 3 || world->particleCapacity == 0)
     {
-        M2_ASSERT(false);
+        m2Refuse(world, m2_errorInvalid);
         return 0;
     }
     float stride = 0.75f * 2.0f * world->particleRadius;
@@ -882,7 +882,7 @@ int32_t m2World_FillPolygonWithParticles(m2WorldId worldId, const m2Polygon* pol
     }
     if ((maxX - minX) / stride >= (float)M2_FILL_COLUMNS)
     {
-        M2_ASSERT(false); // wider than the fill lattice allows
+        m2Refuse(world, m2_errorInvalid); // wider than the fill lattice allows
         return 0;
     }
 

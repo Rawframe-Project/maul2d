@@ -8,6 +8,7 @@
 #define MAUL2D_WORLD_INTERNAL_H
 
 #include "dynamic_tree.h"
+#include "maul2d/base.h"
 #include "maul2d/body.h"
 #include "maul2d/events.h"
 #include "maul2d/joint.h"
@@ -211,8 +212,9 @@ typedef struct m2World
     int32_t particleBodyCount;
     int32_t particleBodyOverflow;
     uint64_t particlePoolFullCount; // cumulative quiet-full refusals
-    uint64_t misuseCount;           // cumulative loud rejections
-    int64_t memoryBytes;            // D1: persistent footprint, from create
+    volatile long long
+        misuseCount;     // cumulative refusals; atomic access only (m2Refuse, m2MisuseCount)
+    int64_t memoryBytes; // D1: persistent footprint, from create
     int32_t* jointFreeQueue;
     int32_t jointFreeHead;
     int32_t jointFreeTail;
@@ -489,6 +491,13 @@ int32_t m2ContactConstraintSize(void);
 // White-box accessor for tests and internal modules. Returns NULL for a
 // stale or null id. Not part of the public ABI.
 m2World* m2World_GetInternal(m2WorldId worldId);
+
+// Refuses a caller's input: records the reason for m2LastResult on this
+// thread and, for an invalid argument against a live world, counts it in
+// m2Counters.misuse. Refusals never assert; M2_ASSERT is for internal
+// invariants only. world may be NULL.
+void m2Refuse(m2World* world, m2Result reason);
+uint64_t m2MisuseCount(const m2World* world);
 void m2UpdateParticlePairs(m2World* world);
 void m2SolveParticles(m2World* world, float dt);
 void m2ApplyFluidVolumes(m2World* world, float dt);

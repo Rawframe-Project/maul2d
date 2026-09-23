@@ -311,18 +311,21 @@ static int HandleAssert(const char* condition, const char* file, int line, void*
     return 1; // handled: no abort
 }
 
-// R5-7 (audit A2/A5): the host hook sees the failure, with its
-// context, and the abort is suppressed on a nonzero return.
+// The host hook sees an assertion failure, with its context, and a
+// nonzero return suppresses the abort. Refusing bad input is not an
+// assertion failure: it records a reason and never reaches the hook.
 static void TestAssertHandler(void)
 {
     s_handled = 0;
     m2SetAssertHandler(HandleAssert, &s_handled);
+    m2AssertFail("test", __FILE__, __LINE__);
+    CHECK(s_handled == 1, "the handler saw the failure and carried its context");
     m2WorldDef bad = m2DefaultWorldDef();
-    bad.internalValue = 0; // a hand-rolled def: refused with an assert
+    bad.internalValue = 0; // a hand-rolled def
     m2WorldId world = m2CreateWorld(&bad);
-    CHECK(world.index1 == 0, "the bad def still refuses");
-    CHECK(s_handled > 0, "the handler saw the failure and carried its context");
-    CHECK(m2LastResult() == m2_errorInvalid, "the refusal carries its typed reason (A4)");
+    CHECK(world.index1 == 0, "the bad def is refused");
+    CHECK(s_handled == 1, "without an assertion");
+    CHECK(m2LastResult() == m2_errorInvalid, "and the refusal carries its reason");
     m2WorldDef good = m2DefaultWorldDef();
     good.bodyCapacity = 32;
     good.shapeCapacity = 32;

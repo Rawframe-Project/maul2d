@@ -1710,6 +1710,36 @@ static void TestValidateAndCounters(void)
     m2DestroyWorld(world);
 }
 
+static void TestEveryRefusalHasAReason(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 2;
+    def.shapeCapacity = 2;
+    m2WorldId world = m2CreateWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2BodyId a = m2CreateBody(world, &bd);
+    m2BodyId b = m2CreateBody(world, &bd);
+    CHECK(m2Body_IsValid(a) && m2Body_IsValid(b), "two bodies fit");
+
+    CHECK(m2CreateBody(world, &bd).index1 == 0, "a third body is refused");
+    CHECK(m2LastResult() == m2_errorCapacity, "because the pool is full");
+
+    uint64_t misuseBefore = m2World_GetCounters(world).misuse;
+    m2DestroyBody(b);
+    CHECK(!m2Body_IsValid(b), "a validity query on a stale id is not misuse");
+    CHECK(m2World_GetCounters(world).misuse == misuseBefore, "so it is not counted");
+    m2DestroyBody(b);
+    CHECK(m2LastResult() == m2_errorInvalid, "destroying a stale id is refused as invalid");
+    m2Body_SetLinearVelocity(b, (m2Vec2){1.0f, 0.0f});
+    CHECK(m2World_GetCounters(world).misuse == misuseBefore + 2, "and both refusals count");
+
+    m2BodyDef badDef = m2DefaultBodyDef();
+    badDef.internalValue = 0;
+    CHECK(m2CreateBody(world, &badDef).index1 == 0, "an uninitialized def is refused");
+    CHECK(m2LastResult() == m2_errorInvalid, "as invalid");
+    m2DestroyWorld(world);
+}
+
 // Subsystem hashes: twins agree part by part, and a nudge to one
 // subsystem splits exactly that part.
 static void TestHashParts(void)
@@ -2251,6 +2281,7 @@ static void TestWind(void)
 
 int main(void)
 {
+    TestEveryRefusalHasAReason();
     TestRuntimeGravity();
     TestDominance();
     TestShatterBody();

@@ -20,6 +20,14 @@ Work toward 0.0.1, the first release of the reworked library.
 
 - The version history restarts at 0.0.1. Earlier numbered releases
   were withdrawn.
+- Refusing a caller's input no longer asserts in debug builds.
+  `M2_ASSERT` is kept for internal invariants; every refusal instead
+  records its reason for `m2LastResult` and, for a stale or wrong-kind
+  id, counts in `m2Counters.misuse`.
+
+### Removed
+
+- `m2SetLastResult` from the public header. It was internal.
 
 ### Fixed
 
@@ -52,3 +60,10 @@ Work toward 0.0.1, the first release of the reworked library.
 - The pair merge wrote its output into the top of the same buffer it
   was still reading candidates from. With a nearly full table it could
   overwrite unread keys. It now merges into a buffer of its own.
+- `m2LastResult` was set by only a handful of refusals and lived in
+  one process-wide slot. Every refusal now records its reason (invalid
+  input, full pool or allocation failure, unsupported CPU) and the
+  slot is per thread.
+- The misuse counter was incremented without synchronization from
+  reader-class calls, a data race when readers run in parallel. It is
+  now updated atomically.

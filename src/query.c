@@ -480,7 +480,7 @@ m2RayCastResult m2World_CastRayClosest(m2WorldId worldId, m2Pos2 origin, m2Vec2 
     m2World* world = m2World_GetInternal(worldId);
     if (world == NULL)
     {
-        M2_ASSERT(false);
+        m2Refuse(world, m2_errorInvalid);
         return result;
     }
 
@@ -599,7 +599,7 @@ int32_t m2World_OverlapAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2Sha
     m2World* world = m2World_GetInternal(worldId);
     if (world == NULL || upper.x < lower.x || upper.y < lower.y)
     {
-        M2_ASSERT(false);
+        m2Refuse(world, m2_errorInvalid);
         return 0;
     }
 
@@ -761,7 +761,7 @@ static m2RayCastResult CastProxyClosest(m2WorldId worldId, const m2DistanceProxy
     m2World* world = m2World_GetInternal(worldId);
     if (world == NULL)
     {
-        M2_ASSERT(false);
+        m2Refuse(world, m2_errorInvalid);
         return result;
     }
     m2ProxyQuery q = MakeProxyQuery(castLocal, pose, translation);
@@ -852,7 +852,7 @@ static int32_t OverlapProxy(m2WorldId worldId, const m2DistanceProxy* castLocal,
     m2World* world = m2World_GetInternal(worldId);
     if (world == NULL)
     {
-        M2_ASSERT(false);
+        m2Refuse(world, m2_errorInvalid);
         return 0;
     }
     m2ProxyQuery q = MakeProxyQuery(castLocal, pose, (m2Vec2){0.0f, 0.0f});
@@ -998,14 +998,14 @@ m2RayCastResult m2Shape_RayCast(m2ShapeId shapeId, m2Pos2 origin, m2Vec2 transla
     m2World* world = m2WorldFromIndex0(shapeId.world0);
     if (world == NULL)
     {
-        M2_ASSERT(false);
+        m2Refuse(world, m2_errorInvalid);
         return result;
     }
     int32_t index = shapeId.index1 - 1;
     if (index < 0 || index >= world->shapeCapacity || world->shapeAlive[index] == 0 ||
         world->shapeGenerations[index] != shapeId.generation)
     {
-        M2_ASSERT(false);
+        m2Refuse(world, m2_errorInvalid);
         return result;
     }
     m2CastHit hit = RayCastShape(world, index, origin, translation, 1.0f);
@@ -1061,7 +1061,7 @@ int32_t m2World_CastRayAll(m2WorldId worldId, m2Pos2 origin, m2Vec2 translation,
     m2World* world = m2World_GetInternal(worldId);
     if (world == NULL)
     {
-        M2_ASSERT(false);
+        m2Refuse(world, m2_errorInvalid);
         return 0;
     }
     int32_t cap = hits != NULL && capacity > 0 ? capacity : 0;
@@ -1138,7 +1138,7 @@ static int32_t CastProxyAll(m2WorldId worldId, const m2DistanceProxy* castLocal,
     m2World* world = m2World_GetInternal(worldId);
     if (world == NULL)
     {
-        M2_ASSERT(false);
+        m2Refuse(world, m2_errorInvalid);
         return 0;
     }
     m2ProxyQuery q = MakeProxyQuery(castLocal, pose, translation);
@@ -1265,7 +1265,7 @@ int32_t m2World_CollideMover(m2WorldId worldId, const m2Capsule* mover, m2Transf
     m2World* world = m2World_GetInternal(worldId);
     if (world == NULL || mover == NULL)
     {
-        M2_ASSERT(false);
+        m2Refuse(world, m2_errorInvalid);
         return 0;
     }
     m2DistanceProxy moverLocal;

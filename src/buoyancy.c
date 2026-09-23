@@ -185,13 +185,13 @@ m2FluidVolumeId m2World_CreateFluidVolume(m2WorldId worldId, const m2FluidVolume
     if (world == NULL || def == NULL || def->internalValue != M2_FVOLUME_COOKIE ||
         world->fvCapacity == 0)
     {
-        M2_ASSERT(false);
+        m2Refuse(world, m2_errorInvalid);
         return m2_nullFluidVolumeId;
     }
     if (!(def->density >= 0.0f) || !(def->linearDrag >= 0.0f) || !(def->angularDrag >= 0.0f) ||
         !(def->surface == def->surface))
     {
-        M2_ASSERT(false);
+        m2Refuse(world, m2_errorInvalid);
         return m2_nullFluidVolumeId;
     }
     if (world->fvFreeCount == 0)
@@ -247,7 +247,7 @@ void m2World_DestroyFluidVolume(m2FluidVolumeId volumeId)
     int32_t index = FvSlot(world, volumeId);
     if (index < 0)
     {
-        M2_ASSERT(false);
+        m2Refuse(world, m2_errorInvalid);
         return;
     }
     if (world->journalActive != 0)
@@ -278,7 +278,7 @@ void m2FluidVolume_SetSurface(m2FluidVolumeId volumeId, double surface)
     int32_t index = FvSlot(world, volumeId);
     if (index < 0 || !(surface == surface))
     {
-        M2_ASSERT(false);
+        m2Refuse(world, m2_errorInvalid);
         return;
     }
     if (world->journalActive != 0)

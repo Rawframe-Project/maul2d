@@ -35,10 +35,6 @@ m2Result m2LastResult(void);
 ```
 
 ```c
-void m2SetLastResult(m2Result reason); // internal use; hosts read /// Host assert hook (integration audit A2/A5), contextful from /// day one: called before the default print-and-abort for every /// internal assertion failure AND for the create-time CPU /// backend refusal. Return nonzero to declare the failure /// handled and suppress the abort (crash reporters, test /// harnesses, engine diagnostics). NULL restores the default. /// Observer machinery: never touches simulation state. typedef int m2AssertFn(const char* condition, const char* file, int line, void* context);
-```
-
-```c
 void m2SetAssertHandler(m2AssertFn* handler, void* context);
 ```
 
@@ -1223,4 +1219,4 @@ Fill ids with live particles in ascending slot order; returns the truthful total
 
 ---
 
-277 functions across 8 headers.
+276 functions across 8 headers.

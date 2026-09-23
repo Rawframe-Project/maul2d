@@ -9,6 +9,7 @@
 #include "maul2d/maul2d.h"
 
 #include <pthread.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -190,8 +191,39 @@ static void TestConcurrentReadersMatchSerial(void)
     m2DestroyWorld(world);
 }
 
+static void* RefuseCapacityMain(void* arg)
+{
+    m2WorldId world = *(const m2WorldId*)arg;
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2CreateBody(world, &bd); // the pool is full: refused for capacity
+    return (void*)(intptr_t)(m2LastResult() == m2_errorCapacity);
+}
+
+static void TestLastResultIsPerThread(void)
+{
+    // This thread refuses for an invalid id while another refuses for
+    // capacity; each thread reads back its own reason.
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 1;
+    def.shapeCapacity = 1;
+    m2WorldId world = m2CreateWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2CreateBody(world, &bd);
+    m2BodyId stale = {99, world.index1, 0};
+    m2DestroyBody(stale);
+    CHECK(m2LastResult() == m2_errorInvalid, "this thread's refusal is invalid");
+    pthread_t other;
+    void* sawCapacity = NULL;
+    pthread_create(&other, NULL, RefuseCapacityMain, &world);
+    pthread_join(other, &sawCapacity);
+    CHECK(sawCapacity != NULL, "the other thread saw its own capacity refusal");
+    CHECK(m2LastResult() == m2_errorInvalid, "and did not overwrite this thread's reason");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
+    TestLastResultIsPerThread();
     TestParallelWorldsMatchSerial();
     TestConcurrentReadersMatchSerial();
     if (s_failures == 0)

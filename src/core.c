@@ -1,12 +1,14 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 
+#include "world_internal.h"
+
 #include "maul2d/base.h"
 
 #include "simd.h" // the M2_SIMD_* backend selection, single source of truth
 
-#if defined(M2_SIMD_AVX2) && defined(_MSC_VER)
-#include <intrin.h> // __cpuid, __cpuidex, _xgetbv for the capability check
+#if defined(_MSC_VER)
+#include <intrin.h> // interlocked counters; __cpuid, __cpuidex, _xgetbv for the capability check
 #endif
 
 #include <stdio.h>
@@ -100,16 +102,43 @@ int32_t m2CpuSupportsBackend(void)
 // Internal (world_internal.h): a one-time guard so an AVX2 binary on a
 // pre-Haswell CPU aborts with a clear, actionable message instead of
 // trapping on the first wide instruction deep in the solver.
-static m2Result s_lastResult = m2_success;
+#if defined(_MSC_VER)
+#define M2_THREAD_LOCAL __declspec(thread)
+#else
+#define M2_THREAD_LOCAL _Thread_local
+#endif
+
+// One slot per thread: a refusal on one thread never overwrites the
+// reason another thread is about to read.
+static M2_THREAD_LOCAL m2Result s_lastResult = m2_success;
 
 m2Result m2LastResult(void)
 {
     return s_lastResult;
 }
 
-void m2SetLastResult(m2Result reason)
+void m2Refuse(m2World* world, m2Result reason)
 {
     s_lastResult = reason;
+    if (world != NULL && reason == m2_errorInvalid)
+    {
+        // Reader-class calls refuse too, possibly on several threads at
+        // once, so the counter is bumped atomically.
+#if defined(_MSC_VER)
+        _InterlockedIncrement64(&world->misuseCount);
+#else
+        __atomic_fetch_add(&world->misuseCount, 1, __ATOMIC_RELAXED);
+#endif
+    }
+}
+
+uint64_t m2MisuseCount(const m2World* world)
+{
+#if defined(_MSC_VER)
+    return (uint64_t)_InterlockedCompareExchange64((volatile long long*)&world->misuseCount, 0, 0);
+#else
+    return (uint64_t)__atomic_load_n(&world->misuseCount, __ATOMIC_RELAXED);
+#endif
 }
 
 static m2AssertFn* s_assertHandler = NULL;
