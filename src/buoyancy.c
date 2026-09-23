@@ -181,7 +181,7 @@ m2FluidVolumeDef m2DefaultFluidVolumeDef(void)
 
 m2FluidVolumeId m2World_CreateFluidVolume(m2WorldId worldId, const m2FluidVolumeDef* def)
 {
-    m2World* world = m2World_GetInternal(worldId);
+    m2World* world = m2WorldFromId(worldId);
     if (world == NULL || def == NULL || def->internalValue != M2_FVOLUME_COOKIE ||
         world->fvCapacity == 0)
     {

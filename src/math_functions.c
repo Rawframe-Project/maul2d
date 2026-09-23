@@ -7,6 +7,8 @@
 // They are chosen for bit-identical results on every platform and for
 // behavioral parity with the reference implementation.
 
+#include "core.h"
+
 #include "maul2d/base.h"
 #include "maul2d/math.h"
 

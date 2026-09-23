@@ -50,7 +50,7 @@ backward.
   origin (positions are 64-bit).
 - **Geometry tools**: convex hulls from point clouds and convex
   decomposition of concave outlines.
-- **Integration**: 289 public functions, full state readback, debug
+- **Integration**: 288 public functions, full state readback, debug
   draw, counters and profiling, allocator and assert hooks.
 
 ## Getting started

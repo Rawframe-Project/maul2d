@@ -61,22 +61,22 @@ static void TestTreeStructure(void)
     m2TreeNode* nodes = calloc(CAPACITY, sizeof(m2TreeNode));
     m2AABB boxes[N];
     int32_t proxies[N];
-    m2Tree_Init(&tree, nodes, CAPACITY);
+    m2TreeInit(&tree, nodes, CAPACITY);
 
     for (int32_t i = 0; i < N; ++i)
     {
         boxes[i] = RandomAabb();
-        proxies[i] = m2Tree_Insert(&tree, nodes, boxes[i], i);
+        proxies[i] = m2TreeInsert(&tree, nodes, boxes[i], i);
         CHECK(proxies[i] != M2_NULL_NODE, "tree insert must succeed within capacity");
     }
-    CHECK(m2Tree_Validate(&tree, nodes), "tree valid after inserts");
+    CHECK(m2TreeValidate(&tree, nodes), "tree valid after inserts");
 
     // Query oracle: tree results must equal brute force exactly.
     for (int32_t q = 0; q < 50; ++q)
     {
         m2AABB query = RandomAabb();
         int32_t results[N];
-        int32_t hits = m2Tree_Query(&tree, nodes, query, results, N);
+        int32_t hits = m2TreeQuery(&tree, nodes, query, results, N);
         int32_t brute = 0;
         for (int32_t i = 0; i < N; ++i)
         {
@@ -88,14 +88,14 @@ static void TestTreeStructure(void)
     // Remove every other proxy; the survivors must stay intact.
     for (int32_t i = 0; i < N; i += 2)
     {
-        m2Tree_Remove(&tree, nodes, proxies[i]);
+        m2TreeRemove(&tree, nodes, proxies[i]);
     }
-    CHECK(m2Tree_Validate(&tree, nodes), "tree valid after removals");
+    CHECK(m2TreeValidate(&tree, nodes), "tree valid after removals");
     for (int32_t q = 0; q < 25; ++q)
     {
         m2AABB query = RandomAabb();
         int32_t results[N];
-        int32_t hits = m2Tree_Query(&tree, nodes, query, results, N);
+        int32_t hits = m2TreeQuery(&tree, nodes, query, results, N);
         int32_t brute = 0;
         for (int32_t i = 1; i < N; i += 2)
         {
@@ -145,7 +145,7 @@ static void TestPairPipeline(void)
     def.bodyCapacity = 128;
     def.gravity = (m2Vec2){0.0f, 0.0f}; // isolate broadphase from motion
     m2WorldId worldId = m2CreateWorld(&def);
-    m2World* world = m2World_GetInternal(worldId);
+    m2World* world = m2WorldFromId(worldId);
 
     // A sparse grid: no overlaps, so no pairs after the first step.
     m2BodyId grid[16];
@@ -262,7 +262,7 @@ static uint64_t BroadphaseSweepHash(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 256;
     m2WorldId worldId = m2CreateWorld(&def);
-    m2World* world = m2World_GetInternal(worldId);
+    m2World* world = m2WorldFromId(worldId);
 
     for (int32_t i = 0; i < 12; ++i)
     {
@@ -345,7 +345,7 @@ static void TestFullPairTableIsCounted(void)
     m2Counters c = m2World_GetCounters(world);
     CHECK(c.pairs == 160, "the pair table is full");
     CHECK(c.pairOverflow == 30, "and the 30 dropped pairs are counted");
-    m2World* w = m2World_GetInternal(world);
+    m2World* w = m2WorldFromId(world);
     bool ascending = true;
     for (int32_t k = 1; k < w->pairCount; ++k)
     {

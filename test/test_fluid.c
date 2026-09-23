@@ -298,7 +298,7 @@ static void TestPairStructure(void)
     m2WorldDef def = FluidWorldDef(64);
     def.gravity = (m2Vec2){0.0f, 0.0f}; // hold positions still
     m2WorldId world = m2CreateWorld(&def);
-    m2World* w = m2World_GetInternal(world);
+    m2World* w = m2WorldFromId(world);
 
     // A triangle inside one diameter (0.1), a loner far away, and a
     // pair straddling the x=0 cell seam (the bias regression: the
@@ -359,8 +359,8 @@ static void TestPairStructure(void)
     }
     m2World_Step(wa, 1.0f / 60.0f, 4);
     m2World_Step(wb, 1.0f / 60.0f, 4);
-    m2World* ia = m2World_GetInternal(wa);
-    m2World* ib = m2World_GetInternal(wb);
+    m2World* ia = m2WorldFromId(wa);
+    m2World* ib = m2WorldFromId(wb);
     CHECK(ia->particlePairCount == ib->particlePairCount, "twins agree on the pair count");
     CHECK(ia->particlePairCount > 0, "the lattice actually pairs");
     CHECK(memcmp(ia->particlePairA, ib->particlePairA,
@@ -378,7 +378,7 @@ static void TestPairOverflow(void)
     m2WorldDef def = FluidWorldDef(64);
     def.gravity = (m2Vec2){0.0f, 0.0f};
     m2WorldId world = m2CreateWorld(&def);
-    m2World* w = m2World_GetInternal(world);
+    m2World* w = m2WorldFromId(world);
     for (int32_t i = 0; i < 64; ++i)
     {
         m2World_EmitParticle(world, (m2Pos2){1.0, 1.0}, (m2Vec2){0.0f, 0.0f}, 0);
@@ -675,7 +675,7 @@ static void TestJelly(void)
     int32_t made = m2World_FillPolygonWithParticles(world, &blob, (m2Pos2){0.0, 0.0},
                                                     (m2Vec2){0.0f, 0.0f}, m2_springParticle);
     CHECK(made == 64, "the lattice fills its 8 by 8");
-    m2World* w = m2World_GetInternal(world);
+    m2World* w = m2WorldFromId(world);
     CHECK(w->particleSpringCount > 90 && w->particleSpringCount < 130,
           "each lattice cell contributes its springs");
     m2ParticleId ids[128];
@@ -738,7 +738,7 @@ static void TestJelly(void)
     CHECK(jx1 - jx0 < (wx1 - wx0) * 0.5, "the nets at least halve the spread");
 
     // Death: killing a particle takes its springs and triads along.
-    m2World* gwi = m2World_GetInternal(gw);
+    m2World* gwi = m2WorldFromId(gw);
     int32_t springsBefore = gwi->particleSpringCount;
     int32_t triadsBefore = gwi->particleTriadCount;
     CHECK(springsBefore > 0 && triadsBefore > 0, "the jelly carries its nets");
@@ -933,7 +933,7 @@ static void TestFluidHash(void)
     uint64_t hash = m2World_Hash(world);
     // Fold the neighbor structure into the gated line: the pair list
     // itself must agree bit-for-bit across every CI cell.
-    m2World* w = m2World_GetInternal(world);
+    m2World* w = m2WorldFromId(world);
     hash = m2Hash64(hash, &w->particlePairCount, (int32_t)sizeof(int32_t));
     hash = m2Hash64(hash, w->particlePairA, w->particlePairCount * (int32_t)sizeof(int32_t));
     hash = m2Hash64(hash, w->particlePairB, w->particlePairCount * (int32_t)sizeof(int32_t));

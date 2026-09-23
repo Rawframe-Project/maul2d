@@ -150,7 +150,7 @@ int32_t m2World_JournalBaseSize(m2WorldId worldId)
 
 bool m2World_StartJournal(m2WorldId worldId, void* buffer, int32_t capacity)
 {
-    m2World* world = m2World_GetInternal(worldId);
+    m2World* world = m2WorldFromId(worldId);
     if (world == NULL || buffer == NULL || world->journalActive != 0)
     {
         return false;
@@ -188,7 +188,7 @@ bool m2World_StartJournal(m2WorldId worldId, void* buffer, int32_t capacity)
 
 int32_t m2World_StopJournal(m2WorldId worldId)
 {
-    m2World* world = m2World_GetInternal(worldId);
+    m2World* world = m2WorldFromId(worldId);
     if (world == NULL || world->journalActive == 0)
     {
         return 0;
@@ -308,7 +308,7 @@ typedef struct m2OpBodyFloat
 // the recording saw; the caller rolls the world back.
 static bool ReplayOps(m2WorldId worldId, const void* data, int32_t size)
 {
-    m2World* world = m2World_GetInternal(worldId);
+    m2World* world = m2WorldFromId(worldId);
     if (world == NULL || data == NULL || size < (int32_t)sizeof(m2JournalHeader) ||
         world->journalActive != 0)
     {
@@ -955,7 +955,7 @@ static bool ReplayOps(m2WorldId worldId, const void* data, int32_t size)
         {
             M2_READ_OP(m2OpJointParam, jp);
             jp.joint.world0 = here;
-            m2World* target = m2World_GetInternal(worldId);
+            m2World* target = m2WorldFromId(worldId);
             if (target == NULL)
             {
                 return false;
@@ -1064,7 +1064,7 @@ static bool ReplayOps(m2WorldId worldId, const void* data, int32_t size)
             };
             M2_READ_OP(struct ShapeParamOp, sp);
             sp.shape.world0 = here;
-            m2World* target = m2World_GetInternal(worldId);
+            m2World* target = m2WorldFromId(worldId);
             if (target == NULL)
             {
                 return false;
@@ -1112,7 +1112,7 @@ static bool ReplayOps(m2WorldId worldId, const void* data, int32_t size)
 
 bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
 {
-    m2World* world = m2World_GetInternal(worldId);
+    m2World* world = m2WorldFromId(worldId);
     if (world == NULL || data == NULL || world->journalActive != 0)
     {
         return false;

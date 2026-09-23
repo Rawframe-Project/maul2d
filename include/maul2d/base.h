@@ -82,24 +82,14 @@ extern "C"
     } m2Result;
     M2_API m2Result m2LastResult(void);
 
-    /// Host assert hook, contextful from
-    /// day one: called before the default print-and-abort for every
-    /// internal assertion failure AND for the create-time CPU
-    /// backend refusal. Return nonzero to declare the failure
-    /// handled and suppress the abort (crash reporters, test
-    /// harnesses, engine diagnostics). NULL restores the default.
-    /// Observer machinery: never touches simulation state.
+    /// Host assert hook: called before the default print-and-abort for
+    /// every failed internal invariant, and when a world is refused
+    /// because the CPU cannot run the compiled backend. Return nonzero
+    /// to declare the failure handled and suppress the abort (crash
+    /// reporters, test harnesses). NULL restores the default. The hook
+    /// only observes; it never touches simulation state.
     typedef int m2AssertFn(const char* condition, const char* file, int line, void* context);
     M2_API void m2SetAssertHandler(m2AssertFn* handler, void* context);
-
-    /// Internal assertion failure sink (debug builds only). Prints and traps.
-    M2_API void m2AssertFail(const char* condition, const char* file, int line);
-
-#if defined(NDEBUG)
-#define M2_ASSERT(cond) ((void)0)
-#else
-#define M2_ASSERT(cond) ((cond) ? (void)0 : m2AssertFail(#cond, __FILE__, __LINE__))
-#endif
 
 #ifdef __cplusplus
 }

@@ -55,7 +55,7 @@ static m2World* GetWorld(m2WorldId id)
     return world;
 }
 
-m2World* m2World_GetInternal(m2WorldId worldId)
+m2World* m2WorldFromId(m2WorldId worldId)
 {
     return GetWorld(worldId);
 }
@@ -416,9 +416,9 @@ static void UpdatePairs(m2World* world)
         for (int32_t t = firstTree; t <= lastTree; ++t)
         {
             m2TreeCursor cursor;
-            m2Tree_BeginQuery(&cursor, &world->trees[t], world->treeNodes[t], fat);
+            m2TreeBeginQuery(&cursor, &world->trees[t], world->treeNodes[t], fat);
             int32_t other;
-            while (m2Tree_NextQuery(&cursor, &other))
+            while (m2TreeNextQuery(&cursor, &other))
             {
                 if (other == shapeIndex || world->shapeAlive[other] == 0)
                 {
@@ -1327,7 +1327,7 @@ m2WorldId m2CreateWorld(const m2WorldDef* def)
 
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
-        m2Tree_Init(&world->trees[t], world->treeNodes[t], world->treeNodeCapacity);
+        m2TreeInit(&world->trees[t], world->treeNodes[t], world->treeNodeCapacity);
     }
     for (int32_t i = 0; i < cap; ++i)
     {
@@ -1663,8 +1663,8 @@ void m2World_Step(m2WorldId worldId, float dt, int32_t substepCount)
             int32_t tree = ShapeTreeIndex(world, s);
             if (!m2AABB_Contains(world->treeNodes[tree][world->proxyIds[s]].aabb, tight))
             {
-                m2Tree_Move(&world->trees[tree], world->treeNodes[tree], world->proxyIds[s],
-                            Fatten(tight));
+                m2TreeMove(&world->trees[tree], world->treeNodes[tree], world->proxyIds[s],
+                           Fatten(tight));
                 PushMoved(world, s);
             }
         }
@@ -2360,7 +2360,7 @@ static void RetireShapeFromBroadphase(m2World* world, int32_t shapeIndex)
     if (world->proxyIds[shapeIndex] != M2_NULL_NODE)
     {
         int32_t tree = ShapeTreeIndex(world, shapeIndex);
-        m2Tree_Remove(&world->trees[tree], world->treeNodes[tree], world->proxyIds[shapeIndex]);
+        m2TreeRemove(&world->trees[tree], world->treeNodes[tree], world->proxyIds[shapeIndex]);
         world->proxyIds[shapeIndex] = M2_NULL_NODE;
     }
     PrunePairsOfShape(world, shapeIndex);
@@ -3050,8 +3050,8 @@ void m2Body_SetTransform(m2BodyId bodyId, m2Pos2 position, m2Rot rotation)
         int32_t tree = ShapeTreeIndex(world, shape);
         if (!m2AABB_Contains(world->treeNodes[tree][world->proxyIds[shape]].aabb, tight))
         {
-            m2Tree_Move(&world->trees[tree], world->treeNodes[tree], world->proxyIds[shape],
-                        Fatten(tight));
+            m2TreeMove(&world->trees[tree], world->treeNodes[tree], world->proxyIds[shape],
+                       Fatten(tight));
         }
         PushMoved(world, shape);
     }
@@ -3116,9 +3116,9 @@ void m2Body_SetType(m2BodyId bodyId, m2BodyType type)
         {
             continue;
         }
-        m2Tree_Remove(&world->trees[oldTree], world->treeNodes[oldTree], world->proxyIds[shape]);
-        world->proxyIds[shape] = m2Tree_Insert(&world->trees[type], world->treeNodes[type],
-                                               Fatten(ShapeTightAABB(world, shape)), shape);
+        m2TreeRemove(&world->trees[oldTree], world->treeNodes[oldTree], world->proxyIds[shape]);
+        world->proxyIds[shape] = m2TreeInsert(&world->trees[type], world->treeNodes[type],
+                                              Fatten(ShapeTightAABB(world, shape)), shape);
         M2_ASSERT(world->proxyIds[shape] != M2_NULL_NODE);
         PushMoved(world, shape);
     }
@@ -3209,8 +3209,8 @@ static m2ShapeId CreateShape(m2BodyId bodyId, const m2ShapeDef* def,
     if (world->disabled[bodyIndex] == 0)
     {
         int32_t tree = world->types[bodyIndex];
-        world->proxyIds[index] = m2Tree_Insert(&world->trees[tree], world->treeNodes[tree],
-                                               Fatten(ShapeTightAABB(world, index)), index);
+        world->proxyIds[index] = m2TreeInsert(&world->trees[tree], world->treeNodes[tree],
+                                              Fatten(ShapeTightAABB(world, index)), index);
         if (world->proxyIds[index] == M2_NULL_NODE)
         {
             // Node pool exhausted: undo everything; capacity error, not UB.
@@ -5516,8 +5516,8 @@ void m2Body_Enable(m2BodyId bodyId)
     int32_t tree = world->types[index];
     for (int32_t s = world->bodyShapeHead[index]; s != -1; s = world->shapeNext[s])
     {
-        world->proxyIds[s] = m2Tree_Insert(&world->trees[tree], world->treeNodes[tree],
-                                           Fatten(ShapeTightAABB(world, s)), s);
+        world->proxyIds[s] = m2TreeInsert(&world->trees[tree], world->treeNodes[tree],
+                                          Fatten(ShapeTightAABB(world, s)), s);
         PushMoved(world, s);
     }
     world->asleep[index] = 0;

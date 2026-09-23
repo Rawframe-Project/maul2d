@@ -39,11 +39,6 @@ m2Result m2LastResult(void);
 void m2SetAssertHandler(m2AssertFn* handler, void* context);
 ```
 
-```c
-void m2AssertFail(const char* condition, const char* file, int line);
-```
-Internal assertion failure sink (debug builds only). Prints and traps.
-
 ## `math.h`
 
 Deterministic 2D math: vectors, rotations, transforms and the engine's own trigonometry. Positions are 64-bit, everything local is 32-bit, and every operation is plain IEEE arithmetic so the bits agree on every platform.
@@ -1287,4 +1282,4 @@ Fills results with up to capacity alive shapes whose tight AABB overlaps [lower,
 
 ---
 
-289 functions across 8 headers.
+288 functions across 8 headers.

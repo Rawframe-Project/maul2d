@@ -101,7 +101,7 @@ static void DrawShape(const m2World* world, const m2DebugDraw* draw, int32_t sha
 
 void m2World_Draw(m2WorldId worldId, const m2DebugDraw* draw)
 {
-    m2World* world = m2World_GetInternal(worldId);
+    m2World* world = m2WorldFromId(worldId);
     if (world == NULL || draw == NULL)
     {
         return;

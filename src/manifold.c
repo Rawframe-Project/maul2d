@@ -9,6 +9,8 @@
 
 #include "shape_internal.h"
 
+#include "core.h"
+
 #include "maul2d/base.h"
 #include "maul2d/math.h"
 

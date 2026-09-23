@@ -477,7 +477,7 @@ m2RayCastResult m2World_CastRayClosest(m2WorldId worldId, m2Pos2 origin, m2Vec2 
     result.fraction = 0.0f;
     result.hit = false;
 
-    m2World* world = m2World_GetInternal(worldId);
+    m2World* world = m2WorldFromId(worldId);
     if (world == NULL)
     {
         m2Refuse(world, m2_errorInvalid);
@@ -596,7 +596,7 @@ static int32_t FinishSelection(ShapeSelection* sel)
 int32_t m2World_OverlapAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2ShapeId* results,
                             int32_t capacity, m2QueryFilter filter)
 {
-    m2World* world = m2World_GetInternal(worldId);
+    m2World* world = m2WorldFromId(worldId);
     if (world == NULL || upper.x < lower.x || upper.y < lower.y)
     {
         m2Refuse(world, m2_errorInvalid);
@@ -608,9 +608,9 @@ int32_t m2World_OverlapAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2Sha
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
         m2TreeCursor cursor;
-        m2Tree_BeginQuery(&cursor, &world->trees[t], world->treeNodes[t], aabb);
+        m2TreeBeginQuery(&cursor, &world->trees[t], world->treeNodes[t], aabb);
         int32_t shapeIndex;
-        while (m2Tree_NextQuery(&cursor, &shapeIndex))
+        while (m2TreeNextQuery(&cursor, &shapeIndex))
         {
             if (world->shapeAlive[shapeIndex] == 0 || !QueryShouldSee(world, shapeIndex, filter))
             {
@@ -758,7 +758,7 @@ static m2RayCastResult CastProxyClosest(m2WorldId worldId, const m2DistanceProxy
     result.fraction = 0.0f;
     result.hit = false;
 
-    m2World* world = m2World_GetInternal(worldId);
+    m2World* world = m2WorldFromId(worldId);
     if (world == NULL)
     {
         m2Refuse(world, m2_errorInvalid);
@@ -788,9 +788,9 @@ static m2RayCastResult CastProxyClosest(m2WorldId worldId, const m2DistanceProxy
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
         m2TreeCursor cursor;
-        m2Tree_BeginQuery(&cursor, &world->trees[t], world->treeNodes[t], aabb);
+        m2TreeBeginQuery(&cursor, &world->trees[t], world->treeNodes[t], aabb);
         int32_t shapeIndex;
-        while (m2Tree_NextQuery(&cursor, &shapeIndex))
+        while (m2TreeNextQuery(&cursor, &shapeIndex))
         {
             if (world->shapeAlive[shapeIndex] == 0 || !QueryShouldSee(world, shapeIndex, filter))
             {
@@ -849,7 +849,7 @@ static m2RayCastResult CastProxyClosest(m2WorldId worldId, const m2DistanceProxy
 static int32_t OverlapProxy(m2WorldId worldId, const m2DistanceProxy* castLocal, m2Transform pose,
                             m2ShapeId* ids, int32_t capacity, m2QueryFilter filter)
 {
-    m2World* world = m2World_GetInternal(worldId);
+    m2World* world = m2WorldFromId(worldId);
     if (world == NULL)
     {
         m2Refuse(world, m2_errorInvalid);
@@ -866,9 +866,9 @@ static int32_t OverlapProxy(m2WorldId worldId, const m2DistanceProxy* castLocal,
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
         m2TreeCursor cursor;
-        m2Tree_BeginQuery(&cursor, &world->trees[t], world->treeNodes[t], aabb);
+        m2TreeBeginQuery(&cursor, &world->trees[t], world->treeNodes[t], aabb);
         int32_t shapeIndex;
-        while (m2Tree_NextQuery(&cursor, &shapeIndex))
+        while (m2TreeNextQuery(&cursor, &shapeIndex))
         {
             if (world->shapeAlive[shapeIndex] == 0 || !QueryShouldSee(world, shapeIndex, filter))
             {
@@ -1058,7 +1058,7 @@ static int32_t InsertHitSorted(m2RayHit* hits, int32_t kept, int32_t capacity, m
 int32_t m2World_CastRayAll(m2WorldId worldId, m2Pos2 origin, m2Vec2 translation, m2RayHit* hits,
                            int32_t capacity, m2QueryFilter filter)
 {
-    m2World* world = m2World_GetInternal(worldId);
+    m2World* world = m2WorldFromId(worldId);
     if (world == NULL)
     {
         m2Refuse(world, m2_errorInvalid);
@@ -1135,7 +1135,7 @@ static int32_t CastProxyAll(m2WorldId worldId, const m2DistanceProxy* castLocal,
                             m2Vec2 translation, m2RayHit* hits, int32_t capacity,
                             m2QueryFilter filter)
 {
-    m2World* world = m2World_GetInternal(worldId);
+    m2World* world = m2WorldFromId(worldId);
     if (world == NULL)
     {
         m2Refuse(world, m2_errorInvalid);
@@ -1162,9 +1162,9 @@ static int32_t CastProxyAll(m2WorldId worldId, const m2DistanceProxy* castLocal,
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
         m2TreeCursor cursor;
-        m2Tree_BeginQuery(&cursor, &world->trees[t], world->treeNodes[t], aabb);
+        m2TreeBeginQuery(&cursor, &world->trees[t], world->treeNodes[t], aabb);
         int32_t shapeIndex;
-        while (m2Tree_NextQuery(&cursor, &shapeIndex))
+        while (m2TreeNextQuery(&cursor, &shapeIndex))
         {
             if (world->shapeAlive[shapeIndex] == 0 || !QueryShouldSee(world, shapeIndex, filter))
             {
@@ -1262,7 +1262,7 @@ int32_t m2World_CastPolygonAll(m2WorldId worldId, const m2Polygon* polygon, m2Tr
 int32_t m2World_CollideMover(m2WorldId worldId, const m2Capsule* mover, m2Transform origin,
                              m2PlaneResult* results, int32_t capacity, m2QueryFilter filter)
 {
-    m2World* world = m2World_GetInternal(worldId);
+    m2World* world = m2WorldFromId(worldId);
     if (world == NULL || mover == NULL)
     {
         m2Refuse(world, m2_errorInvalid);
@@ -1287,9 +1287,9 @@ int32_t m2World_CollideMover(m2WorldId worldId, const m2Capsule* mover, m2Transf
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
         m2TreeCursor cursor;
-        m2Tree_BeginQuery(&cursor, &world->trees[t], world->treeNodes[t], aabb);
+        m2TreeBeginQuery(&cursor, &world->trees[t], world->treeNodes[t], aabb);
         int32_t shapeIndex;
-        while (m2Tree_NextQuery(&cursor, &shapeIndex))
+        while (m2TreeNextQuery(&cursor, &shapeIndex))
         {
             if (world->shapeAlive[shapeIndex] == 0 || !QueryShouldSee(world, shapeIndex, filter))
             {

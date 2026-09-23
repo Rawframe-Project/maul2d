@@ -51,6 +51,8 @@ Work toward 0.0.1, the first release of the reworked library.
 - `m2SetLastResult` from the public header. It was internal.
 - The dual-backend harness and the `MAUL2D_BENCHMARKS` option, along
   with the performance comparison in the README that relied on them.
+- `m2AssertFail` and the `M2_ASSERT` macro from the public header.
+  They are internal; hosts keep `m2SetAssertHandler`.
 
 ### Fixed
 

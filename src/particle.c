@@ -241,8 +241,8 @@ static void StageBodyContactsRange(int32_t begin, int32_t end, void* ctx)
         for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
         {
             int32_t results[M2_PARTICLE_CANDIDATES];
-            int32_t hits = m2Tree_Query(&world->trees[t], world->treeNodes[t], box, results,
-                                        M2_PARTICLE_CANDIDATES);
+            int32_t hits = m2TreeQuery(&world->trees[t], world->treeNodes[t], box, results,
+                                       M2_PARTICLE_CANDIDATES);
             hits = hits <= M2_PARTICLE_CANDIDATES ? hits : M2_PARTICLE_CANDIDATES;
             for (int32_t h = 0; h < hits && candidateCount < M2_PARTICLE_CANDIDATES; ++h)
             {
@@ -807,8 +807,8 @@ void m2SolveParticles(m2World* world, float dt)
         for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
         {
             int32_t results[M2_PARTICLE_CANDIDATES];
-            int32_t hits = m2Tree_Query(&world->trees[t], world->treeNodes[t], box, results,
-                                        M2_PARTICLE_CANDIDATES);
+            int32_t hits = m2TreeQuery(&world->trees[t], world->treeNodes[t], box, results,
+                                       M2_PARTICLE_CANDIDATES);
             hits = hits <= M2_PARTICLE_CANDIDATES ? hits : M2_PARTICLE_CANDIDATES;
             for (int32_t h = 0; h < hits; ++h)
             {
@@ -861,7 +861,7 @@ void m2SolveParticles(m2World* world, float dt)
 int32_t m2World_FillPolygonWithParticles(m2WorldId worldId, const m2Polygon* polygon,
                                          m2Pos2 position, m2Vec2 velocity, uint32_t flags)
 {
-    m2World* world = m2World_GetInternal(worldId);
+    m2World* world = m2WorldFromId(worldId);
     if (world == NULL || polygon == NULL || polygon->count < 3 || world->particleCapacity == 0)
     {
         m2Refuse(world, m2_errorInvalid);
@@ -1028,7 +1028,7 @@ int32_t m2World_FillPolygonWithParticles(m2WorldId worldId, const m2Polygon* pol
 int32_t m2World_OverlapParticlesAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper,
                                      m2ParticleId* ids, int32_t capacity)
 {
-    m2World* world = m2World_GetInternal(worldId);
+    m2World* world = m2WorldFromId(worldId);
     if (world == NULL || world->particleCapacity == 0)
     {
         return 0;

@@ -56,7 +56,7 @@ static void TestAabbAndMass(void)
     def.bodyCapacity = 8;
     def.shapeCapacity = 16;
     m2WorldId worldId = m2CreateWorld(&def);
-    m2World* world = m2World_GetInternal(worldId);
+    m2World* world = m2WorldFromId(worldId);
 
     // A body rotated 90 degrees with an offset circle: the AABB must
     // follow the rotation (the slice-1 placeholder ignored it).
@@ -144,7 +144,7 @@ static void TestCompoundAndRollback(void)
     def.bodyCapacity = 32;
     def.shapeCapacity = 64;
     m2WorldId worldId = m2CreateWorld(&def);
-    m2World* world = m2World_GetInternal(worldId);
+    m2World* world = m2WorldFromId(worldId);
 
     // Compound body (two shapes) falling onto a segment floor: same-body
     // shapes must never pair; floor pairs arrive as it lands.
@@ -213,7 +213,7 @@ static uint64_t ShapeSweepHash(void)
     def.bodyCapacity = 256;
     def.shapeCapacity = 512;
     m2WorldId worldId = m2CreateWorld(&def);
-    m2World* world = m2World_GetInternal(worldId);
+    m2World* world = m2WorldFromId(worldId);
 
     m2BodyDef floorDef = m2DefaultBodyDef();
     floorDef.position = (m2Pos2){-3.0e5, 0.0};

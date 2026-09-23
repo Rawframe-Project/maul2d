@@ -7,6 +7,8 @@
 
 #include "dynamic_tree.h"
 
+#include "core.h"
+
 #include "maul2d/base.h"
 
 static double AabbPerimeter(m2AABB aabb)
@@ -26,7 +28,7 @@ static m2AABB AabbUnion(m2AABB a, m2AABB b)
     return c;
 }
 
-void m2Tree_Init(m2DynamicTree* tree, m2TreeNode* nodes, int32_t nodeCapacity)
+void m2TreeInit(m2DynamicTree* tree, m2TreeNode* nodes, int32_t nodeCapacity)
 {
     tree->root = M2_NULL_NODE;
     tree->nodeCount = 0;
@@ -197,7 +199,7 @@ static void FixUpward(m2DynamicTree* tree, m2TreeNode* nodes, int32_t index)
     }
 }
 
-int32_t m2Tree_Insert(m2DynamicTree* tree, m2TreeNode* nodes, m2AABB aabb, int32_t userData)
+int32_t m2TreeInsert(m2DynamicTree* tree, m2TreeNode* nodes, m2AABB aabb, int32_t userData)
 {
     int32_t leaf = AllocateNode(tree, nodes);
     if (leaf == M2_NULL_NODE)
@@ -293,7 +295,7 @@ int32_t m2Tree_Insert(m2DynamicTree* tree, m2TreeNode* nodes, m2AABB aabb, int32
     return leaf;
 }
 
-void m2Tree_Remove(m2DynamicTree* tree, m2TreeNode* nodes, int32_t proxy)
+void m2TreeRemove(m2DynamicTree* tree, m2TreeNode* nodes, int32_t proxy)
 {
     M2_ASSERT(proxy >= 0 && proxy < tree->nodeCapacity && nodes[proxy].height == 0);
 
@@ -331,19 +333,19 @@ void m2Tree_Remove(m2DynamicTree* tree, m2TreeNode* nodes, int32_t proxy)
     FreeNode(tree, nodes, proxy);
 }
 
-void m2Tree_Move(m2DynamicTree* tree, m2TreeNode* nodes, int32_t proxy, m2AABB aabb)
+void m2TreeMove(m2DynamicTree* tree, m2TreeNode* nodes, int32_t proxy, m2AABB aabb)
 {
     int32_t userData = nodes[proxy].userData;
-    m2Tree_Remove(tree, nodes, proxy);
-    int32_t fresh = m2Tree_Insert(tree, nodes, aabb, userData);
+    m2TreeRemove(tree, nodes, proxy);
+    int32_t fresh = m2TreeInsert(tree, nodes, aabb, userData);
     // Same node index comes back: Remove pushed exactly the nodes Insert
     // pops (LIFO free list), and the proxy was freed last.
     M2_ASSERT(fresh == proxy);
     (void)fresh;
 }
 
-int32_t m2Tree_Query(const m2DynamicTree* tree, const m2TreeNode* nodes, m2AABB aabb,
-                     int32_t* results, int32_t resultCapacity)
+int32_t m2TreeQuery(const m2DynamicTree* tree, const m2TreeNode* nodes, m2AABB aabb,
+                    int32_t* results, int32_t resultCapacity)
 {
     int32_t stack[256];
     int32_t top = 0;
@@ -377,8 +379,8 @@ int32_t m2Tree_Query(const m2DynamicTree* tree, const m2TreeNode* nodes, m2AABB 
     return count;
 }
 
-void m2Tree_BeginQuery(m2TreeCursor* cursor, const m2DynamicTree* tree, const m2TreeNode* nodes,
-                       m2AABB aabb)
+void m2TreeBeginQuery(m2TreeCursor* cursor, const m2DynamicTree* tree, const m2TreeNode* nodes,
+                      m2AABB aabb)
 {
     cursor->nodes = nodes;
     cursor->aabb = aabb;
@@ -389,7 +391,7 @@ void m2Tree_BeginQuery(m2TreeCursor* cursor, const m2DynamicTree* tree, const m2
     }
 }
 
-bool m2Tree_NextQuery(m2TreeCursor* cursor, int32_t* userData)
+bool m2TreeNextQuery(m2TreeCursor* cursor, int32_t* userData)
 {
     while (cursor->top > 0)
     {
@@ -446,7 +448,7 @@ static bool ValidateNode(const m2DynamicTree* tree, const m2TreeNode* nodes, int
     return ValidateNode(tree, nodes, c1) && ValidateNode(tree, nodes, c2);
 }
 
-bool m2Tree_Validate(const m2DynamicTree* tree, const m2TreeNode* nodes)
+bool m2TreeValidate(const m2DynamicTree* tree, const m2TreeNode* nodes)
 {
     if (tree->root != M2_NULL_NODE && nodes[tree->root].parentOrNext != M2_NULL_NODE)
     {

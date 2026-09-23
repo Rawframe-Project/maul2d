@@ -92,7 +92,7 @@ static void TestPersistenceAndCarry(void)
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
     m2WorldId worldId = m2CreateWorld(&def);
-    m2World* world = m2World_GetInternal(worldId);
+    m2World* world = m2WorldFromId(worldId);
 
     // A dynamic circle resting on a static polygon under gravity: the
     // point must persist by feature id and carry the body's weight.
@@ -294,7 +294,7 @@ static void TestBoxStackPersistence(void)
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
     m2WorldId worldId = m2CreateWorld(&def);
-    m2World* world = m2World_GetInternal(worldId);
+    m2World* world = m2WorldFromId(worldId);
 
     m2ShapeDef sd = m2DefaultShapeDef();
     m2BodyDef floorDef = m2DefaultBodyDef();

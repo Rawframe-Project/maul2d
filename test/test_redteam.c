@@ -184,7 +184,7 @@ static void TestHostileFills(void)
     def.particleCapacity = 32;
     def.gravity = (m2Vec2){0.0f, 0.0f};
     m2WorldId world = m2CreateWorld(&def);
-    m2World* w = m2World_GetInternal(world);
+    m2World* w = m2WorldFromId(world);
 
     // Smaller than one stride: zero particles, zero nets, no crash.
     m2Polygon speck = m2MakeBox(0.02f, 0.02f);
@@ -230,7 +230,7 @@ static void TestHostileFills(void)
     m2WorldDef def2 = def;
     def2.particleCapacity = 64;
     m2WorldId twin = m2CreateWorld(&def2);
-    m2World* tw = m2World_GetInternal(twin);
+    m2World* tw = m2WorldFromId(twin);
     m2Polygon small = m2MakeBox(0.15f, 0.15f);
     int32_t a = m2World_FillPolygonWithParticles(twin, &small, (m2Pos2){0.0, 0.0},
                                                  (m2Vec2){0.0f, 0.0f}, m2_springParticle);

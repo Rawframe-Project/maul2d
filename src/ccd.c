@@ -99,7 +99,7 @@ static void SweepBullet(m2World* world, int32_t body, m2Pos2 p0)
     {
         int32_t results[M2_TOI_CANDIDATES];
         int32_t hits =
-            m2Tree_Query(&world->trees[t], world->treeNodes[t], sweep, results, M2_TOI_CANDIDATES);
+            m2TreeQuery(&world->trees[t], world->treeNodes[t], sweep, results, M2_TOI_CANDIDATES);
         hits = hits <= M2_TOI_CANDIDATES ? hits : M2_TOI_CANDIDATES;
         for (int32_t h = 0; h < hits && candidateCount < M2_TOI_CANDIDATES; ++h)
         {

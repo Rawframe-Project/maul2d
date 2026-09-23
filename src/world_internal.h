@@ -7,6 +7,7 @@
 #ifndef MAUL2D_WORLD_INTERNAL_H
 #define MAUL2D_WORLD_INTERNAL_H
 
+#include "core.h"
 #include "dynamic_tree.h"
 #include "maul2d/base.h"
 #include "maul2d/body.h"
@@ -322,15 +323,7 @@ typedef struct m2World
     uint16_t worldIndex0; // registry slot + 1, for building public ids
 } m2World;
 
-// Journal recording hook (src/journal.c): appends op + payload.
-// Allocation goes through the user hooks (m2SetAllocator).
-void* m2AllocZeroed(size_t bytes);
-void m2Free(void* memory);
-
-// One-time SIMD backend capability guard (src/core.c): aborts loudly if
-// an AVX2 binary is run on a CPU without AVX2.
-int m2VerifyCpuBackend(void); // 0 = unsupported CPU: refuse the world
-
+// Journal recording (src/journal.c): appends op + payload.
 void m2JournalRecord(m2World* world, uint8_t op, const void* payload, int32_t bytes);
 void m2JournalRecordRestore(m2World* world, const void* snapshot, int32_t size);
 typedef struct m2OpShatterHeader
@@ -490,7 +483,7 @@ int32_t m2ContactConstraintSize(void);
 
 // White-box accessor for tests and internal modules. Returns NULL for a
 // stale or null id. Not part of the public ABI.
-m2World* m2World_GetInternal(m2WorldId worldId);
+m2World* m2WorldFromId(m2WorldId worldId);
 
 // Finite checks for caller input and invariants. NaN compares false
 // and infinity minus infinity is NaN, so x - x == 0 refuses NaN and
@@ -512,12 +505,6 @@ static inline bool m2FinitePos2(m2Pos2 p)
     return m2FiniteD(p.x) && m2FiniteD(p.y);
 }
 
-// Refuses a caller's input: records the reason for m2LastResult on this
-// thread and, for an invalid argument against a live world, counts it in
-// m2Counters.misuse. Refusals never assert; M2_ASSERT is for internal
-// invariants only. world may be NULL.
-void m2Refuse(m2World* world, m2Result reason);
-uint64_t m2MisuseCount(const m2World* world);
 void m2UpdateParticlePairs(m2World* world);
 void m2SolveParticles(m2World* world, float dt);
 void m2ApplyFluidVolumes(m2World* world, float dt);
