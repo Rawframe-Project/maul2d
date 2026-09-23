@@ -1,4 +1,4 @@
-# Maul pinned formatting (ADR-0013 §3). Copied verbatim into maul2d/maul3d. Never edited per-PR.
+# Formatting for the Maul family. Identical in maul2d and maul3d; CI pins the clang-format version.
 Language: Cpp
 Standard: Latest
 IndentWidth: 4

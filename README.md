@@ -139,6 +139,8 @@ single library version: see "Versions and formats" in the guide.
   Maul2D leaves out on purpose.
 - [The API reference](docs/api.md): every public function with its
   doc comment, generated from the headers.
+- [The conventions](docs/conventions.md): the rules both engines
+  follow, from naming to commits.
 - [CONTRIBUTING.md](CONTRIBUTING.md) for contributions.
 - [THIRD_PARTY.md](THIRD_PARTY.md) for adapted-code licenses.
 - [Maul3D](https://github.com/Rawframe-Project/maul3d): the 3D sibling,
