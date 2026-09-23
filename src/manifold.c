@@ -12,7 +12,7 @@
 #include "core.h"
 
 #include "maul2d/base.h"
-#include "maul2d/math.h"
+#include "maul2d/core_math.h"
 
 static m2Vec2 RotateVec(m2Rot q, m2Vec2 v)
 {

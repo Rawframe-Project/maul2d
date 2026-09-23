@@ -7,7 +7,7 @@
 #ifndef MAUL2D_WORLD_H
 #define MAUL2D_WORLD_H
 
-#include "maul2d/math.h"
+#include "maul2d/core_math.h"
 
 #include <stdbool.h>
 

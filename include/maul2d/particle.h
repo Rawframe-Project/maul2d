@@ -9,7 +9,7 @@
 #ifndef MAUL2D_PARTICLE_H
 #define MAUL2D_PARTICLE_H
 
-#include "maul2d/math.h"
+#include "maul2d/core_math.h"
 #include "maul2d/world.h"
 
 #ifdef __cplusplus

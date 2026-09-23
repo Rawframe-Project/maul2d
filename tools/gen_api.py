@@ -15,7 +15,7 @@ LIB = next(d for d in sorted(os.listdir(os.path.join(ROOT, "include"))) if d.sta
 PREFIX = "m" + LIB[4]  # maul2d -> m2, maul3d -> m3
 TITLE = "Maul" + LIB[4:].upper()
 HEADER_DIR = os.path.join(ROOT, "include", LIB)
-FIRST = ["base.h", "math.h", "world.h"]
+FIRST = ["base.h", "core_math.h", "world.h"]
 
 
 def header_order():

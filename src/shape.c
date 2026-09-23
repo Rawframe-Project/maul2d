@@ -11,7 +11,7 @@
 #include "world_internal.h"
 
 #include "maul2d/base.h"
-#include "maul2d/math.h"
+#include "maul2d/core_math.h"
 
 // Slop-scaled geometric floors.
 #define M2_LINEAR_SLOP     0.005f

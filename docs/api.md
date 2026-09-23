@@ -39,7 +39,7 @@ m2Result m2LastResult(void);
 void m2SetAssertHandler(m2AssertFn* handler, void* context);
 ```
 
-## `math.h`
+## `core_math.h`
 
 Deterministic 2D math: vectors, rotations, transforms and the engine's own trigonometry. Positions are 64-bit, everything local is 32-bit, and every operation is plain IEEE arithmetic so the bits agree on every platform.
 

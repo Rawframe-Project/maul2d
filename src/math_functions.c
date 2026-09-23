@@ -10,7 +10,7 @@
 #include "core.h"
 
 #include "maul2d/base.h"
-#include "maul2d/math.h"
+#include "maul2d/core_math.h"
 
 #include <math.h> // floorf, sqrtf only: both are IEEE-exact operations
 

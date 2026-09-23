@@ -8,9 +8,9 @@
 
 #include "maul2d/base.h"
 #include "maul2d/body.h"
+#include "maul2d/core_math.h"
 #include "maul2d/events.h"
 #include "maul2d/joint.h"
-#include "maul2d/math.h"
 #include "maul2d/particle.h"
 #include "maul2d/shape.h"
 #include "maul2d/world.h"

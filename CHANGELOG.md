@@ -53,6 +53,9 @@ Work toward 0.0.1, the first release of the reworked library.
   package is gone, build with `-DMAUL2D_SIMD=scalar` instead. The
   documentation site now carries the guide, the API reference and the
   changelog, and the browser testbed moves to `/testbed/`.
+- The public `maul2d/math.h` header is now `maul2d/core_math.h`, so it
+  can never shadow the C library's `math.h` when `include/maul2d`
+  lands on an include path.
 
 ### Removed
 

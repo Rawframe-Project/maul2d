@@ -6,8 +6,8 @@
 // 32-bit, and every operation is plain IEEE arithmetic so the bits agree
 // on every platform.
 
-#ifndef MAUL2D_MATH_H
-#define MAUL2D_MATH_H
+#ifndef MAUL2D_CORE_MATH_H
+#define MAUL2D_CORE_MATH_H
 
 #include "maul2d/base.h"
 
@@ -165,4 +165,4 @@ extern "C"
 }
 #endif
 
-#endif // MAUL2D_MATH_H
+#endif // MAUL2D_CORE_MATH_H
