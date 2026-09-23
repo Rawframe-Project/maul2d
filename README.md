@@ -126,6 +126,8 @@ library version.
   documentation, generated from the headers.
 - [The conventions](docs/conventions.md): the rules both engines
   follow, from naming to commits.
+- [Design records](docs/adr/README.md): the decisions behind the
+  rules and the architecture.
 - [The changelog](CHANGELOG.md): every release and what changed.
 - [CONTRIBUTING.md](CONTRIBUTING.md): how to contribute.
 
