@@ -8,6 +8,7 @@
 
 #include "body.h"
 #include "broadphase.h"
+#include "journal.h"
 #include "world.h"
 #include "world_internal.h"
 
@@ -125,11 +126,7 @@ void m2Joint_SetUserData(m2JointId jointId, uint64_t userData)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2JointId joint;
-            uint64_t userData;
-        } record;
+        m2OpJointUserData record;
         memset(&record, 0, sizeof(record));
         record.joint = jointId;
         record.userData = userData;
@@ -364,11 +361,7 @@ m2JointId m2CreateDistanceJoint(m2WorldId worldId, const m2DistanceJointDef* def
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2DistanceJointDef def;
-            m2JointId expected;
-        } record;
+        m2OpCreateDistanceJoint record;
         memset(&record, 0, sizeof(record));
         record.def = *def;
         record.expected = jointId;
@@ -417,11 +410,7 @@ m2JointId m2CreateRevoluteJoint(m2WorldId worldId, const m2RevoluteJointDef* def
     world->jointDamping2[index] = def->springDampingRatio;
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2RevoluteJointDef def;
-            m2JointId expected;
-        } record;
+        m2OpCreateRevoluteJoint record;
         memset(&record, 0, sizeof(record));
         record.def = *def;
         record.expected = jointId;
@@ -486,11 +475,7 @@ m2JointId m2CreatePrismaticJoint(m2WorldId worldId, const m2PrismaticJointDef* d
         m2RelativeJointAngle(world->transforms[bodyA].q, world->transforms[bodyB].q);
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2PrismaticJointDef def;
-            m2JointId expected;
-        } record;
+        m2OpCreatePrismaticJoint record;
         memset(&record, 0, sizeof(record));
         record.def = *def;
         record.expected = jointId;
@@ -543,11 +528,7 @@ m2JointId m2CreateWeldJoint(m2WorldId worldId, const m2WeldJointDef* def)
         m2RelativeJointAngle(world->transforms[bodyA].q, world->transforms[bodyB].q);
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2WeldJointDef def;
-            m2JointId expected;
-        } record;
+        m2OpCreateWeldJoint record;
         memset(&record, 0, sizeof(record));
         record.def = *def;
         record.expected = jointId;
@@ -614,11 +595,7 @@ m2JointId m2CreateWheelJoint(m2WorldId worldId, const m2WheelJointDef* def)
         (m2Vec2){def->localAxisA.x / axisLength, def->localAxisA.y / axisLength};
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2WheelJointDef def;
-            m2JointId expected;
-        } record;
+        m2OpCreateWheelJoint record;
         memset(&record, 0, sizeof(record));
         record.def = *def;
         record.expected = jointId;
@@ -629,22 +606,60 @@ m2JointId m2CreateWheelJoint(m2WorldId worldId, const m2WheelJointDef* def)
 
 // One journaled channel for every runtime joint parameter: replay
 // re-drives the same setters through the same records.
-void m2SetJointParamInternal(m2World* world, m2JointId jointId, uint8_t param, float value)
+// The contract of each joint parameter channel: the joint kinds that
+// carry the parameter and the values it takes. Live setters and replay
+// both pass through it, so a tape can never write what the API refuses.
+static bool JointParamValid(uint8_t type, uint8_t param, float value)
 {
-    int32_t index = jointId.index1 - 1;
-    if (index < 0 || index >= world->jointCapacity || world->jointAlive[index] == 0 ||
-        world->jointGenerations[index] != jointId.generation)
+    switch (param)
     {
-        return;
+    case m2_jointParamEnableMotor:
+    case m2_jointParamEnableLimit:
+        return value == 0.0f || value == 1.0f;
+    case m2_jointParamMotorSpeed:
+    case m2_jointParamLower:
+    case m2_jointParamUpper:
+        return m2FiniteF(value);
+    case m2_jointParamMaxMotor:
+        return m2FiniteF(value) && value >= 0.0f;
+    case m2_jointParamBreakForce:
+    case m2_jointParamBreakTorque:
+        return value >= 0.0f; // zero turns breaking off; infinity never breaks
+    case m2_jointParamHertz:
+    case m2_jointParamDamping:
+        return type != (uint8_t)m2_filterJoint && type != (uint8_t)m2_motorJoint &&
+               m2FiniteF(value) && value >= 0.0f;
+    case m2_jointParamAngularHertz:
+    case m2_jointParamAngularDamping:
+        return (type == (uint8_t)m2_weldJoint || type == (uint8_t)m2_revoluteJoint) &&
+               m2FiniteF(value) && value >= 0.0f;
+    case m2_jointParamLength:
+        return type == (uint8_t)m2_distanceJoint && m2FiniteF(value) && value > 0.0f;
+    case m2_jointParamMinLength:
+    case m2_jointParamMaxLength:
+        return type == (uint8_t)m2_distanceJoint && m2FiniteF(value) && value >= 0.0f;
+    case m2_jointParamGearRatio:
+        return type == (uint8_t)m2_gearJoint && m2FiniteF(value) && value != 0.0f;
+    case m2_jointParamPulleyRatio:
+        return type == (uint8_t)m2_pulleyJoint && m2FiniteF(value) && value > 0.0f;
+    default:
+        return false;
+    }
+}
+
+// One journaled channel for every joint parameter. Refuses a stale id
+// (world may be NULL) or a parameter outside the channel's contract.
+bool m2SetJointParamInternal(m2World* world, m2JointId jointId, uint8_t param, float value)
+{
+    int32_t index = world != NULL ? JointSlotChecked(world, jointId) : -1;
+    if (index < 0 || !JointParamValid(world->jointType[index], param, value))
+    {
+        m2Refuse(world, m2_errorInvalid);
+        return false;
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2JointId joint;
-            float value;
-            uint8_t param;
-        } record;
+        m2OpJointParam record;
         memset(&record, 0, sizeof(record));
         record.joint = jointId;
         record.value = value;
@@ -722,8 +737,11 @@ void m2SetJointParamInternal(m2World* world, m2JointId jointId, uint8_t param, f
         world->jointLength[index] = value;
         world->jointImpulse[index] = (m2Vec2){0.0f, 0.0f};
         break;
-    default:
+    case m2_jointParamUpper:
         world->jointUpper[index] = value;
+        break;
+    default:
+        M2_ASSERT(false); // JointParamValid admits no other channel
         break;
     }
     // Any parameter change wakes both ends.
@@ -739,127 +757,79 @@ void m2SetJointParamInternal(m2World* world, m2JointId jointId, uint8_t param, f
         world->asleep[bodyB] = 0;
         world->sleepTimes[bodyB] = 0.0f;
     }
+    return true;
 }
 
 void m2Joint_SetMotorSpeed(m2JointId jointId, float speed)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
-    if (world != NULL)
-    {
-        m2SetJointParamInternal(world, jointId, m2_jointParamMotorSpeed, speed);
-    }
+    m2SetJointParamInternal(m2WorldFromIndex(jointId.world0), jointId, m2_jointParamMotorSpeed,
+                            speed);
 }
 
 void m2Joint_SetMaxMotor(m2JointId jointId, float maxTorqueOrForce)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
-    if (world != NULL)
-    {
-        m2SetJointParamInternal(world, jointId, m2_jointParamMaxMotor, maxTorqueOrForce);
-    }
+    m2SetJointParamInternal(m2WorldFromIndex(jointId.world0), jointId, m2_jointParamMaxMotor,
+                            maxTorqueOrForce);
 }
 
 void m2Joint_EnableMotor(m2JointId jointId, bool enable)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
-    if (world != NULL)
-    {
-        m2SetJointParamInternal(world, jointId, m2_jointParamEnableMotor, enable ? 1.0f : 0.0f);
-    }
+    m2SetJointParamInternal(m2WorldFromIndex(jointId.world0), jointId, m2_jointParamEnableMotor,
+                            enable ? 1.0f : 0.0f);
 }
 
 void m2Joint_EnableLimit(m2JointId jointId, bool enable)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
-    if (world != NULL)
-    {
-        m2SetJointParamInternal(world, jointId, m2_jointParamEnableLimit, enable ? 1.0f : 0.0f);
-    }
+    m2SetJointParamInternal(m2WorldFromIndex(jointId.world0), jointId, m2_jointParamEnableLimit,
+                            enable ? 1.0f : 0.0f);
 }
 
 void m2Joint_SetLimits(m2JointId jointId, float lower, float upper)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
-    if (world != NULL)
+    if (!(lower <= upper) || !m2FiniteF(lower) || !m2FiniteF(upper))
     {
-        m2SetJointParamInternal(world, jointId, m2_jointParamLower, lower);
+        m2Refuse(world, m2_errorInvalid); // both or neither: never half a range
+        return;
+    }
+    if (m2SetJointParamInternal(world, jointId, m2_jointParamLower, lower))
+    {
         m2SetJointParamInternal(world, jointId, m2_jointParamUpper, upper);
     }
 }
 
-static bool JointHasSpringRow(const m2World* world, int32_t index)
-{
-    uint8_t type = world->jointType[index];
-    return type != 5 && type != 6; // filter has no rows, motor no spring
-}
-
 void m2Joint_SetSpringHertz(m2JointId jointId, float hertz)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? JointSlotChecked(world, jointId) : -1;
-    if (index < 0 || !JointHasSpringRow(world, index) || !(hertz >= 0.0f))
-    {
-        m2Refuse(world, m2_errorInvalid);
-        return;
-    }
-    m2SetJointParamInternal(world, jointId, m2_jointParamHertz, hertz);
+    m2SetJointParamInternal(m2WorldFromIndex(jointId.world0), jointId, m2_jointParamHertz, hertz);
 }
 
 void m2Joint_SetSpringDampingRatio(m2JointId jointId, float dampingRatio)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? JointSlotChecked(world, jointId) : -1;
-    if (index < 0 || !JointHasSpringRow(world, index) || !(dampingRatio >= 0.0f))
-    {
-        m2Refuse(world, m2_errorInvalid);
-        return;
-    }
-    m2SetJointParamInternal(world, jointId, m2_jointParamDamping, dampingRatio);
+    m2SetJointParamInternal(m2WorldFromIndex(jointId.world0), jointId, m2_jointParamDamping,
+                            dampingRatio);
 }
 
 void m2Joint_SetAngularSpringHertz(m2JointId jointId, float hertz)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? JointSlotChecked(world, jointId) : -1;
-    if (index < 0 || (world->jointType[index] != 3 && world->jointType[index] != 1) ||
-        !(hertz >= 0.0f))
-    {
-        m2Refuse(world, m2_errorInvalid);
-        return;
-    }
-    m2SetJointParamInternal(world, jointId, m2_jointParamAngularHertz, hertz);
+    m2SetJointParamInternal(m2WorldFromIndex(jointId.world0), jointId, m2_jointParamAngularHertz,
+                            hertz);
 }
 
 void m2Joint_SetAngularSpringDampingRatio(m2JointId jointId, float dampingRatio)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? JointSlotChecked(world, jointId) : -1;
-    if (index < 0 || (world->jointType[index] != 3 && world->jointType[index] != 1) ||
-        !(dampingRatio >= 0.0f))
-    {
-        m2Refuse(world, m2_errorInvalid);
-        return;
-    }
-    m2SetJointParamInternal(world, jointId, m2_jointParamAngularDamping, dampingRatio);
+    m2SetJointParamInternal(m2WorldFromIndex(jointId.world0), jointId, m2_jointParamAngularDamping,
+                            dampingRatio);
 }
 
 void m2DistanceJoint_SetLength(m2JointId jointId, float length)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? JointSlotChecked(world, jointId) : -1;
-    if (index < 0 || world->jointType[index] != 0 || !(length > 0.0f))
-    {
-        m2Refuse(world, m2_errorInvalid);
-        return;
-    }
-    m2SetJointParamInternal(world, jointId, m2_jointParamLength, length);
+    m2SetJointParamInternal(m2WorldFromIndex(jointId.world0), jointId, m2_jointParamLength, length);
 }
 
 void m2DistanceJoint_SetLengthRange(m2JointId jointId, float minLength, float maxLength)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? JointSlotChecked(world, jointId) : -1;
-    if (index < 0 || world->jointType[index] != 0)
+    if (!m2FiniteF(minLength) || !m2FiniteF(maxLength))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -869,16 +839,22 @@ void m2DistanceJoint_SetLengthRange(m2JointId jointId, float minLength, float ma
     float hi = maxLength > 0.005f ? maxLength : 0.005f;
     float lower = lo < hi ? lo : hi;
     float upper = lo < hi ? hi : lo;
-    m2SetJointParamInternal(world, jointId, m2_jointParamMinLength, lower);
-    m2SetJointParamInternal(world, jointId, m2_jointParamMaxLength, upper);
+    if (m2SetJointParamInternal(world, jointId, m2_jointParamMinLength, lower))
+    {
+        m2SetJointParamInternal(world, jointId, m2_jointParamMaxLength, upper);
+    }
 }
 
 void m2Joint_SetBreakLimits(m2JointId jointId, float maxForce, float maxTorque)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
-    if (world != NULL)
+    if (!(maxForce >= 0.0f) || !(maxTorque >= 0.0f))
     {
-        m2SetJointParamInternal(world, jointId, m2_jointParamBreakForce, maxForce);
+        m2Refuse(world, m2_errorInvalid); // both or neither
+        return;
+    }
+    if (m2SetJointParamInternal(world, jointId, m2_jointParamBreakForce, maxForce))
+    {
         m2SetJointParamInternal(world, jointId, m2_jointParamBreakTorque, maxTorque);
     }
 }
@@ -886,14 +862,10 @@ void m2Joint_SetBreakLimits(m2JointId jointId, float maxForce, float maxTorque)
 void m2DestroyJoint(m2JointId jointId)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
-    if (world == NULL)
+    int32_t index = world != NULL ? JointSlotChecked(world, jointId) : -1;
+    if (index < 0)
     {
-        return;
-    }
-    int32_t index = jointId.index1 - 1;
-    if (index < 0 || index >= world->jointCapacity || world->jointAlive[index] == 0 ||
-        world->jointGenerations[index] != jointId.generation)
-    {
+        m2Refuse(world, m2_errorInvalid);
         return;
     }
     m2JournalRecord(world, m2_opDestroyJoint, &jointId, (int32_t)sizeof(jointId));
@@ -971,11 +943,7 @@ m2JointId m2CreateFilterJoint(m2WorldId worldId, const m2FilterJointDef* def)
     m2RefilterJointedBodies(world, bodyA, bodyB);
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2FilterJointDef def;
-            m2JointId expected;
-        } record;
+        m2OpCreateFilterJoint record;
         memset(&record, 0, sizeof(record));
         record.def = *def;
         record.expected = jointId;
@@ -1036,11 +1004,7 @@ m2JointId m2CreateGearJoint(m2WorldId worldId, const m2GearJointDef* def)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2GearJointDef def;
-            m2JointId expected;
-        } record;
+        m2OpCreateGearJoint record;
         memset(&record, 0, sizeof(record));
         record.def = *def;
         record.expected = jointId;
@@ -1051,14 +1015,8 @@ m2JointId m2CreateGearJoint(m2WorldId worldId, const m2GearJointDef* def)
 
 void m2GearJoint_SetRatio(m2JointId jointId, float ratio)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? TypedJointSlot(world, jointId, 8) : -1;
-    if (index < 0 || !(ratio != 0.0f))
-    {
-        m2Refuse(world, m2_errorInvalid);
-        return;
-    }
-    m2SetJointParamInternal(world, jointId, m2_jointParamGearRatio, ratio);
+    m2SetJointParamInternal(m2WorldFromIndex(jointId.world0), jointId, m2_jointParamGearRatio,
+                            ratio);
 }
 
 float m2GearJoint_GetRatio(m2JointId jointId)
@@ -1134,11 +1092,7 @@ m2JointId m2CreatePulleyJoint(m2WorldId worldId, const m2PulleyJointDef* def)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2PulleyJointDef def;
-            m2JointId expected;
-        } record;
+        m2OpCreatePulleyJoint record;
         memset(&record, 0, sizeof(record));
         record.def = *def;
         record.expected = jointId;
@@ -1149,14 +1103,8 @@ m2JointId m2CreatePulleyJoint(m2WorldId worldId, const m2PulleyJointDef* def)
 
 void m2PulleyJoint_SetRatio(m2JointId jointId, float ratio)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? TypedJointSlot(world, jointId, 9) : -1;
-    if (index < 0 || !(ratio > 0.0f))
-    {
-        m2Refuse(world, m2_errorInvalid);
-        return;
-    }
-    m2SetJointParamInternal(world, jointId, m2_jointParamPulleyRatio, ratio);
+    m2SetJointParamInternal(m2WorldFromIndex(jointId.world0), jointId, m2_jointParamPulleyRatio,
+                            ratio);
 }
 
 float m2PulleyJoint_GetRatio(m2JointId jointId)
@@ -1253,11 +1201,7 @@ m2JointId m2CreateRatchetJoint(m2WorldId worldId, const m2RatchetJointDef* def)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2RatchetJointDef def;
-            m2JointId expected;
-        } record;
+        m2OpCreateRatchetJoint record;
         memset(&record, 0, sizeof(record));
         record.def = *def;
         record.expected = jointId;
@@ -1349,11 +1293,7 @@ m2JointId m2CreateMotorJoint(m2WorldId worldId, const m2MotorJointDef* def)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2MotorJointDef def;
-            m2JointId expected;
-        } record;
+        m2OpCreateMotorJoint record;
         memset(&record, 0, sizeof(record));
         record.def = *def;
         record.expected = jointId;
@@ -1401,11 +1341,7 @@ m2JointId m2CreateMouseJoint(m2WorldId worldId, const m2MouseJointDef* def)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2MouseJointDef def;
-            m2JointId expected;
-        } record;
+        m2OpCreateMouseJoint record;
         memset(&record, 0, sizeof(record));
         record.def = *def;
         record.expected = jointId;
@@ -1437,12 +1373,7 @@ void m2MotorJoint_SetOffsets(m2JointId jointId, m2Vec2 linearOffset, float angul
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2JointId joint;
-            m2Vec2 linear;
-            float angular;
-        } record;
+        m2OpMotorOffsets record;
         memset(&record, 0, sizeof(record));
         record.joint = jointId;
         record.linear = linearOffset;
@@ -1506,11 +1437,7 @@ void m2MouseJoint_SetTarget(m2JointId jointId, m2Pos2 target)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2JointId joint;
-            m2Pos2 target;
-        } record;
+        m2OpMouseTarget record;
         memset(&record, 0, sizeof(record));
         record.joint = jointId;
         record.target = target;

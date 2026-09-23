@@ -6,6 +6,7 @@
 #include "destruction.h"
 
 #include "body.h"
+#include "journal.h"
 #include "world.h"
 #include "world_internal.h"
 

@@ -8,6 +8,7 @@
 
 #include "body.h"
 #include "broadphase.h"
+#include "journal.h"
 #include "world.h"
 #include "world_internal.h"
 
@@ -225,28 +226,13 @@ m2ShapeId m2CreateShape(m2BodyId bodyId, const m2ShapeDef* def, const m2ShapeGeo
     m2ShapeId id = {index + 1, bodyId.world0, world->shapeGenerations[index]};
 
     if (world->journalActive != 0)
-
     {
-
-        struct
-
-        {
-
-            m2BodyId body;
-
-            m2ShapeDef def;
-
-            m2ShapeGeometry geometry;
-
-            m2ShapeId expected;
-
-        } record;
+        m2OpCreateShape record;
         memset(&record, 0, sizeof(record));
         record.body = bodyId;
         record.def = *def;
         record.geometry = *geometry;
         record.expected = id;
-
         m2JournalRecord(world, m2_opCreateShape, &record, (int32_t)sizeof(record));
     }
     return id;
@@ -325,33 +311,49 @@ static int32_t ShapeSlotChecked(m2ShapeId shapeId, m2World** outWorld)
 }
 
 // One journaled channel for shape materials (op 22).
-void m2SetShapeParamInternal(m2World* world, m2ShapeId shapeId, uint8_t param, float value)
+// The value contract of each shape parameter channel, shared by the
+// live setters and replay.
+static bool ShapeParamValid(uint8_t param, float value)
+{
+    switch (param)
+    {
+    case m2_shapeParamFriction:
+        return m2FiniteF(value) && value >= 0.0f;
+    case m2_shapeParamRestitution:
+        return value >= 0.0f && value <= 1.0f;
+    case m2_shapeParamTangentSpeed:
+        return m2FiniteF(value);
+    default:
+        return false;
+    }
+}
+
+// One journaled channel for the shape material parameters. Refuses a
+// stale id (world may be NULL) or a value outside the contract.
+bool m2SetShapeParamInternal(m2World* world, m2ShapeId shapeId, uint8_t param, float value)
 {
     int32_t index = shapeId.index1 - 1;
-    if (index < 0 || index >= world->shapeCapacity || world->shapeAlive[index] == 0 ||
-        world->shapeGenerations[index] != shapeId.generation)
+    if (world == NULL || index < 0 || index >= world->shapeCapacity ||
+        world->shapeAlive[index] == 0 || world->shapeGenerations[index] != shapeId.generation ||
+        !ShapeParamValid(param, value))
     {
-        return;
+        m2Refuse(world, m2_errorInvalid);
+        return false;
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2ShapeId shape;
-            float value;
-            uint8_t param;
-        } record;
+        m2OpShapeParam record;
         memset(&record, 0, sizeof(record));
         record.shape = shapeId;
         record.value = value;
         record.param = param;
         m2JournalRecord(world, m2_opShapeParam, &record, (int32_t)sizeof(record));
     }
-    if (param == 0)
+    if (param == m2_shapeParamFriction)
     {
         world->shapeFriction[index] = value;
     }
-    else if (param == 2)
+    else if (param == m2_shapeParamTangentSpeed)
     {
         world->shapeTangentSpeed[index] = value;
         // A belt that changes speed must wake its riders, and the wake must
@@ -382,21 +384,21 @@ void m2SetShapeParamInternal(m2World* world, m2ShapeId shapeId, uint8_t param, f
             world->sleepTimes[body] = 0.0f;
         }
     }
-    else
+    else if (param == m2_shapeParamRestitution)
     {
         world->shapeRestitution[index] = value;
     }
+    else
+    {
+        M2_ASSERT(false); // ShapeParamValid admits no other channel
+    }
+    return true;
 }
 
 void m2Shape_SetTangentSpeed(m2ShapeId shapeId, float speed)
 {
-    m2World* world = m2WorldFromIndex(shapeId.world0);
-    if (world != NULL && m2FiniteF(speed))
-    {
-        // The wake now rides inside the journaled channel, so the live call
-        // and its replay leave identical sleep state.
-        m2SetShapeParamInternal(world, shapeId, 2, speed);
-    }
+    m2SetShapeParamInternal(m2WorldFromIndex(shapeId.world0), shapeId, m2_shapeParamTangentSpeed,
+                            speed);
 }
 
 float m2Shape_GetTangentSpeed(m2ShapeId shapeId)
@@ -413,20 +415,14 @@ float m2Shape_GetTangentSpeed(m2ShapeId shapeId)
 
 void m2Shape_SetFriction(m2ShapeId shapeId, float friction)
 {
-    m2World* world = m2WorldFromIndex(shapeId.world0);
-    if (world != NULL && friction >= 0.0f)
-    {
-        m2SetShapeParamInternal(world, shapeId, 0, friction);
-    }
+    m2SetShapeParamInternal(m2WorldFromIndex(shapeId.world0), shapeId, m2_shapeParamFriction,
+                            friction);
 }
 
 void m2Shape_SetRestitution(m2ShapeId shapeId, float restitution)
 {
-    m2World* world = m2WorldFromIndex(shapeId.world0);
-    if (world != NULL && restitution >= 0.0f && restitution <= 1.0f)
-    {
-        m2SetShapeParamInternal(world, shapeId, 1, restitution);
-    }
+    m2SetShapeParamInternal(m2WorldFromIndex(shapeId.world0), shapeId, m2_shapeParamRestitution,
+                            restitution);
 }
 
 float m2Shape_GetFriction(m2ShapeId shapeId)
@@ -455,13 +451,7 @@ void m2Shape_SetFilter(m2ShapeId shapeId, uint32_t categoryBits, uint32_t maskBi
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2ShapeId shape;
-            uint32_t categoryBits;
-            uint32_t maskBits;
-            int32_t groupIndex;
-        } record;
+        m2OpSetFilter record;
         memset(&record, 0, sizeof(record));
         record.shape = shapeId;
         record.categoryBits = categoryBits;
@@ -512,11 +502,7 @@ static void SetGeometryInternal(m2World* world, m2ShapeId shapeId, int32_t index
 {
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2ShapeId shape;
-            m2ShapeGeometry geometry;
-        } record;
+        m2OpSetGeometry record;
         memset(&record, 0, sizeof(record));
         record.shape = shapeId;
         record.geometry = *geometry;
@@ -739,14 +725,10 @@ void m2Shape_SetDensity(m2ShapeId shapeId, float density)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2ShapeId shape;
-            float density;
-        } record;
+        m2OpShapeFloat record;
         memset(&record, 0, sizeof(record));
         record.shape = shapeId;
-        record.density = density;
+        record.value = density;
         m2JournalRecord(world, m2_opSetDensity, &record, (int32_t)sizeof(record));
     }
     world->shapeDensity[index] = density;
@@ -770,11 +752,7 @@ void m2Shape_SetUserData(m2ShapeId shapeId, uint64_t userData)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2ShapeId shape;
-            uint64_t userData;
-        } record;
+        m2OpShapeUserData record;
         memset(&record, 0, sizeof(record));
         record.shape = shapeId;
         record.userData = userData;

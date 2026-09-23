@@ -9,6 +9,7 @@
 #include "broadphase.h"
 #include "chain.h"
 #include "joint.h"
+#include "journal.h"
 #include "shape.h"
 #include "world.h"
 #include "world_internal.h"
@@ -170,22 +171,11 @@ m2BodyId m2CreateBody(m2WorldId worldId, const m2BodyDef* def)
     m2BodyId id = {index + 1, worldId.index1, world->generations[index]};
 
     if (world->journalActive != 0)
-
     {
-
-        struct
-
-        {
-
-            m2BodyDef def;
-
-            m2BodyId expected;
-
-        } record;
+        m2OpCreateBody record;
         memset(&record, 0, sizeof(record));
         record.def = *def;
         record.expected = id;
-
         m2JournalRecord(world, m2_opCreateBody, &record, (int32_t)sizeof(record));
     }
     return id;
@@ -326,11 +316,7 @@ void m2Body_SetLinearVelocity(m2BodyId bodyId, m2Vec2 velocity)
     world->sleepTimes[index] = 0.0f;
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2BodyId body;
-            m2Vec2 value;
-        } record;
+        m2OpBodyVec record;
         memset(&record, 0, sizeof(record));
         record.body = bodyId;
         record.value = velocity;
@@ -352,11 +338,7 @@ void m2Body_SetAngularVelocity(m2BodyId bodyId, float velocity)
     world->sleepTimes[index] = 0.0f;
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2BodyId body;
-            float value;
-        } record;
+        m2OpBodyFloat record;
         memset(&record, 0, sizeof(record));
         record.body = bodyId;
         record.value = velocity;
@@ -375,15 +357,10 @@ void m2Body_ApplyLinearImpulse(m2BodyId bodyId, m2Vec2 impulse, m2Pos2 worldPoin
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2BodyId body;
-            m2Vec2 impulse;
-            m2Pos2 point;
-        } record;
+        m2OpBodyPoint record;
         memset(&record, 0, sizeof(record));
         record.body = bodyId;
-        record.impulse = impulse;
+        record.value = impulse;
         record.point = worldPoint;
         m2JournalRecord(world, m2_opApplyLinearImpulse, &record, (int32_t)sizeof(record));
     }
@@ -411,15 +388,10 @@ void m2Body_ApplyForce(m2BodyId bodyId, m2Vec2 force, m2Pos2 worldPoint)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2BodyId body;
-            m2Vec2 force;
-            m2Pos2 point;
-        } record;
+        m2OpBodyPoint record;
         memset(&record, 0, sizeof(record));
         record.body = bodyId;
-        record.force = force;
+        record.value = force;
         record.point = worldPoint;
         m2JournalRecord(world, m2_opApplyForce, &record, (int32_t)sizeof(record));
     }
@@ -446,14 +418,10 @@ void m2Body_ApplyForceToCenter(m2BodyId bodyId, m2Vec2 force)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2BodyId body;
-            m2Vec2 force;
-        } record;
+        m2OpBodyVec record;
         memset(&record, 0, sizeof(record));
         record.body = bodyId;
-        record.force = force;
+        record.value = force;
         m2JournalRecord(world, m2_opApplyForceCenter, &record, (int32_t)sizeof(record));
     }
     world->forces[index].x += force.x;
@@ -473,14 +441,10 @@ void m2Body_ApplyTorque(m2BodyId bodyId, float torque)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2BodyId body;
-            float torque;
-        } record;
+        m2OpBodyFloat record;
         memset(&record, 0, sizeof(record));
         record.body = bodyId;
-        record.torque = torque;
+        record.value = torque;
         m2JournalRecord(world, m2_opApplyTorque, &record, (int32_t)sizeof(record));
     }
     world->torques[index] += torque;
@@ -488,24 +452,42 @@ void m2Body_ApplyTorque(m2BodyId bodyId, float torque)
     world->sleepTimes[index] = 0.0f;
 }
 
-// One journaled channel for the body dynamics parameters, mirroring
-// the shape and joint channels.
-void m2SetBodyParamInternal(m2World* world, m2BodyId bodyId, uint8_t param, float value)
+// The value contract of each body parameter channel. Live setters and
+// replay both pass through it, so a tape can never write what the API
+// would refuse.
+static bool BodyParamValid(uint8_t param, float value)
 {
-    int32_t index = m2BodySlot(world, bodyId);
-    if (index < 0)
+    switch (param)
+    {
+    case m2_bodyParamLinearDamping:
+    case m2_bodyParamAngularDamping:
+        return m2FiniteF(value) && value >= 0.0f;
+    case m2_bodyParamGravityScale:
+        return m2FiniteF(value);
+    case m2_bodyParamFixedRotation:
+    case m2_bodyParamEnableSleep:
+    case m2_bodyParamLockLinearX:
+    case m2_bodyParamLockLinearY:
+        return value == 0.0f || value == 1.0f;
+    default:
+        return false;
+    }
+}
+
+// One journaled channel for the body dynamics parameters, mirroring
+// the shape and joint channels. Refuses a stale id (world may be NULL)
+// or a value outside the channel's contract.
+bool m2SetBodyParamInternal(m2World* world, m2BodyId bodyId, uint8_t param, float value)
+{
+    int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
+    if (index < 0 || !BodyParamValid(param, value))
     {
         m2Refuse(world, m2_errorInvalid);
-        return;
+        return false;
     }
     if (world->journalActive != 0)
     {
-        struct m2OpBodyParam
-        {
-            m2BodyId body;
-            float value;
-            uint8_t param;
-        } record;
+        m2OpBodyParam record;
         memset(&record, 0, sizeof(record));
         record.body = bodyId;
         record.value = value;
@@ -514,16 +496,16 @@ void m2SetBodyParamInternal(m2World* world, m2BodyId bodyId, uint8_t param, floa
     }
     switch (param)
     {
-    case 0:
+    case m2_bodyParamLinearDamping:
         world->linearDampings[index] = value;
         break;
-    case 1:
+    case m2_bodyParamAngularDamping:
         world->angularDampings[index] = value;
         break;
-    case 2:
+    case m2_bodyParamGravityScale:
         world->gravityScales[index] = value;
         break;
-    case 3:
+    case m2_bodyParamFixedRotation:
         // Fixed rotation is a mass property: inertia recomputes, spin
         // stops now (a frozen axis with leftover spin is a lie).
         world->fixedRotations[index] = value != 0.0f ? 1 : 0;
@@ -535,7 +517,7 @@ void m2SetBodyParamInternal(m2World* world, m2BodyId bodyId, uint8_t param, floa
             world->sleepTimes[index] = 0.0f;
         }
         break;
-    case 4:
+    case m2_bodyParamEnableSleep:
         world->sleepEnables[index] = value != 0.0f ? 1 : 0;
         if (value == 0.0f && world->types[index] == (uint8_t)m2_dynamicBody)
         {
@@ -543,7 +525,7 @@ void m2SetBodyParamInternal(m2World* world, m2BodyId bodyId, uint8_t param, floa
             world->sleepTimes[index] = 0.0f;
         }
         break;
-    case 5:
+    case m2_bodyParamLockLinearX:
         // Lock linear X: a locked axis holds still, so stop it now and
         // wake the body (a frozen axis with leftover velocity is a lie,
         // same discipline as fixed rotation).
@@ -556,7 +538,7 @@ void m2SetBodyParamInternal(m2World* world, m2BodyId bodyId, uint8_t param, floa
             world->sleepTimes[index] = 0.0f;
         }
         break;
-    case 6:
+    case m2_bodyParamLockLinearY:
         // Lock linear Y.
         world->motionLocks[index] = value != 0.0f ? (uint8_t)(world->motionLocks[index] | 2u)
                                                   : (uint8_t)(world->motionLocks[index] & ~2u);
@@ -568,18 +550,17 @@ void m2SetBodyParamInternal(m2World* world, m2BodyId bodyId, uint8_t param, floa
         }
         break;
     default:
-        M2_ASSERT(false); // unknown body param
+        M2_ASSERT(false); // BodyParamValid admits no other channel
         break;
     }
+    return true;
 }
 
 void m2Body_SetLinearDamping(m2BodyId bodyId, float damping)
 {
     m2World* world = m2GetBodyWorld(bodyId);
-    if (world != NULL)
-    {
-        m2SetBodyParamInternal(world, bodyId, 0, m2MaxF(damping, 0.0f));
-    }
+    m2SetBodyParamInternal(world, bodyId, m2_bodyParamLinearDamping,
+                           damping < 0.0f ? 0.0f : damping);
 }
 
 float m2Body_GetLinearDamping(m2BodyId bodyId)
@@ -592,10 +573,8 @@ float m2Body_GetLinearDamping(m2BodyId bodyId)
 void m2Body_SetAngularDamping(m2BodyId bodyId, float damping)
 {
     m2World* world = m2GetBodyWorld(bodyId);
-    if (world != NULL)
-    {
-        m2SetBodyParamInternal(world, bodyId, 1, m2MaxF(damping, 0.0f));
-    }
+    m2SetBodyParamInternal(world, bodyId, m2_bodyParamAngularDamping,
+                           damping < 0.0f ? 0.0f : damping);
 }
 
 float m2Body_GetAngularDamping(m2BodyId bodyId)
@@ -608,19 +587,13 @@ float m2Body_GetAngularDamping(m2BodyId bodyId)
 void m2Body_SetGravityScale(m2BodyId bodyId, float scale)
 {
     m2World* world = m2GetBodyWorld(bodyId);
-    if (world != NULL)
-    {
-        m2SetBodyParamInternal(world, bodyId, 2, scale);
-    }
+    m2SetBodyParamInternal(world, bodyId, m2_bodyParamGravityScale, scale);
 }
 
 void m2Body_SetFixedRotation(m2BodyId bodyId, bool flag)
 {
     m2World* world = m2GetBodyWorld(bodyId);
-    if (world != NULL)
-    {
-        m2SetBodyParamInternal(world, bodyId, 3, flag ? 1.0f : 0.0f);
-    }
+    m2SetBodyParamInternal(world, bodyId, m2_bodyParamFixedRotation, flag ? 1.0f : 0.0f);
 }
 
 bool m2Body_IsFixedRotation(m2BodyId bodyId)
@@ -633,13 +606,14 @@ bool m2Body_IsFixedRotation(m2BodyId bodyId)
 void m2Body_SetMotionLocks(m2BodyId bodyId, m2MotionLocks locks)
 {
     m2World* world = m2GetBodyWorld(bodyId);
-    if (world != NULL)
+    // Each axis rides the journaled body-param channel so a replay
+    // reproduces the locks. angularZ is the fixed-rotation lock.
+    // A stale id refuses once, on the first channel.
+    if (m2SetBodyParamInternal(world, bodyId, m2_bodyParamLockLinearX, locks.linearX ? 1.0f : 0.0f))
     {
-        // Each axis rides the journaled body-param channel so a replay
-        // reproduces the locks. angularZ is the fixed-rotation lock.
-        m2SetBodyParamInternal(world, bodyId, 5, locks.linearX ? 1.0f : 0.0f);
-        m2SetBodyParamInternal(world, bodyId, 6, locks.linearY ? 1.0f : 0.0f);
-        m2SetBodyParamInternal(world, bodyId, 3, locks.angularZ ? 1.0f : 0.0f);
+        m2SetBodyParamInternal(world, bodyId, m2_bodyParamLockLinearY, locks.linearY ? 1.0f : 0.0f);
+        m2SetBodyParamInternal(world, bodyId, m2_bodyParamFixedRotation,
+                               locks.angularZ ? 1.0f : 0.0f);
     }
 }
 
@@ -660,10 +634,7 @@ m2MotionLocks m2Body_GetMotionLocks(m2BodyId bodyId)
 void m2Body_EnableSleep(m2BodyId bodyId, bool flag)
 {
     m2World* world = m2GetBodyWorld(bodyId);
-    if (world != NULL)
-    {
-        m2SetBodyParamInternal(world, bodyId, 4, flag ? 1.0f : 0.0f);
-    }
+    m2SetBodyParamInternal(world, bodyId, m2_bodyParamEnableSleep, flag ? 1.0f : 0.0f);
 }
 
 bool m2Body_IsSleepEnabled(m2BodyId bodyId)
@@ -684,11 +655,7 @@ void m2Body_ApplyAngularImpulse(m2BodyId bodyId, float impulse)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2BodyId body;
-            float value;
-        } record;
+        m2OpBodyFloat record;
         memset(&record, 0, sizeof(record));
         record.body = bodyId;
         record.value = impulse;
@@ -710,12 +677,7 @@ void m2Body_SetTransform(m2BodyId bodyId, m2Pos2 position, m2Rot rotation)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2BodyId body;
-            m2Pos2 position;
-            m2Rot rotation;
-        } record;
+        m2OpSetTransform record;
         memset(&record, 0, sizeof(record));
         record.body = bodyId;
         record.position = position;
@@ -786,14 +748,10 @@ void m2Body_SetType(m2BodyId bodyId, m2BodyType type)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2BodyId body;
-            uint8_t type;
-        } record;
+        m2OpBodyByte record;
         memset(&record, 0, sizeof(record));
         record.body = bodyId;
-        record.type = (uint8_t)type;
+        record.value = (uint8_t)type;
         m2JournalRecord(world, m2_opSetType, &record, (int32_t)sizeof(record));
     }
 
@@ -971,14 +929,10 @@ void m2Body_ApplyLinearImpulseToCenter(m2BodyId bodyId, m2Vec2 impulse)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2BodyId body;
-            m2Vec2 impulse;
-        } record;
+        m2OpBodyVec record;
         memset(&record, 0, sizeof(record));
         record.body = bodyId;
-        record.impulse = impulse;
+        record.value = impulse;
         m2JournalRecord(world, m2_opImpulseCenter, &record, (int32_t)sizeof(record));
     }
     world->linearVelocities[index].x += world->invMass[index] * impulse.x;
@@ -1002,14 +956,10 @@ void m2Body_SetAwake(m2BodyId bodyId, bool awake)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2BodyId body;
-            uint8_t awake;
-        } record;
+        m2OpBodyByte record;
         memset(&record, 0, sizeof(record));
         record.body = bodyId;
-        record.awake = awake ? 1 : 0;
+        record.value = awake ? 1 : 0;
         m2JournalRecord(world, m2_opSetAwake, &record, (int32_t)sizeof(record));
     }
     world->asleep[index] = sleeping;
@@ -1040,14 +990,10 @@ void m2Body_SetBullet(m2BodyId bodyId, bool flag)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2BodyId body;
-            uint8_t flag;
-        } record;
+        m2OpBodyByte record;
         memset(&record, 0, sizeof(record));
         record.body = bodyId;
-        record.flag = next;
+        record.value = next;
         m2JournalRecord(world, m2_opSetBullet, &record, (int32_t)sizeof(record));
     }
     world->bullets[index] = next;
@@ -1064,11 +1010,7 @@ void m2Body_SetUserData(m2BodyId bodyId, uint64_t userData)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2BodyId body;
-            uint64_t userData;
-        } record;
+        m2OpBodyUserData record;
         memset(&record, 0, sizeof(record));
         record.body = bodyId;
         record.userData = userData;
@@ -1229,14 +1171,10 @@ void m2Body_SetDominance(m2BodyId bodyId, int8_t dominance)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2BodyId body;
-            int8_t dominance;
-        } record;
+        m2OpBodyByte record;
         memset(&record, 0, sizeof(record));
         record.body = bodyId;
-        record.dominance = dominance;
+        record.value = (uint8_t)dominance;
         m2JournalRecord(world, m2_opSetDominance, &record, (int32_t)sizeof(record));
     }
     world->dominances[index] = dominance;
@@ -1277,11 +1215,7 @@ void m2Body_SetMassData(m2BodyId bodyId, m2MassData massData)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2BodyId body;
-            m2MassData data;
-        } record;
+        m2OpSetMassData record;
         memset(&record, 0, sizeof(record));
         record.body = bodyId;
         record.data = massData;

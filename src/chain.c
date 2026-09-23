@@ -6,6 +6,7 @@
 #include "chain.h"
 
 #include "body.h"
+#include "journal.h"
 #include "shape.h"
 #include "world.h"
 #include "world_internal.h"
@@ -210,11 +211,7 @@ static void ChainMaterialInternal(m2World* world, m2ChainId chainId, int32_t cha
 {
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2ChainId chain;
-            float value;
-        } record;
+        m2OpChainFloat record;
         memset(&record, 0, sizeof(record));
         record.chain = chainId;
         record.value = value;

@@ -26,6 +26,7 @@
 //      counts loudly in particlePairOverflow. LiquidFun grows
 //      buffers; Maul's fixed-capacity law does not.
 
+#include "journal.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -1003,14 +1004,7 @@ int32_t m2World_FillPolygonWithParticles(m2WorldId worldId, const m2Polygon* pol
     world->journalActive = journalWas;
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2Polygon polygon;
-            m2Pos2 position;
-            m2Vec2 velocity;
-            uint32_t flags;
-            int32_t expected;
-        } record;
+        m2OpFillParticles record;
         memset(&record, 0, sizeof(record));
         record.polygon = *polygon;
         record.position = position;

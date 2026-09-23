@@ -79,6 +79,7 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/joint.c
     src/joint_solver.c
     src/journal.c
+    src/journal_replay.c
     src/manifold.c
     src/math_functions.c
     src/particle.c

@@ -6,6 +6,7 @@
 
 #include "particle.h"
 
+#include "journal.h"
 #include "world.h"
 #include "world_internal.h"
 
@@ -65,13 +66,7 @@ m2ParticleId m2World_EmitParticle(m2WorldId worldId, m2Pos2 position, m2Vec2 vel
     m2ParticleId id = {index + 1, worldId.index1, world->particleGenerations[index]};
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2Pos2 position;
-            m2Vec2 velocity;
-            uint32_t flags;
-            m2ParticleId expected;
-        } record;
+        m2OpEmitParticle record;
         memset(&record, 0, sizeof(record));
         record.position = position;
         record.velocity = velocity;
@@ -93,13 +88,7 @@ void m2World_DestroyParticle(m2ParticleId particleId)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2ParticleId id;
-        } record;
-        memset(&record, 0, sizeof(record));
-        record.id = particleId;
-        m2JournalRecord(world, m2_opDestroyParticle, &record, (int32_t)sizeof(record));
+        m2JournalRecord(world, m2_opDestroyParticle, &particleId, (int32_t)sizeof(particleId));
     }
     world->particleAlive[index] = 0;
     world->particleGenerations[index] += 1; // retire under a fresh generation
@@ -180,14 +169,10 @@ void m2Particle_SetVelocity(m2ParticleId particleId, m2Vec2 velocity)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2ParticleId id;
-            m2Vec2 velocity;
-        } record;
+        m2OpParticleVec record;
         memset(&record, 0, sizeof(record));
         record.id = particleId;
-        record.velocity = velocity;
+        record.value = velocity;
         m2JournalRecord(world, m2_opSetParticleVelocity, &record, (int32_t)sizeof(record));
     }
     world->particleVelocities[index] = velocity;
@@ -211,14 +196,10 @@ void m2Particle_SetLifetime(m2ParticleId particleId, float seconds)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2ParticleId id;
-            float seconds;
-        } record;
+        m2OpParticleFloat record;
         memset(&record, 0, sizeof(record));
         record.id = particleId;
-        record.seconds = seconds;
+        record.value = seconds;
         m2JournalRecord(world, m2_opSetParticleLifetime, &record, (int32_t)sizeof(record));
     }
     world->particleLifetime[index] = seconds;
@@ -242,11 +223,7 @@ void m2Particle_SetUserData(m2ParticleId particleId, uint64_t userData)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2ParticleId id;
-            uint64_t userData;
-        } record;
+        m2OpParticleUserData record;
         memset(&record, 0, sizeof(record));
         record.id = particleId;
         record.userData = userData;

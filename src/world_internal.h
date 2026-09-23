@@ -341,114 +341,11 @@ typedef struct m2World
     uint16_t worldIndex0; // registry slot + 1, for building public ids
 } m2World;
 
-// Journal recording (src/journal.c): appends op + payload.
-void m2JournalRecord(m2World* world, uint8_t op, const void* payload, int32_t bytes);
-void m2JournalRecordRestore(m2World* world, const void* snapshot, int32_t size);
-typedef struct m2OpShatterHeader
-{
-    m2BodyId body;
-    int32_t pieceCount;
-    int32_t expectedFirst; // index1 of the first piece body
-} m2OpShatterHeader;
-void m2JournalRecordShatter(m2World* world, m2BodyId bodyId, const struct m2Polygon* pieces,
-                            int32_t pieceCount, int32_t expectedFirst);
-void m2JournalRecordChain(m2World* world, m2BodyId bodyId, const m2ChainDef* def,
-                          int32_t createdCount);
-void m2SetJointParamInternal(m2World* world, m2JointId jointId, uint8_t param, float value);
+// Journaled parameter channels; the param codes live in journal.h.
+bool m2SetJointParamInternal(m2World* world, m2JointId jointId, uint8_t param, float value);
 void m2DestroyJointInternal(m2World* world, int32_t index);
-void m2SetShapeParamInternal(m2World* world, m2ShapeId shapeId, uint8_t param, float value);
-void m2SetBodyParamInternal(m2World* world, m2BodyId bodyId, uint8_t param, float value);
-
-// Journal ops (fixed-size payloads, little-endian raw structs).
-enum
-{
-    m2_opStep = 1,
-    m2_opCreateBody = 2,
-    m2_opDestroyBody = 3,
-    m2_opSetLinearVelocity = 4,
-    m2_opSetAngularVelocity = 5,
-    m2_opCreateShape = 6,
-    m2_opCreateDistanceJoint = 7,
-    m2_opCreateRevoluteJoint = 8,
-    m2_opDestroyJoint = 9,
-    m2_opCreatePrismaticJoint = 10,
-    m2_opCreateWeldJoint = 11,
-    m2_opCreateWheelJoint = 12,
-    m2_opDestroyShape = 13,
-    m2_opApplyLinearImpulse = 14,
-    m2_opApplyAngularImpulse = 15,
-    m2_opSetJointParam = 16,
-    m2_opSetTransform = 17,
-    m2_opSetType = 18,
-    m2_opRestore = 19,     // variable length: i32 size + snapshot bytes
-    m2_opCreateChain = 20, // variable length: def echo + i32 count + points
-    m2_opSetGravity = 21,
-    m2_opShapeParam = 22, // friction (0) / restitution (1)
-    m2_opSetFilter = 23,
-    m2_opDestroyChain = 24,
-    m2_opBodyParam = 25, // linDamp(0)/angDamp(1)/gravScale(2)/fixedRot(3)/enableSleep(4)
-    m2_opEnableSleeping = 26,
-    m2_opApplyForce = 27,
-    m2_opApplyForceCenter = 28,
-    m2_opApplyTorque = 29,
-    m2_opCreateFilterJoint = 30,
-    m2_opCreateMotorJoint = 31,
-    m2_opCreateMouseJoint = 32,
-    m2_opMotorOffsets = 33,
-    m2_opMouseTarget = 34,
-    m2_opDisableBody = 35,
-    m2_opEnableBody = 36,
-    m2_opSetMassData = 37,
-    m2_opMassFromShapes = 38,
-    m2_opExplode = 39,
-    m2_opSetGeometry = 40, // shapeId + full geometry union
-    m2_opChainFriction = 41,
-    m2_opChainRestitution = 42,
-    m2_opImpulseCenter = 43,
-    m2_opSetAwake = 44,
-    m2_opSetBullet = 45,
-    m2_opSetDensity = 46,
-    m2_opBodyUserData = 47,
-    m2_opShapeUserData = 48,
-    m2_opJointUserData = 49,
-    m2_opSetDominance = 50,
-    m2_opCreateGearJoint = 51,
-    m2_opCreatePulleyJoint = 52,
-    m2_opEmitParticle = 53,
-    m2_opDestroyParticle = 54,
-    m2_opSetParticleVelocity = 55,
-    m2_opCreateRatchetJoint = 56,
-    m2_opFillParticles = 57,
-    m2_opShatterBody = 58,
-    m2_opSetParticleLifetime = 59,
-    m2_opSetParticleUserData = 60,
-    m2_opCreateFluidVolume = 61,
-    m2_opDestroyFluidVolume = 62,
-    m2_opSetFluidSurface = 63,
-    m2_opSetWind = 64,
-};
-
-// Journaled joint parameter channel (op 16).
-enum
-{
-    m2_jointParamMotorSpeed = 0,
-    m2_jointParamMaxMotor = 1,
-    m2_jointParamEnableMotor = 2,
-    m2_jointParamEnableLimit = 3,
-    m2_jointParamLower = 4,
-    m2_jointParamUpper = 5,
-    m2_jointParamBreakForce = 6,
-    m2_jointParamBreakTorque = 7,
-    m2_jointParamHertz = 8,
-    m2_jointParamDamping = 9,
-    m2_jointParamAngularHertz = 10,
-    m2_jointParamAngularDamping = 11,
-    m2_jointParamLength = 12,    // distance only; resets impulses
-    m2_jointParamMinLength = 13, // distance only; resets impulses
-    m2_jointParamMaxLength = 14,
-    m2_jointParamGearRatio = 15,
-    m2_jointParamPulleyRatio = 16,
-};
+bool m2SetShapeParamInternal(m2World* world, m2ShapeId shapeId, uint8_t param, float value);
+bool m2SetBodyParamInternal(m2World* world, m2BodyId bodyId, uint8_t param, float value);
 
 // Convex distance and casts (src/distance.c, slice 63): one GJK
 // kernel for every convex proxy; callers pre-transform both proxies

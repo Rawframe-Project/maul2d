@@ -10,6 +10,7 @@
 
 #include "broadphase.h"
 #include "contact.h"
+#include "journal.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -280,11 +281,7 @@ void m2World_Step(m2WorldId worldId, float dt, int32_t substepCount)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            float dt;
-            int32_t substepCount;
-        } marker;
+        m2OpStep marker;
         memset(&marker, 0, sizeof(marker));
         marker.dt = dt;
         marker.substepCount = substepCount;
@@ -529,10 +526,7 @@ void m2World_EnableSleeping(m2WorldId worldId, bool flag)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            uint8_t flag;
-        } record;
+        m2OpFlag record;
         record.flag = next;
         m2JournalRecord(world, m2_opEnableSleeping, &record, (int32_t)sizeof(record));
     }
@@ -610,12 +604,9 @@ void m2World_SetGravity(m2WorldId worldId, m2Vec2 gravity)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2Vec2 gravity;
-        } record;
+        m2OpVec record;
         memset(&record, 0, sizeof(record));
-        record.gravity = gravity;
+        record.value = gravity;
         m2JournalRecord(world, m2_opSetGravity, &record, (int32_t)sizeof(record));
     }
     world->gravity = gravity;
@@ -653,11 +644,7 @@ void m2World_SetWind(m2WorldId worldId, m2Vec2 velocity, float linearDrag)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2Vec2 velocity;
-            float linearDrag;
-        } record;
+        m2OpSetWind record;
         memset(&record, 0, sizeof(record));
         record.velocity = velocity;
         record.linearDrag = linearDrag;

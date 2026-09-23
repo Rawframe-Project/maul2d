@@ -16,6 +16,7 @@
 // bodies are touched, exactly as gravity is, so a body that settles
 // at the waterline and sleeps simply floats.
 
+#include "journal.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -217,11 +218,7 @@ m2FluidVolumeId m2World_CreateFluidVolume(m2WorldId worldId, const m2FluidVolume
     m2FluidVolumeId id = {index + 1, worldId.index1, world->fvGenerations[index]};
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2FluidVolumeDef def;
-            m2FluidVolumeId expected;
-        } record;
+        m2OpCreateFluidVolume record;
         memset(&record, 0, sizeof(record));
         record.def = *def;
         record.expected = id;
@@ -252,13 +249,7 @@ void m2World_DestroyFluidVolume(m2FluidVolumeId volumeId)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2FluidVolumeId id;
-        } record;
-        memset(&record, 0, sizeof(record));
-        record.id = volumeId;
-        m2JournalRecord(world, m2_opDestroyFluidVolume, &record, (int32_t)sizeof(record));
+        m2JournalRecord(world, m2_opDestroyFluidVolume, &volumeId, (int32_t)sizeof(volumeId));
     }
     world->fvAlive[index] = 0;
     world->fvGenerations[index] += 1;
@@ -283,11 +274,7 @@ void m2FluidVolume_SetSurface(m2FluidVolumeId volumeId, double surface)
     }
     if (world->journalActive != 0)
     {
-        struct
-        {
-            m2FluidVolumeId id;
-            double surface;
-        } record;
+        m2OpFluidSurface record;
         memset(&record, 0, sizeof(record));
         record.id = volumeId;
         record.surface = surface;

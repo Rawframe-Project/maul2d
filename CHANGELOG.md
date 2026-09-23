@@ -70,6 +70,10 @@ Work toward 0.0.1, the first release of the reworked library.
   m2_errorInvalid in every build instead of asserting in debug builds.
   A getter asked for a parameter its joint kind lacks refuses exactly
   once.
+- The journal's op codes and payload structs live in one internal
+  header shared by the recorders and replay, and replay dispatches
+  through a command table instead of an 800-line switch. The wire
+  format is unchanged.
 
 ### Removed
 
@@ -136,3 +140,13 @@ Work toward 0.0.1, the first release of the reworked library.
   contraction was not reliably off there. Every source now turns it
   off with `#pragma fp_contract(off)` under MSVC, and the switch is
   only passed where the compiler knows it.
+- Joint, shape and body parameter setters validate in one place for
+  live calls and replay: non-finite or out-of-range values (a NaN
+  motor speed or gear ratio, unordered limits, a negative max motor,
+  an infinite friction) and parameters the joint kind lacks are
+  refused and counted, where several were accepted before. A tampered
+  journal channel byte is rejected instead of asserting in debug
+  builds or writing an unrelated field; a stale m2DestroyJoint or
+  shape setter now refuses; journal start, stop and replay record a
+  reason when they fail (m2_errorConfig for a tape from another world
+  shape); a failed shatter replay no longer leaks its pieces.

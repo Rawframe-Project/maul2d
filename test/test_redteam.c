@@ -12,6 +12,7 @@
 
 #include "maul2d/base.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -571,6 +572,79 @@ static void TestJournalDefenses(void)
     CHECK(m2World_Hash(fresh) == recordedHash, "second replay lands on the same bits");
 
     m2DestroyWorld(fresh);
+}
+
+// Parameter channels validate once, for live setters and replay alike:
+// a hostile value is refused and counted, and a tape whose channel byte
+// was tampered with is rejected instead of asserting or writing a
+// random field.
+static void TestParameterChannels(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 8;
+    def.shapeCapacity = 8;
+    def.jointCapacity = 4;
+    m2WorldId world = m2CreateWorld(&def);
+    m2BodyDef gd = m2DefaultBodyDef();
+    m2BodyId ground = m2CreateBody(world, &gd);
+    m2BodyId box = AddBox(world, 0.0, 4.0);
+    m2ShapeId shape;
+    m2Body_GetShapes(box, &shape, 1);
+    m2RevoluteJointDef rj = m2DefaultRevoluteJointDef();
+    rj.bodyIdA = ground;
+    rj.bodyIdB = box;
+    m2JointId pin = m2CreateRevoluteJoint(world, &rj);
+
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    m2Joint_SetMotorSpeed(pin, NAN);
+    m2Joint_SetMaxMotor(pin, -1.0f);
+    m2Joint_SetLimits(pin, 1.0f, -1.0f);
+    m2DistanceJoint_SetLength(pin, 2.0f); // a revolute has no length
+    m2Shape_SetFriction(shape, INFINITY);
+    m2Body_SetGravityScale(box, NAN);
+    CHECK(m2World_GetCounters(world).misuse == misuse + 6, "each hostile parameter refuses once");
+    CHECK(m2LastResult() == m2_errorInvalid, "as invalid");
+
+    m2Joint_SetLimits(pin, -1.0f, 1.0f);
+    m2Shape_SetFriction(shape, 0.3f);
+    m2Body_SetGravityScale(box, 0.5f);
+    CHECK(m2World_GetCounters(world).misuse == misuse + 6, "honest parameters pass");
+
+    m2Body_SetLinearDamping(box, -1.0f);
+    CHECK(m2Body_GetLinearDamping(box) == 0.0f, "a negative damping still clamps to zero");
+
+    uint8_t tape[1 << 16];
+    int32_t bytes = 0;
+    m2World_StartJournal(world, tape, (int32_t)sizeof(tape));
+    m2Body_SetLinearDamping(box, 0.25f);
+    bytes = m2World_StopJournal(world);
+    // The last record is op 25 (body param) and a 16-byte payload whose
+    // channel byte sits at offset 12.
+    CHECK(bytes > 17 && tape[bytes - 17] == 25, "the tape ends in a body-param record");
+    tape[bytes - 4] = 200;
+    CHECK(!m2World_ReplayJournal(world, tape, bytes), "an unknown body channel is rejected");
+    CHECK(m2LastResult() == m2_errorInvalid, "as invalid");
+
+    m2World_StartJournal(world, tape, (int32_t)sizeof(tape));
+    m2Shape_SetRestitution(shape, 0.5f);
+    bytes = m2World_StopJournal(world);
+    CHECK(bytes > 17 && tape[bytes - 17] == 22, "the tape ends in a shape-param record");
+    tape[bytes - 4] = 7;
+    CHECK(!m2World_ReplayJournal(world, tape, bytes), "an unknown shape channel is rejected");
+
+    m2WorldDef other = def;
+    other.bodyCapacity = 4;
+    m2WorldId elsewhere = m2CreateWorld(&other);
+    CHECK(!m2World_ReplayJournal(elsewhere, tape, bytes), "a tape for another world shape");
+    CHECK(m2LastResult() == m2_errorConfig, "is refused as a configuration mismatch");
+    m2DestroyWorld(elsewhere);
+
+    misuse = m2World_GetCounters(world).misuse;
+    m2DestroyJoint(pin);
+    m2DestroyJoint(pin);
+    m2Joint_SetMotorSpeed(pin, 1.0f);
+    CHECK(m2World_GetCounters(world).misuse == misuse + 2, "stale joint calls refuse and count");
+    m2DestroyWorld(world);
 }
 
 static void TestJournalSlotReuse(void)
@@ -1961,6 +2035,7 @@ int main(void)
     TestStaleIds();
     TestCapacityExhaustion();
     TestJournalDefenses();
+    TestParameterChannels();
     TestJournalSlotReuse();
     TestQueryEdges();
     TestMultiWorldIsolation();
