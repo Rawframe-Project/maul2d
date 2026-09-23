@@ -102,9 +102,98 @@ static void TestParallelWorldsMatchSerial(void)
     m2DestroyWorld(parB);
 }
 
+// Readers share a world: many threads query one world at once and
+// every answer equals the serial answer.
+enum
+{
+    READER_THREADS = 4,
+    READER_ROUNDS = 400,
+    READER_CAPACITY = 16
+};
+
+typedef struct ReaderJob
+{
+    m2WorldId world;
+    int32_t mismatches;
+    int32_t expectedCount[READER_ROUNDS];
+    m2ShapeId expected[READER_ROUNDS][READER_CAPACITY];
+} ReaderJob;
+
+typedef struct ReaderBox
+{
+    m2Pos2 lower;
+    m2Pos2 upper;
+} ReaderBox;
+
+static ReaderBox MakeReaderBox(int32_t round)
+{
+    double x = -4.0 + 0.02 * (double)round;
+    ReaderBox box = {{x, 0.0}, {x + 1.5, 6.0}};
+    return box;
+}
+
+static void* ReaderMain(void* arg)
+{
+    ReaderJob* job = (ReaderJob*)arg;
+    for (int32_t r = 0; r < READER_ROUNDS; ++r)
+    {
+        ReaderBox box = MakeReaderBox(r);
+        m2ShapeId got[READER_CAPACITY];
+        int32_t n = m2World_OverlapAABB(job->world, box.lower, box.upper, got, READER_CAPACITY,
+                                        m2DefaultQueryFilter());
+        int32_t stored = n < READER_CAPACITY ? n : READER_CAPACITY;
+        if (n != job->expectedCount[r] ||
+            memcmp(got, job->expected[r], (size_t)stored * sizeof(m2ShapeId)) != 0)
+        {
+            job->mismatches += 1;
+        }
+    }
+    return NULL;
+}
+
+static void TestConcurrentReadersMatchSerial(void)
+{
+    m2WorldId world = BuildWorld(3);
+    for (int32_t i = 0; i < 120; ++i)
+    {
+        m2World_Step(world, 1.0f / 60.0f, 4);
+    }
+    static ReaderJob jobs[READER_THREADS];
+    memset(jobs, 0, sizeof(jobs));
+    for (int32_t r = 0; r < READER_ROUNDS; ++r)
+    {
+        ReaderBox box = MakeReaderBox(r);
+        jobs[0].expectedCount[r] =
+            m2World_OverlapAABB(world, box.lower, box.upper, jobs[0].expected[r], READER_CAPACITY,
+                                m2DefaultQueryFilter());
+    }
+    CHECK(jobs[0].expectedCount[READER_ROUNDS / 2] > READER_CAPACITY,
+          "some queries overflow the result capacity");
+    pthread_t threads[READER_THREADS];
+    for (int32_t t = 0; t < READER_THREADS; ++t)
+    {
+        jobs[t].world = world;
+        if (t > 0)
+        {
+            memcpy(jobs[t].expectedCount, jobs[0].expectedCount, sizeof(jobs[0].expectedCount));
+            memcpy(jobs[t].expected, jobs[0].expected, sizeof(jobs[0].expected));
+        }
+        pthread_create(&threads[t], NULL, ReaderMain, &jobs[t]);
+    }
+    int32_t mismatches = 0;
+    for (int32_t t = 0; t < READER_THREADS; ++t)
+    {
+        pthread_join(threads[t], NULL);
+        mismatches += jobs[t].mismatches;
+    }
+    CHECK(mismatches == 0, "concurrent readers see exactly the serial answers");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
     TestParallelWorldsMatchSerial();
+    TestConcurrentReadersMatchSerial();
     if (s_failures == 0)
     {
         printf("test_concurrency: all green\n");

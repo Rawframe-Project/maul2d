@@ -513,11 +513,84 @@ m2RayCastResult m2World_CastRayClosest(m2WorldId worldId, m2Pos2 origin, m2Vec2 
     return result;
 }
 
-static int CompareShapeIndex(const void* a, const void* b)
+// Keeps the `capacity` lowest shape slots offered, ascending, in the
+// caller's result array, and counts every offer. A bounded max-heap on
+// the slot index while collecting, sorted in place at the end: overlap
+// queries need no buffer beyond the caller's and share nothing.
+typedef struct ShapeSelection
 {
-    int32_t ia = *(const int32_t*)a;
-    int32_t ib = *(const int32_t*)b;
-    return ia < ib ? -1 : (ia > ib ? 1 : 0);
+    m2ShapeId* ids; // NULL when the caller only counts
+    int32_t capacity;
+    int32_t size;
+    int32_t total;
+} ShapeSelection;
+
+static void SiftDown(m2ShapeId* heap, int32_t size, int32_t i)
+{
+    for (;;)
+    {
+        int32_t largest = i;
+        int32_t left = 2 * i + 1;
+        int32_t right = left + 1;
+        if (left < size && heap[left].index1 > heap[largest].index1)
+        {
+            largest = left;
+        }
+        if (right < size && heap[right].index1 > heap[largest].index1)
+        {
+            largest = right;
+        }
+        if (largest == i)
+        {
+            return;
+        }
+        m2ShapeId swap = heap[i];
+        heap[i] = heap[largest];
+        heap[largest] = swap;
+        i = largest;
+    }
+}
+
+static void OfferShape(ShapeSelection* sel, const m2World* world, m2WorldId worldId,
+                       int32_t shapeIndex)
+{
+    sel->total += 1;
+    if (sel->ids == NULL || sel->capacity <= 0)
+    {
+        return;
+    }
+    m2ShapeId id = {shapeIndex + 1, worldId.index1, world->shapeGenerations[shapeIndex]};
+    if (sel->size < sel->capacity)
+    {
+        // Sift up.
+        int32_t i = sel->size++;
+        sel->ids[i] = id;
+        while (i > 0 && sel->ids[(i - 1) / 2].index1 < sel->ids[i].index1)
+        {
+            m2ShapeId swap = sel->ids[i];
+            sel->ids[i] = sel->ids[(i - 1) / 2];
+            sel->ids[(i - 1) / 2] = swap;
+            i = (i - 1) / 2;
+        }
+    }
+    else if (id.index1 < sel->ids[0].index1)
+    {
+        sel->ids[0] = id;
+        SiftDown(sel->ids, sel->size, 0);
+    }
+}
+
+// Sorts the kept ids ascending and returns the total offered.
+static int32_t FinishSelection(ShapeSelection* sel)
+{
+    for (int32_t end = sel->size - 1; end > 0; --end)
+    {
+        m2ShapeId swap = sel->ids[0];
+        sel->ids[0] = sel->ids[end];
+        sel->ids[end] = swap;
+        SiftDown(sel->ids, end, 0);
+    }
+    return sel->total;
 }
 
 int32_t m2World_OverlapAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2ShapeId* results,
@@ -531,17 +604,14 @@ int32_t m2World_OverlapAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2Sha
     }
 
     m2AABB aabb = {lower, upper};
-    int32_t total = 0;
+    ShapeSelection sel = {results, capacity, 0, 0};
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
-        int32_t base = total;
-        int32_t hits = m2Tree_Query(&world->trees[t], world->treeNodes[t], aabb,
-                                    world->queryScratch + base, world->shapeCapacity - base);
-        for (int32_t h = 0; h < hits; ++h)
+        m2TreeCursor cursor;
+        m2Tree_BeginQuery(&cursor, &world->trees[t], world->treeNodes[t], aabb);
+        int32_t shapeIndex;
+        while (m2Tree_NextQuery(&cursor, &shapeIndex))
         {
-            // In-place compaction: the write cursor can never pass the
-            // read cursor because kept <= scanned.
-            int32_t shapeIndex = world->queryScratch[base + h];
             if (world->shapeAlive[shapeIndex] == 0 || !QueryShouldSee(world, shapeIndex, filter))
             {
                 continue;
@@ -554,22 +624,10 @@ int32_t m2World_OverlapAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2Sha
             {
                 continue;
             }
-            world->queryScratch[total] = shapeIndex;
-            total += 1;
+            OfferShape(&sel, world, worldId, shapeIndex);
         }
     }
-
-    qsort(world->queryScratch, (size_t)total, sizeof(int32_t), CompareShapeIndex);
-
-    int32_t stored = total < capacity ? total : capacity;
-    for (int32_t i = 0; i < stored; ++i)
-    {
-        int32_t shapeIndex = world->queryScratch[i];
-        results[i].index1 = shapeIndex + 1;
-        results[i].world0 = worldId.index1;
-        results[i].generation = world->shapeGenerations[shapeIndex];
-    }
-    return total;
+    return FinishSelection(&sel);
 }
 
 // ---------------------------------------------------------------
@@ -729,11 +787,11 @@ static m2RayCastResult CastProxyClosest(m2WorldId worldId, const m2DistanceProxy
 
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
-        int32_t hits = m2Tree_Query(&world->trees[t], world->treeNodes[t], aabb,
-                                    world->queryScratch, world->shapeCapacity);
-        for (int32_t h = 0; h < hits; ++h)
+        m2TreeCursor cursor;
+        m2Tree_BeginQuery(&cursor, &world->trees[t], world->treeNodes[t], aabb);
+        int32_t shapeIndex;
+        while (m2Tree_NextQuery(&cursor, &shapeIndex))
         {
-            int32_t shapeIndex = world->queryScratch[h];
             if (world->shapeAlive[shapeIndex] == 0 || !QueryShouldSee(world, shapeIndex, filter))
             {
                 continue;
@@ -804,15 +862,14 @@ static int32_t OverlapProxy(m2WorldId worldId, const m2DistanceProxy* castLocal,
     aabb.upperBound.x = q.pose.p.x + (double)q.boundRadius;
     aabb.upperBound.y = q.pose.p.y + (double)q.boundRadius;
 
-    int32_t total = 0;
+    ShapeSelection sel = {ids, capacity, 0, 0};
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
-        int32_t base = total;
-        int32_t hits = m2Tree_Query(&world->trees[t], world->treeNodes[t], aabb,
-                                    world->queryScratch + base, world->shapeCapacity - base);
-        for (int32_t h = 0; h < hits; ++h)
+        m2TreeCursor cursor;
+        m2Tree_BeginQuery(&cursor, &world->trees[t], world->treeNodes[t], aabb);
+        int32_t shapeIndex;
+        while (m2Tree_NextQuery(&cursor, &shapeIndex))
         {
-            int32_t shapeIndex = world->queryScratch[base + h];
             if (world->shapeAlive[shapeIndex] == 0 || !QueryShouldSee(world, shapeIndex, filter))
             {
                 continue;
@@ -836,31 +893,10 @@ static int32_t OverlapProxy(m2WorldId worldId, const m2DistanceProxy* castLocal,
             {
                 continue;
             }
-            world->queryScratch[total] = shapeIndex;
-            total += 1;
+            OfferShape(&sel, world, worldId, shapeIndex);
         }
     }
-    // Ascending slot order, whatever order the trees reported.
-    for (int32_t i = 1; i < total; ++i)
-    {
-        int32_t key = world->queryScratch[i];
-        int32_t j = i - 1;
-        while (j >= 0 && world->queryScratch[j] > key)
-        {
-            world->queryScratch[j + 1] = world->queryScratch[j];
-            j -= 1;
-        }
-        world->queryScratch[j + 1] = key;
-    }
-    int32_t fill = total < capacity ? total : capacity;
-    for (int32_t i = 0; i < fill && ids != NULL; ++i)
-    {
-        int32_t shapeIndex = world->queryScratch[i];
-        ids[i].index1 = shapeIndex + 1;
-        ids[i].world0 = worldId.index1;
-        ids[i].generation = world->shapeGenerations[shapeIndex];
-    }
-    return total;
+    return FinishSelection(&sel);
 }
 
 m2RayCastResult m2World_CastCircleClosest(m2WorldId worldId, const m2Circle* circle,
@@ -989,20 +1025,17 @@ m2RayCastResult m2Shape_RayCast(m2ShapeId shapeId, m2Pos2 origin, m2Vec2 transla
 
 // -------------------------------------------------------- all-hits
 // Bounded keep-the-closest insertion: candidates stream in, the hits
-// array holds the best `capacity` in ascending (fraction, shapeIndex)
-// order, and the TRUE total keeps counting past it. No extra memory,
-// deterministic regardless of tree visit order.
-static int32_t InsertHitSorted(m2RayHit* hits, int32_t kept, int32_t capacity, m2RayHit candidate,
-                               int32_t shapeIndex, const int32_t* keptShapes,
-                               int32_t* keptShapesOut)
+// array holds the best `capacity` in ascending (fraction, shape slot)
+// order, and the true total keeps counting past it. The slot tie-break
+// reads the ids already stored, so no side buffer caps the capacity.
+static int32_t InsertHitSorted(m2RayHit* hits, int32_t kept, int32_t capacity, m2RayHit candidate)
 {
-    (void)keptShapes;
     int32_t at = kept;
     while (at > 0)
     {
-        bool after =
-            hits[at - 1].fraction < candidate.fraction ||
-            (hits[at - 1].fraction == candidate.fraction && keptShapesOut[at - 1] < shapeIndex);
+        bool after = hits[at - 1].fraction < candidate.fraction ||
+                     (hits[at - 1].fraction == candidate.fraction &&
+                      hits[at - 1].shapeId.index1 < candidate.shapeId.index1);
         if (after)
         {
             break;
@@ -1017,10 +1050,8 @@ static int32_t InsertHitSorted(m2RayHit* hits, int32_t kept, int32_t capacity, m
     for (int32_t i = last; i > at; --i)
     {
         hits[i] = hits[i - 1];
-        keptShapesOut[i] = keptShapesOut[i - 1];
     }
     hits[at] = candidate;
-    keptShapesOut[at] = shapeIndex;
     return kept < capacity ? kept + 1 : kept;
 }
 
@@ -1033,9 +1064,7 @@ int32_t m2World_CastRayAll(m2WorldId worldId, m2Pos2 origin, m2Vec2 translation,
         M2_ASSERT(false);
         return 0;
     }
-    int32_t keptShapes[64];
-    int32_t cap = capacity < 64 ? capacity : 64;
-    cap = hits != NULL ? cap : 0;
+    int32_t cap = hits != NULL && capacity > 0 ? capacity : 0;
     int32_t kept = 0;
     int32_t total = 0;
 
@@ -1095,7 +1124,7 @@ int32_t m2World_CastRayAll(m2WorldId worldId, m2Pos2 origin, m2Vec2 translation,
             total += 1;
             if (cap > 0)
             {
-                kept = InsertHitSorted(hits, kept, cap, out, shapeIndex, NULL, keptShapes);
+                kept = InsertHitSorted(hits, kept, cap, out);
             }
         }
     }
@@ -1126,19 +1155,17 @@ static int32_t CastProxyAll(m2WorldId worldId, const m2DistanceProxy* castLocal,
     aabb.upperBound.x = tx > 0.0 ? hix + tx : hix;
     aabb.upperBound.y = ty > 0.0 ? hiy + ty : hiy;
 
-    int32_t keptShapes[64];
-    int32_t cap = capacity < 64 ? capacity : 64;
-    cap = hits != NULL ? cap : 0;
+    int32_t cap = hits != NULL && capacity > 0 ? capacity : 0;
     int32_t kept = 0;
     int32_t total = 0;
 
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
-        int32_t found = m2Tree_Query(&world->trees[t], world->treeNodes[t], aabb,
-                                     world->queryScratch, world->shapeCapacity);
-        for (int32_t h = 0; h < found; ++h)
+        m2TreeCursor cursor;
+        m2Tree_BeginQuery(&cursor, &world->trees[t], world->treeNodes[t], aabb);
+        int32_t shapeIndex;
+        while (m2Tree_NextQuery(&cursor, &shapeIndex))
         {
-            int32_t shapeIndex = world->queryScratch[h];
             if (world->shapeAlive[shapeIndex] == 0 || !QueryShouldSee(world, shapeIndex, filter))
             {
                 continue;
@@ -1182,7 +1209,7 @@ static int32_t CastProxyAll(m2WorldId worldId, const m2DistanceProxy* castLocal,
             total += 1;
             if (cap > 0)
             {
-                kept = InsertHitSorted(hits, kept, cap, out, shapeIndex, NULL, keptShapes);
+                kept = InsertHitSorted(hits, kept, cap, out);
             }
         }
     }
@@ -1259,12 +1286,11 @@ int32_t m2World_CollideMover(m2WorldId worldId, const m2Capsule* mover, m2Transf
     int32_t total = 0;
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
-        int32_t base = total; // scratch reuse discipline, per tree
-        int32_t found = m2Tree_Query(&world->trees[t], world->treeNodes[t], aabb,
-                                     world->queryScratch + base, world->shapeCapacity - base);
-        for (int32_t h = 0; h < found; ++h)
+        m2TreeCursor cursor;
+        m2Tree_BeginQuery(&cursor, &world->trees[t], world->treeNodes[t], aabb);
+        int32_t shapeIndex;
+        while (m2Tree_NextQuery(&cursor, &shapeIndex))
         {
-            int32_t shapeIndex = world->queryScratch[base + h];
             if (world->shapeAlive[shapeIndex] == 0 || !QueryShouldSee(world, shapeIndex, filter))
             {
                 continue;

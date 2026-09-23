@@ -22,3 +22,11 @@ Work toward 0.0.1, the first release of the reworked library.
   now keeps a list of its joints, so the check costs the body's joint
   count. A 2000-link revolute chain steps 2.2 times faster, and
   `m2Body_GetJoints` and body destruction no longer scan all joints.
+- Queries documented as safe to call from many threads at once shared
+  one world-owned scratch buffer, so concurrent readers could corrupt
+  each other's results. Tree walks now run on a cursor that lives on
+  the caller's stack, and overlap queries keep their sorted results
+  directly in the caller's array. A four-thread reader test covers it.
+- `m2World_CastRayAll` and `m2World_CastCircleAll` silently kept at
+  most 64 hits even when the caller's array was larger. They now keep
+  as many as the array holds.

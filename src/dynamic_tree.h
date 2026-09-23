@@ -68,6 +68,24 @@ void m2Tree_Move(m2DynamicTree* tree, m2TreeNode* nodes, int32_t proxy, m2AABB a
 int32_t m2Tree_Query(const m2DynamicTree* tree, const m2TreeNode* nodes, m2AABB aabb,
                      int32_t* results, int32_t resultCapacity);
 
+// Incremental form of m2Tree_Query for callers that must not share a
+// result buffer: the cursor lives on the caller's stack and yields the
+// same leaves in the same order as m2Tree_Query.
+#define M2_TREE_STACK_CAPACITY 256
+typedef struct m2TreeCursor
+{
+    const m2TreeNode* nodes;
+    m2AABB aabb;
+    int32_t top;
+    int32_t stack[M2_TREE_STACK_CAPACITY];
+} m2TreeCursor;
+
+void m2Tree_BeginQuery(m2TreeCursor* cursor, const m2DynamicTree* tree, const m2TreeNode* nodes,
+                       m2AABB aabb);
+// Writes the next overlapping leaf's userData and returns true, or
+// returns false when the query is exhausted.
+bool m2Tree_NextQuery(m2TreeCursor* cursor, int32_t* userData);
+
 // Test oracle: verifies parent/child integrity, heights, containment
 // (every parent AABB contains its children). Returns false on any breach.
 bool m2Tree_Validate(const m2DynamicTree* tree, const m2TreeNode* nodes);

@@ -684,8 +684,48 @@ static void TestContactData(void)
     m2DestroyWorld(world);
 }
 
+static void TestAllHitsBeyondSixtyFour(void)
+{
+    // A ray through 100 thin posts: every hit fits a 128-entry array,
+    // so all 100 come back in order, none dropped.
+    enum
+    {
+        POSTS = 100
+    };
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = POSTS + 4;
+    def.shapeCapacity = POSTS + 4;
+    m2WorldId world = m2CreateWorld(&def);
+    for (int32_t i = 0; i < POSTS; ++i)
+    {
+        m2BodyDef bd = m2DefaultBodyDef();
+        bd.position = (m2Pos2){1.0 + (double)i, 0.0};
+        m2BodyId post = m2CreateBody(world, &bd);
+        m2ShapeDef sd = m2DefaultShapeDef();
+        m2Polygon slab = m2MakeBox(0.1f, 1.0f);
+        m2CreatePolygonShape(post, &sd, &slab);
+    }
+    static m2RayHit hits[128];
+    m2Circle ball = {{0.0f, 0.0f}, 0.2f};
+    m2Transform pose = {{0.0, 0.0}, {1.0f, 0.0f}};
+    int32_t rays =
+        m2World_CastRayAll(world, (m2Pos2){0.0, 0.0}, (m2Vec2){(float)POSTS + 1.0f, 0.0f}, hits,
+                           128, m2DefaultQueryFilter());
+    bool ordered = true;
+    for (int32_t i = 1; i < rays && i < 128; ++i)
+    {
+        ordered = ordered && hits[i - 1].fraction < hits[i].fraction;
+    }
+    CHECK(rays == POSTS && ordered, "a ray keeps all 100 hits in order");
+    int32_t circles = m2World_CastCircleAll(world, &ball, pose, (m2Vec2){(float)POSTS + 1.0f, 0.0f},
+                                            hits, 128, m2DefaultQueryFilter());
+    CHECK(circles == POSTS && hits[99].shapeId.index1 != 0, "a swept circle keeps all 100 too");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
+    TestAllHitsBeyondSixtyFour();
     TestQueryFilters();
     TestContactData();
     TestRayClosest();

@@ -377,6 +377,40 @@ int32_t m2Tree_Query(const m2DynamicTree* tree, const m2TreeNode* nodes, m2AABB 
     return count;
 }
 
+void m2Tree_BeginQuery(m2TreeCursor* cursor, const m2DynamicTree* tree, const m2TreeNode* nodes,
+                       m2AABB aabb)
+{
+    cursor->nodes = nodes;
+    cursor->aabb = aabb;
+    cursor->top = 0;
+    if (tree->root != M2_NULL_NODE)
+    {
+        cursor->stack[cursor->top++] = tree->root;
+    }
+}
+
+bool m2Tree_NextQuery(m2TreeCursor* cursor, int32_t* userData)
+{
+    while (cursor->top > 0)
+    {
+        int32_t index = cursor->stack[--cursor->top];
+        const m2TreeNode* node = cursor->nodes + index;
+        if (!m2AABB_Overlaps(node->aabb, cursor->aabb))
+        {
+            continue;
+        }
+        if (node->height == 0)
+        {
+            *userData = node->userData;
+            return true;
+        }
+        M2_ASSERT(cursor->top + 2 <= M2_TREE_STACK_CAPACITY);
+        cursor->stack[cursor->top++] = node->child1;
+        cursor->stack[cursor->top++] = node->child2;
+    }
+    return false;
+}
+
 static bool ValidateNode(const m2DynamicTree* tree, const m2TreeNode* nodes, int32_t index)
 {
     if (index == M2_NULL_NODE)

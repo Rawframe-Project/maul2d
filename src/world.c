@@ -1266,7 +1266,6 @@ m2WorldId m2CreateWorld(const m2WorldDef* def)
     M2_ALLOC(pairKeys, world->pairCapacity, uint64_t);
     M2_ALLOC(pairTouching, world->pairCapacity, uint8_t);
     M2_ALLOC(touchingScratch, world->pairCapacity, uint8_t);
-    M2_ALLOC(queryScratch, cap, int32_t);
     M2_ALLOC(colorMasks, cap, uint32_t);
     // Indexed by CONSTRAINT, not body: one slot per potential pair.
     // (Sized by body capacity until the pyramid30 perf scene found the
@@ -1512,7 +1511,6 @@ void m2DestroyWorld(m2WorldId worldId)
     m2Free(world->pairKeys);
     m2Free(world->pairTouching);
     m2Free(world->touchingScratch);
-    m2Free(world->queryScratch);
     m2Free(world->colorMasks);
     m2Free(world->constraintColors);
     m2Free(world->colorOrder);
