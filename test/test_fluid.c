@@ -8,6 +8,7 @@
 // compared across CI cells as the 16th gated line.
 
 #include "test_harness.h"
+#include "world.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -311,18 +312,20 @@ static void TestPairStructure(void)
     m2World_EmitParticle(world, (m2Pos2){0.02, 2.0}, (m2Vec2){0.0f, 0.0f}, 0);
     m2World_Step(world, 1.0f / 60.0f, 4);
 
-    CHECK(w->particlePairCount == 4, "triangle gives three pairs, the seam pair the fourth");
-    CHECK(w->particlePairOverflow == 0, "no truncation in a sparse scene");
+    CHECK(w->particles.particlePairCount == 4,
+          "triangle gives three pairs, the seam pair the fourth");
+    CHECK(w->particles.particlePairOverflow == 0, "no truncation in a sparse scene");
     int32_t seamSeen = 0;
-    for (int32_t i = 0; i < w->particlePairCount; ++i)
+    for (int32_t i = 0; i < w->particles.particlePairCount; ++i)
     {
-        int32_t a = w->particlePairA[i];
-        int32_t b = w->particlePairB[i];
+        int32_t a = w->particles.particlePairA[i];
+        int32_t b = w->particles.particlePairB[i];
         CHECK(a != b, "no self pairs");
-        CHECK(w->particlePairWeight[i] > 0.0f && w->particlePairWeight[i] <= 1.0f,
+        CHECK(w->particles.particlePairWeight[i] > 0.0f &&
+                  w->particles.particlePairWeight[i] <= 1.0f,
               "weights live in (0, 1]");
-        float nx = w->particlePairNormal[i].x;
-        float ny = w->particlePairNormal[i].y;
+        float nx = w->particles.particlePairNormal[i].x;
+        float ny = w->particles.particlePairNormal[i].y;
         float len = nx * nx + ny * ny;
         CHECK(len > 0.99f && len < 1.01f, "normals are unit length");
         seamSeen += (a == 4 && b == 5) || (a == 5 && b == 4) ? 1 : 0;
@@ -334,17 +337,18 @@ static void TestPairStructure(void)
     m2ParticleId c2 = m2World_EmitParticle(world, (m2Pos2){8.0, 8.0}, (m2Vec2){0.0f, 0.0f}, 0);
     m2World_Step(world, 1.0f / 60.0f, 4);
     int32_t coincident = -1;
-    for (int32_t i = 0; i < w->particlePairCount; ++i)
+    for (int32_t i = 0; i < w->particles.particlePairCount; ++i)
     {
-        if (w->particlePairA[i] == c1.index1 - 1 && w->particlePairB[i] == c2.index1 - 1)
+        if (w->particles.particlePairA[i] == c1.index1 - 1 &&
+            w->particles.particlePairB[i] == c2.index1 - 1)
         {
             coincident = i;
         }
     }
     CHECK(coincident >= 0, "coincident particles still pair");
-    CHECK(w->particlePairWeight[coincident] == 1.0f, "full overlap reads full weight");
-    CHECK(w->particlePairNormal[coincident].x == 0.0f &&
-              w->particlePairNormal[coincident].y == 1.0f,
+    CHECK(w->particles.particlePairWeight[coincident] == 1.0f, "full overlap reads full weight");
+    CHECK(w->particles.particlePairNormal[coincident].x == 0.0f &&
+              w->particles.particlePairNormal[coincident].y == 1.0f,
           "the canonical fallback normal, never NaN");
     m2DestroyWorld(world);
 
@@ -361,12 +365,13 @@ static void TestPairStructure(void)
     m2World_Step(wb, 1.0f / 60.0f, 4);
     m2World* ia = m2WorldFromId(wa);
     m2World* ib = m2WorldFromId(wb);
-    CHECK(ia->particlePairCount == ib->particlePairCount, "twins agree on the pair count");
-    CHECK(ia->particlePairCount > 0, "the lattice actually pairs");
-    CHECK(memcmp(ia->particlePairA, ib->particlePairA,
-                 (size_t)ia->particlePairCount * sizeof(int32_t)) == 0 &&
-              memcmp(ia->particlePairB, ib->particlePairB,
-                     (size_t)ia->particlePairCount * sizeof(int32_t)) == 0,
+    CHECK(ia->particles.particlePairCount == ib->particles.particlePairCount,
+          "twins agree on the pair count");
+    CHECK(ia->particles.particlePairCount > 0, "the lattice actually pairs");
+    CHECK(memcmp(ia->particles.particlePairA, ib->particles.particlePairA,
+                 (size_t)ia->particles.particlePairCount * sizeof(int32_t)) == 0 &&
+              memcmp(ia->particles.particlePairB, ib->particles.particlePairB,
+                     (size_t)ia->particles.particlePairCount * sizeof(int32_t)) == 0,
           "twin pair lists are byte-identical");
     m2DestroyWorld(wa);
     m2DestroyWorld(wb);
@@ -384,8 +389,9 @@ static void TestPairOverflow(void)
         m2World_EmitParticle(world, (m2Pos2){1.0, 1.0}, (m2Vec2){0.0f, 0.0f}, 0);
     }
     m2World_Step(world, 1.0f / 60.0f, 4);
-    CHECK(w->particlePairCount == w->particlePairCapacity, "the budget fills exactly");
-    CHECK(w->particlePairOverflow == 64 * 63 / 2 - w->particlePairCapacity,
+    CHECK(w->particles.particlePairCount == w->particles.particlePairCapacity,
+          "the budget fills exactly");
+    CHECK(w->particles.particlePairOverflow == 64 * 63 / 2 - w->particles.particlePairCapacity,
           "every dropped pair is counted");
     m2DestroyWorld(world);
 }
@@ -676,7 +682,7 @@ static void TestJelly(void)
                                                     (m2Vec2){0.0f, 0.0f}, m2_springParticle);
     CHECK(made == 64, "the lattice fills its 8 by 8");
     m2World* w = m2WorldFromId(world);
-    CHECK(w->particleSpringCount > 90 && w->particleSpringCount < 130,
+    CHECK(w->particles.particleSpringCount > 90 && w->particles.particleSpringCount < 130,
           "each lattice cell contributes its springs");
     m2ParticleId ids[128];
     int32_t n = m2World_GetParticles(world, ids, 128);
@@ -739,8 +745,8 @@ static void TestJelly(void)
 
     // Death: killing a particle takes its springs and triads along.
     m2World* gwi = m2WorldFromId(gw);
-    int32_t springsBefore = gwi->particleSpringCount;
-    int32_t triadsBefore = gwi->particleTriadCount;
+    int32_t springsBefore = gwi->particles.particleSpringCount;
+    int32_t triadsBefore = gwi->particles.particleTriadCount;
     CHECK(springsBefore > 0 && triadsBefore > 0, "the jelly carries its nets");
     m2ParticleId victim = m2_nullParticleId;
     for (int32_t i = 0; i < total; ++i)
@@ -752,7 +758,7 @@ static void TestJelly(void)
         }
     }
     m2World_DestroyParticle(victim);
-    CHECK(gwi->particleSpringCount < springsBefore, "springs die with their particle");
+    CHECK(gwi->particles.particleSpringCount < springsBefore, "springs die with their particle");
     m2World_Step(gw, 1.0f / 60.0f, 4);
     m2DestroyWorld(gw);
 }
@@ -934,11 +940,15 @@ static void TestFluidHash(void)
     // Fold the neighbor structure into the gated line: the pair list
     // itself must agree bit-for-bit across every CI cell.
     m2World* w = m2WorldFromId(world);
-    hash = m2Hash64(hash, &w->particlePairCount, (int32_t)sizeof(int32_t));
-    hash = m2Hash64(hash, w->particlePairA, w->particlePairCount * (int32_t)sizeof(int32_t));
-    hash = m2Hash64(hash, w->particlePairB, w->particlePairCount * (int32_t)sizeof(int32_t));
-    hash = m2Hash64(hash, w->particlePairWeight, w->particlePairCount * (int32_t)sizeof(float));
-    hash = m2Hash64(hash, w->particlePairNormal, w->particlePairCount * (int32_t)sizeof(m2Vec2));
+    hash = m2Hash64(hash, &w->particles.particlePairCount, (int32_t)sizeof(int32_t));
+    hash = m2Hash64(hash, w->particles.particlePairA,
+                    w->particles.particlePairCount * (int32_t)sizeof(int32_t));
+    hash = m2Hash64(hash, w->particles.particlePairB,
+                    w->particles.particlePairCount * (int32_t)sizeof(int32_t));
+    hash = m2Hash64(hash, w->particles.particlePairWeight,
+                    w->particles.particlePairCount * (int32_t)sizeof(float));
+    hash = m2Hash64(hash, w->particles.particlePairNormal,
+                    w->particles.particlePairCount * (int32_t)sizeof(m2Vec2));
     printf("M2_FLUID_HASH=%016llx\n", (unsigned long long)hash);
     m2DestroyWorld(world);
 }

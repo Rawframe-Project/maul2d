@@ -70,23 +70,23 @@ m2JointId m2CreatePrismaticJoint(m2WorldId worldId, const m2PrismaticJointDef* d
     m2JointId jointId =
         m2FinishJoint(world, worldId, index, (uint8_t)m2_prismaticJoint, bodyA, bodyB,
                       def->localAnchorA, def->localAnchorB, 0.0f, def->hertz, def->dampingRatio);
-    world->jointUserData[index] = def->userData;
-    world->jointCollide[index] = def->collideConnected ? 1 : 0;
+    world->joints.jointUserData[index] = def->userData;
+    world->joints.jointCollide[index] = def->collideConnected ? 1 : 0;
     if (def->collideConnected == false)
     {
         m2RefilterJointedBodies(world, bodyA, bodyB);
     }
-    world->jointFlags[index] =
+    world->joints.jointFlags[index] =
         (def->enableMotor ? M2_JOINT_MOTOR : 0u) | (def->enableLimit ? M2_JOINT_LIMIT : 0u);
-    world->jointMotorSpeed[index] = def->motorSpeed;
-    world->jointMaxMotor[index] = def->maxMotorForce;
-    world->jointLower[index] = def->lowerTranslation;
-    world->jointUpper[index] = def->upperTranslation;
-    world->jointLocalAxisA[index] =
+    world->joints.jointMotorSpeed[index] = def->motorSpeed;
+    world->joints.jointMaxMotor[index] = def->maxMotorForce;
+    world->joints.jointLower[index] = def->lowerTranslation;
+    world->joints.jointUpper[index] = def->upperTranslation;
+    world->joints.jointLocalAxisA[index] =
         (m2Vec2){def->localAxisA.x / axisLength, def->localAxisA.y / axisLength};
-    world->jointRefAngle[index] =
-        m2RelativeJointAngle(world->transforms[bodyA].q, world->transforms[bodyB].q);
-    if (world->journalActive != 0)
+    world->joints.jointRefAngle[index] =
+        m2RelativeJointAngle(world->bodies.transforms[bodyA].q, world->bodies.transforms[bodyB].q);
+    if (world->recorder.journalActive != 0)
     {
         m2OpCreatePrismaticJoint record;
         memset(&record, 0, sizeof(record));
@@ -113,11 +113,11 @@ static void PreparePrismatic(m2World* world, m2JointConstraint* c, const m2Joint
     // Prismatic frame at prepare: Jacobians frozen for the
     // substep like the revolute point block (recorded
     // adaptation of the reference's per-iteration re-rotation).
-    c->axis = m2RotateVec2(qA, world->jointLocalAxisA[j]);
+    c->axis = m2RotateVec2(qA, world->joints.jointLocalAxisA[j]);
     c->perp = (m2Vec2){-c->axis.y, c->axis.x};
     c->baseC = dx * c->axis.x + dy * c->axis.y; // translation0
     c->baseCVec = (m2Vec2){dx * c->perp.x + dy * c->perp.y, 0.0f};
-    c->baseAngle = m2UnwindAngle(m2RelativeJointAngle(qA, qB) - world->jointRefAngle[j]);
+    c->baseAngle = m2UnwindAngle(m2RelativeJointAngle(qA, qB) - world->joints.jointRefAngle[j]);
     m2Vec2 dPlusRA = {dx + c->rA.x, dy + c->rA.y};
     c->a1 = m2Cross2(dPlusRA, c->axis);
     c->a2 = m2Cross2(c->rB, c->axis);
@@ -150,10 +150,10 @@ static void SolvePrismatic(m2World* world, m2JointConstraint* c, const m2JointSo
     m2Vec2 ds = ctx->ds;
     bool useBias = ctx->useBias;
     float invH = ctx->invH;
-    float mA = world->invMass[c->bodyA];
-    float iA = world->invInertia[c->bodyA];
-    float mB = world->invMass[c->bodyB];
-    float iB = world->invInertia[c->bodyB];
+    float mA = world->bodies.invMass[c->bodyA];
+    float iA = world->bodies.invInertia[c->bodyA];
+    float mB = world->bodies.invMass[c->bodyB];
+    float iB = world->bodies.invInertia[c->bodyB];
     float translation = c->baseC + c->axis.x * ds.x + c->axis.y * ds.y;
 
     // Fresh effective mass per substep (reference b2 #981): the axial
@@ -259,9 +259,9 @@ static void SolvePrismatic(m2World* world, m2JointConstraint* c, const m2JointSo
         if (useBias)
         {
             float perpC = c->baseCVec.x + c->perp.x * ds.x + c->perp.y * ds.y;
-            float angleC =
-                m2UnwindAngle(c->baseAngle + m2RelativeJointAngle(world->deltaRotations[c->bodyA],
-                                                                  world->deltaRotations[c->bodyB]));
+            float angleC = m2UnwindAngle(
+                c->baseAngle + m2RelativeJointAngle(world->solver.deltaRotations[c->bodyA],
+                                                    world->solver.deltaRotations[c->bodyB]));
             bias.x = c->softness.biasRate * perpC;
             bias.y = c->softness.biasRate * angleC;
             massScale = c->softness.massScale;
@@ -295,19 +295,19 @@ static void SolvePrismatic(m2World* world, m2JointConstraint* c, const m2JointSo
     c->axialMass = axialMassFrozen;
     c->k11 = k11Frozen;
     c->k12 = k12Frozen;
-    world->linearVelocities[c->bodyA] = vA;
-    world->angularVelocities[c->bodyA] = wA;
-    world->linearVelocities[c->bodyB] = vB;
-    world->angularVelocities[c->bodyB] = wB;
+    world->bodies.linearVelocities[c->bodyA] = vA;
+    world->bodies.angularVelocities[c->bodyA] = wA;
+    world->bodies.linearVelocities[c->bodyB] = vB;
+    world->bodies.angularVelocities[c->bodyB] = wB;
 }
 
 static void PrismaticReaction(const m2World* world, int32_t j, float invH, float* force,
                               float* torque)
 {
     // (perpendicular, angle) block plus the axial motor and limits.
-    m2Vec2 impulse = world->jointImpulse[j];
-    float axial = world->jointSpringImpulse[j] + world->jointMotorImpulse[j] +
-                  world->jointLowerImpulse[j] - world->jointUpperImpulse[j];
+    m2Vec2 impulse = world->joints.jointImpulse[j];
+    float axial = world->joints.jointSpringImpulse[j] + world->joints.jointMotorImpulse[j] +
+                  world->joints.jointLowerImpulse[j] - world->joints.jointUpperImpulse[j];
     float linear = sqrtf(impulse.x * impulse.x + axial * axial);
     *force = linear * invH;
     *torque = m2AbsF(impulse.y) * invH;

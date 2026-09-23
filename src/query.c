@@ -12,6 +12,9 @@
 // into each body's local frame through one f64->f32 crossing, exactly
 // like the narrowphase, so casts stay exact far from the origin.
 
+#include "query.h"
+#include "distance.h"
+#include "world.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -28,8 +31,8 @@ m2QueryFilter m2DefaultQueryFilter(void)
 
 static bool QueryShouldSee(const m2World* world, int32_t shapeIndex, m2QueryFilter filter)
 {
-    return (filter.categoryBits & world->shapeMask[shapeIndex]) != 0 &&
-           (world->shapeCategory[shapeIndex] & filter.maskBits) != 0;
+    return (filter.categoryBits & world->shapes.shapeMask[shapeIndex]) != 0 &&
+           (world->shapes.shapeCategory[shapeIndex] & filter.maskBits) != 0;
 }
 
 typedef struct m2CastHit
@@ -361,13 +364,14 @@ static m2CastHit RayCastGeometry(const m2ShapeGeometry* geometry, m2Vec2 p1, m2V
 static m2CastHit RayCastShape(const m2World* world, int32_t shapeIndex, m2Pos2 origin, m2Vec2 d,
                               float maxFraction)
 {
-    int32_t body = world->shapeBody[shapeIndex];
-    m2Transform xf = world->transforms[body];
+    int32_t body = world->shapes.shapeBody[shapeIndex];
+    m2Transform xf = world->bodies.transforms[body];
     m2Vec2 rel = {(float)(origin.x - xf.p.x), (float)(origin.y - xf.p.y)};
     // Inverse-rotate into the body frame.
     m2Vec2 pLocal = {xf.q.c * rel.x + xf.q.s * rel.y, -xf.q.s * rel.x + xf.q.c * rel.y};
     m2Vec2 dLocal = {xf.q.c * d.x + xf.q.s * d.y, -xf.q.s * d.x + xf.q.c * d.y};
-    m2CastHit hit = RayCastGeometry(&world->shapeGeometry[shapeIndex], pLocal, dLocal, maxFraction);
+    m2CastHit hit =
+        RayCastGeometry(&world->shapes.shapeGeometry[shapeIndex], pLocal, dLocal, maxFraction);
     if (hit.hit)
     {
         // Rotate the normal back out; the point is rebuilt in f64 by
@@ -420,8 +424,8 @@ static bool RayMissesNode(const m2RayState* ray, m2AABB aabb)
 
 static void RayCastTree(const m2World* world, int32_t treeIndex, m2RayState* ray)
 {
-    const m2DynamicTree* tree = &world->trees[treeIndex];
-    const m2TreeNode* nodes = world->treeNodes[treeIndex];
+    const m2DynamicTree* tree = &world->broadphase.trees[treeIndex];
+    const m2TreeNode* nodes = world->broadphase.treeNodes[treeIndex];
     int32_t stack[256];
     int32_t top = 0;
     if (tree->root != M2_NULL_NODE)
@@ -444,7 +448,8 @@ static void RayCastTree(const m2World* world, int32_t treeIndex, m2RayState* ray
             continue;
         }
         int32_t shapeIndex = nodes[index].userData;
-        if (world->shapeAlive[shapeIndex] == 0 || !QueryShouldSee(world, shapeIndex, ray->filter))
+        if (world->shapes.shapeAlive[shapeIndex] == 0 ||
+            !QueryShouldSee(world, shapeIndex, ray->filter))
         {
             continue;
         }
@@ -505,7 +510,7 @@ m2RayCastResult m2World_CastRayClosest(m2WorldId worldId, m2Pos2 origin, m2Vec2 
 
     result.shapeId.index1 = ray.shapeIndex + 1;
     result.shapeId.world0 = worldId.index1;
-    result.shapeId.generation = world->shapeGenerations[ray.shapeIndex];
+    result.shapeId.generation = world->shapes.shapeGenerations[ray.shapeIndex];
     result.fraction = ray.initialOverlap ? 0.0f : ray.fraction;
     result.point = (m2Pos2){origin.x + (double)result.fraction * (double)translation.x,
                             origin.y + (double)result.fraction * (double)translation.y};
@@ -560,7 +565,7 @@ static void OfferShape(ShapeSelection* sel, const m2World* world, m2WorldId worl
     {
         return;
     }
-    m2ShapeId id = {shapeIndex + 1, worldId.index1, world->shapeGenerations[shapeIndex]};
+    m2ShapeId id = {shapeIndex + 1, worldId.index1, world->shapes.shapeGenerations[shapeIndex]};
     if (sel->size < sel->capacity)
     {
         // Sift up.
@@ -610,18 +615,20 @@ int32_t m2World_OverlapAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2Sha
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
         m2TreeCursor cursor;
-        m2TreeBeginQuery(&cursor, &world->trees[t], world->treeNodes[t], aabb);
+        m2TreeBeginQuery(&cursor, &world->broadphase.trees[t], world->broadphase.treeNodes[t],
+                         aabb);
         int32_t shapeIndex;
         while (m2TreeNextQuery(&cursor, &shapeIndex))
         {
-            if (world->shapeAlive[shapeIndex] == 0 || !QueryShouldSee(world, shapeIndex, filter))
+            if (world->shapes.shapeAlive[shapeIndex] == 0 ||
+                !QueryShouldSee(world, shapeIndex, filter))
             {
                 continue;
             }
             // Tight filter: the fat tree AABB over-reports.
-            int32_t body = world->shapeBody[shapeIndex];
-            m2AABB tight =
-                m2ComputeShapeAABB(&world->shapeGeometry[shapeIndex], world->transforms[body]);
+            int32_t body = world->shapes.shapeBody[shapeIndex];
+            m2AABB tight = m2ComputeShapeAABB(&world->shapes.shapeGeometry[shapeIndex],
+                                              world->bodies.transforms[body]);
             if (!m2AABB_Overlaps(tight, aabb))
             {
                 continue;
@@ -772,9 +779,9 @@ static void ProxiesInBodyFrame(const m2World* world, int32_t shapeIndex, const m
                                m2DistanceProxy* target, m2DistanceProxy* cast,
                                m2Vec2* translationLocal, m2Vec2* poseOriginLocal)
 {
-    int32_t body = world->shapeBody[shapeIndex];
-    m2Transform xf = world->transforms[body];
-    *target = m2GeometryProxy(&world->shapeGeometry[shapeIndex]);
+    int32_t body = world->shapes.shapeBody[shapeIndex];
+    m2Transform xf = world->bodies.transforms[body];
+    *target = m2GeometryProxy(&world->shapes.shapeGeometry[shapeIndex]);
 
     m2Vec2 rel = {(float)(q->pose.p.x - xf.p.x), (float)(q->pose.p.y - xf.p.y)};
     m2Vec2 relLocal = {xf.q.c * rel.x + xf.q.s * rel.y, -xf.q.s * rel.x + xf.q.c * rel.y};
@@ -799,7 +806,7 @@ static void ProxiesInBodyFrame(const m2World* world, int32_t shapeIndex, const m
 // Sweeps from the ghost side pass through, same sign law as rays.
 static bool ChainGhostSide(const m2World* world, int32_t shapeIndex, m2Vec2 startLocal)
 {
-    const m2ShapeGeometry* g = &world->shapeGeometry[shapeIndex];
+    const m2ShapeGeometry* g = &world->shapes.shapeGeometry[shapeIndex];
     if (g->type != m2_chainSegmentShape)
     {
         return false;
@@ -850,11 +857,13 @@ static m2RayCastResult CastProxyClosest(m2WorldId worldId, const m2DistanceProxy
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
         m2TreeCursor cursor;
-        m2TreeBeginQuery(&cursor, &world->trees[t], world->treeNodes[t], aabb);
+        m2TreeBeginQuery(&cursor, &world->broadphase.trees[t], world->broadphase.treeNodes[t],
+                         aabb);
         int32_t shapeIndex;
         while (m2TreeNextQuery(&cursor, &shapeIndex))
         {
-            if (world->shapeAlive[shapeIndex] == 0 || !QueryShouldSee(world, shapeIndex, filter))
+            if (world->shapes.shapeAlive[shapeIndex] == 0 ||
+                !QueryShouldSee(world, shapeIndex, filter))
             {
                 continue;
             }
@@ -888,11 +897,11 @@ static m2RayCastResult CastProxyClosest(m2WorldId worldId, const m2DistanceProxy
     {
         return result;
     }
-    int32_t body = world->shapeBody[bestShape];
-    m2Transform xf = world->transforms[body];
+    int32_t body = world->shapes.shapeBody[bestShape];
+    m2Transform xf = world->bodies.transforms[body];
     result.shapeId.index1 = bestShape + 1;
     result.shapeId.world0 = worldId.index1;
-    result.shapeId.generation = world->shapeGenerations[bestShape];
+    result.shapeId.generation = world->shapes.shapeGenerations[bestShape];
     result.fraction = bestOverlap ? 0.0f : bestFraction;
     result.hit = true;
     if (bestOverlap)
@@ -928,11 +937,13 @@ static int32_t OverlapProxy(m2WorldId worldId, const m2DistanceProxy* castLocal,
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
         m2TreeCursor cursor;
-        m2TreeBeginQuery(&cursor, &world->trees[t], world->treeNodes[t], aabb);
+        m2TreeBeginQuery(&cursor, &world->broadphase.trees[t], world->broadphase.treeNodes[t],
+                         aabb);
         int32_t shapeIndex;
         while (m2TreeNextQuery(&cursor, &shapeIndex))
         {
-            if (world->shapeAlive[shapeIndex] == 0 || !QueryShouldSee(world, shapeIndex, filter))
+            if (world->shapes.shapeAlive[shapeIndex] == 0 ||
+                !QueryShouldSee(world, shapeIndex, filter))
             {
                 continue;
             }
@@ -1038,8 +1049,8 @@ m2RayCastResult m2Shape_RayCast(m2ShapeId shapeId, m2Pos2 origin, m2Vec2 transla
         return result;
     }
     int32_t index = shapeId.index1 - 1;
-    if (index < 0 || index >= world->shapeCapacity || world->shapeAlive[index] == 0 ||
-        world->shapeGenerations[index] != shapeId.generation || !m2FinitePos2(origin) ||
+    if (index < 0 || index >= world->shapes.shapeCapacity || world->shapes.shapeAlive[index] == 0 ||
+        world->shapes.shapeGenerations[index] != shapeId.generation || !m2FinitePos2(origin) ||
         !m2FiniteVec2(translation))
     {
         m2Refuse(world, m2_errorInvalid);
@@ -1117,8 +1128,8 @@ int32_t m2World_CastRayAll(m2WorldId worldId, m2Pos2 origin, m2Vec2 translation,
 
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
-        const m2DynamicTree* tree = &world->trees[t];
-        const m2TreeNode* nodes = world->treeNodes[t];
+        const m2DynamicTree* tree = &world->broadphase.trees[t];
+        const m2TreeNode* nodes = world->broadphase.treeNodes[t];
         int32_t stack[256];
         int32_t top = 0;
         if (tree->root != M2_NULL_NODE)
@@ -1140,7 +1151,8 @@ int32_t m2World_CastRayAll(m2WorldId worldId, m2Pos2 origin, m2Vec2 translation,
                 continue;
             }
             int32_t shapeIndex = nodes[index].userData;
-            if (world->shapeAlive[shapeIndex] == 0 || !QueryShouldSee(world, shapeIndex, filter))
+            if (world->shapes.shapeAlive[shapeIndex] == 0 ||
+                !QueryShouldSee(world, shapeIndex, filter))
             {
                 continue;
             }
@@ -1153,7 +1165,7 @@ int32_t m2World_CastRayAll(m2WorldId worldId, m2Pos2 origin, m2Vec2 translation,
             m2RayHit out;
             out.shapeId.index1 = shapeIndex + 1;
             out.shapeId.world0 = worldId.index1;
-            out.shapeId.generation = world->shapeGenerations[shapeIndex];
+            out.shapeId.generation = world->shapes.shapeGenerations[shapeIndex];
             out.fraction = initialOverlap ? 0.0f : hit.fraction;
             out.normal = hit.normal;
             out.point = (m2Pos2){origin.x + (double)out.fraction * (double)translation.x,
@@ -1199,11 +1211,13 @@ static int32_t CastProxyAll(m2WorldId worldId, const m2DistanceProxy* castLocal,
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
         m2TreeCursor cursor;
-        m2TreeBeginQuery(&cursor, &world->trees[t], world->treeNodes[t], aabb);
+        m2TreeBeginQuery(&cursor, &world->broadphase.trees[t], world->broadphase.treeNodes[t],
+                         aabb);
         int32_t shapeIndex;
         while (m2TreeNextQuery(&cursor, &shapeIndex))
         {
-            if (world->shapeAlive[shapeIndex] == 0 || !QueryShouldSee(world, shapeIndex, filter))
+            if (world->shapes.shapeAlive[shapeIndex] == 0 ||
+                !QueryShouldSee(world, shapeIndex, filter))
             {
                 continue;
             }
@@ -1222,13 +1236,13 @@ static int32_t CastProxyAll(m2WorldId worldId, const m2DistanceProxy* castLocal,
             {
                 continue;
             }
-            int32_t body = world->shapeBody[shapeIndex];
-            m2Transform xf = world->transforms[body];
+            int32_t body = world->shapes.shapeBody[shapeIndex];
+            m2Transform xf = world->bodies.transforms[body];
             bool initialOverlap = hit.normal.x == 0.0f && hit.normal.y == 0.0f;
             m2RayHit out;
             out.shapeId.index1 = shapeIndex + 1;
             out.shapeId.world0 = worldId.index1;
-            out.shapeId.generation = world->shapeGenerations[shapeIndex];
+            out.shapeId.generation = world->shapes.shapeGenerations[shapeIndex];
             out.fraction = initialOverlap ? 0.0f : hit.fraction;
             if (initialOverlap)
             {
@@ -1306,11 +1320,13 @@ int32_t m2World_CollideMover(m2WorldId worldId, const m2Capsule* mover, m2Transf
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
         m2TreeCursor cursor;
-        m2TreeBeginQuery(&cursor, &world->trees[t], world->treeNodes[t], aabb);
+        m2TreeBeginQuery(&cursor, &world->broadphase.trees[t], world->broadphase.treeNodes[t],
+                         aabb);
         int32_t shapeIndex;
         while (m2TreeNextQuery(&cursor, &shapeIndex))
         {
-            if (world->shapeAlive[shapeIndex] == 0 || !QueryShouldSee(world, shapeIndex, filter))
+            if (world->shapes.shapeAlive[shapeIndex] == 0 ||
+                !QueryShouldSee(world, shapeIndex, filter))
             {
                 continue;
             }
@@ -1343,8 +1359,8 @@ int32_t m2World_CollideMover(m2WorldId worldId, const m2Capsule* mover, m2Transf
                 }
                 normalLocal = (m2Vec2){startLocal.x / len, startLocal.y / len};
             }
-            int32_t body = world->shapeBody[shapeIndex];
-            m2Transform xf = world->transforms[body];
+            int32_t body = world->shapes.shapeBody[shapeIndex];
+            m2Transform xf = world->bodies.transforms[body];
             m2Vec2 surf = {d.pointA.x + target.radius * normalLocal.x,
                            d.pointA.y + target.radius * normalLocal.y};
             if (results != NULL && total < capacity)
@@ -1352,7 +1368,7 @@ int32_t m2World_CollideMover(m2WorldId worldId, const m2Capsule* mover, m2Transf
                 m2PlaneResult* out = results + total;
                 out->shapeId.index1 = shapeIndex + 1;
                 out->shapeId.world0 = worldId.index1;
-                out->shapeId.generation = world->shapeGenerations[shapeIndex];
+                out->shapeId.generation = world->shapes.shapeGenerations[shapeIndex];
                 out->normal = (m2Vec2){xf.q.c * normalLocal.x - xf.q.s * normalLocal.y,
                                        xf.q.s * normalLocal.x + xf.q.c * normalLocal.y};
                 out->separation = separation;

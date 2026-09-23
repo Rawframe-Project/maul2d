@@ -10,7 +10,7 @@
 #include "world_internal.h"
 
 // Joint flags. The first three mirror public switches and live in
-// world->jointFlags; the rest are set by prepare for this step only and
+// world->joints.jointFlags; the rest are set by prepare for this step only and
 // mean different things to different kinds.
 #define M2_JOINT_MOTOR  1u // motor enabled
 #define M2_JOINT_LIMIT  2u // limit (or wheel travel stops) enabled
@@ -47,5 +47,23 @@ m2JointId m2FinishJoint(m2World* world, m2WorldId worldId, int32_t index, uint8_
 
 // The rope length on one side of a pulley (0 = A, 1 = B) right now.
 float m2PulleyLiveLength(m2World* world, int32_t index, int32_t side);
+
+// A def is valid only when its internalValue matches its cookie.
+#define M2_DJOINT_COOKIE  (M2_COOKIE ^ ((int32_t)sizeof(m2DistanceJointDef) << 8) ^ 4)
+#define M2_RJOINT_COOKIE  (M2_COOKIE ^ ((int32_t)sizeof(m2RevoluteJointDef) << 8) ^ 5)
+#define M2_PJOINT_COOKIE  (M2_COOKIE ^ ((int32_t)sizeof(m2PrismaticJointDef) << 8) ^ 6)
+#define M2_WJOINT_COOKIE  (M2_COOKIE ^ ((int32_t)sizeof(m2WeldJointDef) << 8) ^ 7)
+#define M2_WHJOINT_COOKIE (M2_COOKIE ^ ((int32_t)sizeof(m2WheelJointDef) << 8) ^ 8)
+#define M2_FJOINT_COOKIE  (M2_COOKIE ^ ((int32_t)sizeof(m2FilterJointDef) << 8) ^ 10)
+#define M2_MOJOINT_COOKIE (M2_COOKIE ^ ((int32_t)sizeof(m2MotorJointDef) << 8) ^ 11)
+#define M2_MSJOINT_COOKIE (M2_COOKIE ^ ((int32_t)sizeof(m2MouseJointDef) << 8) ^ 12)
+#define M2_GJOINT_COOKIE  (M2_COOKIE ^ ((int32_t)sizeof(m2GearJointDef) << 8) ^ 14)
+#define M2_PLJOINT_COOKIE (M2_COOKIE ^ ((int32_t)sizeof(m2PulleyJointDef) << 8) ^ 15)
+#define M2_RTJOINT_COOKIE (M2_COOKIE ^ ((int32_t)sizeof(m2RatchetJointDef) << 8) ^ 16)
+
+// The journaled parameter channel (codes in journal.h) and the destroy
+// shared with the solver's break pass.
+bool m2SetJointParamInternal(m2World* world, m2JointId jointId, uint8_t param, float value);
+void m2DestroyJointInternal(m2World* world, int32_t index);
 
 #endif // MAUL2D_SRC_JOINT_H

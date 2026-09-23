@@ -7,6 +7,7 @@
 // world position leaves here as f64 so the renderer can subtract the
 // camera before dropping to floats.
 
+#include "world.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -27,19 +28,19 @@ enum
 
 static uint32_t BodyColor(const m2World* world, int32_t body)
 {
-    if (world->types[body] == (uint8_t)m2_staticBody)
+    if (world->bodies.types[body] == (uint8_t)m2_staticBody)
     {
         return m2_colorStatic;
     }
-    if (world->types[body] == (uint8_t)m2_kinematicBody)
+    if (world->bodies.types[body] == (uint8_t)m2_kinematicBody)
     {
         return m2_colorKinematic;
     }
-    if (world->asleep[body] != 0)
+    if (world->bodies.asleep[body] != 0)
     {
         return m2_colorSleeping;
     }
-    return world->bullets[body] != 0 ? m2_colorBullet : m2_colorAwake;
+    return world->bodies.bullets[body] != 0 ? m2_colorBullet : m2_colorAwake;
 }
 
 static m2Pos2 LocalToWorld(m2Transform xf, m2Vec2 local)
@@ -52,10 +53,11 @@ static m2Pos2 LocalToWorld(m2Transform xf, m2Vec2 local)
 
 static void DrawShape(const m2World* world, const m2DebugDraw* draw, int32_t shape)
 {
-    int32_t body = world->shapeBody[shape];
-    m2Transform xf = world->transforms[body];
-    uint32_t color = world->shapeSensor[shape] != 0 ? m2_colorSensor : BodyColor(world, body);
-    const m2ShapeGeometry* geometry = &world->shapeGeometry[shape];
+    int32_t body = world->shapes.shapeBody[shape];
+    m2Transform xf = world->bodies.transforms[body];
+    uint32_t color =
+        world->shapes.shapeSensor[shape] != 0 ? m2_colorSensor : BodyColor(world, body);
+    const m2ShapeGeometry* geometry = &world->shapes.shapeGeometry[shape];
 
     switch (geometry->type)
     {
@@ -109,9 +111,9 @@ void m2World_Draw(m2WorldId worldId, const m2DebugDraw* draw)
 
     if (draw->drawShapes)
     {
-        for (int32_t i = 0; i < world->maxShapeIndex; ++i)
+        for (int32_t i = 0; i < world->shapes.maxShapeIndex; ++i)
         {
-            if (world->shapeAlive[i] != 0)
+            if (world->shapes.shapeAlive[i] != 0)
             {
                 DrawShape(world, draw, i);
             }
@@ -120,13 +122,13 @@ void m2World_Draw(m2WorldId worldId, const m2DebugDraw* draw)
 
     if (draw->drawJoints && draw->drawSegment != NULL)
     {
-        for (int32_t j = 0; j < world->maxJointIndex; ++j)
+        for (int32_t j = 0; j < world->joints.maxJointIndex; ++j)
         {
-            if (world->jointAlive[j] == 0)
+            if (world->joints.jointAlive[j] == 0)
             {
                 continue;
             }
-            uint8_t type = world->jointType[j];
+            uint8_t type = world->joints.jointType[j];
             if (type == (uint8_t)m2_filterJoint)
             {
                 continue; // a filter joint is the absence of contact: nothing to draw
@@ -135,21 +137,21 @@ void m2World_Draw(m2WorldId worldId, const m2DebugDraw* draw)
             {
                 // Gear and ratchet: the anchor slots carry phase-tracking
                 // rotation state, not anchors; draw the coupling hub to hub.
-                m2Pos2 ca = world->transforms[world->jointBodyA[j]].p;
-                m2Pos2 cb = world->transforms[world->jointBodyB[j]].p;
+                m2Pos2 ca = world->bodies.transforms[world->joints.jointBodyA[j]].p;
+                m2Pos2 cb = world->bodies.transforms[world->joints.jointBodyB[j]].p;
                 draw->drawSegment(ca, cb, m2_colorJoint, draw->context);
                 continue;
             }
-            m2Pos2 a =
-                LocalToWorld(world->transforms[world->jointBodyA[j]], world->jointLocalAnchorA[j]);
-            m2Pos2 b =
-                LocalToWorld(world->transforms[world->jointBodyB[j]], world->jointLocalAnchorB[j]);
+            m2Pos2 a = LocalToWorld(world->bodies.transforms[world->joints.jointBodyA[j]],
+                                    world->joints.jointLocalAnchorA[j]);
+            m2Pos2 b = LocalToWorld(world->bodies.transforms[world->joints.jointBodyB[j]],
+                                    world->joints.jointLocalAnchorB[j]);
             if (type == (uint8_t)m2_pulleyJoint)
             {
                 // Pulley: two ropes up to the ground anchors and the
                 // crossbar between them, the machine as you drew it.
-                m2Pos2 ga = world->jointTargets[j];
-                m2Pos2 gb = world->jointTargetsB[j];
+                m2Pos2 ga = world->joints.jointTargets[j];
+                m2Pos2 gb = world->joints.jointTargetsB[j];
                 draw->drawSegment(a, ga, m2_colorJoint, draw->context);
                 draw->drawSegment(b, gb, m2_colorJoint, draw->context);
                 draw->drawSegment(ga, gb, m2_colorJoint, draw->context);
@@ -164,7 +166,7 @@ void m2World_Draw(m2WorldId worldId, const m2DebugDraw* draw)
             {
                 // Mouse: the spring runs from the world target to the
                 // grab point on B.
-                a = world->jointTargets[j];
+                a = world->joints.jointTargets[j];
             }
             draw->drawSegment(a, b, m2_colorJoint, draw->context);
             if (draw->drawPoint != NULL)
@@ -177,20 +179,20 @@ void m2World_Draw(m2WorldId worldId, const m2DebugDraw* draw)
 
     if (draw->drawContacts && draw->drawPoint != NULL)
     {
-        for (int32_t i = 0; i < world->pairCount; ++i)
+        for (int32_t i = 0; i < world->contacts.pairCount; ++i)
         {
-            if (world->pairTouching[i] == 0)
+            if (world->contacts.pairTouching[i] == 0)
             {
                 continue;
             }
-            int32_t shapeA = (int32_t)(world->pairKeys[i] >> 32);
-            int32_t shapeB = (int32_t)(world->pairKeys[i] & 0xFFFFFFFFu);
-            if (world->shapeSensor[shapeA] != 0 || world->shapeSensor[shapeB] != 0)
+            int32_t shapeA = (int32_t)(world->contacts.pairKeys[i] >> 32);
+            int32_t shapeB = (int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu);
+            if (world->shapes.shapeSensor[shapeA] != 0 || world->shapes.shapeSensor[shapeB] != 0)
             {
                 continue;
             }
-            const m2Manifold* manifold = &world->manifolds[i];
-            m2Transform xfA = world->transforms[world->shapeBody[shapeA]];
+            const m2Manifold* manifold = &world->contacts.manifolds[i];
+            m2Transform xfA = world->bodies.transforms[world->shapes.shapeBody[shapeA]];
             for (int32_t k = 0; k < manifold->pointCount; ++k)
             {
                 draw->drawPoint(LocalToWorld(xfA, manifold->points[k].anchorA), 5.0f,
@@ -205,20 +207,20 @@ void m2World_Draw(m2WorldId worldId, const m2DebugDraw* draw)
         // normal, the friction impulse along the tangent. The stored
         // impulses are the warm-start payload the last solve settled on.
         float scale = draw->forceScale > 0.0f ? draw->forceScale : 1.0f;
-        for (int32_t i = 0; i < world->pairCount; ++i)
+        for (int32_t i = 0; i < world->contacts.pairCount; ++i)
         {
-            if (world->pairTouching[i] == 0)
+            if (world->contacts.pairTouching[i] == 0)
             {
                 continue;
             }
-            int32_t shapeA = (int32_t)(world->pairKeys[i] >> 32);
-            int32_t shapeB = (int32_t)(world->pairKeys[i] & 0xFFFFFFFFu);
-            if (world->shapeSensor[shapeA] != 0 || world->shapeSensor[shapeB] != 0)
+            int32_t shapeA = (int32_t)(world->contacts.pairKeys[i] >> 32);
+            int32_t shapeB = (int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu);
+            if (world->shapes.shapeSensor[shapeA] != 0 || world->shapes.shapeSensor[shapeB] != 0)
             {
                 continue;
             }
-            const m2Manifold* manifold = &world->manifolds[i];
-            m2Transform xfA = world->transforms[world->shapeBody[shapeA]];
+            const m2Manifold* manifold = &world->contacts.manifolds[i];
+            m2Transform xfA = world->bodies.transforms[world->shapes.shapeBody[shapeA]];
             m2Vec2 n = {xfA.q.c * manifold->normal.x - xfA.q.s * manifold->normal.y,
                         xfA.q.s * manifold->normal.x + xfA.q.c * manifold->normal.y};
             m2Vec2 t = {-n.y, n.x};
@@ -237,14 +239,15 @@ void m2World_Draw(m2WorldId worldId, const m2DebugDraw* draw)
 
     if (draw->drawAABBs && draw->drawSegment != NULL)
     {
-        for (int32_t i = 0; i < world->maxShapeIndex; ++i)
+        for (int32_t i = 0; i < world->shapes.maxShapeIndex; ++i)
         {
-            if (world->shapeAlive[i] == 0 || world->proxyIds[i] == M2_NULL_NODE)
+            if (world->shapes.shapeAlive[i] == 0 || world->broadphase.proxyIds[i] == M2_NULL_NODE)
             {
                 continue;
             }
             const m2TreeNode* node =
-                &world->treeNodes[world->types[world->shapeBody[i]]][world->proxyIds[i]];
+                &world->broadphase.treeNodes[world->bodies.types[world->shapes.shapeBody[i]]]
+                                            [world->broadphase.proxyIds[i]];
             m2AABB box = node->aabb;
             m2Pos2 c1 = {box.lowerBound.x, box.lowerBound.y};
             m2Pos2 c2 = {box.upperBound.x, box.lowerBound.y};

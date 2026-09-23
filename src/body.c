@@ -26,11 +26,11 @@ m2World* m2GetBodyWorld(m2BodyId id)
 int32_t m2BodySlot(const m2World* world, m2BodyId id)
 {
     int32_t index = id.index1 - 1;
-    if (index < 0 || index >= world->bodyCapacity)
+    if (index < 0 || index >= world->bodies.bodyCapacity)
     {
         return -1;
     }
-    if (world->alive[index] == 0 || world->generations[index] != id.generation)
+    if (world->bodies.alive[index] == 0 || world->bodies.generations[index] != id.generation)
     {
         return -1;
     }
@@ -45,11 +45,11 @@ int32_t m2BodySlot(const m2World* world, m2BodyId id)
 // inverse mass).
 void m2RecomputeMass(m2World* world, int32_t bodyIndex)
 {
-    if (world->types[bodyIndex] != (uint8_t)m2_dynamicBody)
+    if (world->bodies.types[bodyIndex] != (uint8_t)m2_dynamicBody)
     {
-        world->invMass[bodyIndex] = 0.0f;
-        world->invInertia[bodyIndex] = 0.0f;
-        world->localCenters[bodyIndex] = (m2Vec2){0.0f, 0.0f};
+        world->bodies.invMass[bodyIndex] = 0.0f;
+        world->bodies.invInertia[bodyIndex] = 0.0f;
+        world->bodies.localCenters[bodyIndex] = (m2Vec2){0.0f, 0.0f};
         return;
     }
 
@@ -59,9 +59,11 @@ void m2RecomputeMass(m2World* world, int32_t bodyIndex)
     // big-minus-big cancellation (reference b2 #955).
     float mass = 0.0f;
     m2Vec2 center = {0.0f, 0.0f};
-    for (int32_t s = world->bodyShapeHead[bodyIndex]; s != -1; s = world->shapeNext[s])
+    for (int32_t s = world->bodies.bodyShapeHead[bodyIndex]; s != -1;
+         s = world->shapes.shapeNext[s])
     {
-        m2MassData data = m2ComputeShapeMass(&world->shapeGeometry[s], world->shapeDensity[s]);
+        m2MassData data =
+            m2ComputeShapeMass(&world->shapes.shapeGeometry[s], world->shapes.shapeDensity[s]);
         mass += data.mass;
         center.x += data.mass * data.center.x;
         center.y += data.mass * data.center.y;
@@ -71,9 +73,9 @@ void m2RecomputeMass(m2World* world, int32_t bodyIndex)
     {
         // Floor: shapeless or zero-density dynamic bodies weigh 1 kg and
         // do not rotate from impulses (deterministic fallback, no NaN).
-        world->invMass[bodyIndex] = 1.0f;
-        world->invInertia[bodyIndex] = 0.0f;
-        world->localCenters[bodyIndex] = (m2Vec2){0.0f, 0.0f};
+        world->bodies.invMass[bodyIndex] = 1.0f;
+        world->bodies.invInertia[bodyIndex] = 0.0f;
+        world->bodies.localCenters[bodyIndex] = (m2Vec2){0.0f, 0.0f};
         return;
     }
 
@@ -85,19 +87,22 @@ void m2RecomputeMass(m2World* world, int32_t bodyIndex)
     // centroid inertia plus mass times the (small) offset from the COM,
     // in the same canonical shape-list order.
     float inertiaCenter = 0.0f;
-    for (int32_t s = world->bodyShapeHead[bodyIndex]; s != -1; s = world->shapeNext[s])
+    for (int32_t s = world->bodies.bodyShapeHead[bodyIndex]; s != -1;
+         s = world->shapes.shapeNext[s])
     {
-        m2MassData data = m2ComputeShapeMass(&world->shapeGeometry[s], world->shapeDensity[s]);
+        m2MassData data =
+            m2ComputeShapeMass(&world->shapes.shapeGeometry[s], world->shapes.shapeDensity[s]);
         float ox = center.x - data.center.x;
         float oy = center.y - data.center.y;
         inertiaCenter += data.rotationalInertia + data.mass * (ox * ox + oy * oy);
     }
-    world->invMass[bodyIndex] = invMass;
-    world->invInertia[bodyIndex] =
-        world->fixedRotations[bodyIndex] == 0 && inertiaCenter > 0.0f ? 1.0f / inertiaCenter : 0.0f;
+    world->bodies.invMass[bodyIndex] = invMass;
+    world->bodies.invInertia[bodyIndex] =
+        world->bodies.fixedRotations[bodyIndex] == 0 && inertiaCenter > 0.0f ? 1.0f / inertiaCenter
+                                                                             : 0.0f;
     // The body now rotates about this point: velocities, solver
     // anchors and integration all live in the COM frame.
-    world->localCenters[bodyIndex] = center;
+    world->bodies.localCenters[bodyIndex] = center;
 }
 
 // --- Bodies ---------------------------------------------------------------------
@@ -123,54 +128,55 @@ m2BodyId m2CreateBody(m2WorldId worldId, const m2BodyDef* def)
         m2Refuse(world, m2_errorInvalid);
         return m2_nullBodyId;
     }
-    if (world->freeCount == 0)
+    if (world->bodies.freeCount == 0)
     {
         m2Refuse(world, m2_errorCapacity);
         return m2_nullBodyId;
     }
 
-    int32_t index = world->freeQueue[world->freeHead];
-    world->freeHead = (world->freeHead + 1) % world->bodyCapacity;
-    world->freeCount -= 1;
+    int32_t index = world->bodies.freeQueue[world->bodies.freeHead];
+    world->bodies.freeHead = (world->bodies.freeHead + 1) % world->bodies.bodyCapacity;
+    world->bodies.freeCount -= 1;
 
-    world->transforms[index].p = def->position;
-    world->transforms[index].q = m2NormalizeRot(def->rotation);
-    world->linearVelocities[index] = def->linearVelocity;
+    world->bodies.transforms[index].p = def->position;
+    world->bodies.transforms[index].q = m2NormalizeRot(def->rotation);
+    world->bodies.linearVelocities[index] = def->linearVelocity;
     // A rotation-locked body never spins, so a fixed-rotation (or
     // angularZ-locked) body drops any initial angular velocity at birth,
     // the same as the runtime setter does.
-    world->angularVelocities[index] =
+    world->bodies.angularVelocities[index] =
         (def->fixedRotation || def->motionLocks.angularZ) ? 0.0f : def->angularVelocity;
-    world->gravityScales[index] = def->gravityScale;
-    world->linearDampings[index] = def->linearDamping;
-    world->angularDampings[index] = def->angularDamping;
-    world->fixedRotations[index] = (def->fixedRotation || def->motionLocks.angularZ) ? 1 : 0;
-    world->motionLocks[index] = (uint8_t)((def->motionLocks.linearX ? M2_LOCK_LINEAR_X : 0u) |
-                                          (def->motionLocks.linearY ? M2_LOCK_LINEAR_Y : 0u));
-    world->sleepEnables[index] = def->enableSleep ? 1 : 0;
-    world->forces[index] = (m2Vec2){0.0f, 0.0f};
-    world->torques[index] = 0.0f;
-    world->disabled[index] = def->isEnabled ? 0 : 1;
-    world->dominances[index] = def->dominance;
-    world->userData[index] = def->userData;
-    world->types[index] = (uint8_t)def->type;
-    world->alive[index] = 1;
-    world->bodyShapeHead[index] = -1;
-    world->invMass[index] = def->type == m2_dynamicBody ? 1.0f : 0.0f; // shapeless floor
-    world->localCenters[index] = (m2Vec2){0.0f, 0.0f};
-    world->invInertia[index] = 0.0f;
-    world->asleep[index] = 0;
-    world->sleepTimes[index] = 0.0f;
-    world->sleepStreak[index] = 0;
-    world->bullets[index] = def->isBullet ? 1 : 0;
-    if (index + 1 > world->maxBodyIndex)
+    world->bodies.gravityScales[index] = def->gravityScale;
+    world->bodies.linearDampings[index] = def->linearDamping;
+    world->bodies.angularDampings[index] = def->angularDamping;
+    world->bodies.fixedRotations[index] = (def->fixedRotation || def->motionLocks.angularZ) ? 1 : 0;
+    world->bodies.motionLocks[index] =
+        (uint8_t)((def->motionLocks.linearX ? M2_LOCK_LINEAR_X : 0u) |
+                  (def->motionLocks.linearY ? M2_LOCK_LINEAR_Y : 0u));
+    world->bodies.sleepEnables[index] = def->enableSleep ? 1 : 0;
+    world->bodies.forces[index] = (m2Vec2){0.0f, 0.0f};
+    world->bodies.torques[index] = 0.0f;
+    world->bodies.disabled[index] = def->isEnabled ? 0 : 1;
+    world->bodies.dominances[index] = def->dominance;
+    world->bodies.userData[index] = def->userData;
+    world->bodies.types[index] = (uint8_t)def->type;
+    world->bodies.alive[index] = 1;
+    world->bodies.bodyShapeHead[index] = -1;
+    world->bodies.invMass[index] = def->type == m2_dynamicBody ? 1.0f : 0.0f; // shapeless floor
+    world->bodies.localCenters[index] = (m2Vec2){0.0f, 0.0f};
+    world->bodies.invInertia[index] = 0.0f;
+    world->bodies.asleep[index] = 0;
+    world->bodies.sleepTimes[index] = 0.0f;
+    world->bodies.sleepStreak[index] = 0;
+    world->bodies.bullets[index] = def->isBullet ? 1 : 0;
+    if (index + 1 > world->bodies.maxBodyIndex)
     {
-        world->maxBodyIndex = index + 1;
+        world->bodies.maxBodyIndex = index + 1;
     }
 
-    m2BodyId id = {index + 1, worldId.index1, world->generations[index]};
+    m2BodyId id = {index + 1, worldId.index1, world->bodies.generations[index]};
 
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpCreateBody record;
         memset(&record, 0, sizeof(record));
@@ -200,35 +206,37 @@ void m2DestroyBody(m2BodyId bodyId)
     // wakes (a support vanished).
     // The body's list is in ascending joint order, the order a full
     // scan would free the slots in.
-    while (world->bodyJointHead[index] != -1)
+    while (world->joints.bodyJointHead[index] != -1)
     {
-        int32_t j = world->bodyJointHead[index] >> 1;
-        int32_t other = world->jointBodyA[j] == index ? world->jointBodyB[j] : world->jointBodyA[j];
-        if (world->types[other] == (uint8_t)m2_dynamicBody)
+        int32_t j = world->joints.bodyJointHead[index] >> 1;
+        int32_t other = world->joints.jointBodyA[j] == index ? world->joints.jointBodyB[j]
+                                                             : world->joints.jointBodyA[j];
+        if (world->bodies.types[other] == (uint8_t)m2_dynamicBody)
         {
-            world->asleep[other] = 0;
-            world->sleepTimes[other] = 0.0f;
+            world->bodies.asleep[other] = 0;
+            world->bodies.sleepTimes[other] = 0.0f;
         }
-        world->jointAlive[j] = 0;
+        world->joints.jointAlive[j] = 0;
         m2UnlinkJoint(world, j);
-        if (world->jointGenerations[j] == UINT16_MAX)
+        if (world->joints.jointGenerations[j] == UINT16_MAX)
         {
-            world->jointRetiredCount += 1;
+            world->joints.jointRetiredCount += 1;
         }
         else
         {
-            world->jointGenerations[j] += 1;
-            world->jointFreeQueue[world->jointFreeTail] = j;
-            world->jointFreeTail = (world->jointFreeTail + 1) % world->jointCapacity;
-            world->jointFreeCount += 1;
+            world->joints.jointGenerations[j] += 1;
+            world->joints.jointFreeQueue[world->joints.jointFreeTail] = j;
+            world->joints.jointFreeTail =
+                (world->joints.jointFreeTail + 1) % world->joints.jointCapacity;
+            world->joints.jointFreeCount += 1;
         }
     }
 
     // Chains die with their body; their slots retire so stale chain
     // ids miss on generation, same as every other id kind.
-    for (int32_t c = 0; c < world->maxChainIndex; ++c)
+    for (int32_t c = 0; c < world->chains.maxChainIndex; ++c)
     {
-        if (world->chainAlive[c] != 0 && world->chainBody[c] == index)
+        if (world->chains.chainAlive[c] != 0 && world->chains.chainBody[c] == index)
         {
             m2RetireChainSlot(world, c);
         }
@@ -236,25 +244,25 @@ void m2DestroyBody(m2BodyId bodyId)
 
     // Cascade: destroy the shape list (the contact-killing path that event
     // bookending will hang end-touch emission on, registry M19).
-    int32_t s = world->bodyShapeHead[index];
+    int32_t s = world->bodies.bodyShapeHead[index];
     while (s != -1)
     {
-        int32_t next = world->shapeNext[s];
+        int32_t next = world->shapes.shapeNext[s];
         m2DestroyShapeInternal(world, s);
         s = next;
     }
-    world->bodyShapeHead[index] = -1;
+    world->bodies.bodyShapeHead[index] = -1;
 
-    world->alive[index] = 0;
-    if (world->generations[index] == UINT16_MAX)
+    world->bodies.alive[index] = 0;
+    if (world->bodies.generations[index] == UINT16_MAX)
     {
-        world->retiredCount += 1;
+        world->bodies.retiredCount += 1;
         return;
     }
-    world->generations[index] += 1;
-    world->freeQueue[world->freeTail] = index;
-    world->freeTail = (world->freeTail + 1) % world->bodyCapacity;
-    world->freeCount += 1;
+    world->bodies.generations[index] += 1;
+    world->bodies.freeQueue[world->bodies.freeTail] = index;
+    world->bodies.freeTail = (world->bodies.freeTail + 1) % world->bodies.bodyCapacity;
+    world->bodies.freeCount += 1;
 }
 
 bool m2Body_IsValid(m2BodyId bodyId)
@@ -276,19 +284,19 @@ bool m2Body_IsValid(m2BodyId bodyId)
         return expr;                                                                               \
     }
 
-M2_BODY_GETTER(m2Transform, m2Body_GetTransform, world->transforms[index],
+M2_BODY_GETTER(m2Transform, m2Body_GetTransform, world->bodies.transforms[index],
                ((m2Transform){{0.0, 0.0}, {1.0f, 0.0f}}))
 
-M2_BODY_GETTER(m2Pos2, m2Body_GetPosition, world->transforms[index].p, ((m2Pos2){0.0, 0.0}))
+M2_BODY_GETTER(m2Pos2, m2Body_GetPosition, world->bodies.transforms[index].p, ((m2Pos2){0.0, 0.0}))
 
-M2_BODY_GETTER(m2Rot, m2Body_GetRotation, world->transforms[index].q, ((m2Rot){1.0f, 0.0f}))
+M2_BODY_GETTER(m2Rot, m2Body_GetRotation, world->bodies.transforms[index].q, ((m2Rot){1.0f, 0.0f}))
 
-M2_BODY_GETTER(m2Vec2, m2Body_GetLinearVelocity, world->linearVelocities[index],
+M2_BODY_GETTER(m2Vec2, m2Body_GetLinearVelocity, world->bodies.linearVelocities[index],
                ((m2Vec2){0.0f, 0.0f}))
 
-M2_BODY_GETTER(float, m2Body_GetAngularVelocity, world->angularVelocities[index], 0.0f)
+M2_BODY_GETTER(float, m2Body_GetAngularVelocity, world->bodies.angularVelocities[index], 0.0f)
 
-M2_BODY_GETTER(uint64_t, m2Body_GetUserData, world->userData[index], 0)
+M2_BODY_GETTER(uint64_t, m2Body_GetUserData, world->bodies.userData[index], 0)
 
 float m2Body_GetMass(m2BodyId bodyId)
 {
@@ -299,7 +307,7 @@ float m2Body_GetMass(m2BodyId bodyId)
         m2Refuse(world, m2_errorInvalid);
         return 0.0f;
     }
-    return world->invMass[index] > 0.0f ? 1.0f / world->invMass[index] : 0.0f;
+    return world->bodies.invMass[index] > 0.0f ? 1.0f / world->bodies.invMass[index] : 0.0f;
 }
 
 void m2Body_SetLinearVelocity(m2BodyId bodyId, m2Vec2 velocity)
@@ -311,10 +319,10 @@ void m2Body_SetLinearVelocity(m2BodyId bodyId, m2Vec2 velocity)
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    world->linearVelocities[index] = velocity;
-    world->asleep[index] = 0;
-    world->sleepTimes[index] = 0.0f;
-    if (world->journalActive != 0)
+    world->bodies.linearVelocities[index] = velocity;
+    world->bodies.asleep[index] = 0;
+    world->bodies.sleepTimes[index] = 0.0f;
+    if (world->recorder.journalActive != 0)
     {
         m2OpBodyVec record;
         memset(&record, 0, sizeof(record));
@@ -333,10 +341,10 @@ void m2Body_SetAngularVelocity(m2BodyId bodyId, float velocity)
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    world->angularVelocities[index] = velocity;
-    world->asleep[index] = 0;
-    world->sleepTimes[index] = 0.0f;
-    if (world->journalActive != 0)
+    world->bodies.angularVelocities[index] = velocity;
+    world->bodies.asleep[index] = 0;
+    world->bodies.sleepTimes[index] = 0.0f;
+    if (world->recorder.journalActive != 0)
     {
         m2OpBodyFloat record;
         memset(&record, 0, sizeof(record));
@@ -350,13 +358,13 @@ void m2Body_ApplyLinearImpulse(m2BodyId bodyId, m2Vec2 impulse, m2Pos2 worldPoin
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || world->types[index] != (uint8_t)m2_dynamicBody || !m2FiniteVec2(impulse) ||
-        !m2FinitePos2(worldPoint))
+    if (index < 0 || world->bodies.types[index] != (uint8_t)m2_dynamicBody ||
+        !m2FiniteVec2(impulse) || !m2FinitePos2(worldPoint))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpBodyPoint record;
         memset(&record, 0, sizeof(record));
@@ -366,29 +374,31 @@ void m2Body_ApplyLinearImpulse(m2BodyId bodyId, m2Vec2 impulse, m2Pos2 worldPoin
         m2JournalRecord(world, m2_opApplyLinearImpulse, &record, (int32_t)sizeof(record));
     }
     // Arm from the center of mass; the single f64 crossing.
-    m2Transform xf = world->transforms[index];
-    m2Vec2 rlc = {xf.q.c * world->localCenters[index].x - xf.q.s * world->localCenters[index].y,
-                  xf.q.s * world->localCenters[index].x + xf.q.c * world->localCenters[index].y};
+    m2Transform xf = world->bodies.transforms[index];
+    m2Vec2 rlc = {xf.q.c * world->bodies.localCenters[index].x -
+                      xf.q.s * world->bodies.localCenters[index].y,
+                  xf.q.s * world->bodies.localCenters[index].x +
+                      xf.q.c * world->bodies.localCenters[index].y};
     m2Vec2 r = {(float)(worldPoint.x - xf.p.x) - rlc.x, (float)(worldPoint.y - xf.p.y) - rlc.y};
-    world->linearVelocities[index].x += world->invMass[index] * impulse.x;
-    world->linearVelocities[index].y += world->invMass[index] * impulse.y;
-    world->angularVelocities[index] +=
-        world->invInertia[index] * (r.x * impulse.y - r.y * impulse.x);
-    world->asleep[index] = 0;
-    world->sleepTimes[index] = 0.0f;
+    world->bodies.linearVelocities[index].x += world->bodies.invMass[index] * impulse.x;
+    world->bodies.linearVelocities[index].y += world->bodies.invMass[index] * impulse.y;
+    world->bodies.angularVelocities[index] +=
+        world->bodies.invInertia[index] * (r.x * impulse.y - r.y * impulse.x);
+    world->bodies.asleep[index] = 0;
+    world->bodies.sleepTimes[index] = 0.0f;
 }
 
 void m2Body_ApplyForce(m2BodyId bodyId, m2Vec2 force, m2Pos2 worldPoint)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || world->types[index] != (uint8_t)m2_dynamicBody || !m2FiniteVec2(force) ||
-        !m2FinitePos2(worldPoint))
+    if (index < 0 || world->bodies.types[index] != (uint8_t)m2_dynamicBody ||
+        !m2FiniteVec2(force) || !m2FinitePos2(worldPoint))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpBodyPoint record;
         memset(&record, 0, sizeof(record));
@@ -398,27 +408,29 @@ void m2Body_ApplyForce(m2BodyId bodyId, m2Vec2 force, m2Pos2 worldPoint)
         m2JournalRecord(world, m2_opApplyForce, &record, (int32_t)sizeof(record));
     }
     // Arm from the center of mass, exactly like the impulse path.
-    m2Transform xf = world->transforms[index];
-    m2Vec2 rlc = {xf.q.c * world->localCenters[index].x - xf.q.s * world->localCenters[index].y,
-                  xf.q.s * world->localCenters[index].x + xf.q.c * world->localCenters[index].y};
+    m2Transform xf = world->bodies.transforms[index];
+    m2Vec2 rlc = {xf.q.c * world->bodies.localCenters[index].x -
+                      xf.q.s * world->bodies.localCenters[index].y,
+                  xf.q.s * world->bodies.localCenters[index].x +
+                      xf.q.c * world->bodies.localCenters[index].y};
     m2Vec2 r = {(float)(worldPoint.x - xf.p.x) - rlc.x, (float)(worldPoint.y - xf.p.y) - rlc.y};
-    world->forces[index].x += force.x;
-    world->forces[index].y += force.y;
-    world->torques[index] += r.x * force.y - r.y * force.x;
-    world->asleep[index] = 0;
-    world->sleepTimes[index] = 0.0f;
+    world->bodies.forces[index].x += force.x;
+    world->bodies.forces[index].y += force.y;
+    world->bodies.torques[index] += r.x * force.y - r.y * force.x;
+    world->bodies.asleep[index] = 0;
+    world->bodies.sleepTimes[index] = 0.0f;
 }
 
 void m2Body_ApplyForceToCenter(m2BodyId bodyId, m2Vec2 force)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || world->types[index] != (uint8_t)m2_dynamicBody || !m2FiniteVec2(force))
+    if (index < 0 || world->bodies.types[index] != (uint8_t)m2_dynamicBody || !m2FiniteVec2(force))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpBodyVec record;
         memset(&record, 0, sizeof(record));
@@ -426,22 +438,22 @@ void m2Body_ApplyForceToCenter(m2BodyId bodyId, m2Vec2 force)
         record.value = force;
         m2JournalRecord(world, m2_opApplyForceCenter, &record, (int32_t)sizeof(record));
     }
-    world->forces[index].x += force.x;
-    world->forces[index].y += force.y;
-    world->asleep[index] = 0;
-    world->sleepTimes[index] = 0.0f;
+    world->bodies.forces[index].x += force.x;
+    world->bodies.forces[index].y += force.y;
+    world->bodies.asleep[index] = 0;
+    world->bodies.sleepTimes[index] = 0.0f;
 }
 
 void m2Body_ApplyTorque(m2BodyId bodyId, float torque)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || world->types[index] != (uint8_t)m2_dynamicBody || !m2FiniteF(torque))
+    if (index < 0 || world->bodies.types[index] != (uint8_t)m2_dynamicBody || !m2FiniteF(torque))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpBodyFloat record;
         memset(&record, 0, sizeof(record));
@@ -449,9 +461,9 @@ void m2Body_ApplyTorque(m2BodyId bodyId, float torque)
         record.value = torque;
         m2JournalRecord(world, m2_opApplyTorque, &record, (int32_t)sizeof(record));
     }
-    world->torques[index] += torque;
-    world->asleep[index] = 0;
-    world->sleepTimes[index] = 0.0f;
+    world->bodies.torques[index] += torque;
+    world->bodies.asleep[index] = 0;
+    world->bodies.sleepTimes[index] = 0.0f;
 }
 
 // The value contract of each body parameter channel. Live setters and
@@ -487,7 +499,7 @@ bool m2SetBodyParamInternal(m2World* world, m2BodyId bodyId, uint8_t param, floa
         m2Refuse(world, m2_errorInvalid);
         return false;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpBodyParam record;
         memset(&record, 0, sizeof(record));
@@ -499,58 +511,60 @@ bool m2SetBodyParamInternal(m2World* world, m2BodyId bodyId, uint8_t param, floa
     switch (param)
     {
     case m2_bodyParamLinearDamping:
-        world->linearDampings[index] = value;
+        world->bodies.linearDampings[index] = value;
         break;
     case m2_bodyParamAngularDamping:
-        world->angularDampings[index] = value;
+        world->bodies.angularDampings[index] = value;
         break;
     case m2_bodyParamGravityScale:
-        world->gravityScales[index] = value;
+        world->bodies.gravityScales[index] = value;
         break;
     case m2_bodyParamFixedRotation:
         // Fixed rotation is a mass property: inertia recomputes, spin
         // stops now (a frozen axis with leftover spin is a lie).
-        world->fixedRotations[index] = value != 0.0f ? 1 : 0;
-        world->angularVelocities[index] = 0.0f;
+        world->bodies.fixedRotations[index] = value != 0.0f ? 1 : 0;
+        world->bodies.angularVelocities[index] = 0.0f;
         m2RecomputeMass(world, index);
-        if (world->types[index] == (uint8_t)m2_dynamicBody)
+        if (world->bodies.types[index] == (uint8_t)m2_dynamicBody)
         {
-            world->asleep[index] = 0;
-            world->sleepTimes[index] = 0.0f;
+            world->bodies.asleep[index] = 0;
+            world->bodies.sleepTimes[index] = 0.0f;
         }
         break;
     case m2_bodyParamEnableSleep:
-        world->sleepEnables[index] = value != 0.0f ? 1 : 0;
-        if (value == 0.0f && world->types[index] == (uint8_t)m2_dynamicBody)
+        world->bodies.sleepEnables[index] = value != 0.0f ? 1 : 0;
+        if (value == 0.0f && world->bodies.types[index] == (uint8_t)m2_dynamicBody)
         {
-            world->asleep[index] = 0; // must not stay asleep illegally
-            world->sleepTimes[index] = 0.0f;
+            world->bodies.asleep[index] = 0; // must not stay asleep illegally
+            world->bodies.sleepTimes[index] = 0.0f;
         }
         break;
     case m2_bodyParamLockLinearX:
         // Lock linear X: a locked axis holds still, so stop it now and
         // wake the body (a frozen axis with leftover velocity is a lie,
         // same discipline as fixed rotation).
-        world->motionLocks[index] = value != 0.0f
-                                        ? (uint8_t)(world->motionLocks[index] | M2_LOCK_LINEAR_X)
-                                        : (uint8_t)(world->motionLocks[index] & ~M2_LOCK_LINEAR_X);
-        world->linearVelocities[index].x = value != 0.0f ? 0.0f : world->linearVelocities[index].x;
-        if (world->types[index] == (uint8_t)m2_dynamicBody)
+        world->bodies.motionLocks[index] =
+            value != 0.0f ? (uint8_t)(world->bodies.motionLocks[index] | M2_LOCK_LINEAR_X)
+                          : (uint8_t)(world->bodies.motionLocks[index] & ~M2_LOCK_LINEAR_X);
+        world->bodies.linearVelocities[index].x =
+            value != 0.0f ? 0.0f : world->bodies.linearVelocities[index].x;
+        if (world->bodies.types[index] == (uint8_t)m2_dynamicBody)
         {
-            world->asleep[index] = 0;
-            world->sleepTimes[index] = 0.0f;
+            world->bodies.asleep[index] = 0;
+            world->bodies.sleepTimes[index] = 0.0f;
         }
         break;
     case m2_bodyParamLockLinearY:
         // Lock linear Y.
-        world->motionLocks[index] = value != 0.0f
-                                        ? (uint8_t)(world->motionLocks[index] | M2_LOCK_LINEAR_Y)
-                                        : (uint8_t)(world->motionLocks[index] & ~M2_LOCK_LINEAR_Y);
-        world->linearVelocities[index].y = value != 0.0f ? 0.0f : world->linearVelocities[index].y;
-        if (world->types[index] == (uint8_t)m2_dynamicBody)
+        world->bodies.motionLocks[index] =
+            value != 0.0f ? (uint8_t)(world->bodies.motionLocks[index] | M2_LOCK_LINEAR_Y)
+                          : (uint8_t)(world->bodies.motionLocks[index] & ~M2_LOCK_LINEAR_Y);
+        world->bodies.linearVelocities[index].y =
+            value != 0.0f ? 0.0f : world->bodies.linearVelocities[index].y;
+        if (world->bodies.types[index] == (uint8_t)m2_dynamicBody)
         {
-            world->asleep[index] = 0;
-            world->sleepTimes[index] = 0.0f;
+            world->bodies.asleep[index] = 0;
+            world->bodies.sleepTimes[index] = 0.0f;
         }
         break;
     default:
@@ -571,7 +585,7 @@ float m2Body_GetLinearDamping(m2BodyId bodyId)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    return index >= 0 ? world->linearDampings[index] : 0.0f;
+    return index >= 0 ? world->bodies.linearDampings[index] : 0.0f;
 }
 
 void m2Body_SetAngularDamping(m2BodyId bodyId, float damping)
@@ -585,7 +599,7 @@ float m2Body_GetAngularDamping(m2BodyId bodyId)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    return index >= 0 ? world->angularDampings[index] : 0.0f;
+    return index >= 0 ? world->bodies.angularDampings[index] : 0.0f;
 }
 
 void m2Body_SetGravityScale(m2BodyId bodyId, float scale)
@@ -604,7 +618,7 @@ bool m2Body_IsFixedRotation(m2BodyId bodyId)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    return index >= 0 && world->fixedRotations[index] != 0;
+    return index >= 0 && world->bodies.fixedRotations[index] != 0;
 }
 
 void m2Body_SetMotionLocks(m2BodyId bodyId, m2MotionLocks locks)
@@ -628,9 +642,9 @@ m2MotionLocks m2Body_GetMotionLocks(m2BodyId bodyId)
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index >= 0)
     {
-        locks.linearX = (world->motionLocks[index] & M2_LOCK_LINEAR_X) != 0;
-        locks.linearY = (world->motionLocks[index] & M2_LOCK_LINEAR_Y) != 0;
-        locks.angularZ = world->fixedRotations[index] != 0;
+        locks.linearX = (world->bodies.motionLocks[index] & M2_LOCK_LINEAR_X) != 0;
+        locks.linearY = (world->bodies.motionLocks[index] & M2_LOCK_LINEAR_Y) != 0;
+        locks.angularZ = world->bodies.fixedRotations[index] != 0;
     }
     return locks;
 }
@@ -645,19 +659,19 @@ bool m2Body_IsSleepEnabled(m2BodyId bodyId)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    return index >= 0 && world->sleepEnables[index] != 0;
+    return index >= 0 && world->bodies.sleepEnables[index] != 0;
 }
 
 void m2Body_ApplyAngularImpulse(m2BodyId bodyId, float impulse)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || world->types[index] != (uint8_t)m2_dynamicBody || !m2FiniteF(impulse))
+    if (index < 0 || world->bodies.types[index] != (uint8_t)m2_dynamicBody || !m2FiniteF(impulse))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpBodyFloat record;
         memset(&record, 0, sizeof(record));
@@ -665,9 +679,9 @@ void m2Body_ApplyAngularImpulse(m2BodyId bodyId, float impulse)
         record.value = impulse;
         m2JournalRecord(world, m2_opApplyAngularImpulse, &record, (int32_t)sizeof(record));
     }
-    world->angularVelocities[index] += world->invInertia[index] * impulse;
-    world->asleep[index] = 0;
-    world->sleepTimes[index] = 0.0f;
+    world->bodies.angularVelocities[index] += world->bodies.invInertia[index] * impulse;
+    world->bodies.asleep[index] = 0;
+    world->bodies.sleepTimes[index] = 0.0f;
 }
 
 void m2Body_SetTransform(m2BodyId bodyId, m2Pos2 position, m2Rot rotation)
@@ -679,7 +693,7 @@ void m2Body_SetTransform(m2BodyId bodyId, m2Pos2 position, m2Rot rotation)
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpSetTransform record;
         memset(&record, 0, sizeof(record));
@@ -690,48 +704,50 @@ void m2Body_SetTransform(m2BodyId bodyId, m2Pos2 position, m2Rot rotation)
     }
 
     // Whatever this body was resting on - or holding up - must notice.
-    for (int32_t i = 0; i < world->pairCount; ++i)
+    for (int32_t i = 0; i < world->contacts.pairCount; ++i)
     {
-        if (world->pairTouching[i] == 0)
+        if (world->contacts.pairTouching[i] == 0)
         {
             continue;
         }
-        int32_t a = world->shapeBody[(int32_t)(world->pairKeys[i] >> 32)];
-        int32_t b = world->shapeBody[(int32_t)(world->pairKeys[i] & 0xFFFFFFFFu)];
+        int32_t a = world->shapes.shapeBody[(int32_t)(world->contacts.pairKeys[i] >> 32)];
+        int32_t b = world->shapes.shapeBody[(int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu)];
         if (a != index && b != index)
         {
             continue;
         }
         int32_t other = a == index ? b : a;
-        if (world->types[other] == (uint8_t)m2_dynamicBody)
+        if (world->bodies.types[other] == (uint8_t)m2_dynamicBody)
         {
-            world->asleep[other] = 0;
-            world->sleepTimes[other] = 0.0f;
+            world->bodies.asleep[other] = 0;
+            world->bodies.sleepTimes[other] = 0.0f;
         }
     }
 
-    world->transforms[index].p = position;
-    world->transforms[index].q = rotation;
-    if (world->types[index] == (uint8_t)m2_dynamicBody)
+    world->bodies.transforms[index].p = position;
+    world->bodies.transforms[index].q = rotation;
+    if (world->bodies.types[index] == (uint8_t)m2_dynamicBody)
     {
-        world->asleep[index] = 0;
-        world->sleepTimes[index] = 0.0f;
+        world->bodies.asleep[index] = 0;
+        world->bodies.sleepTimes[index] = 0.0f;
     }
 
     // Broadphase refresh right now: the next step's pair update must
     // see the new home, not the old one.
-    for (int32_t shape = world->bodyShapeHead[index]; shape != -1; shape = world->shapeNext[shape])
+    for (int32_t shape = world->bodies.bodyShapeHead[index]; shape != -1;
+         shape = world->shapes.shapeNext[shape])
     {
-        if (world->proxyIds[shape] == M2_NULL_NODE)
+        if (world->broadphase.proxyIds[shape] == M2_NULL_NODE)
         {
             continue;
         }
         m2AABB tight = m2ShapeTightAABB(world, shape);
         int32_t tree = m2ShapeTreeIndex(world, shape);
-        if (!m2AABB_Contains(world->treeNodes[tree][world->proxyIds[shape]].aabb, tight))
+        if (!m2AABB_Contains(
+                world->broadphase.treeNodes[tree][world->broadphase.proxyIds[shape]].aabb, tight))
         {
-            m2TreeMove(&world->trees[tree], world->treeNodes[tree], world->proxyIds[shape],
-                       m2Fatten(tight));
+            m2TreeMove(&world->broadphase.trees[tree], world->broadphase.treeNodes[tree],
+                       world->broadphase.proxyIds[shape], m2Fatten(tight));
         }
         m2PushMoved(world, shape);
     }
@@ -746,11 +762,11 @@ void m2Body_SetType(m2BodyId bodyId, m2BodyType type)
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    if (world->types[index] == (uint8_t)type)
+    if (world->bodies.types[index] == (uint8_t)type)
     {
         return; // no-op, and deliberately not journaled
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpBodyByte record;
         memset(&record, 0, sizeof(record));
@@ -761,54 +777,57 @@ void m2Body_SetType(m2BodyId bodyId, m2BodyType type)
 
     // Contacts change meaning: wake every touching partner while the
     // old type is still in effect.
-    for (int32_t i = 0; i < world->pairCount; ++i)
+    for (int32_t i = 0; i < world->contacts.pairCount; ++i)
     {
-        if (world->pairTouching[i] == 0)
+        if (world->contacts.pairTouching[i] == 0)
         {
             continue;
         }
-        int32_t a = world->shapeBody[(int32_t)(world->pairKeys[i] >> 32)];
-        int32_t b = world->shapeBody[(int32_t)(world->pairKeys[i] & 0xFFFFFFFFu)];
+        int32_t a = world->shapes.shapeBody[(int32_t)(world->contacts.pairKeys[i] >> 32)];
+        int32_t b = world->shapes.shapeBody[(int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu)];
         if (a != index && b != index)
         {
             continue;
         }
         int32_t other = a == index ? b : a;
-        if (world->types[other] == (uint8_t)m2_dynamicBody)
+        if (world->bodies.types[other] == (uint8_t)m2_dynamicBody)
         {
-            world->asleep[other] = 0;
-            world->sleepTimes[other] = 0.0f;
+            world->bodies.asleep[other] = 0;
+            world->bodies.sleepTimes[other] = 0.0f;
         }
     }
 
     // Proxies move between the per-type trees; marking them moved also
     // purges stale pairs and re-forms the valid ones, which is exactly
     // the M19 path for pairs that stop making sense.
-    int32_t oldTree = world->types[index];
-    world->types[index] = (uint8_t)type;
-    for (int32_t shape = world->bodyShapeHead[index]; shape != -1; shape = world->shapeNext[shape])
+    int32_t oldTree = world->bodies.types[index];
+    world->bodies.types[index] = (uint8_t)type;
+    for (int32_t shape = world->bodies.bodyShapeHead[index]; shape != -1;
+         shape = world->shapes.shapeNext[shape])
     {
-        if (world->proxyIds[shape] == M2_NULL_NODE)
+        if (world->broadphase.proxyIds[shape] == M2_NULL_NODE)
         {
             continue;
         }
-        m2TreeRemove(&world->trees[oldTree], world->treeNodes[oldTree], world->proxyIds[shape]);
-        world->proxyIds[shape] = m2TreeInsert(&world->trees[type], world->treeNodes[type],
-                                              m2Fatten(m2ShapeTightAABB(world, shape)), shape);
-        M2_ASSERT(world->proxyIds[shape] != M2_NULL_NODE);
+        m2TreeRemove(&world->broadphase.trees[oldTree], world->broadphase.treeNodes[oldTree],
+                     world->broadphase.proxyIds[shape]);
+        world->broadphase.proxyIds[shape] =
+            m2TreeInsert(&world->broadphase.trees[type], world->broadphase.treeNodes[type],
+                         m2Fatten(m2ShapeTightAABB(world, shape)), shape);
+        M2_ASSERT(world->broadphase.proxyIds[shape] != M2_NULL_NODE);
         m2PushMoved(world, shape);
     }
 
     m2RecomputeMass(world, index);
     if (type == m2_staticBody)
     {
-        world->linearVelocities[index] = (m2Vec2){0.0f, 0.0f};
-        world->angularVelocities[index] = 0.0f;
+        world->bodies.linearVelocities[index] = (m2Vec2){0.0f, 0.0f};
+        world->bodies.angularVelocities[index] = 0.0f;
     }
     // Fresh start for the sleep ledger under the new identity.
-    world->asleep[index] = 0;
-    world->sleepTimes[index] = 0.0f;
-    world->sleepStreak[index] = 0;
+    world->bodies.asleep[index] = 0;
+    world->bodies.sleepTimes[index] = 0.0f;
+    world->bodies.sleepStreak[index] = 0;
 }
 
 bool m2Body_IsAwake(m2BodyId bodyId)
@@ -820,7 +839,8 @@ bool m2Body_IsAwake(m2BodyId bodyId)
         m2Refuse(world, m2_errorInvalid);
         return false;
     }
-    return world->types[index] == (uint8_t)m2_dynamicBody ? world->asleep[index] == 0 : true;
+    return world->bodies.types[index] == (uint8_t)m2_dynamicBody ? world->bodies.asleep[index] == 0
+                                                                 : true;
 }
 
 m2Pos2 m2Body_GetWorldPoint(m2BodyId bodyId, m2Vec2 localPoint)
@@ -832,7 +852,7 @@ m2Pos2 m2Body_GetWorldPoint(m2BodyId bodyId, m2Vec2 localPoint)
         m2Refuse(world, m2_errorInvalid);
         return (m2Pos2){0.0, 0.0};
     }
-    m2Transform xf = world->transforms[index];
+    m2Transform xf = world->bodies.transforms[index];
     m2Vec2 r = {xf.q.c * localPoint.x - xf.q.s * localPoint.y,
                 xf.q.s * localPoint.x + xf.q.c * localPoint.y};
     return (m2Pos2){xf.p.x + (double)r.x, xf.p.y + (double)r.y};
@@ -847,7 +867,7 @@ m2Vec2 m2Body_GetLocalPoint(m2BodyId bodyId, m2Pos2 worldPoint)
         m2Refuse(world, m2_errorInvalid);
         return (m2Vec2){0.0f, 0.0f};
     }
-    m2Transform xf = world->transforms[index];
+    m2Transform xf = world->bodies.transforms[index];
     m2Vec2 rel = {(float)(worldPoint.x - xf.p.x), (float)(worldPoint.y - xf.p.y)};
     return (m2Vec2){xf.q.c * rel.x + xf.q.s * rel.y, -xf.q.s * rel.x + xf.q.c * rel.y};
 }
@@ -861,7 +881,7 @@ m2Vec2 m2Body_GetWorldVector(m2BodyId bodyId, m2Vec2 localVector)
         m2Refuse(world, m2_errorInvalid);
         return (m2Vec2){0.0f, 0.0f};
     }
-    m2Rot q = world->transforms[index].q;
+    m2Rot q = world->bodies.transforms[index].q;
     return (m2Vec2){q.c * localVector.x - q.s * localVector.y,
                     q.s * localVector.x + q.c * localVector.y};
 }
@@ -875,7 +895,7 @@ m2Vec2 m2Body_GetLocalVector(m2BodyId bodyId, m2Vec2 worldVector)
         m2Refuse(world, m2_errorInvalid);
         return (m2Vec2){0.0f, 0.0f};
     }
-    m2Rot q = world->transforms[index].q;
+    m2Rot q = world->bodies.transforms[index].q;
     return (m2Vec2){q.c * worldVector.x + q.s * worldVector.y,
                     -q.s * worldVector.x + q.c * worldVector.y};
 }
@@ -890,12 +910,14 @@ m2Vec2 m2Body_GetWorldPointVelocity(m2BodyId bodyId, m2Pos2 worldPoint)
         return (m2Vec2){0.0f, 0.0f};
     }
     // v + w x r, arm from the center of mass (one f64 crossing).
-    m2Transform xf = world->transforms[index];
-    m2Vec2 rlc = {xf.q.c * world->localCenters[index].x - xf.q.s * world->localCenters[index].y,
-                  xf.q.s * world->localCenters[index].x + xf.q.c * world->localCenters[index].y};
+    m2Transform xf = world->bodies.transforms[index];
+    m2Vec2 rlc = {xf.q.c * world->bodies.localCenters[index].x -
+                      xf.q.s * world->bodies.localCenters[index].y,
+                  xf.q.s * world->bodies.localCenters[index].x +
+                      xf.q.c * world->bodies.localCenters[index].y};
     m2Vec2 r = {(float)(worldPoint.x - xf.p.x) - rlc.x, (float)(worldPoint.y - xf.p.y) - rlc.y};
-    float w = world->angularVelocities[index];
-    m2Vec2 v = world->linearVelocities[index];
+    float w = world->bodies.angularVelocities[index];
+    m2Vec2 v = world->bodies.linearVelocities[index];
     return (m2Vec2){v.x - w * r.y, v.y + w * r.x};
 }
 
@@ -909,12 +931,13 @@ int32_t m2Body_GetJoints(m2BodyId bodyId, m2JointId* ids, int32_t capacity)
         return 0;
     }
     int32_t total = 0;
-    for (int32_t e = world->bodyJointHead[index]; e != -1; e = world->jointEdgeNext[e])
+    for (int32_t e = world->joints.bodyJointHead[index]; e != -1;
+         e = world->joints.jointEdgeNext[e])
     {
         int32_t j = e >> 1;
         if (ids != NULL && total < capacity)
         {
-            m2JointId id = {j + 1, world->worldIndex0, world->jointGenerations[j]};
+            m2JointId id = {j + 1, world->worldIndex0, world->joints.jointGenerations[j]};
             ids[total] = id;
         }
         total += 1;
@@ -926,12 +949,13 @@ void m2Body_ApplyLinearImpulseToCenter(m2BodyId bodyId, m2Vec2 impulse)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || world->types[index] != (uint8_t)m2_dynamicBody || !m2FiniteVec2(impulse))
+    if (index < 0 || world->bodies.types[index] != (uint8_t)m2_dynamicBody ||
+        !m2FiniteVec2(impulse))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpBodyVec record;
         memset(&record, 0, sizeof(record));
@@ -939,26 +963,27 @@ void m2Body_ApplyLinearImpulseToCenter(m2BodyId bodyId, m2Vec2 impulse)
         record.value = impulse;
         m2JournalRecord(world, m2_opImpulseCenter, &record, (int32_t)sizeof(record));
     }
-    world->linearVelocities[index].x += world->invMass[index] * impulse.x;
-    world->linearVelocities[index].y += world->invMass[index] * impulse.y;
-    world->asleep[index] = 0;
-    world->sleepTimes[index] = 0.0f;
+    world->bodies.linearVelocities[index].x += world->bodies.invMass[index] * impulse.x;
+    world->bodies.linearVelocities[index].y += world->bodies.invMass[index] * impulse.y;
+    world->bodies.asleep[index] = 0;
+    world->bodies.sleepTimes[index] = 0.0f;
 }
 
 void m2Body_SetAwake(m2BodyId bodyId, bool awake)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || world->types[index] != (uint8_t)m2_dynamicBody || world->disabled[index] != 0)
+    if (index < 0 || world->bodies.types[index] != (uint8_t)m2_dynamicBody ||
+        world->bodies.disabled[index] != 0)
     {
         return;
     }
     uint8_t sleeping = awake ? 0 : 1;
-    if (world->asleep[index] == sleeping)
+    if (world->bodies.asleep[index] == sleeping)
     {
         return; // no-op stays unjournaled
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpBodyByte record;
         memset(&record, 0, sizeof(record));
@@ -966,15 +991,15 @@ void m2Body_SetAwake(m2BodyId bodyId, bool awake)
         record.value = awake ? 1 : 0;
         m2JournalRecord(world, m2_opSetAwake, &record, (int32_t)sizeof(record));
     }
-    world->asleep[index] = sleeping;
-    world->sleepTimes[index] = 0.0f;
+    world->bodies.asleep[index] = sleeping;
+    world->bodies.sleepTimes[index] = 0.0f;
     if (!awake)
     {
         // Forced sleep stills the body, reference-style.
-        world->linearVelocities[index] = (m2Vec2){0.0f, 0.0f};
-        world->angularVelocities[index] = 0.0f;
-        world->forces[index] = (m2Vec2){0.0f, 0.0f};
-        world->torques[index] = 0.0f;
+        world->bodies.linearVelocities[index] = (m2Vec2){0.0f, 0.0f};
+        world->bodies.angularVelocities[index] = 0.0f;
+        world->bodies.forces[index] = (m2Vec2){0.0f, 0.0f};
+        world->bodies.torques[index] = 0.0f;
     }
 }
 
@@ -988,11 +1013,11 @@ void m2Body_SetBullet(m2BodyId bodyId, bool flag)
         return;
     }
     uint8_t next = flag ? 1 : 0;
-    if (world->bullets[index] == next)
+    if (world->bodies.bullets[index] == next)
     {
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpBodyByte record;
         memset(&record, 0, sizeof(record));
@@ -1000,7 +1025,7 @@ void m2Body_SetBullet(m2BodyId bodyId, bool flag)
         record.value = next;
         m2JournalRecord(world, m2_opSetBullet, &record, (int32_t)sizeof(record));
     }
-    world->bullets[index] = next;
+    world->bodies.bullets[index] = next;
 }
 
 void m2Body_SetUserData(m2BodyId bodyId, uint64_t userData)
@@ -1012,7 +1037,7 @@ void m2Body_SetUserData(m2BodyId bodyId, uint64_t userData)
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpBodyUserData record;
         memset(&record, 0, sizeof(record));
@@ -1020,7 +1045,7 @@ void m2Body_SetUserData(m2BodyId bodyId, uint64_t userData)
         record.userData = userData;
         m2JournalRecord(world, m2_opBodyUserData, &record, (int32_t)sizeof(record));
     }
-    world->userData[index] = userData;
+    world->bodies.userData[index] = userData;
 }
 
 void m2Body_SetTargetTransform(m2BodyId bodyId, m2Pos2 position, m2Rot rotation, float dt)
@@ -1036,7 +1061,7 @@ void m2Body_SetTargetTransform(m2BodyId bodyId, m2Pos2 position, m2Rot rotation,
     // Velocities that land the pose in one step; applied through the
     // journaled setters, so replays get this for free.
     float invDt = 1.0f / dt;
-    m2Transform xf = world->transforms[index];
+    m2Transform xf = world->bodies.transforms[index];
     m2Vec2 v = {(float)(position.x - xf.p.x) * invDt, (float)(position.y - xf.p.y) * invDt};
     float w = m2UnwindAngle(m2RelativeJointAngle(xf.q, rotation)) * invDt;
     m2Body_SetLinearVelocity(bodyId, v);
@@ -1057,7 +1082,7 @@ m2Pos2 m2Body_GetWorldCenterOfMass(m2BodyId bodyId)
         m2Refuse(world, m2_errorInvalid);
         return (m2Pos2){0.0, 0.0};
     }
-    return m2Body_GetWorldPoint(bodyId, world->localCenters[index]);
+    return m2Body_GetWorldPoint(bodyId, world->bodies.localCenters[index]);
 }
 
 float m2Body_GetRotationalInertia(m2BodyId bodyId)
@@ -1069,7 +1094,7 @@ float m2Body_GetRotationalInertia(m2BodyId bodyId)
         m2Refuse(world, m2_errorInvalid);
         return 0.0f;
     }
-    float invI = world->invInertia[index];
+    float invI = world->bodies.invInertia[index];
     return invI > 0.0f ? 1.0f / invI : 0.0f;
 }
 
@@ -1097,12 +1122,13 @@ m2AABBResult m2Body_ComputeAABB(m2BodyId bodyId)
         m2Refuse(world, m2_errorInvalid);
         return result;
     }
-    result.lowerBound = world->transforms[index].p;
-    result.upperBound = world->transforms[index].p;
+    result.lowerBound = world->bodies.transforms[index].p;
+    result.upperBound = world->bodies.transforms[index].p;
     bool first = true;
-    for (int32_t s = world->bodyShapeHead[index]; s != -1; s = world->shapeNext[s])
+    for (int32_t s = world->bodies.bodyShapeHead[index]; s != -1; s = world->shapes.shapeNext[s])
     {
-        m2AABB tight = m2ComputeShapeAABB(&world->shapeGeometry[s], world->transforms[index]);
+        m2AABB tight =
+            m2ComputeShapeAABB(&world->shapes.shapeGeometry[s], world->bodies.transforms[index]);
         if (first)
         {
             result.lowerBound = tight.lowerBound;
@@ -1126,39 +1152,40 @@ void m2Body_Disable(m2BodyId bodyId)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || world->disabled[index] != 0)
+    if (index < 0 || world->bodies.disabled[index] != 0)
     {
         return; // already dormant: no-op stays unjournaled
     }
     m2JournalRecord(world, m2_opDisableBody, &bodyId, (int32_t)sizeof(bodyId));
-    for (int32_t s = world->bodyShapeHead[index]; s != -1; s = world->shapeNext[s])
+    for (int32_t s = world->bodies.bodyShapeHead[index]; s != -1; s = world->shapes.shapeNext[s])
     {
         m2RetireShapeFromBroadphase(world, s);
     }
-    world->disabled[index] = 1;
-    world->asleep[index] = 0;
-    world->sleepTimes[index] = 0.0f;
+    world->bodies.disabled[index] = 1;
+    world->bodies.asleep[index] = 0;
+    world->bodies.sleepTimes[index] = 0.0f;
 }
 
 void m2Body_Enable(m2BodyId bodyId)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || world->disabled[index] == 0)
+    if (index < 0 || world->bodies.disabled[index] == 0)
     {
         return;
     }
     m2JournalRecord(world, m2_opEnableBody, &bodyId, (int32_t)sizeof(bodyId));
-    world->disabled[index] = 0;
-    int32_t tree = world->types[index];
-    for (int32_t s = world->bodyShapeHead[index]; s != -1; s = world->shapeNext[s])
+    world->bodies.disabled[index] = 0;
+    int32_t tree = world->bodies.types[index];
+    for (int32_t s = world->bodies.bodyShapeHead[index]; s != -1; s = world->shapes.shapeNext[s])
     {
-        world->proxyIds[s] = m2TreeInsert(&world->trees[tree], world->treeNodes[tree],
-                                          m2Fatten(m2ShapeTightAABB(world, s)), s);
+        world->broadphase.proxyIds[s] =
+            m2TreeInsert(&world->broadphase.trees[tree], world->broadphase.treeNodes[tree],
+                         m2Fatten(m2ShapeTightAABB(world, s)), s);
         m2PushMoved(world, s);
     }
-    world->asleep[index] = 0;
-    world->sleepTimes[index] = 0.0f;
+    world->bodies.asleep[index] = 0;
+    world->bodies.sleepTimes[index] = 0.0f;
 }
 
 void m2Body_SetDominance(m2BodyId bodyId, int8_t dominance)
@@ -1170,11 +1197,11 @@ void m2Body_SetDominance(m2BodyId bodyId, int8_t dominance)
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    if (world->dominances[index] == dominance)
+    if (world->bodies.dominances[index] == dominance)
     {
         return; // no-op stays unjournaled
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpBodyByte record;
         memset(&record, 0, sizeof(record));
@@ -1182,11 +1209,11 @@ void m2Body_SetDominance(m2BodyId bodyId, int8_t dominance)
         record.value = (uint8_t)dominance;
         m2JournalRecord(world, m2_opSetDominance, &record, (int32_t)sizeof(record));
     }
-    world->dominances[index] = dominance;
-    if (world->types[index] == (uint8_t)m2_dynamicBody)
+    world->bodies.dominances[index] = dominance;
+    if (world->bodies.types[index] == (uint8_t)m2_dynamicBody)
     {
-        world->asleep[index] = 0;
-        world->sleepTimes[index] = 0.0f;
+        world->bodies.asleep[index] = 0;
+        world->bodies.sleepTimes[index] = 0.0f;
     }
 }
 
@@ -1199,26 +1226,27 @@ int8_t m2Body_GetDominance(m2BodyId bodyId)
         m2Refuse(world, m2_errorInvalid);
         return 0;
     }
-    return world->dominances[index];
+    return world->bodies.dominances[index];
 }
 
 bool m2Body_IsEnabled(m2BodyId bodyId)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    return index >= 0 && world->disabled[index] == 0;
+    return index >= 0 && world->bodies.disabled[index] == 0;
 }
 
 void m2Body_SetMassData(m2BodyId bodyId, m2MassData massData)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || world->types[index] != (uint8_t)m2_dynamicBody || !(massData.mass > 0.0f))
+    if (index < 0 || world->bodies.types[index] != (uint8_t)m2_dynamicBody ||
+        !(massData.mass > 0.0f))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpSetMassData record;
         memset(&record, 0, sizeof(record));
@@ -1226,15 +1254,16 @@ void m2Body_SetMassData(m2BodyId bodyId, m2MassData massData)
         record.data = massData;
         m2JournalRecord(world, m2_opSetMassData, &record, (int32_t)sizeof(record));
     }
-    world->invMass[index] = 1.0f / massData.mass;
+    world->bodies.invMass[index] = 1.0f / massData.mass;
     float inertiaCenter =
         massData.rotationalInertia - massData.mass * (massData.center.x * massData.center.x +
                                                       massData.center.y * massData.center.y);
-    world->invInertia[index] =
-        world->fixedRotations[index] == 0 && inertiaCenter > 0.0f ? 1.0f / inertiaCenter : 0.0f;
-    world->localCenters[index] = massData.center;
-    world->asleep[index] = 0;
-    world->sleepTimes[index] = 0.0f;
+    world->bodies.invInertia[index] =
+        world->bodies.fixedRotations[index] == 0 && inertiaCenter > 0.0f ? 1.0f / inertiaCenter
+                                                                         : 0.0f;
+    world->bodies.localCenters[index] = massData.center;
+    world->bodies.asleep[index] = 0;
+    world->bodies.sleepTimes[index] = 0.0f;
 }
 
 m2MassData m2Body_GetMassData(m2BodyId bodyId)
@@ -1247,10 +1276,10 @@ m2MassData m2Body_GetMassData(m2BodyId bodyId)
         m2Refuse(world, m2_errorInvalid);
         return data;
     }
-    float invMass = world->invMass[index];
+    float invMass = world->bodies.invMass[index];
     data.mass = invMass > 0.0f ? 1.0f / invMass : 0.0f;
-    data.center = world->localCenters[index];
-    float invI = world->invInertia[index];
+    data.center = world->bodies.localCenters[index];
+    float invI = world->bodies.invInertia[index];
     float inertiaCenter = invI > 0.0f ? 1.0f / invI : 0.0f;
     data.rotationalInertia =
         inertiaCenter + data.mass * (data.center.x * data.center.x + data.center.y * data.center.y);
@@ -1268,10 +1297,10 @@ void m2Body_ApplyMassFromShapes(m2BodyId bodyId)
     }
     m2JournalRecord(world, m2_opMassFromShapes, &bodyId, (int32_t)sizeof(bodyId));
     m2RecomputeMass(world, index);
-    if (world->types[index] == (uint8_t)m2_dynamicBody)
+    if (world->bodies.types[index] == (uint8_t)m2_dynamicBody)
     {
-        world->asleep[index] = 0;
-        world->sleepTimes[index] = 0.0f;
+        world->bodies.asleep[index] = 0;
+        world->bodies.sleepTimes[index] = 0.0f;
     }
 }
 
@@ -1284,7 +1313,7 @@ m2BodyType m2Body_GetType(m2BodyId bodyId)
         m2Refuse(world, m2_errorInvalid);
         return m2_staticBody;
     }
-    return (m2BodyType)world->types[index];
+    return (m2BodyType)world->bodies.types[index];
 }
 
 m2Vec2 m2Body_GetLocalCenter(m2BodyId bodyId)
@@ -1297,7 +1326,7 @@ m2Vec2 m2Body_GetLocalCenter(m2BodyId bodyId)
         m2Vec2 zero = {0.0f, 0.0f};
         return zero;
     }
-    return world->localCenters[index];
+    return world->bodies.localCenters[index];
 }
 
 bool m2Body_IsBullet(m2BodyId bodyId)
@@ -1309,7 +1338,7 @@ bool m2Body_IsBullet(m2BodyId bodyId)
         m2Refuse(world, m2_errorInvalid);
         return false;
     }
-    return world->bullets[index] != 0;
+    return world->bodies.bullets[index] != 0;
 }
 
 float m2Body_GetGravityScale(m2BodyId bodyId)
@@ -1321,7 +1350,7 @@ float m2Body_GetGravityScale(m2BodyId bodyId)
         m2Refuse(world, m2_errorInvalid);
         return 0.0f;
     }
-    return world->gravityScales[index];
+    return world->bodies.gravityScales[index];
 }
 
 int32_t m2Body_GetShapes(m2BodyId bodyId, m2ShapeId* ids, int32_t capacity)
@@ -1334,9 +1363,9 @@ int32_t m2Body_GetShapes(m2BodyId bodyId, m2ShapeId* ids, int32_t capacity)
         return 0;
     }
     int32_t total = 0;
-    for (int32_t i = 0; i < world->maxShapeIndex; ++i)
+    for (int32_t i = 0; i < world->shapes.maxShapeIndex; ++i)
     {
-        if (world->shapeAlive[i] == 0 || world->shapeBody[i] != bodyIndex)
+        if (world->shapes.shapeAlive[i] == 0 || world->shapes.shapeBody[i] != bodyIndex)
         {
             continue;
         }

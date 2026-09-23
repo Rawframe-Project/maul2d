@@ -9,6 +9,7 @@
 // points; every recreated id must match the recording.
 
 #include "journal.h"
+#include "world.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -36,17 +37,17 @@ _Static_assert(sizeof(m2JournalHeader) == 32, "journal header must be padding-fr
 // full (the overflow is reported by m2World_StopJournal, never silent).
 static uint8_t* ReserveRecord(m2World* world, uint8_t op, int32_t bytes)
 {
-    if (world->journalActive == 0 || world->journalOverflow != 0)
+    if (world->recorder.journalActive == 0 || world->recorder.journalOverflow != 0)
     {
         return NULL;
     }
-    if (world->journalCursor + 1 + bytes > world->journalCapacity)
+    if (world->recorder.journalCursor + 1 + bytes > world->recorder.journalCapacity)
     {
-        world->journalOverflow = 1;
+        world->recorder.journalOverflow = 1;
         return NULL;
     }
-    uint8_t* record = world->journal + world->journalCursor;
-    world->journalCursor += 1 + bytes;
+    uint8_t* record = world->recorder.journal + world->recorder.journalCursor;
+    world->recorder.journalCursor += 1 + bytes;
     record[0] = op;
     return record + 1;
 }
@@ -128,7 +129,7 @@ int32_t m2World_JournalBaseSize(m2WorldId worldId)
 bool m2World_StartJournal(m2WorldId worldId, void* buffer, int32_t capacity)
 {
     m2World* world = m2WorldFromId(worldId);
-    if (world == NULL || buffer == NULL || world->journalActive != 0)
+    if (world == NULL || buffer == NULL || world->recorder.journalActive != 0)
     {
         m2Refuse(world, m2_errorInvalid);
         return false;
@@ -145,9 +146,9 @@ bool m2World_StartJournal(m2WorldId worldId, void* buffer, int32_t capacity)
     header.magic = M2_JOURNAL_MAGIC;
     header.version = M2_JOURNAL_VERSION;
     header.gravity = world->gravity;
-    header.bodyCapacity = world->bodyCapacity;
-    header.shapeCapacity = world->shapeCapacity;
-    header.jointCapacity = world->jointCapacity;
+    header.bodyCapacity = world->bodies.bodyCapacity;
+    header.shapeCapacity = world->shapes.shapeCapacity;
+    header.jointCapacity = world->joints.jointCapacity;
     header.snapshotSize = snapshotSize;
 
     uint8_t* out = buffer;
@@ -158,33 +159,33 @@ bool m2World_StartJournal(m2WorldId worldId, void* buffer, int32_t capacity)
         return false;
     }
 
-    world->journal = out;
-    world->journalCapacity = capacity;
-    world->journalCursor = (int32_t)sizeof(header) + snapshotSize;
-    world->journalActive = 1;
-    world->journalOverflow = 0;
+    world->recorder.journal = out;
+    world->recorder.journalCapacity = capacity;
+    world->recorder.journalCursor = (int32_t)sizeof(header) + snapshotSize;
+    world->recorder.journalActive = 1;
+    world->recorder.journalOverflow = 0;
     return true;
 }
 
 int32_t m2World_StopJournal(m2WorldId worldId)
 {
     m2World* world = m2WorldFromId(worldId);
-    if (world == NULL || world->journalActive == 0)
+    if (world == NULL || world->recorder.journalActive == 0)
     {
         m2Refuse(world, m2_errorInvalid);
         return 0;
     }
-    int32_t size = world->journalCursor;
-    if (world->journalOverflow != 0)
+    int32_t size = world->recorder.journalCursor;
+    if (world->recorder.journalOverflow != 0)
     {
         size = 0;
         m2Refuse(world, m2_errorCapacity);
     }
-    world->journalActive = 0;
-    world->journal = NULL;
-    world->journalCapacity = 0;
-    world->journalCursor = 0;
-    world->journalOverflow = 0;
+    world->recorder.journalActive = 0;
+    world->recorder.journal = NULL;
+    world->recorder.journalCapacity = 0;
+    world->recorder.journalCursor = 0;
+    world->recorder.journalOverflow = 0;
     return size;
 }
 
@@ -197,9 +198,9 @@ static m2Result ReplayOps(m2WorldId worldId, m2World* world, const uint8_t* data
     m2JournalHeader header;
     memcpy(&header, data, sizeof(header));
     if (header.magic != M2_JOURNAL_MAGIC || header.version != M2_JOURNAL_VERSION ||
-        header.bodyCapacity != world->bodyCapacity ||
-        header.shapeCapacity != world->shapeCapacity ||
-        header.jointCapacity != world->jointCapacity)
+        header.bodyCapacity != world->bodies.bodyCapacity ||
+        header.shapeCapacity != world->shapes.shapeCapacity ||
+        header.jointCapacity != world->joints.jointCapacity)
     {
         return m2_errorConfig; // a tape from another build or another world shape
     }
@@ -245,7 +246,7 @@ bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
 {
     m2World* world = m2WorldFromId(worldId);
     if (world == NULL || data == NULL || size < (int32_t)sizeof(m2JournalHeader) ||
-        world->journalActive != 0)
+        world->recorder.journalActive != 0)
     {
         m2Refuse(world, m2_errorInvalid);
         return false;

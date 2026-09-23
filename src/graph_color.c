@@ -14,8 +14,8 @@
 void m2ColorConstraints(m2World* world, m2ContactConstraint* constraints, int32_t count,
                         int32_t* colorStart)
 {
-    uint32_t* masks = world->colorMasks;
-    for (int32_t i = 0; i < world->maxBodyIndex; ++i)
+    uint32_t* masks = world->solver.colorMasks;
+    for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
         masks[i] = 0;
     }
@@ -29,8 +29,8 @@ void m2ColorConstraints(m2World* world, m2ContactConstraint* constraints, int32_
     {
         int32_t bodyA = constraints[i].bodyA;
         int32_t bodyB = constraints[i].bodyB;
-        bool dynA = world->types[bodyA] == (uint8_t)m2_dynamicBody;
-        bool dynB = world->types[bodyB] == (uint8_t)m2_dynamicBody;
+        bool dynA = world->bodies.types[bodyA] == (uint8_t)m2_dynamicBody;
+        bool dynB = world->bodies.types[bodyB] == (uint8_t)m2_dynamicBody;
         uint32_t used = (dynA ? masks[bodyA] : 0u) | (dynB ? masks[bodyB] : 0u);
         int32_t color = 0;
         while (color < M2_GRAPH_COLORS && (used & (1u << color)) != 0)
@@ -52,7 +52,7 @@ void m2ColorConstraints(m2World* world, m2ContactConstraint* constraints, int32_
                 masks[bodyB] |= 1u << color;
             }
         }
-        world->constraintColors[i] = (uint8_t)color;
+        world->solver.constraintColors[i] = (uint8_t)color;
         counts[color] += 1;
     }
 
@@ -68,8 +68,8 @@ void m2ColorConstraints(m2World* world, m2ContactConstraint* constraints, int32_
     }
     for (int32_t i = 0; i < count; ++i)
     {
-        int32_t color = world->constraintColors[i];
-        world->colorOrder[cursor[color]] = i;
+        int32_t color = world->solver.constraintColors[i];
+        world->solver.colorOrder[cursor[color]] = i;
         cursor[color] += 1;
     }
 }

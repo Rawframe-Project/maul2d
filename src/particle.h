@@ -8,4 +8,8 @@
 
 #include "world_internal.h"
 
+// The particle step: neighbor pairs from positions, then the solve.
+void m2UpdateParticlePairs(m2World* world);
+void m2SolveParticles(m2World* world, float dt);
+
 #endif // MAUL2D_SRC_PARTICLE_H

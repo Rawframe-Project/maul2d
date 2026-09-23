@@ -153,4 +153,7 @@ typedef struct m2ContactStageCtx
 void m2StoreBodyVelocities(m2World* world, const m2ContactConstraint* c, m2Vec2 vA, float wA,
                            m2Vec2 vB, float wB);
 
+// The soft-step solve for one step.
+void m2SolveStep(m2World* world, float dt, int32_t substepCount);
+
 #endif // MAUL2D_SRC_SOLVER_H

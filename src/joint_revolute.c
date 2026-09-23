@@ -63,23 +63,23 @@ m2JointId m2CreateRevoluteJoint(m2WorldId worldId, const m2RevoluteJointDef* def
     m2JointId jointId =
         m2FinishJoint(world, worldId, index, (uint8_t)m2_revoluteJoint, bodyA, bodyB,
                       def->localAnchorA, def->localAnchorB, 0.0f, def->hertz, def->dampingRatio);
-    world->jointUserData[index] = def->userData;
-    world->jointCollide[index] = def->collideConnected ? 1 : 0;
+    world->joints.jointUserData[index] = def->userData;
+    world->joints.jointCollide[index] = def->collideConnected ? 1 : 0;
     if (def->collideConnected == false)
     {
         m2RefilterJointedBodies(world, bodyA, bodyB);
     }
-    world->jointFlags[index] =
+    world->joints.jointFlags[index] =
         (def->enableMotor ? M2_JOINT_MOTOR : 0u) | (def->enableLimit ? M2_JOINT_LIMIT : 0u);
-    world->jointMotorSpeed[index] = def->motorSpeed;
-    world->jointMaxMotor[index] = def->maxMotorTorque;
-    world->jointLower[index] = def->lowerAngle;
-    world->jointUpper[index] = def->upperAngle;
-    world->jointRefAngle[index] =
-        m2RelativeJointAngle(world->transforms[bodyA].q, world->transforms[bodyB].q);
-    world->jointHertz2[index] = def->springHertz;
-    world->jointDamping2[index] = def->springDampingRatio;
-    if (world->journalActive != 0)
+    world->joints.jointMotorSpeed[index] = def->motorSpeed;
+    world->joints.jointMaxMotor[index] = def->maxMotorTorque;
+    world->joints.jointLower[index] = def->lowerAngle;
+    world->joints.jointUpper[index] = def->upperAngle;
+    world->joints.jointRefAngle[index] =
+        m2RelativeJointAngle(world->bodies.transforms[bodyA].q, world->bodies.transforms[bodyB].q);
+    world->joints.jointHertz2[index] = def->springHertz;
+    world->joints.jointDamping2[index] = def->springDampingRatio;
+    if (world->recorder.journalActive != 0)
     {
         m2OpCreateRevoluteJoint record;
         memset(&record, 0, sizeof(record));
@@ -98,12 +98,13 @@ static void PrepareRevolute(m2World* world, m2JointConstraint* c, const m2JointF
     m2PreparePointBlock(c, f);
     float k = f->iA + f->iB;
     c->axialMass = k > 0.0f ? 1.0f / k : 0.0f;
-    c->baseAngle = m2UnwindAngle(m2RelativeJointAngle(f->qA, f->qB) - world->jointRefAngle[j]);
+    c->baseAngle =
+        m2UnwindAngle(m2RelativeJointAngle(f->qA, f->qB) - world->joints.jointRefAngle[j]);
     c->linearSpring = false;
-    c->angularSpring = world->jointHertz2[j] > 0.0f;
-    c->softness2 = c->angularSpring
-                       ? m2MakeSoft(world->jointHertz2[j], world->jointDamping2[j], f->h)
-                       : m2MakeSoft(60.0f, 2.0f, f->h);
+    c->angularSpring = world->joints.jointHertz2[j] > 0.0f;
+    c->softness2 = c->angularSpring ? m2MakeSoft(world->joints.jointHertz2[j],
+                                                 world->joints.jointDamping2[j], f->h)
+                                    : m2MakeSoft(60.0f, 2.0f, f->h);
 }
 
 static void SolveRevolute(m2World* world, m2JointConstraint* c, const m2JointSolveContext* ctx)
@@ -116,17 +117,17 @@ static void SolveRevolute(m2World* world, m2JointConstraint* c, const m2JointSol
     {
         // Angular spring (reference revolute_joint.c): a real spring
         // toward the creation angle, biased in every pass by definition.
-        float C =
-            m2UnwindAngle(c->baseAngle + m2RelativeJointAngle(world->deltaRotations[c->bodyA],
-                                                              world->deltaRotations[c->bodyB]));
+        float C = m2UnwindAngle(c->baseAngle +
+                                m2RelativeJointAngle(world->solver.deltaRotations[c->bodyA],
+                                                     world->solver.deltaRotations[c->bodyB]));
         float bias = c->softness2.biasRate * C;
         float massScale = c->softness2.massScale;
         float impulseScale = c->softness2.impulseScale;
         float cdot = wB - wA;
         float impulse = -massScale * c->axialMass * (cdot + bias) - impulseScale * c->springImpulse;
         c->springImpulse += impulse;
-        wA -= world->invInertia[c->bodyA] * impulse;
-        wB += world->invInertia[c->bodyB] * impulse;
+        wA -= world->bodies.invInertia[c->bodyA] * impulse;
+        wB += world->bodies.invInertia[c->bodyB] * impulse;
     }
     if ((c->flags & M2_JOINT_MOTOR) != 0 && c->axialMass > 0.0f)
     {
@@ -134,14 +135,14 @@ static void SolveRevolute(m2World* world, m2JointConstraint* c, const m2JointSol
         // per-step torque budget (reference formulation).
         float cdot = wB - wA - c->motorSpeed;
         float delta = m2SolveJointAxial(c, cdot, 0.0f, 1.0f, 0.0f, &c->motorImpulse, false);
-        wA -= world->invInertia[c->bodyA] * delta;
-        wB += world->invInertia[c->bodyB] * delta;
+        wA -= world->bodies.invInertia[c->bodyA] * delta;
+        wB += world->bodies.invInertia[c->bodyB] * delta;
     }
     if ((c->flags & M2_JOINT_LIMIT) != 0 && c->axialMass > 0.0f)
     {
-        float jointAngle =
-            m2UnwindAngle(c->baseAngle + m2RelativeJointAngle(world->deltaRotations[c->bodyA],
-                                                              world->deltaRotations[c->bodyB]));
+        float jointAngle = m2UnwindAngle(
+            c->baseAngle + m2RelativeJointAngle(world->solver.deltaRotations[c->bodyA],
+                                                world->solver.deltaRotations[c->bodyB]));
         { // lower: open limits speculate, violated limits go soft
             float C = jointAngle - c->lower;
             float bias = 0.0f;
@@ -159,8 +160,8 @@ static void SolveRevolute(m2World* world, m2JointConstraint* c, const m2JointSol
             }
             float delta = m2SolveJointAxial(c, wB - wA, bias, massScale, impulseScale,
                                             &c->lowerImpulse, true);
-            wA -= world->invInertia[c->bodyA] * delta;
-            wB += world->invInertia[c->bodyB] * delta;
+            wA -= world->bodies.invInertia[c->bodyA] * delta;
+            wB += world->bodies.invInertia[c->bodyB] * delta;
         }
         { // upper: signs flipped so C stays positive when satisfied
             float C = c->upper - jointAngle;
@@ -179,8 +180,8 @@ static void SolveRevolute(m2World* world, m2JointConstraint* c, const m2JointSol
             }
             float delta = m2SolveJointAxial(c, wA - wB, bias, massScale, impulseScale,
                                             &c->upperImpulse, true);
-            wA += world->invInertia[c->bodyA] * delta;
-            wB -= world->invInertia[c->bodyB] * delta;
+            wA += world->bodies.invInertia[c->bodyA] * delta;
+            wB -= world->bodies.invInertia[c->bodyB] * delta;
         }
     }
     m2SolvePointBlock(world, c, ctx, wA, wB, useBias);
@@ -190,9 +191,9 @@ static void RevoluteReaction(const m2World* world, int32_t j, float invH, float*
                              float* torque)
 {
     // The point block is the linear load; spring, motor and limits the torque.
-    m2Vec2 impulse = world->jointImpulse[j];
-    float axial = world->jointSpringImpulse[j] + world->jointMotorImpulse[j] +
-                  world->jointLowerImpulse[j] - world->jointUpperImpulse[j];
+    m2Vec2 impulse = world->joints.jointImpulse[j];
+    float axial = world->joints.jointSpringImpulse[j] + world->joints.jointMotorImpulse[j] +
+                  world->joints.jointLowerImpulse[j] - world->joints.jointUpperImpulse[j];
     *force = sqrtf(impulse.x * impulse.x + impulse.y * impulse.y) * invH;
     *torque = m2AbsF(axial) * invH;
 }

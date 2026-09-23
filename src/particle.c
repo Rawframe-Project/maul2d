@@ -19,8 +19,9 @@
 static int32_t ParticleSlot(const m2World* world, m2ParticleId id)
 {
     int32_t index = id.index1 - 1;
-    if (world == NULL || index < 0 || index >= world->particleCapacity ||
-        world->particleAlive[index] == 0 || world->particleGenerations[index] != id.generation)
+    if (world == NULL || index < 0 || index >= world->particles.particleCapacity ||
+        world->particles.particleAlive[index] == 0 ||
+        world->particles.particleGenerations[index] != id.generation)
     {
         return -1;
     }
@@ -31,7 +32,7 @@ m2ParticleId m2World_EmitParticle(m2WorldId worldId, m2Pos2 position, m2Vec2 vel
                                   uint32_t flags)
 {
     m2World* world = m2GetWorld(worldId);
-    if (world == NULL || world->particleCapacity == 0)
+    if (world == NULL || world->particles.particleCapacity == 0)
     {
         m2Refuse(world, m2_errorInvalid); // no particle system in this world: misuse
         return m2_nullParticleId;
@@ -41,30 +42,31 @@ m2ParticleId m2World_EmitParticle(m2WorldId worldId, m2Pos2 position, m2Vec2 vel
         m2Refuse(world, m2_errorInvalid); // NaN screen, the def-validation law
         return m2_nullParticleId;
     }
-    if (world->particleFreeCount == 0)
+    if (world->particles.particleFreeCount == 0)
     {
         // A full pool is a runtime fact, not misuse: pace emitters
         // off m2World_GetParticleCount; the counter keeps the score.
-        world->particlePoolFullCount += 1;
+        world->particles.particlePoolFullCount += 1;
         m2Refuse(world, m2_errorCapacity);
         return m2_nullParticleId;
     }
-    int32_t index = world->particleFreeQueue[world->particleFreeHead];
-    world->particleFreeHead = (world->particleFreeHead + 1) % world->particleCapacity;
-    world->particleFreeCount -= 1;
-    if (index + 1 > world->maxParticleIndex)
+    int32_t index = world->particles.particleFreeQueue[world->particles.particleFreeHead];
+    world->particles.particleFreeHead =
+        (world->particles.particleFreeHead + 1) % world->particles.particleCapacity;
+    world->particles.particleFreeCount -= 1;
+    if (index + 1 > world->particles.maxParticleIndex)
     {
-        world->maxParticleIndex = index + 1;
+        world->particles.maxParticleIndex = index + 1;
     }
-    world->particlePositions[index] = position;
-    world->particleVelocities[index] = velocity;
-    world->particleFlags[index] = flags;
-    world->particleLifetime[index] = 0.0f;
-    world->particleUserData[index] = 0;
-    world->particleAlive[index] = 1;
-    world->particleCount += 1;
-    m2ParticleId id = {index + 1, worldId.index1, world->particleGenerations[index]};
-    if (world->journalActive != 0)
+    world->particles.particlePositions[index] = position;
+    world->particles.particleVelocities[index] = velocity;
+    world->particles.particleFlags[index] = flags;
+    world->particles.particleLifetime[index] = 0.0f;
+    world->particles.particleUserData[index] = 0;
+    world->particles.particleAlive[index] = 1;
+    world->particles.particleCount += 1;
+    m2ParticleId id = {index + 1, worldId.index1, world->particles.particleGenerations[index]};
+    if (world->recorder.journalActive != 0)
     {
         m2OpEmitParticle record;
         memset(&record, 0, sizeof(record));
@@ -86,54 +88,57 @@ void m2World_DestroyParticle(m2ParticleId particleId)
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2JournalRecord(world, m2_opDestroyParticle, &particleId, (int32_t)sizeof(particleId));
     }
-    world->particleAlive[index] = 0;
-    world->particleGenerations[index] += 1; // retire under a fresh generation
+    world->particles.particleAlive[index] = 0;
+    world->particles.particleGenerations[index] += 1; // retire under a fresh generation
     // Jelly bookkeeping: springs and triads die with their particle,
     // compacted in order so the lists stay canonical.
-    if (world->particleSpringCount > 0)
+    if (world->particles.particleSpringCount > 0)
     {
         int32_t keep = 0;
-        for (int32_t k = 0; k < world->particleSpringCount; ++k)
+        for (int32_t k = 0; k < world->particles.particleSpringCount; ++k)
         {
-            if (world->particleSpringA[k] == index || world->particleSpringB[k] == index)
+            if (world->particles.particleSpringA[k] == index ||
+                world->particles.particleSpringB[k] == index)
             {
                 continue;
             }
-            world->particleSpringA[keep] = world->particleSpringA[k];
-            world->particleSpringB[keep] = world->particleSpringB[k];
-            world->particleSpringRest[keep] = world->particleSpringRest[k];
+            world->particles.particleSpringA[keep] = world->particles.particleSpringA[k];
+            world->particles.particleSpringB[keep] = world->particles.particleSpringB[k];
+            world->particles.particleSpringRest[keep] = world->particles.particleSpringRest[k];
             keep += 1;
         }
-        world->particleSpringCount = keep;
+        world->particles.particleSpringCount = keep;
     }
-    if (world->particleTriadCount > 0)
+    if (world->particles.particleTriadCount > 0)
     {
         int32_t keep = 0;
-        for (int32_t k = 0; k < world->particleTriadCount; ++k)
+        for (int32_t k = 0; k < world->particles.particleTriadCount; ++k)
         {
-            if (world->particleTriadA[k] == index || world->particleTriadB[k] == index ||
-                world->particleTriadC[k] == index)
+            if (world->particles.particleTriadA[k] == index ||
+                world->particles.particleTriadB[k] == index ||
+                world->particles.particleTriadC[k] == index)
             {
                 continue;
             }
-            world->particleTriadA[keep] = world->particleTriadA[k];
-            world->particleTriadB[keep] = world->particleTriadB[k];
-            world->particleTriadC[keep] = world->particleTriadC[k];
-            world->particleTriadPA[keep] = world->particleTriadPA[k];
-            world->particleTriadPB[keep] = world->particleTriadPB[k];
-            world->particleTriadPC[keep] = world->particleTriadPC[k];
+            world->particles.particleTriadA[keep] = world->particles.particleTriadA[k];
+            world->particles.particleTriadB[keep] = world->particles.particleTriadB[k];
+            world->particles.particleTriadC[keep] = world->particles.particleTriadC[k];
+            world->particles.particleTriadPA[keep] = world->particles.particleTriadPA[k];
+            world->particles.particleTriadPB[keep] = world->particles.particleTriadPB[k];
+            world->particles.particleTriadPC[keep] = world->particles.particleTriadPC[k];
             keep += 1;
         }
-        world->particleTriadCount = keep;
+        world->particles.particleTriadCount = keep;
     }
-    world->particleFreeQueue[(world->particleFreeHead + world->particleFreeCount) %
-                             world->particleCapacity] = index;
-    world->particleFreeCount += 1;
-    world->particleCount -= 1;
+    world->particles.particleFreeQueue[(world->particles.particleFreeHead +
+                                        world->particles.particleFreeCount) %
+                                       world->particles.particleCapacity] = index;
+    world->particles.particleFreeCount += 1;
+    world->particles.particleCount -= 1;
 }
 
 bool m2Particle_IsValid(m2ParticleId particleId)
@@ -147,7 +152,7 @@ m2Pos2 m2Particle_GetPosition(m2ParticleId particleId)
     m2Pos2 zero = {0.0, 0.0};
     m2World* world = m2WorldFromIndex(particleId.world0);
     int32_t index = ParticleSlot(world, particleId);
-    return index >= 0 ? world->particlePositions[index] : zero;
+    return index >= 0 ? world->particles.particlePositions[index] : zero;
 }
 
 m2Vec2 m2Particle_GetVelocity(m2ParticleId particleId)
@@ -155,7 +160,7 @@ m2Vec2 m2Particle_GetVelocity(m2ParticleId particleId)
     m2Vec2 zero = {0.0f, 0.0f};
     m2World* world = m2WorldFromIndex(particleId.world0);
     int32_t index = ParticleSlot(world, particleId);
-    return index >= 0 ? world->particleVelocities[index] : zero;
+    return index >= 0 ? world->particles.particleVelocities[index] : zero;
 }
 
 void m2Particle_SetVelocity(m2ParticleId particleId, m2Vec2 velocity)
@@ -167,7 +172,7 @@ void m2Particle_SetVelocity(m2ParticleId particleId, m2Vec2 velocity)
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpParticleVec record;
         memset(&record, 0, sizeof(record));
@@ -175,14 +180,14 @@ void m2Particle_SetVelocity(m2ParticleId particleId, m2Vec2 velocity)
         record.value = velocity;
         m2JournalRecord(world, m2_opSetParticleVelocity, &record, (int32_t)sizeof(record));
     }
-    world->particleVelocities[index] = velocity;
+    world->particles.particleVelocities[index] = velocity;
 }
 
 uint32_t m2Particle_GetFlags(m2ParticleId particleId)
 {
     m2World* world = m2WorldFromIndex(particleId.world0);
     int32_t index = ParticleSlot(world, particleId);
-    return index >= 0 ? world->particleFlags[index] : 0;
+    return index >= 0 ? world->particles.particleFlags[index] : 0;
 }
 
 void m2Particle_SetLifetime(m2ParticleId particleId, float seconds)
@@ -194,7 +199,7 @@ void m2Particle_SetLifetime(m2ParticleId particleId, float seconds)
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpParticleFloat record;
         memset(&record, 0, sizeof(record));
@@ -202,14 +207,14 @@ void m2Particle_SetLifetime(m2ParticleId particleId, float seconds)
         record.value = seconds;
         m2JournalRecord(world, m2_opSetParticleLifetime, &record, (int32_t)sizeof(record));
     }
-    world->particleLifetime[index] = seconds;
+    world->particles.particleLifetime[index] = seconds;
 }
 
 float m2Particle_GetLifetime(m2ParticleId particleId)
 {
     m2World* world = m2WorldFromIndex(particleId.world0);
     int32_t index = ParticleSlot(world, particleId);
-    return index >= 0 ? world->particleLifetime[index] : 0.0f;
+    return index >= 0 ? world->particles.particleLifetime[index] : 0.0f;
 }
 
 void m2Particle_SetUserData(m2ParticleId particleId, uint64_t userData)
@@ -221,7 +226,7 @@ void m2Particle_SetUserData(m2ParticleId particleId, uint64_t userData)
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpParticleUserData record;
         memset(&record, 0, sizeof(record));
@@ -229,20 +234,20 @@ void m2Particle_SetUserData(m2ParticleId particleId, uint64_t userData)
         record.userData = userData;
         m2JournalRecord(world, m2_opSetParticleUserData, &record, (int32_t)sizeof(record));
     }
-    world->particleUserData[index] = userData;
+    world->particles.particleUserData[index] = userData;
 }
 
 uint64_t m2Particle_GetUserData(m2ParticleId particleId)
 {
     m2World* world = m2WorldFromIndex(particleId.world0);
     int32_t index = ParticleSlot(world, particleId);
-    return index >= 0 ? world->particleUserData[index] : 0;
+    return index >= 0 ? world->particles.particleUserData[index] : 0;
 }
 
 int32_t m2World_GetParticleCount(m2WorldId worldId)
 {
     m2World* world = m2GetWorld(worldId);
-    return world != NULL ? world->particleCount : 0;
+    return world != NULL ? world->particles.particleCount : 0;
 }
 
 int32_t m2World_GetParticles(m2WorldId worldId, m2ParticleId* ids, int32_t capacity)
@@ -253,15 +258,16 @@ int32_t m2World_GetParticles(m2WorldId worldId, m2ParticleId* ids, int32_t capac
         return 0;
     }
     int32_t total = 0;
-    for (int32_t i = 0; i < world->maxParticleIndex; ++i)
+    for (int32_t i = 0; i < world->particles.maxParticleIndex; ++i)
     {
-        if (world->particleAlive[i] == 0)
+        if (world->particles.particleAlive[i] == 0)
         {
             continue;
         }
         if (ids != NULL && total < capacity)
         {
-            ids[total] = (m2ParticleId){i + 1, worldId.index1, world->particleGenerations[i]};
+            ids[total] =
+                (m2ParticleId){i + 1, worldId.index1, world->particles.particleGenerations[i]};
         }
         total += 1;
     }

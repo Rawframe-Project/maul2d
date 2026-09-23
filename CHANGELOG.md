@@ -79,6 +79,13 @@ Work toward 0.0.1, the first release of the reworked library.
   through a kind table instead of type switches. Joint types, joint
   flags and motion-lock bits are named constants. Results are bit-
   identical.
+- m2World groups its 248 fields into per-subsystem blocks (bodies,
+  shapes, joints, chains, particles, volumes, broadphase, contacts,
+  solver scratch, events, recorder), and world_internal.h holds only
+  that layout: cookies, kernels and helpers moved to their module
+  headers, with new distance.h, island.h, ccd.h, buoyancy.h and
+  query.h. maul2d/base.h includes <stdbool.h> like Maul3D's. Results
+  are bit-identical.
 
 ### Removed
 

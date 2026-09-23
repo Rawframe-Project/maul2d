@@ -13,6 +13,7 @@
 // circle shapes, conservative for the rest), and rotation during the
 // sweep is ignored.
 
+#include "ccd.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -24,9 +25,9 @@
 static float BulletBoundingRadius(const m2World* world, int32_t body)
 {
     float radius = 0.0f;
-    for (int32_t s = world->bodyShapeHead[body]; s != -1; s = world->shapeNext[s])
+    for (int32_t s = world->bodies.bodyShapeHead[body]; s != -1; s = world->shapes.shapeNext[s])
     {
-        const m2ShapeGeometry* g = &world->shapeGeometry[s];
+        const m2ShapeGeometry* g = &world->shapes.shapeGeometry[s];
         switch (g->type)
         {
         case m2_circleShape:
@@ -65,18 +66,18 @@ static float BulletBoundingRadius(const m2World* world, int32_t body)
 // to a target shape, in the target body's frame (single f64 crossing).
 static float DistanceToShape(const m2World* world, int32_t shape, m2Pos2 wp, float bulletRadius)
 {
-    int32_t body = world->shapeBody[shape];
-    m2Transform xf = world->transforms[body];
+    int32_t body = world->shapes.shapeBody[shape];
+    m2Transform xf = world->bodies.transforms[body];
     float dx = (float)(wp.x - xf.p.x);
     float dy = (float)(wp.y - xf.p.y);
     m2Vec2 local = {xf.q.c * dx + xf.q.s * dy, -xf.q.s * dx + xf.q.c * dy};
-    return m2PointShapeDistance(&world->shapeGeometry[shape], local) - bulletRadius;
+    return m2PointShapeDistance(&world->shapes.shapeGeometry[shape], local) - bulletRadius;
 }
 
 // Sweep one bullet from p0 toward its current position; clamp on impact.
 static void SweepBullet(m2World* world, int32_t body, m2Pos2 p0)
 {
-    m2Pos2 p1 = world->transforms[body].p;
+    m2Pos2 p1 = world->bodies.transforms[body].p;
     double mx = p1.x - p0.x;
     double my = p1.y - p0.y;
     float moveLen = sqrtf((float)(mx * mx + my * my));
@@ -98,25 +99,25 @@ static void SweepBullet(m2World* world, int32_t body, m2Pos2 p0)
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
         int32_t results[M2_TOI_CANDIDATES];
-        int32_t hits =
-            m2TreeQuery(&world->trees[t], world->treeNodes[t], sweep, results, M2_TOI_CANDIDATES);
+        int32_t hits = m2TreeQuery(&world->broadphase.trees[t], world->broadphase.treeNodes[t],
+                                   sweep, results, M2_TOI_CANDIDATES);
         hits = hits <= M2_TOI_CANDIDATES ? hits : M2_TOI_CANDIDATES;
         for (int32_t h = 0; h < hits && candidateCount < M2_TOI_CANDIDATES; ++h)
         {
             int32_t shape = results[h];
-            if (world->shapeSensor[shape] != 0)
+            if (world->shapes.shapeSensor[shape] != 0)
             {
                 continue; // sensors never block a bullet
             }
-            if (world->shapeGeometry[shape].type == m2_chainSegmentShape)
+            if (world->shapes.shapeGeometry[shape].type == m2_chainSegmentShape)
             {
                 // One-way platforms are one-way for bullets too: a
                 // sweep that begins on the ghost side never blocks.
                 // Same sign law as the contact and ray paths.
-                const m2ChainSegment* link = &world->shapeGeometry[shape].chainSegment;
-                int32_t chainBody = world->shapeBody[shape];
-                m2Transform cxf = world->transforms[chainBody];
-                m2Pos2 start = world->ccdPrevPositions[body];
+                const m2ChainSegment* link = &world->shapes.shapeGeometry[shape].chainSegment;
+                int32_t chainBody = world->shapes.shapeBody[shape];
+                m2Transform cxf = world->bodies.transforms[chainBody];
+                m2Pos2 start = world->solver.ccdPrevPositions[body];
                 m2Vec2 rel = {(float)(start.x - cxf.p.x), (float)(start.y - cxf.p.y)};
                 m2Vec2 local = {cxf.q.c * rel.x + cxf.q.s * rel.y,
                                 -cxf.q.s * rel.x + cxf.q.c * rel.y};
@@ -129,25 +130,27 @@ static void SweepBullet(m2World* world, int32_t body, m2Pos2 p0)
                     continue;
                 }
             }
-            int32_t other = world->shapeBody[shape];
-            if (other == body || world->bullets[other] != 0)
+            int32_t other = world->shapes.shapeBody[shape];
+            if (other == body || world->bodies.bullets[other] != 0)
             {
                 continue; // self, or bullet-vs-bullet (excluded)
             }
             // Collision filters apply to bullets too: keep the
             // candidate only if some bullet shape may hit it.
             bool mayCollide = false;
-            for (int32_t bs = world->bodyShapeHead[body]; bs != -1; bs = world->shapeNext[bs])
+            for (int32_t bs = world->bodies.bodyShapeHead[body]; bs != -1;
+                 bs = world->shapes.shapeNext[bs])
             {
-                int32_t group = world->shapeGroup[bs];
-                if (group != 0 && group == world->shapeGroup[shape])
+                int32_t group = world->shapes.shapeGroup[bs];
+                if (group != 0 && group == world->shapes.shapeGroup[shape])
                 {
                     mayCollide = mayCollide || group > 0;
                     continue;
                 }
                 mayCollide =
-                    mayCollide || ((world->shapeCategory[bs] & world->shapeMask[shape]) != 0 &&
-                                   (world->shapeCategory[shape] & world->shapeMask[bs]) != 0);
+                    mayCollide ||
+                    ((world->shapes.shapeCategory[bs] & world->shapes.shapeMask[shape]) != 0 &&
+                     (world->shapes.shapeCategory[shape] & world->shapes.shapeMask[bs]) != 0);
             }
             if (!mayCollide)
             {
@@ -203,9 +206,10 @@ static void SweepBullet(m2World* world, int32_t body, m2Pos2 p0)
     {
         // Clamp position to the impact time. Velocity is left alone: the
         // next substep's speculative contact resolves the collision.
-        world->transforms[body].p = (m2Pos2){p0.x + (double)minT * mx, p0.y + (double)minT * my};
-        world->deltaPositions[body].x -= (1.0f - minT) * (float)mx;
-        world->deltaPositions[body].y -= (1.0f - minT) * (float)my;
+        world->bodies.transforms[body].p =
+            (m2Pos2){p0.x + (double)minT * mx, p0.y + (double)minT * my};
+        world->solver.deltaPositions[body].x -= (1.0f - minT) * (float)mx;
+        world->solver.deltaPositions[body].y -= (1.0f - minT) * (float)my;
     }
 }
 
@@ -213,13 +217,14 @@ static void SweepBullet(m2World* world, int32_t body, m2Pos2 p0)
 // transform-mutating pass ordering, registry M13).
 void m2SolveContinuous(m2World* world)
 {
-    for (int32_t i = 0; i < world->maxBodyIndex; ++i)
+    for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
-        if (world->alive[i] == 0 || world->bullets[i] == 0 || world->asleep[i] != 0 ||
-            world->disabled[i] != 0 || world->types[i] != (uint8_t)m2_dynamicBody)
+        if (world->bodies.alive[i] == 0 || world->bodies.bullets[i] == 0 ||
+            world->bodies.asleep[i] != 0 || world->bodies.disabled[i] != 0 ||
+            world->bodies.types[i] != (uint8_t)m2_dynamicBody)
         {
             continue;
         }
-        SweepBullet(world, i, world->ccdPrevPositions[i]);
+        SweepBullet(world, i, world->solver.ccdPrevPositions[i]);
     }
 }

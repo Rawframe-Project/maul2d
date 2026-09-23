@@ -8,6 +8,7 @@
 // shape sweep hash compared across CI cells.
 
 #include "test_harness.h"
+#include "world.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -74,8 +75,8 @@ static void TestAabbAndMass(void)
 
     // Rotating (3,0) by +90deg lands at (0,3): center ~(10, 23).
     int32_t shapeIndex = shape.index1 - 1;
-    m2AABB tight =
-        m2ComputeShapeAABB(&world->shapeGeometry[shapeIndex], world->transforms[body.index1 - 1]);
+    m2AABB tight = m2ComputeShapeAABB(&world->shapes.shapeGeometry[shapeIndex],
+                                      world->bodies.transforms[body.index1 - 1]);
     CHECK_NEAR(tight.lowerBound.x, 10.0 - 0.5, 1.0e-3, "rotated AABB lower x");
     CHECK_NEAR(tight.upperBound.y, 23.0 + 0.5, 1.0e-3, "rotated AABB upper y");
 
@@ -92,7 +93,7 @@ static void TestAabbAndMass(void)
     m2CreatePolygonShape(boxBody, &sd2, &box);
     CHECK_NEAR(m2Body_GetMass(boxBody), 1.0f, 1.0e-4f, "unit box mass");
     float expectedInvI = 1.0f / (1.0f * (1.0f + 1.0f) / 12.0f);
-    CHECK_NEAR(world->invInertia[boxBody.index1 - 1], expectedInvI, 1.0e-2f, "box inertia");
+    CHECK_NEAR(world->bodies.invInertia[boxBody.index1 - 1], expectedInvI, 1.0e-2f, "box inertia");
 
     // Zero-density dynamic body: the minimum-mass floor, never NaN.
     m2BodyDef bd3 = m2DefaultBodyDef();
@@ -168,11 +169,12 @@ static void TestCompoundAndRollback(void)
     for (int32_t i = 0; i < 20; ++i)
     {
         m2World_Step(worldId, 1.0f / 60.0f, 4);
-        for (int32_t p = 0; p < world->pairCount; ++p)
+        for (int32_t p = 0; p < world->contacts.pairCount; ++p)
         {
-            int32_t a = (int32_t)(world->pairKeys[p] >> 32);
-            int32_t b = (int32_t)(world->pairKeys[p] & 0xFFFFFFFFu);
-            CHECK(world->shapeBody[a] != world->shapeBody[b], "same-body shapes never pair");
+            int32_t a = (int32_t)(world->contacts.pairKeys[p] >> 32);
+            int32_t b = (int32_t)(world->contacts.pairKeys[p] & 0xFFFFFFFFu);
+            CHECK(world->shapes.shapeBody[a] != world->shapes.shapeBody[b],
+                  "same-body shapes never pair");
         }
     }
 
@@ -198,7 +200,7 @@ static void TestCompoundAndRollback(void)
 
     // Destroying the compound body cascades both shapes and their pairs.
     m2DestroyBody(compound);
-    CHECK(world->pairCount == 0, "body destroy cascades shape pairs away");
+    CHECK(world->contacts.pairCount == 0, "body destroy cascades shape pairs away");
 
     free(snapA);
     free(snapB);

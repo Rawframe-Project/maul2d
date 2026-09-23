@@ -92,4 +92,7 @@ m2Polygon m2MakeSegmentProxy(m2Vec2 p1, m2Vec2 p2, float radius);
 // kernel for bullet CCD.
 float m2PointShapeDistance(const m2ShapeGeometry* geometry, m2Vec2 point);
 
+// The area of a shape geometry (zero for segments).
+float m2ShapeArea(const struct m2ShapeGeometry* g);
+
 #endif // MAUL2D_SRC_GEOMETRY_H

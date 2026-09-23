@@ -16,7 +16,9 @@
 // bodies are touched, exactly as gravity is, so a body that settles
 // at the waterline and sleeps simply floats.
 
+#include "buoyancy.h"
 #include "journal.h"
+#include "world.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -128,7 +130,7 @@ static float SubmergedPolygon(const m2Vec2* verts, int32_t count, double surface
 static float SubmergedShape(const m2World* world, int32_t shape, m2Transform xf, double surface,
                             m2Vec2* centroidOut)
 {
-    const m2ShapeGeometry* g = &world->shapeGeometry[shape];
+    const m2ShapeGeometry* g = &world->shapes.shapeGeometry[shape];
     switch (g->type)
     {
     case m2_circleShape:
@@ -184,7 +186,7 @@ m2FluidVolumeId m2World_CreateFluidVolume(m2WorldId worldId, const m2FluidVolume
 {
     m2World* world = m2WorldFromId(worldId);
     if (world == NULL || def == NULL || def->internalValue != M2_FVOLUME_COOKIE ||
-        world->fvCapacity == 0)
+        world->volumes.fvCapacity == 0)
     {
         m2Refuse(world, m2_errorInvalid);
         return m2_nullFluidVolumeId;
@@ -195,28 +197,28 @@ m2FluidVolumeId m2World_CreateFluidVolume(m2WorldId worldId, const m2FluidVolume
         m2Refuse(world, m2_errorInvalid);
         return m2_nullFluidVolumeId;
     }
-    if (world->fvFreeCount == 0)
+    if (world->volumes.fvFreeCount == 0)
     {
         return m2_nullFluidVolumeId; // pool full: a runtime fact
     }
-    int32_t index = world->fvFreeQueue[world->fvFreeHead];
-    world->fvFreeHead = (world->fvFreeHead + 1) % world->fvCapacity;
-    world->fvFreeCount -= 1;
-    if (index + 1 > world->maxFvIndex)
+    int32_t index = world->volumes.fvFreeQueue[world->volumes.fvFreeHead];
+    world->volumes.fvFreeHead = (world->volumes.fvFreeHead + 1) % world->volumes.fvCapacity;
+    world->volumes.fvFreeCount -= 1;
+    if (index + 1 > world->volumes.maxFvIndex)
     {
-        world->maxFvIndex = index + 1;
+        world->volumes.maxFvIndex = index + 1;
     }
-    world->fvLower[index] = def->regionLower;
-    world->fvUpper[index] = def->regionUpper;
-    world->fvSurface[index] = def->surface;
-    world->fvDensity[index] = def->density;
-    world->fvLinearDrag[index] = def->linearDrag;
-    world->fvAngularDrag[index] = def->angularDrag;
-    world->fvFlow[index] = def->flow;
-    world->fvUserData[index] = def->userData;
-    world->fvAlive[index] = 1;
-    m2FluidVolumeId id = {index + 1, worldId.index1, world->fvGenerations[index]};
-    if (world->journalActive != 0)
+    world->volumes.fvLower[index] = def->regionLower;
+    world->volumes.fvUpper[index] = def->regionUpper;
+    world->volumes.fvSurface[index] = def->surface;
+    world->volumes.fvDensity[index] = def->density;
+    world->volumes.fvLinearDrag[index] = def->linearDrag;
+    world->volumes.fvAngularDrag[index] = def->angularDrag;
+    world->volumes.fvFlow[index] = def->flow;
+    world->volumes.fvUserData[index] = def->userData;
+    world->volumes.fvAlive[index] = 1;
+    m2FluidVolumeId id = {index + 1, worldId.index1, world->volumes.fvGenerations[index]};
+    if (world->recorder.journalActive != 0)
     {
         m2OpCreateFluidVolume record;
         memset(&record, 0, sizeof(record));
@@ -230,8 +232,8 @@ m2FluidVolumeId m2World_CreateFluidVolume(m2WorldId worldId, const m2FluidVolume
 static int32_t FvSlot(const m2World* world, m2FluidVolumeId id)
 {
     int32_t index = id.index1 - 1;
-    if (world == NULL || index < 0 || index >= world->fvCapacity || world->fvAlive[index] == 0 ||
-        world->fvGenerations[index] != id.generation)
+    if (world == NULL || index < 0 || index >= world->volumes.fvCapacity ||
+        world->volumes.fvAlive[index] == 0 || world->volumes.fvGenerations[index] != id.generation)
     {
         return -1;
     }
@@ -247,14 +249,15 @@ void m2World_DestroyFluidVolume(m2FluidVolumeId volumeId)
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2JournalRecord(world, m2_opDestroyFluidVolume, &volumeId, (int32_t)sizeof(volumeId));
     }
-    world->fvAlive[index] = 0;
-    world->fvGenerations[index] += 1;
-    world->fvFreeQueue[(world->fvFreeHead + world->fvFreeCount) % world->fvCapacity] = index;
-    world->fvFreeCount += 1;
+    world->volumes.fvAlive[index] = 0;
+    world->volumes.fvGenerations[index] += 1;
+    world->volumes.fvFreeQueue[(world->volumes.fvFreeHead + world->volumes.fvFreeCount) %
+                               world->volumes.fvCapacity] = index;
+    world->volumes.fvFreeCount += 1;
 }
 
 bool m2FluidVolume_IsValid(m2FluidVolumeId volumeId)
@@ -272,7 +275,7 @@ void m2FluidVolume_SetSurface(m2FluidVolumeId volumeId, double surface)
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpFluidSurface record;
         memset(&record, 0, sizeof(record));
@@ -280,21 +283,21 @@ void m2FluidVolume_SetSurface(m2FluidVolumeId volumeId, double surface)
         record.surface = surface;
         m2JournalRecord(world, m2_opSetFluidSurface, &record, (int32_t)sizeof(record));
     }
-    world->fvSurface[index] = surface;
+    world->volumes.fvSurface[index] = surface;
 }
 
 double m2FluidVolume_GetSurface(m2FluidVolumeId volumeId)
 {
     m2World* world = m2WorldFromIndex0(volumeId.world0);
     int32_t index = FvSlot(world, volumeId);
-    return index >= 0 ? world->fvSurface[index] : 0.0;
+    return index >= 0 ? world->volumes.fvSurface[index] : 0.0;
 }
 
 uint64_t m2FluidVolume_GetUserData(m2FluidVolumeId volumeId)
 {
     m2World* world = m2WorldFromIndex0(volumeId.world0);
     int32_t index = FvSlot(world, volumeId);
-    return index >= 0 ? world->fvUserData[index] : 0;
+    return index >= 0 ? world->volumes.fvUserData[index] : 0;
 }
 
 // The per-step pass: buoyancy and drag into the force accumulators,
@@ -305,28 +308,28 @@ void m2ApplyFluidVolumes(m2World* world, float dt)
     {
         return;
     }
-    for (int32_t v = 0; v < world->maxFvIndex; ++v)
+    for (int32_t v = 0; v < world->volumes.maxFvIndex; ++v)
     {
-        if (world->fvAlive[v] == 0)
+        if (world->volumes.fvAlive[v] == 0)
         {
             continue;
         }
-        m2Pos2 lo = world->fvLower[v];
-        m2Pos2 hi = world->fvUpper[v];
-        double surface = world->fvSurface[v];
-        float density = world->fvDensity[v];
-        float linearDrag = world->fvLinearDrag[v];
-        float angularDrag = world->fvAngularDrag[v];
-        m2Vec2 flow = world->fvFlow[v];
+        m2Pos2 lo = world->volumes.fvLower[v];
+        m2Pos2 hi = world->volumes.fvUpper[v];
+        double surface = world->volumes.fvSurface[v];
+        float density = world->volumes.fvDensity[v];
+        float linearDrag = world->volumes.fvLinearDrag[v];
+        float angularDrag = world->volumes.fvAngularDrag[v];
+        m2Vec2 flow = world->volumes.fvFlow[v];
 
-        for (int32_t b = 0; b < world->maxBodyIndex; ++b)
+        for (int32_t b = 0; b < world->bodies.maxBodyIndex; ++b)
         {
-            if (world->alive[b] == 0 || world->types[b] != (uint8_t)m2_dynamicBody ||
-                world->asleep[b] != 0 || world->disabled[b] != 0)
+            if (world->bodies.alive[b] == 0 || world->bodies.types[b] != (uint8_t)m2_dynamicBody ||
+                world->bodies.asleep[b] != 0 || world->bodies.disabled[b] != 0)
             {
                 continue;
             }
-            m2Transform xf = world->transforms[b];
+            m2Transform xf = world->bodies.transforms[b];
             // Region gate: the body origin must sit in the activation
             // box (cheap and canonical; the surface does the physics).
             if (xf.p.x < lo.x || xf.p.x > hi.x || xf.p.y < lo.y || xf.p.y > hi.y)
@@ -334,14 +337,15 @@ void m2ApplyFluidVolumes(m2World* world, float dt)
                 continue;
             }
 
-            m2Vec2 lc = world->localCenters[b];
+            m2Vec2 lc = world->bodies.localCenters[b];
             m2Vec2 comArm = FvRotate(xf.q, lc);
             float comX = (float)xf.p.x + comArm.x;
             float comY = (float)xf.p.y + comArm.y;
 
             float totalArea = 0.0f;
             m2Vec2 areaCentroid = {0.0f, 0.0f};
-            for (int32_t s = world->bodyShapeHead[b]; s != -1; s = world->shapeNext[s])
+            for (int32_t s = world->bodies.bodyShapeHead[b]; s != -1;
+                 s = world->shapes.shapeNext[s])
             {
                 m2Vec2 c = {0.0f, 0.0f};
                 float area = SubmergedShape(world, s, xf, surface, &c);
@@ -364,26 +368,26 @@ void m2ApplyFluidVolumes(m2World* world, float dt)
             float bfx = -density * totalArea * world->gravity.x;
             float bfy = -density * totalArea * world->gravity.y;
             // Drag: opposes the centroid's velocity relative to the flow.
-            float w = world->angularVelocities[b];
+            float w = world->bodies.angularVelocities[b];
             float rcx = areaCentroid.x - comX;
             float rcy = areaCentroid.y - comY;
-            float vcx = world->linearVelocities[b].x - w * rcy;
-            float vcy = world->linearVelocities[b].y + w * rcx;
+            float vcx = world->bodies.linearVelocities[b].x - w * rcy;
+            float vcy = world->bodies.linearVelocities[b].y + w * rcx;
             float dfx = -linearDrag * totalArea * (vcx - flow.x);
             float dfy = -linearDrag * totalArea * (vcy - flow.y);
 
             float fx = bfx + dfx;
             float fy = bfy + dfy;
-            world->forces[b].x += fx;
-            world->forces[b].y += fy;
-            world->torques[b] += rcx * fy - rcy * fx;
+            world->bodies.forces[b].x += fx;
+            world->bodies.forces[b].y += fy;
+            world->bodies.torques[b] += rcx * fy - rcy * fx;
             // Angular drag scales with the reference's inertia-per-mass.
-            float invM = world->invMass[b];
-            float invI = world->invInertia[b];
+            float invM = world->bodies.invMass[b];
+            float invI = world->bodies.invInertia[b];
             if (invM > 0.0f && invI > 0.0f)
             {
                 float inertiaPerMass = invM / invI;
-                world->torques[b] -= inertiaPerMass * totalArea * w * angularDrag;
+                world->bodies.torques[b] -= inertiaPerMass * totalArea * w * angularDrag;
             }
         }
     }
@@ -404,26 +408,26 @@ void m2ApplyWind(m2World* world, float dt)
     }
     float drag = world->windLinearDrag;
     m2Vec2 wind = world->windVelocity;
-    for (int32_t b = 0; b < world->maxBodyIndex; ++b)
+    for (int32_t b = 0; b < world->bodies.maxBodyIndex; ++b)
     {
-        if (world->alive[b] == 0 || world->types[b] != (uint8_t)m2_dynamicBody ||
-            world->asleep[b] != 0 || world->disabled[b] != 0)
+        if (world->bodies.alive[b] == 0 || world->bodies.types[b] != (uint8_t)m2_dynamicBody ||
+            world->bodies.asleep[b] != 0 || world->bodies.disabled[b] != 0)
         {
             continue;
         }
         // Full shape area is rotation invariant; mass at unit density
         // reuses the tested area math (circles, rounded polygons, caps).
         float area = 0.0f;
-        for (int32_t s = world->bodyShapeHead[b]; s != -1; s = world->shapeNext[s])
+        for (int32_t s = world->bodies.bodyShapeHead[b]; s != -1; s = world->shapes.shapeNext[s])
         {
-            area += m2ComputeShapeMass(&world->shapeGeometry[s], 1.0f).mass;
+            area += m2ComputeShapeMass(&world->shapes.shapeGeometry[s], 1.0f).mass;
         }
         if (!(area > 0.0f))
         {
             continue;
         }
-        m2Vec2 v = world->linearVelocities[b];
-        world->forces[b].x += -drag * area * (v.x - wind.x);
-        world->forces[b].y += -drag * area * (v.y - wind.y);
+        m2Vec2 v = world->bodies.linearVelocities[b];
+        world->bodies.forces[b].x += -drag * area * (v.x - wind.x);
+        world->bodies.forces[b].y += -drag * area * (v.y - wind.y);
     }
 }

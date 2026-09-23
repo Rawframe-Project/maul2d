@@ -51,10 +51,10 @@ m2JointId m2CreateFilterJoint(m2WorldId worldId, const m2FilterJointDef* def)
     m2Vec2 zero = {0.0f, 0.0f};
     m2JointId jointId = m2FinishJoint(world, worldId, index, (uint8_t)m2_filterJoint, bodyA, bodyB,
                                       zero, zero, 0.0f, 0.0f, 0.0f);
-    world->jointUserData[index] = def->userData;
-    world->jointCollide[index] = 0; // its entire purpose
+    world->joints.jointUserData[index] = def->userData;
+    world->joints.jointCollide[index] = 0; // its entire purpose
     m2RefilterJointedBodies(world, bodyA, bodyB);
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpCreateFilterJoint record;
         memset(&record, 0, sizeof(record));

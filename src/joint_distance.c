@@ -62,8 +62,8 @@ m2JointId m2CreateDistanceJoint(m2WorldId worldId, const m2DistanceJointDef* def
     if (!(length > 0.0f))
     {
         // Derive from spawn poses: the single f64 crossing.
-        m2Transform xfA = world->transforms[bodyA];
-        m2Transform xfB = world->transforms[bodyB];
+        m2Transform xfA = world->bodies.transforms[bodyA];
+        m2Transform xfB = world->bodies.transforms[bodyB];
         m2Vec2 wA = {xfA.q.c * def->localAnchorA.x - xfA.q.s * def->localAnchorA.y,
                      xfA.q.s * def->localAnchorA.x + xfA.q.c * def->localAnchorA.y};
         m2Vec2 wB = {xfB.q.c * def->localAnchorB.x - xfB.q.s * def->localAnchorB.y,
@@ -77,19 +77,19 @@ m2JointId m2CreateDistanceJoint(m2WorldId worldId, const m2DistanceJointDef* def
                       def->localAnchorA, def->localAnchorB, length, def->hertz, def->dampingRatio);
     // The hard range: off by default (0 .. huge); a def maxLength <= 0
     // means unbounded, mirroring "length <= 0 derives".
-    world->jointLower[index] = def->minLength > 0.0f ? def->minLength : 0.0f;
-    world->jointUpper[index] = def->maxLength > 0.0f ? def->maxLength : 3.4e38f;
+    world->joints.jointLower[index] = def->minLength > 0.0f ? def->minLength : 0.0f;
+    world->joints.jointUpper[index] = def->maxLength > 0.0f ? def->maxLength : 3.4e38f;
     if (def->enableSpring)
     {
-        world->jointFlags[index] |= M2_JOINT_ROPE; // rope/rod: gate the rest-length row
+        world->joints.jointFlags[index] |= M2_JOINT_ROPE; // rope/rod: gate the rest-length row
     }
-    world->jointUserData[index] = def->userData;
-    world->jointCollide[index] = def->collideConnected ? 1 : 0;
+    world->joints.jointUserData[index] = def->userData;
+    world->joints.jointCollide[index] = def->collideConnected ? 1 : 0;
     if (def->collideConnected == false)
     {
         m2RefilterJointedBodies(world, bodyA, bodyB);
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpCreateDistanceJoint record;
         memset(&record, 0, sizeof(record));
@@ -139,19 +139,19 @@ static void PrepareDistance(m2World* world, m2JointConstraint* c, const m2JointF
     float length = sqrtf(dx * dx + dy * dy);
     c->axis = length > 1.19209290e-7f ? (m2Vec2){dx / length, dy / length}
                                       : (m2Vec2){0.0f, 1.0f}; // canonical fallback
-    c->baseC = length - world->jointLength[j];
+    c->baseC = length - world->joints.jointLength[j];
     // The rod's spawn-time length rides the (unused) motor
     // speed slot so the limit rows can track absolute length;
     // M2_JOINT_HARD_RANGE marks an active range.
     c->motorSpeed = length;
-    if (world->jointLower[j] > 0.0f || world->jointUpper[j] < 3.0e38f)
+    if (world->joints.jointLower[j] > 0.0f || world->joints.jointUpper[j] < 3.0e38f)
     {
         c->flags |= M2_JOINT_HARD_RANGE;
         // Hard stops stay hard even on a soft rope: the limit
         // rows run on the stiff default, reference-style.
         c->springSoftness = m2MakeSoft(60.0f, 2.0f, h);
     }
-    if ((c->flags & M2_JOINT_ROPE) != 0 && world->jointHertz[j] == 0.0f)
+    if ((c->flags & M2_JOINT_ROPE) != 0 && world->joints.jointHertz[j] == 0.0f)
     {
         // enableSpring with zero stiffness is a free rope or rod:
         // skip the rest-length row so only the limits act, and
@@ -210,10 +210,10 @@ static void SolveDistance(m2World* world, m2JointConstraint* c, const m2JointSol
         // fresh world velocities after each apply.
         float lengthNow = c->motorSpeed + ds.x * c->axis.x + ds.y * c->axis.y;
         {
-            m2Vec2 vA2 = world->linearVelocities[c->bodyA];
-            float wA2 = world->angularVelocities[c->bodyA];
-            m2Vec2 vB2 = world->linearVelocities[c->bodyB];
-            float wB2 = world->angularVelocities[c->bodyB];
+            m2Vec2 vA2 = world->bodies.linearVelocities[c->bodyA];
+            float wA2 = world->bodies.angularVelocities[c->bodyA];
+            m2Vec2 vB2 = world->bodies.linearVelocities[c->bodyB];
+            float wB2 = world->bodies.angularVelocities[c->bodyB];
             m2Vec2 vrA2 = {vA2.x - wA2 * c->rA.y, vA2.y + wA2 * c->rA.x};
             m2Vec2 vrB2 = {vB2.x - wB2 * c->rB.y, vB2.y + wB2 * c->rB.x};
             float cdotL = (vrB2.x - vrA2.x) * c->axis.x + (vrB2.y - vrA2.y) * c->axis.y;
@@ -239,10 +239,10 @@ static void SolveDistance(m2World* world, m2JointConstraint* c, const m2JointSol
             m2ApplyJointImpulse(world, c, (m2Vec2){imp * c->axis.x, imp * c->axis.y});
         }
         {
-            m2Vec2 vA2 = world->linearVelocities[c->bodyA];
-            float wA2 = world->angularVelocities[c->bodyA];
-            m2Vec2 vB2 = world->linearVelocities[c->bodyB];
-            float wB2 = world->angularVelocities[c->bodyB];
+            m2Vec2 vA2 = world->bodies.linearVelocities[c->bodyA];
+            float wA2 = world->bodies.angularVelocities[c->bodyA];
+            m2Vec2 vB2 = world->bodies.linearVelocities[c->bodyB];
+            float wB2 = world->bodies.angularVelocities[c->bodyB];
             m2Vec2 vrA2 = {vA2.x - wA2 * c->rA.y, vA2.y + wA2 * c->rA.x};
             m2Vec2 vrB2 = {vB2.x - wB2 * c->rB.y, vB2.y + wB2 * c->rB.x};
             // Upper bound: the constraint runs the other way.
@@ -275,10 +275,10 @@ static void DistanceReaction(const m2World* world, int32_t j, float invH, float*
                              float* torque)
 {
     // Axial row, plus the range rows when bounded.
-    float axial = world->jointImpulse[j].x;
-    if (world->jointLower[j] > 0.0f || world->jointUpper[j] < 3.0e38f)
+    float axial = world->joints.jointImpulse[j].x;
+    if (world->joints.jointLower[j] > 0.0f || world->joints.jointUpper[j] < 3.0e38f)
     {
-        axial += world->jointLowerImpulse[j] - world->jointUpperImpulse[j];
+        axial += world->joints.jointLowerImpulse[j] - world->joints.jointUpperImpulse[j];
     }
     *force = m2AbsF(axial) * invH;
     *torque = 0.0f;

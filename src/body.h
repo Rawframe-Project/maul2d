@@ -12,4 +12,10 @@ m2World* m2GetBodyWorld(m2BodyId id);
 int32_t m2BodySlot(const m2World* world, m2BodyId id);
 void m2RecomputeMass(m2World* world, int32_t bodyIndex);
 
+// A def is valid only when its internalValue matches its cookie.
+#define M2_BODY_COOKIE (M2_COOKIE ^ ((int32_t)sizeof(m2BodyDef) << 8) ^ 2)
+
+// The journaled parameter channel (codes in journal.h).
+bool m2SetBodyParamInternal(m2World* world, m2BodyId bodyId, uint8_t param, float value);
+
 #endif // MAUL2D_SRC_BODY_H

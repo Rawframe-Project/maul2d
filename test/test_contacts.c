@@ -7,6 +7,7 @@
 // rollback over the contact block, and the manifold evolution hash.
 
 #include "test_harness.h"
+#include "world.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -113,13 +114,14 @@ static void TestPersistenceAndCarry(void)
     {
         m2World_Step(worldId, 1.0f / 60.0f, 4);
     }
-    CHECK(world->pairCount == 1 && world->manifolds[0].pointCount == 1, "resting contact");
-    uint16_t firstId = world->manifolds[0].points[0].id;
-    float restingImpulse = world->manifolds[0].points[0].normalImpulse;
+    CHECK(world->contacts.pairCount == 1 && world->contacts.manifolds[0].pointCount == 1,
+          "resting contact");
+    uint16_t firstId = world->contacts.manifolds[0].points[0].id;
+    float restingImpulse = world->contacts.manifolds[0].points[0].normalImpulse;
     CHECK(restingImpulse > 0.0f, "resting contact carries load");
     m2World_Step(worldId, 1.0f / 60.0f, 4);
-    CHECK(world->manifolds[0].points[0].id == firstId, "feature id stable across steps");
-    CHECK((world->manifolds[0].points[0].flags & 1) != 0, "persisted flag set");
+    CHECK(world->contacts.manifolds[0].points[0].id == firstId, "feature id stable across steps");
+    CHECK((world->contacts.manifolds[0].points[0].flags & 1) != 0, "persisted flag set");
     m2Pos2 rest = m2Body_GetPosition(ball);
     CHECK(rest.y > 0.85 && rest.y < 0.95, "ball rests on the slab, no sinking");
 
@@ -313,18 +315,20 @@ static void TestBoxStackPersistence(void)
     {
         m2World_Step(worldId, 1.0f / 60.0f, 4);
     }
-    CHECK(world->pairCount == 1 && world->manifolds[0].pointCount == 2, "stack contact");
-    uint16_t id0 = world->manifolds[0].points[0].id;
-    uint16_t id1 = world->manifolds[0].points[1].id;
+    CHECK(world->contacts.pairCount == 1 && world->contacts.manifolds[0].pointCount == 2,
+          "stack contact");
+    uint16_t id0 = world->contacts.manifolds[0].points[0].id;
+    uint16_t id1 = world->contacts.manifolds[0].points[1].id;
 
     for (int32_t i = 0; i < 30; ++i)
     {
         m2World_Step(worldId, 1.0f / 60.0f, 4);
     }
-    CHECK(world->manifolds[0].points[0].id == id0 && world->manifolds[0].points[1].id == id1,
+    CHECK(world->contacts.manifolds[0].points[0].id == id0 &&
+              world->contacts.manifolds[0].points[1].id == id1,
           "box-slab ids stable over 30 steps");
-    CHECK(world->manifolds[0].points[0].normalImpulse > 0.0f &&
-              world->manifolds[0].points[1].normalImpulse > 0.0f,
+    CHECK(world->contacts.manifolds[0].points[0].normalImpulse > 0.0f &&
+              world->contacts.manifolds[0].points[1].normalImpulse > 0.0f,
           "both points carry the box weight");
     m2Pos2 boxPos = m2Body_GetPosition(box);
     CHECK(boxPos.y > 0.9 && boxPos.y < 1.05, "box rests without sinking");

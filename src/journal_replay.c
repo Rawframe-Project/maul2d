@@ -8,7 +8,10 @@
 // must land on the id the recording saw; anything else means the tape
 // does not belong to this world's history.
 
+#include "body.h"
+#include "joint.h"
 #include "journal.h"
+#include "shape.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"

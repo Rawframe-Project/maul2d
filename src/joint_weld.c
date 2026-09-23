@@ -60,17 +60,17 @@ m2JointId m2CreateWeldJoint(m2WorldId worldId, const m2WeldJointDef* def)
     m2JointId jointId =
         m2FinishJoint(world, worldId, index, (uint8_t)m2_weldJoint, bodyA, bodyB, def->localAnchorA,
                       def->localAnchorB, 0.0f, def->linearHertz, def->linearDampingRatio);
-    world->jointUserData[index] = def->userData;
-    world->jointCollide[index] = def->collideConnected ? 1 : 0;
+    world->joints.jointUserData[index] = def->userData;
+    world->joints.jointCollide[index] = def->collideConnected ? 1 : 0;
     if (def->collideConnected == false)
     {
         m2RefilterJointedBodies(world, bodyA, bodyB);
     }
-    world->jointHertz2[index] = def->angularHertz;
-    world->jointDamping2[index] = def->angularDampingRatio;
-    world->jointRefAngle[index] =
-        m2RelativeJointAngle(world->transforms[bodyA].q, world->transforms[bodyB].q);
-    if (world->journalActive != 0)
+    world->joints.jointHertz2[index] = def->angularHertz;
+    world->joints.jointDamping2[index] = def->angularDampingRatio;
+    world->joints.jointRefAngle[index] =
+        m2RelativeJointAngle(world->bodies.transforms[bodyA].q, world->bodies.transforms[bodyB].q);
+    if (world->recorder.journalActive != 0)
     {
         m2OpCreateWeldJoint record;
         memset(&record, 0, sizeof(record));
@@ -89,12 +89,13 @@ static void PrepareWeld(m2World* world, m2JointConstraint* c, const m2JointFrame
     m2PreparePointBlock(c, f);
     float k = f->iA + f->iB;
     c->axialMass = k > 0.0f ? 1.0f / k : 0.0f;
-    c->baseAngle = m2UnwindAngle(m2RelativeJointAngle(f->qA, f->qB) - world->jointRefAngle[j]);
-    c->linearSpring = world->jointHertz[j] > 0.0f;
-    c->angularSpring = world->jointHertz2[j] > 0.0f;
-    c->softness2 = c->angularSpring
-                       ? m2MakeSoft(world->jointHertz2[j], world->jointDamping2[j], f->h)
-                       : m2MakeSoft(60.0f, 2.0f, f->h);
+    c->baseAngle =
+        m2UnwindAngle(m2RelativeJointAngle(f->qA, f->qB) - world->joints.jointRefAngle[j]);
+    c->linearSpring = world->joints.jointHertz[j] > 0.0f;
+    c->angularSpring = world->joints.jointHertz2[j] > 0.0f;
+    c->softness2 = c->angularSpring ? m2MakeSoft(world->joints.jointHertz2[j],
+                                                 world->joints.jointDamping2[j], f->h)
+                                    : m2MakeSoft(60.0f, 2.0f, f->h);
 }
 
 static void SolveWeld(m2World* world, m2JointConstraint* c, const m2JointSolveContext* ctx)
@@ -113,9 +114,9 @@ static void SolveWeld(m2World* world, m2JointConstraint* c, const m2JointSolveCo
         // relax (reference semantics).
         if (useBias || c->angularSpring)
         {
-            float C =
-                m2UnwindAngle(c->baseAngle + m2RelativeJointAngle(world->deltaRotations[c->bodyA],
-                                                                  world->deltaRotations[c->bodyB]));
+            float C = m2UnwindAngle(c->baseAngle +
+                                    m2RelativeJointAngle(world->solver.deltaRotations[c->bodyA],
+                                                         world->solver.deltaRotations[c->bodyB]));
             bias = c->softness2.biasRate * C;
             massScale = c->softness2.massScale;
             impulseScale = c->softness2.impulseScale;
@@ -123,8 +124,8 @@ static void SolveWeld(m2World* world, m2JointConstraint* c, const m2JointSolveCo
         float cdot = wB - wA;
         float impulse = -massScale * c->axialMass * (cdot + bias) - impulseScale * c->motorImpulse;
         c->motorImpulse += impulse;
-        wA -= world->invInertia[c->bodyA] * impulse;
-        wB += world->invInertia[c->bodyB] * impulse;
+        wA -= world->bodies.invInertia[c->bodyA] * impulse;
+        wB += world->bodies.invInertia[c->bodyB] * impulse;
     }
     m2SolvePointBlock(world, c, ctx, wA, wB, useBias || c->linearSpring);
 }
@@ -132,9 +133,9 @@ static void SolveWeld(m2World* world, m2JointConstraint* c, const m2JointSolveCo
 static void WeldReaction(const m2World* world, int32_t j, float invH, float* force, float* torque)
 {
     // The point block is the linear load; the angle lock in the motor slot the torque.
-    m2Vec2 impulse = world->jointImpulse[j];
+    m2Vec2 impulse = world->joints.jointImpulse[j];
     *force = sqrtf(impulse.x * impulse.x + impulse.y * impulse.y) * invH;
-    *torque = m2AbsF(world->jointMotorImpulse[j]) * invH;
+    *torque = m2AbsF(world->joints.jointMotorImpulse[j]) * invH;
 }
 
 const m2JointKind m2_weldJointKind = {PrepareWeld, m2WarmStartPointJoint, SolveWeld, WeldReaction};

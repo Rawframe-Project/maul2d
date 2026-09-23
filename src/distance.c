@@ -11,6 +11,7 @@
 // transforms at all. Iteration caps are fixed constants and all
 // arithmetic is plain IEEE, so results are bit-identical everywhere.
 
+#include "distance.h"
 #include "world_internal.h"
 
 #include <math.h>

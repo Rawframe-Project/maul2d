@@ -88,4 +88,10 @@ void m2WarmStartPointJoint(m2World* world, const m2JointConstraint* c);
 void m2SolvePointBlock(m2World* world, m2JointConstraint* c, const m2JointSolveContext* ctx,
                        float wA, float wB, bool biased);
 
+// Reaction magnitudes from the stored impulses: the ONE mapping
+// shared by the break pass and the public getters, so the number a
+// game reads is bit-for-bit the number the scissors compare.
+void m2JointReactionMagnitudes(const m2World* world, int32_t j, float invH, float* force,
+                               float* torque);
+
 #endif // MAUL2D_SRC_JOINT_SOLVER_H

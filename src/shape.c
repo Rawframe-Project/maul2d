@@ -8,6 +8,7 @@
 
 #include "body.h"
 #include "broadphase.h"
+#include "distance.h"
 #include "journal.h"
 #include "world.h"
 #include "world_internal.h"
@@ -19,11 +20,12 @@
 static int32_t ShapeSlot(const m2World* world, m2ShapeId id)
 {
     int32_t index = id.index1 - 1;
-    if (index < 0 || index >= world->shapeCapacity)
+    if (index < 0 || index >= world->shapes.shapeCapacity)
     {
         return -1;
     }
-    if (world->shapeAlive[index] == 0 || world->shapeGenerations[index] != id.generation)
+    if (world->shapes.shapeAlive[index] == 0 ||
+        world->shapes.shapeGenerations[index] != id.generation)
     {
         return -1;
     }
@@ -32,7 +34,7 @@ static int32_t ShapeSlot(const m2World* world, m2ShapeId id)
 
 m2ShapeId m2MakeShapeId(const m2World* world, int32_t shapeIndex)
 {
-    m2ShapeId id = {shapeIndex + 1, world->worldIndex0, world->shapeGenerations[shapeIndex]};
+    m2ShapeId id = {shapeIndex + 1, world->worldIndex0, world->shapes.shapeGenerations[shapeIndex]};
     return id;
 }
 
@@ -40,14 +42,14 @@ m2ShapeId m2MakeShapeId(const m2World* world, int32_t shapeIndex)
 // contact of this shape, wake its riders, drop the proxy, prune pairs.
 void m2RetireShapeFromBroadphase(m2World* world, int32_t shapeIndex)
 {
-    for (int32_t i = 0; i < world->pairCount; ++i)
+    for (int32_t i = 0; i < world->contacts.pairCount; ++i)
     {
-        if (world->pairTouching[i] == 0)
+        if (world->contacts.pairTouching[i] == 0)
         {
             continue;
         }
-        int32_t a = (int32_t)(world->pairKeys[i] >> 32);
-        int32_t b = (int32_t)(world->pairKeys[i] & 0xFFFFFFFFu);
+        int32_t a = (int32_t)(world->contacts.pairKeys[i] >> 32);
+        int32_t b = (int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu);
         if (a != shapeIndex && b != shapeIndex)
         {
             continue;
@@ -55,16 +57,18 @@ void m2RetireShapeFromBroadphase(m2World* world, int32_t shapeIndex)
         // The same law as teleports and type changes: whoever was
         // resting on this shape must notice it vanish, or sleepers
         // float on a memory. (Caught by the floor-yank probe.)
-        int32_t partner = world->shapeBody[a == shapeIndex ? b : a];
-        if (world->types[partner] == (uint8_t)m2_dynamicBody)
+        int32_t partner = world->shapes.shapeBody[a == shapeIndex ? b : a];
+        if (world->bodies.types[partner] == (uint8_t)m2_dynamicBody)
         {
-            world->asleep[partner] = 0;
-            world->sleepTimes[partner] = 0.0f;
+            world->bodies.asleep[partner] = 0;
+            world->bodies.sleepTimes[partner] = 0.0f;
         }
-        bool sensor = world->shapeSensor[a] != 0 || world->shapeSensor[b] != 0;
-        m2ContactEndEvent* queue = sensor ? world->pendingSensorEnd : world->pendingEndEvents;
-        int32_t* queueCount = sensor ? &world->pendingSensorEndCount : &world->pendingEndCount;
-        if (*queueCount < world->pairCapacity)
+        bool sensor = world->shapes.shapeSensor[a] != 0 || world->shapes.shapeSensor[b] != 0;
+        m2ContactEndEvent* queue =
+            sensor ? world->events.pendingSensorEnd : world->events.pendingEndEvents;
+        int32_t* queueCount =
+            sensor ? &world->events.pendingSensorEndCount : &world->events.pendingEndCount;
+        if (*queueCount < world->contacts.pairCapacity)
         {
             m2ContactEndEvent* e = &queue[(*queueCount)++];
             e->shapeIdA = m2MakeShapeId(world, a);
@@ -73,11 +77,12 @@ void m2RetireShapeFromBroadphase(m2World* world, int32_t shapeIndex)
         }
     }
 
-    if (world->proxyIds[shapeIndex] != M2_NULL_NODE)
+    if (world->broadphase.proxyIds[shapeIndex] != M2_NULL_NODE)
     {
         int32_t tree = m2ShapeTreeIndex(world, shapeIndex);
-        m2TreeRemove(&world->trees[tree], world->treeNodes[tree], world->proxyIds[shapeIndex]);
-        world->proxyIds[shapeIndex] = M2_NULL_NODE;
+        m2TreeRemove(&world->broadphase.trees[tree], world->broadphase.treeNodes[tree],
+                     world->broadphase.proxyIds[shapeIndex]);
+        world->broadphase.proxyIds[shapeIndex] = M2_NULL_NODE;
     }
     m2PrunePairsOfShape(world, shapeIndex);
 }
@@ -85,16 +90,16 @@ void m2RetireShapeFromBroadphase(m2World* world, int32_t shapeIndex)
 void m2DestroyShapeInternal(m2World* world, int32_t shapeIndex)
 {
     m2RetireShapeFromBroadphase(world, shapeIndex);
-    world->shapeAlive[shapeIndex] = 0;
-    if (world->shapeGenerations[shapeIndex] == UINT16_MAX)
+    world->shapes.shapeAlive[shapeIndex] = 0;
+    if (world->shapes.shapeGenerations[shapeIndex] == UINT16_MAX)
     {
-        world->shapeRetiredCount += 1;
+        world->shapes.shapeRetiredCount += 1;
         return;
     }
-    world->shapeGenerations[shapeIndex] += 1;
-    world->shapeFreeQueue[world->shapeFreeTail] = shapeIndex;
-    world->shapeFreeTail = (world->shapeFreeTail + 1) % world->shapeCapacity;
-    world->shapeFreeCount += 1;
+    world->shapes.shapeGenerations[shapeIndex] += 1;
+    world->shapes.shapeFreeQueue[world->shapes.shapeFreeTail] = shapeIndex;
+    world->shapes.shapeFreeTail = (world->shapes.shapeFreeTail + 1) % world->shapes.shapeCapacity;
+    world->shapes.shapeFreeCount += 1;
 }
 
 void m2DestroyShape(m2ShapeId shapeId)
@@ -105,39 +110,40 @@ void m2DestroyShape(m2ShapeId shapeId)
         return;
     }
     int32_t index = shapeId.index1 - 1;
-    if (index < 0 || index >= world->shapeCapacity || world->shapeAlive[index] == 0 ||
-        world->shapeGenerations[index] != shapeId.generation)
+    if (index < 0 || index >= world->shapes.shapeCapacity || world->shapes.shapeAlive[index] == 0 ||
+        world->shapes.shapeGenerations[index] != shapeId.generation)
     {
         return;
     }
     m2JournalRecord(world, m2_opDestroyShape, &shapeId, (int32_t)sizeof(shapeId));
 
-    int32_t bodyIndex = world->shapeBody[index];
+    int32_t bodyIndex = world->shapes.shapeBody[index];
     // Unlink from the body's shape list (insertion-ordered, singly
     // linked - the walk is canonical).
-    if (world->bodyShapeHead[bodyIndex] == index)
+    if (world->bodies.bodyShapeHead[bodyIndex] == index)
     {
-        world->bodyShapeHead[bodyIndex] = world->shapeNext[index];
+        world->bodies.bodyShapeHead[bodyIndex] = world->shapes.shapeNext[index];
     }
     else
     {
-        for (int32_t s = world->bodyShapeHead[bodyIndex]; s != -1; s = world->shapeNext[s])
+        for (int32_t s = world->bodies.bodyShapeHead[bodyIndex]; s != -1;
+             s = world->shapes.shapeNext[s])
         {
-            if (world->shapeNext[s] == index)
+            if (world->shapes.shapeNext[s] == index)
             {
-                world->shapeNext[s] = world->shapeNext[index];
+                world->shapes.shapeNext[s] = world->shapes.shapeNext[index];
                 break;
             }
         }
     }
-    world->shapeNext[index] = -1;
+    world->shapes.shapeNext[index] = -1;
 
     m2DestroyShapeInternal(world, index);
     m2RecomputeMass(world, bodyIndex);
-    if (world->types[bodyIndex] == (uint8_t)m2_dynamicBody)
+    if (world->bodies.types[bodyIndex] == (uint8_t)m2_dynamicBody)
     {
-        world->asleep[bodyIndex] = 0;
-        world->sleepTimes[bodyIndex] = 0.0f;
+        world->bodies.asleep[bodyIndex] = 0;
+        world->bodies.sleepTimes[bodyIndex] = 0.0f;
     }
 }
 
@@ -167,53 +173,55 @@ m2ShapeId m2CreateShape(m2BodyId bodyId, const m2ShapeDef* def, const m2ShapeGeo
         m2Refuse(world, m2_errorInvalid);
         return m2_nullShapeId;
     }
-    if (world->shapeFreeCount == 0)
+    if (world->shapes.shapeFreeCount == 0)
     {
         m2Refuse(world, m2_errorCapacity);
         return m2_nullShapeId;
     }
 
-    int32_t index = world->shapeFreeQueue[world->shapeFreeHead];
-    world->shapeFreeHead = (world->shapeFreeHead + 1) % world->shapeCapacity;
-    world->shapeFreeCount -= 1;
+    int32_t index = world->shapes.shapeFreeQueue[world->shapes.shapeFreeHead];
+    world->shapes.shapeFreeHead = (world->shapes.shapeFreeHead + 1) % world->shapes.shapeCapacity;
+    world->shapes.shapeFreeCount -= 1;
 
     // memset first: deterministic union tail bytes in the snapshot.
-    memset(&world->shapeGeometry[index], 0, sizeof(m2ShapeGeometry));
-    world->shapeGeometry[index] = *geometry;
-    world->shapeDensity[index] = def->density;
-    world->shapeFriction[index] = def->friction;
-    world->shapeRestitution[index] = def->restitution;
-    world->shapeTangentSpeed[index] = def->tangentSpeed;
-    world->shapeUserData[index] = def->userData;
-    world->shapeCategory[index] = def->categoryBits;
-    world->shapeMask[index] = def->maskBits;
-    world->shapeGroup[index] = def->groupIndex;
-    world->shapeSensor[index] = def->isSensor ? 1 : 0;
-    world->shapeChain[index] = -1;
-    world->shapeBody[index] = bodyIndex;
-    world->shapeNext[index] = world->bodyShapeHead[bodyIndex];
-    world->bodyShapeHead[bodyIndex] = index;
-    world->shapeAlive[index] = 1;
-    if (index + 1 > world->maxShapeIndex)
+    memset(&world->shapes.shapeGeometry[index], 0, sizeof(m2ShapeGeometry));
+    world->shapes.shapeGeometry[index] = *geometry;
+    world->shapes.shapeDensity[index] = def->density;
+    world->shapes.shapeFriction[index] = def->friction;
+    world->shapes.shapeRestitution[index] = def->restitution;
+    world->shapes.shapeTangentSpeed[index] = def->tangentSpeed;
+    world->shapes.shapeUserData[index] = def->userData;
+    world->shapes.shapeCategory[index] = def->categoryBits;
+    world->shapes.shapeMask[index] = def->maskBits;
+    world->shapes.shapeGroup[index] = def->groupIndex;
+    world->shapes.shapeSensor[index] = def->isSensor ? 1 : 0;
+    world->shapes.shapeChain[index] = -1;
+    world->shapes.shapeBody[index] = bodyIndex;
+    world->shapes.shapeNext[index] = world->bodies.bodyShapeHead[bodyIndex];
+    world->bodies.bodyShapeHead[bodyIndex] = index;
+    world->shapes.shapeAlive[index] = 1;
+    if (index + 1 > world->shapes.maxShapeIndex)
     {
-        world->maxShapeIndex = index + 1;
+        world->shapes.maxShapeIndex = index + 1;
     }
 
-    if (world->disabled[bodyIndex] == 0)
+    if (world->bodies.disabled[bodyIndex] == 0)
     {
-        int32_t tree = world->types[bodyIndex];
-        world->proxyIds[index] = m2TreeInsert(&world->trees[tree], world->treeNodes[tree],
-                                              m2Fatten(m2ShapeTightAABB(world, index)), index);
-        if (world->proxyIds[index] == M2_NULL_NODE)
+        int32_t tree = world->bodies.types[bodyIndex];
+        world->broadphase.proxyIds[index] =
+            m2TreeInsert(&world->broadphase.trees[tree], world->broadphase.treeNodes[tree],
+                         m2Fatten(m2ShapeTightAABB(world, index)), index);
+        if (world->broadphase.proxyIds[index] == M2_NULL_NODE)
         {
             // Node pool exhausted: undo everything; capacity error, not UB.
             m2Refuse(world, m2_errorCapacity);
-            world->bodyShapeHead[bodyIndex] = world->shapeNext[index];
-            world->shapeAlive[index] = 0;
-            world->shapeFreeHead =
-                (world->shapeFreeHead + world->shapeCapacity - 1) % world->shapeCapacity;
-            world->shapeFreeQueue[world->shapeFreeHead] = index;
-            world->shapeFreeCount += 1;
+            world->bodies.bodyShapeHead[bodyIndex] = world->shapes.shapeNext[index];
+            world->shapes.shapeAlive[index] = 0;
+            world->shapes.shapeFreeHead =
+                (world->shapes.shapeFreeHead + world->shapes.shapeCapacity - 1) %
+                world->shapes.shapeCapacity;
+            world->shapes.shapeFreeQueue[world->shapes.shapeFreeHead] = index;
+            world->shapes.shapeFreeCount += 1;
             return m2_nullShapeId;
         }
         m2PushMoved(world, index);
@@ -223,9 +231,9 @@ m2ShapeId m2CreateShape(m2BodyId bodyId, const m2ShapeDef* def, const m2ShapeGeo
     // replays mint identical worlds.
     m2RecomputeMass(world, bodyIndex);
 
-    m2ShapeId id = {index + 1, bodyId.world0, world->shapeGenerations[index]};
+    m2ShapeId id = {index + 1, bodyId.world0, world->shapes.shapeGenerations[index]};
 
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpCreateShape record;
         memset(&record, 0, sizeof(record));
@@ -276,8 +284,8 @@ m2BodyId m2Shape_GetBody(m2ShapeId shapeId)
         m2Refuse(world, m2_errorInvalid);
         return m2_nullBodyId;
     }
-    int32_t bodyIndex = world->shapeBody[index];
-    m2BodyId id = {bodyIndex + 1, shapeId.world0, world->generations[bodyIndex]};
+    int32_t bodyIndex = world->shapes.shapeBody[index];
+    m2BodyId id = {bodyIndex + 1, shapeId.world0, world->bodies.generations[bodyIndex]};
     return id;
 }
 
@@ -290,7 +298,7 @@ uint64_t m2Shape_GetUserData(m2ShapeId shapeId)
         m2Refuse(world, m2_errorInvalid);
         return 0;
     }
-    return world->shapeUserData[index];
+    return world->shapes.shapeUserData[index];
 }
 
 static int32_t ShapeSlotChecked(m2ShapeId shapeId, m2World** outWorld)
@@ -302,8 +310,8 @@ static int32_t ShapeSlotChecked(m2ShapeId shapeId, m2World** outWorld)
         return -1;
     }
     int32_t index = shapeId.index1 - 1;
-    if (index < 0 || index >= world->shapeCapacity || world->shapeAlive[index] == 0 ||
-        world->shapeGenerations[index] != shapeId.generation)
+    if (index < 0 || index >= world->shapes.shapeCapacity || world->shapes.shapeAlive[index] == 0 ||
+        world->shapes.shapeGenerations[index] != shapeId.generation)
     {
         return -1;
     }
@@ -333,14 +341,15 @@ static bool ShapeParamValid(uint8_t param, float value)
 bool m2SetShapeParamInternal(m2World* world, m2ShapeId shapeId, uint8_t param, float value)
 {
     int32_t index = shapeId.index1 - 1;
-    if (world == NULL || index < 0 || index >= world->shapeCapacity ||
-        world->shapeAlive[index] == 0 || world->shapeGenerations[index] != shapeId.generation ||
+    if (world == NULL || index < 0 || index >= world->shapes.shapeCapacity ||
+        world->shapes.shapeAlive[index] == 0 ||
+        world->shapes.shapeGenerations[index] != shapeId.generation ||
         !ShapeParamValid(param, value))
     {
         m2Refuse(world, m2_errorInvalid);
         return false;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpShapeParam record;
         memset(&record, 0, sizeof(record));
@@ -351,42 +360,42 @@ bool m2SetShapeParamInternal(m2World* world, m2ShapeId shapeId, uint8_t param, f
     }
     if (param == m2_shapeParamFriction)
     {
-        world->shapeFriction[index] = value;
+        world->shapes.shapeFriction[index] = value;
     }
     else if (param == m2_shapeParamTangentSpeed)
     {
-        world->shapeTangentSpeed[index] = value;
+        world->shapes.shapeTangentSpeed[index] = value;
         // A belt that changes speed must wake its riders, and the wake must
         // live HERE, inside the journaled channel, so a replay reproduces
         // it exactly. When it lived only in the public wrapper the replay
         // set the speed but left a sleeping rider asleep, and the recorded
         // and replayed worlds diverged (a fuzz seed caught this once the
         // velocity cap let it run far enough to reach the replay check).
-        int32_t body = world->shapeBody[index];
-        for (int32_t i = 0; i < world->pairCount; ++i)
+        int32_t body = world->shapes.shapeBody[index];
+        for (int32_t i = 0; i < world->contacts.pairCount; ++i)
         {
-            int32_t a = (int32_t)(world->pairKeys[i] >> 32);
-            int32_t b = (int32_t)(world->pairKeys[i] & 0xFFFFFFFFu);
+            int32_t a = (int32_t)(world->contacts.pairKeys[i] >> 32);
+            int32_t b = (int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu);
             if (a != index && b != index)
             {
                 continue;
             }
-            int32_t otherBody = world->shapeBody[a == index ? b : a];
-            if (world->types[otherBody] == (uint8_t)m2_dynamicBody)
+            int32_t otherBody = world->shapes.shapeBody[a == index ? b : a];
+            if (world->bodies.types[otherBody] == (uint8_t)m2_dynamicBody)
             {
-                world->asleep[otherBody] = 0;
-                world->sleepTimes[otherBody] = 0.0f;
+                world->bodies.asleep[otherBody] = 0;
+                world->bodies.sleepTimes[otherBody] = 0.0f;
             }
         }
-        if (world->types[body] == (uint8_t)m2_dynamicBody)
+        if (world->bodies.types[body] == (uint8_t)m2_dynamicBody)
         {
-            world->asleep[body] = 0;
-            world->sleepTimes[body] = 0.0f;
+            world->bodies.asleep[body] = 0;
+            world->bodies.sleepTimes[body] = 0.0f;
         }
     }
     else if (param == m2_shapeParamRestitution)
     {
-        world->shapeRestitution[index] = value;
+        world->shapes.shapeRestitution[index] = value;
     }
     else
     {
@@ -405,12 +414,13 @@ float m2Shape_GetTangentSpeed(m2ShapeId shapeId)
 {
     m2World* world = m2WorldFromIndex(shapeId.world0);
     int32_t index = shapeId.index1 - 1;
-    if (world == NULL || index < 0 || index >= world->shapeCapacity ||
-        world->shapeAlive[index] == 0 || world->shapeGenerations[index] != shapeId.generation)
+    if (world == NULL || index < 0 || index >= world->shapes.shapeCapacity ||
+        world->shapes.shapeAlive[index] == 0 ||
+        world->shapes.shapeGenerations[index] != shapeId.generation)
     {
         return 0.0f;
     }
-    return world->shapeTangentSpeed[index];
+    return world->shapes.shapeTangentSpeed[index];
 }
 
 void m2Shape_SetFriction(m2ShapeId shapeId, float friction)
@@ -429,14 +439,14 @@ float m2Shape_GetFriction(m2ShapeId shapeId)
 {
     m2World* world = NULL;
     int32_t index = ShapeSlotChecked(shapeId, &world);
-    return index >= 0 ? world->shapeFriction[index] : 0.0f;
+    return index >= 0 ? world->shapes.shapeFriction[index] : 0.0f;
 }
 
 float m2Shape_GetRestitution(m2ShapeId shapeId)
 {
     m2World* world = NULL;
     int32_t index = ShapeSlotChecked(shapeId, &world);
-    return index >= 0 ? world->shapeRestitution[index] : 0.0f;
+    return index >= 0 ? world->shapes.shapeRestitution[index] : 0.0f;
 }
 
 void m2Shape_SetFilter(m2ShapeId shapeId, uint32_t categoryBits, uint32_t maskBits,
@@ -449,7 +459,7 @@ void m2Shape_SetFilter(m2ShapeId shapeId, uint32_t categoryBits, uint32_t maskBi
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpSetFilter record;
         memset(&record, 0, sizeof(record));
@@ -462,35 +472,35 @@ void m2Shape_SetFilter(m2ShapeId shapeId, uint32_t categoryBits, uint32_t maskBi
 
     // Whoever this shape was touching must notice its allegiance
     // change, exactly like a teleport or a type flip.
-    int32_t body = world->shapeBody[index];
-    for (int32_t i = 0; i < world->pairCount; ++i)
+    int32_t body = world->shapes.shapeBody[index];
+    for (int32_t i = 0; i < world->contacts.pairCount; ++i)
     {
-        if (world->pairTouching[i] == 0)
+        if (world->contacts.pairTouching[i] == 0)
         {
             continue;
         }
-        int32_t sa = (int32_t)(world->pairKeys[i] >> 32);
-        int32_t sb = (int32_t)(world->pairKeys[i] & 0xFFFFFFFFu);
+        int32_t sa = (int32_t)(world->contacts.pairKeys[i] >> 32);
+        int32_t sb = (int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu);
         if (sa != index && sb != index)
         {
             continue;
         }
-        int32_t other = world->shapeBody[sa == index ? sb : sa];
-        if (world->types[other] == (uint8_t)m2_dynamicBody)
+        int32_t other = world->shapes.shapeBody[sa == index ? sb : sa];
+        if (world->bodies.types[other] == (uint8_t)m2_dynamicBody)
         {
-            world->asleep[other] = 0;
-            world->sleepTimes[other] = 0.0f;
+            world->bodies.asleep[other] = 0;
+            world->bodies.sleepTimes[other] = 0.0f;
         }
     }
-    if (world->types[body] == (uint8_t)m2_dynamicBody)
+    if (world->bodies.types[body] == (uint8_t)m2_dynamicBody)
     {
-        world->asleep[body] = 0;
-        world->sleepTimes[body] = 0.0f;
+        world->bodies.asleep[body] = 0;
+        world->bodies.sleepTimes[body] = 0.0f;
     }
 
-    world->shapeCategory[index] = categoryBits;
-    world->shapeMask[index] = maskBits;
-    world->shapeGroup[index] = groupIndex;
+    world->shapes.shapeCategory[index] = categoryBits;
+    world->shapes.shapeMask[index] = maskBits;
+    world->shapes.shapeGroup[index] = groupIndex;
     m2PushMoved(world, index); // pair rebuild purges and re-collects (M19)
 }
 
@@ -500,7 +510,7 @@ void m2Shape_SetFilter(m2ShapeId shapeId, uint32_t categoryBits, uint32_t maskBi
 static void SetGeometryInternal(m2World* world, m2ShapeId shapeId, int32_t index,
                                 const m2ShapeGeometry* geometry)
 {
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpSetGeometry record;
         memset(&record, 0, sizeof(record));
@@ -508,35 +518,35 @@ static void SetGeometryInternal(m2World* world, m2ShapeId shapeId, int32_t index
         record.geometry = *geometry;
         m2JournalRecord(world, m2_opSetGeometry, &record, (int32_t)sizeof(record));
     }
-    int32_t body = world->shapeBody[index];
-    for (int32_t i = 0; i < world->pairCount; ++i)
+    int32_t body = world->shapes.shapeBody[index];
+    for (int32_t i = 0; i < world->contacts.pairCount; ++i)
     {
-        if (world->pairTouching[i] == 0)
+        if (world->contacts.pairTouching[i] == 0)
         {
             continue;
         }
-        int32_t sa = (int32_t)(world->pairKeys[i] >> 32);
-        int32_t sb = (int32_t)(world->pairKeys[i] & 0xFFFFFFFFu);
+        int32_t sa = (int32_t)(world->contacts.pairKeys[i] >> 32);
+        int32_t sb = (int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu);
         if (sa != index && sb != index)
         {
             continue;
         }
-        int32_t other = world->shapeBody[sa == index ? sb : sa];
-        if (world->types[other] == (uint8_t)m2_dynamicBody)
+        int32_t other = world->shapes.shapeBody[sa == index ? sb : sa];
+        if (world->bodies.types[other] == (uint8_t)m2_dynamicBody)
         {
-            world->asleep[other] = 0;
-            world->sleepTimes[other] = 0.0f;
+            world->bodies.asleep[other] = 0;
+            world->bodies.sleepTimes[other] = 0.0f;
         }
     }
-    memset(&world->shapeGeometry[index], 0, sizeof(m2ShapeGeometry));
-    world->shapeGeometry[index] = *geometry;
+    memset(&world->shapes.shapeGeometry[index], 0, sizeof(m2ShapeGeometry));
+    world->shapes.shapeGeometry[index] = *geometry;
     m2RecomputeMass(world, body);
-    if (world->types[body] == (uint8_t)m2_dynamicBody)
+    if (world->bodies.types[body] == (uint8_t)m2_dynamicBody)
     {
-        world->asleep[body] = 0;
-        world->sleepTimes[body] = 0.0f;
+        world->bodies.asleep[body] = 0;
+        world->bodies.sleepTimes[body] = 0.0f;
     }
-    if (world->proxyIds[index] != M2_NULL_NODE)
+    if (world->broadphase.proxyIds[index] != M2_NULL_NODE)
     {
         m2PushMoved(world, index);
     }
@@ -547,7 +557,7 @@ void m2Shape_SetCircle(m2ShapeId shapeId, const m2Circle* circle)
     m2World* world = NULL;
     int32_t index = ShapeSlotChecked(shapeId, &world);
     if (index < 0 || circle == NULL || !m2ValidateCircle(circle) ||
-        world->shapeGeometry[index].type == (int32_t)m2_chainSegmentShape)
+        world->shapes.shapeGeometry[index].type == (int32_t)m2_chainSegmentShape)
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -564,7 +574,7 @@ void m2Shape_SetCapsule(m2ShapeId shapeId, const m2Capsule* capsule)
     m2World* world = NULL;
     int32_t index = ShapeSlotChecked(shapeId, &world);
     if (index < 0 || capsule == NULL || !m2ValidateCapsule(capsule) ||
-        world->shapeGeometry[index].type == (int32_t)m2_chainSegmentShape)
+        world->shapes.shapeGeometry[index].type == (int32_t)m2_chainSegmentShape)
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -581,7 +591,7 @@ void m2Shape_SetPolygon(m2ShapeId shapeId, const m2Polygon* polygon)
     m2World* world = NULL;
     int32_t index = ShapeSlotChecked(shapeId, &world);
     if (index < 0 || polygon == NULL || !m2ValidatePolygon(polygon) ||
-        world->shapeGeometry[index].type == (int32_t)m2_chainSegmentShape)
+        world->shapes.shapeGeometry[index].type == (int32_t)m2_chainSegmentShape)
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -598,7 +608,7 @@ void m2Shape_SetSegment(m2ShapeId shapeId, const m2Segment* segment)
     m2World* world = NULL;
     int32_t index = ShapeSlotChecked(shapeId, &world);
     if (index < 0 || segment == NULL || !m2ValidateSegment(segment) ||
-        world->shapeGeometry[index].type == (int32_t)m2_chainSegmentShape)
+        world->shapes.shapeGeometry[index].type == (int32_t)m2_chainSegmentShape)
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -619,11 +629,11 @@ bool m2Shape_TestPoint(m2ShapeId shapeId, m2Pos2 point)
         m2Refuse(world, m2_errorInvalid);
         return false;
     }
-    int32_t body = world->shapeBody[index];
-    m2Transform xf = world->transforms[body];
+    int32_t body = world->shapes.shapeBody[index];
+    m2Transform xf = world->bodies.transforms[body];
     m2Vec2 rel = {(float)(point.x - xf.p.x), (float)(point.y - xf.p.y)};
     m2Vec2 local = {xf.q.c * rel.x + xf.q.s * rel.y, -xf.q.s * rel.x + xf.q.c * rel.y};
-    m2DistanceProxy target = m2GeometryProxy(&world->shapeGeometry[index]);
+    m2DistanceProxy target = m2GeometryProxy(&world->shapes.shapeGeometry[index]);
     m2DistanceProxy probe;
     probe.points[0] = local;
     probe.count = 1;
@@ -642,11 +652,11 @@ m2Pos2 m2Shape_GetClosestPoint(m2ShapeId shapeId, m2Pos2 point)
         m2Refuse(world, m2_errorInvalid);
         return (m2Pos2){0.0, 0.0};
     }
-    int32_t body = world->shapeBody[index];
-    m2Transform xf = world->transforms[body];
+    int32_t body = world->shapes.shapeBody[index];
+    m2Transform xf = world->bodies.transforms[body];
     m2Vec2 rel = {(float)(point.x - xf.p.x), (float)(point.y - xf.p.y)};
     m2Vec2 local = {xf.q.c * rel.x + xf.q.s * rel.y, -xf.q.s * rel.x + xf.q.c * rel.y};
-    m2DistanceProxy target = m2GeometryProxy(&world->shapeGeometry[index]);
+    m2DistanceProxy target = m2GeometryProxy(&world->shapes.shapeGeometry[index]);
     m2DistanceProxy probe;
     probe.points[0] = local;
     probe.count = 1;
@@ -686,14 +696,14 @@ m2ChainId m2Shape_GetParentChain(m2ShapeId shapeId)
         m2Refuse(world, m2_errorInvalid);
         return id;
     }
-    int32_t chain = world->shapeChain[index];
+    int32_t chain = world->shapes.shapeChain[index];
     if (chain < 0)
     {
         return id;
     }
     id.index1 = chain + 1;
     id.world0 = world->worldIndex0;
-    id.generation = world->chainGenerations[chain];
+    id.generation = world->chains.chainGenerations[chain];
     return id;
 }
 
@@ -707,8 +717,8 @@ m2AABBResult m2Shape_GetAABB(m2ShapeId shapeId)
         m2Refuse(world, m2_errorInvalid);
         return result;
     }
-    m2AABB tight = m2ComputeShapeAABB(&world->shapeGeometry[index],
-                                      world->transforms[world->shapeBody[index]]);
+    m2AABB tight = m2ComputeShapeAABB(&world->shapes.shapeGeometry[index],
+                                      world->bodies.transforms[world->shapes.shapeBody[index]]);
     result.lowerBound = tight.lowerBound;
     result.upperBound = tight.upperBound;
     return result;
@@ -723,7 +733,7 @@ void m2Shape_SetDensity(m2ShapeId shapeId, float density)
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpShapeFloat record;
         memset(&record, 0, sizeof(record));
@@ -731,13 +741,13 @@ void m2Shape_SetDensity(m2ShapeId shapeId, float density)
         record.value = density;
         m2JournalRecord(world, m2_opSetDensity, &record, (int32_t)sizeof(record));
     }
-    world->shapeDensity[index] = density;
-    int32_t body = world->shapeBody[index];
+    world->shapes.shapeDensity[index] = density;
+    int32_t body = world->shapes.shapeBody[index];
     m2RecomputeMass(world, body);
-    if (world->types[body] == (uint8_t)m2_dynamicBody)
+    if (world->bodies.types[body] == (uint8_t)m2_dynamicBody)
     {
-        world->asleep[body] = 0;
-        world->sleepTimes[body] = 0.0f;
+        world->bodies.asleep[body] = 0;
+        world->bodies.sleepTimes[body] = 0.0f;
     }
 }
 
@@ -750,7 +760,7 @@ void m2Shape_SetUserData(m2ShapeId shapeId, uint64_t userData)
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpShapeUserData record;
         memset(&record, 0, sizeof(record));
@@ -758,7 +768,7 @@ void m2Shape_SetUserData(m2ShapeId shapeId, uint64_t userData)
         record.userData = userData;
         m2JournalRecord(world, m2_opShapeUserData, &record, (int32_t)sizeof(record));
     }
-    world->shapeUserData[index] = userData;
+    world->shapes.shapeUserData[index] = userData;
 }
 
 m2ShapeType m2Shape_GetType(m2ShapeId shapeId)
@@ -770,7 +780,7 @@ m2ShapeType m2Shape_GetType(m2ShapeId shapeId)
         m2Refuse(world, m2_errorInvalid);
         return m2_circleShape;
     }
-    return (m2ShapeType)world->shapeGeometry[index].type;
+    return (m2ShapeType)world->shapes.shapeGeometry[index].type;
 }
 
 bool m2Shape_IsSensor(m2ShapeId shapeId)
@@ -782,7 +792,7 @@ bool m2Shape_IsSensor(m2ShapeId shapeId)
         m2Refuse(world, m2_errorInvalid);
         return false;
     }
-    return world->shapeSensor[index] != 0;
+    return world->shapes.shapeSensor[index] != 0;
 }
 
 void m2Shape_GetFilter(m2ShapeId shapeId, uint32_t* categoryBits, uint32_t* maskBits,
@@ -795,9 +805,9 @@ void m2Shape_GetFilter(m2ShapeId shapeId, uint32_t* categoryBits, uint32_t* mask
     int32_t group = 0;
     if (index >= 0)
     {
-        category = world->shapeCategory[index];
-        mask = world->shapeMask[index];
-        group = world->shapeGroup[index];
+        category = world->shapes.shapeCategory[index];
+        mask = world->shapes.shapeMask[index];
+        group = world->shapes.shapeGroup[index];
     }
     else
     {
@@ -825,12 +835,12 @@ void m2Shape_GetFilter(m2ShapeId shapeId, uint32_t* categoryBits, uint32_t* mask
         memset(&zero, 0, sizeof(zero));                                                            \
         m2World* world = m2WorldFromIndex(shapeId.world0);                                         \
         int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;                            \
-        if (index < 0 || world->shapeGeometry[index].type != (int32_t)(enumValue))                 \
+        if (index < 0 || world->shapes.shapeGeometry[index].type != (int32_t)(enumValue))          \
         {                                                                                          \
             m2Refuse(world, m2_errorInvalid);                                                      \
             return zero;                                                                           \
         }                                                                                          \
-        return world->shapeGeometry[index].field;                                                  \
+        return world->shapes.shapeGeometry[index].field;                                           \
     }
 
 M2_GEOMETRY_GETTER(m2Shape_GetCircle, m2Circle, circle, m2_circleShape)
@@ -854,5 +864,5 @@ float m2Shape_GetDensity(m2ShapeId shapeId)
         m2Refuse(world, m2_errorInvalid);
         return 0.0f;
     }
-    return world->shapeDensity[index];
+    return world->shapes.shapeDensity[index];
 }

@@ -6,6 +6,7 @@
 
 #include "solver.h"
 
+#include "ccd.h"
 #include "contact_solver.h"
 #include "contact_solver_wide.h"
 #include "graph_color.h"
@@ -23,15 +24,15 @@
 void m2StoreBodyVelocities(m2World* world, const m2ContactConstraint* c, m2Vec2 vA, float wA,
                            m2Vec2 vB, float wB)
 {
-    if (world->types[c->bodyA] == (uint8_t)m2_dynamicBody)
+    if (world->bodies.types[c->bodyA] == (uint8_t)m2_dynamicBody)
     {
-        world->linearVelocities[c->bodyA] = vA;
-        world->angularVelocities[c->bodyA] = wA;
+        world->bodies.linearVelocities[c->bodyA] = vA;
+        world->bodies.angularVelocities[c->bodyA] = wA;
     }
-    if (world->types[c->bodyB] == (uint8_t)m2_dynamicBody)
+    if (world->bodies.types[c->bodyB] == (uint8_t)m2_dynamicBody)
     {
-        world->linearVelocities[c->bodyB] = vB;
-        world->angularVelocities[c->bodyB] = wB;
+        world->bodies.linearVelocities[c->bodyB] = vB;
+        world->bodies.angularVelocities[c->bodyB] = wB;
     }
 }
 
@@ -43,27 +44,27 @@ void m2SolveStep(m2World* world, float dt, int32_t substepCount)
 
     // Deltas are step-transient: zero at prepare, folded into f64
     // positions at each integrate-positions stage.
-    for (int32_t i = 0; i < world->maxBodyIndex; ++i)
+    for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
-        world->deltaPositions[i] = (m2Vec2){0.0f, 0.0f};
-        world->deltaRotations[i] = (m2Rot){1.0f, 0.0f};
+        world->solver.deltaPositions[i] = (m2Vec2){0.0f, 0.0f};
+        world->solver.deltaRotations[i] = (m2Rot){1.0f, 0.0f};
     }
 
-    m2ContactConstraint* constraints = (m2ContactConstraint*)world->constraintScratch;
+    m2ContactConstraint* constraints = (m2ContactConstraint*)world->solver.constraintScratch;
     int32_t constraintCount = m2PrepareContacts(world, constraints, h);
     m2JointConstraint* joints =
-        (m2JointConstraint*)((uint8_t*)world->constraintScratch +
-                             (size_t)world->pairCapacity * sizeof(m2ContactConstraint));
+        (m2JointConstraint*)((uint8_t*)world->solver.constraintScratch +
+                             (size_t)world->contacts.pairCapacity * sizeof(m2ContactConstraint));
     int32_t jointCount = m2PrepareJoints(world, joints, h);
 
     int32_t colorStart[M2_GRAPH_COLORS + 2];
     m2ColorConstraints(world, constraints, constraintCount, colorStart);
-    world->lastConstraintCount = constraintCount;
-    world->lastOverflow = colorStart[M2_GRAPH_COLORS + 1] - colorStart[M2_GRAPH_COLORS];
-    world->lastGraphColors = 0;
+    world->solver.lastConstraintCount = constraintCount;
+    world->solver.lastOverflow = colorStart[M2_GRAPH_COLORS + 1] - colorStart[M2_GRAPH_COLORS];
+    world->solver.lastGraphColors = 0;
     for (int32_t c = 0; c < M2_GRAPH_COLORS; ++c)
     {
-        world->lastGraphColors += colorStart[c + 1] > colorStart[c] ? 1 : 0;
+        world->solver.lastGraphColors += colorStart[c + 1] > colorStart[c] ? 1 : 0;
     }
 
     // The push clamp is pre-divided by the static mass scale so the
@@ -77,38 +78,41 @@ void m2SolveStep(m2World* world, float dt, int32_t substepCount)
     for (int32_t sub = 0; sub < substepCount; ++sub)
     {
         // Integrate velocities (fixed body order).
-        for (int32_t i = 0; i < world->maxBodyIndex; ++i)
+        for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
         {
-            if (world->alive[i] == 0 || world->types[i] != (uint8_t)m2_dynamicBody ||
-                world->asleep[i] != 0 || world->disabled[i] != 0)
+            if (world->bodies.alive[i] == 0 || world->bodies.types[i] != (uint8_t)m2_dynamicBody ||
+                world->bodies.asleep[i] != 0 || world->bodies.disabled[i] != 0)
             {
                 continue;
             }
             // Reference form: v = lvd + damp * v, with the Pade damping
             // 1/(1+h*d) and lvd = h*invM*force + h*gScale*g. Torque and
             // angular damping mirror it.
-            float linDamp = 1.0f / (1.0f + h * world->linearDampings[i]);
-            float angDamp = 1.0f / (1.0f + h * world->angularDampings[i]);
-            float lvdx = h * world->invMass[i] * world->forces[i].x +
-                         h * world->gravityScales[i] * world->gravity.x;
-            float lvdy = h * world->invMass[i] * world->forces[i].y +
-                         h * world->gravityScales[i] * world->gravity.y;
-            world->linearVelocities[i].x = lvdx + linDamp * world->linearVelocities[i].x;
-            world->linearVelocities[i].y = lvdy + linDamp * world->linearVelocities[i].y;
-            world->angularVelocities[i] = h * world->invInertia[i] * world->torques[i] +
-                                          angDamp * world->angularVelocities[i];
+            float linDamp = 1.0f / (1.0f + h * world->bodies.linearDampings[i]);
+            float angDamp = 1.0f / (1.0f + h * world->bodies.angularDampings[i]);
+            float lvdx = h * world->bodies.invMass[i] * world->bodies.forces[i].x +
+                         h * world->bodies.gravityScales[i] * world->gravity.x;
+            float lvdy = h * world->bodies.invMass[i] * world->bodies.forces[i].y +
+                         h * world->bodies.gravityScales[i] * world->gravity.y;
+            world->bodies.linearVelocities[i].x =
+                lvdx + linDamp * world->bodies.linearVelocities[i].x;
+            world->bodies.linearVelocities[i].y =
+                lvdy + linDamp * world->bodies.linearVelocities[i].y;
+            world->bodies.angularVelocities[i] =
+                h * world->bodies.invInertia[i] * world->bodies.torques[i] +
+                angDamp * world->bodies.angularVelocities[i];
             // Motion locks (reference b2 #950): a locked axis holds still,
             // so its velocity is zeroed here, before the constraint solve,
             // and again at integrate-positions below (angular is locked via
             // the mass, invInertia = 0). Off the locked axes are untouched.
-            uint8_t locks = world->motionLocks[i];
+            uint8_t locks = world->bodies.motionLocks[i];
             if (locks & M2_LOCK_LINEAR_X)
             {
-                world->linearVelocities[i].x = 0.0f;
+                world->bodies.linearVelocities[i].x = 0.0f;
             }
             if (locks & M2_LOCK_LINEAR_Y)
             {
-                world->linearVelocities[i].y = 0.0f;
+                world->bodies.linearVelocities[i].y = 0.0f;
             }
         }
 
@@ -120,19 +124,19 @@ void m2SolveStep(m2World* world, float dt, int32_t substepCount)
                               minBiasVel, true);
 
         // Bullet substep origins, captured before positions move.
-        for (int32_t i = 0; i < world->maxBodyIndex; ++i)
+        for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
         {
-            if (world->bullets[i] != 0 && world->disabled[i] == 0)
+            if (world->bodies.bullets[i] != 0 && world->bodies.disabled[i] == 0)
             {
-                world->ccdPrevPositions[i] = world->transforms[i].p;
+                world->solver.ccdPrevPositions[i] = world->bodies.transforms[i].p;
             }
         }
 
         // Integrate positions: f64 positions advance, f32 deltas track.
-        for (int32_t i = 0; i < world->maxBodyIndex; ++i)
+        for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
         {
-            if (world->alive[i] == 0 || world->types[i] == (uint8_t)m2_staticBody ||
-                world->asleep[i] != 0 || world->disabled[i] != 0)
+            if (world->bodies.alive[i] == 0 || world->bodies.types[i] == (uint8_t)m2_staticBody ||
+                world->bodies.asleep[i] != 0 || world->bodies.disabled[i] != 0)
             {
                 continue;
             }
@@ -148,52 +152,54 @@ void m2SolveStep(m2World* world, float dt, int32_t substepCount)
             // reach inf and hand a kinematic neighbour 0 * inf = NaN. Ratio
             // scaling matches the reference bit-form; tame scenes reach
             // neither cap, so the gated hashes are untouched.
-            if (world->types[i] == (uint8_t)m2_dynamicBody)
+            if (world->bodies.types[i] == (uint8_t)m2_dynamicBody)
             {
-                float vx = world->linearVelocities[i].x;
-                float vy = world->linearVelocities[i].y;
+                float vx = world->bodies.linearVelocities[i].x;
+                float vy = world->bodies.linearVelocities[i].y;
                 float v2 = vx * vx + vy * vy;
                 if (v2 > M2_MAX_LINEAR_SPEED * M2_MAX_LINEAR_SPEED)
                 {
                     float ratio = M2_MAX_LINEAR_SPEED / sqrtf(v2);
-                    world->linearVelocities[i].x = vx * ratio;
-                    world->linearVelocities[i].y = vy * ratio;
+                    world->bodies.linearVelocities[i].x = vx * ratio;
+                    world->bodies.linearVelocities[i].y = vy * ratio;
                 }
                 float maxW = 0.25f * M2_PI * invH;
-                float wv = world->angularVelocities[i];
+                float wv = world->bodies.angularVelocities[i];
                 if (wv * wv > maxW * maxW)
                 {
                     float ratio = maxW / m2AbsF(wv);
-                    world->angularVelocities[i] = wv * ratio;
+                    world->bodies.angularVelocities[i] = wv * ratio;
                 }
             }
             // Motion locks again at the point the position consumes the
             // velocity (reference b2 #950): whatever the solve pushed along
             // a locked axis, the body does not move along it.
-            uint8_t plocks = world->motionLocks[i];
+            uint8_t plocks = world->bodies.motionLocks[i];
             if (plocks & M2_LOCK_LINEAR_X)
             {
-                world->linearVelocities[i].x = 0.0f;
+                world->bodies.linearVelocities[i].x = 0.0f;
             }
             if (plocks & M2_LOCK_LINEAR_Y)
             {
-                world->linearVelocities[i].y = 0.0f;
+                world->bodies.linearVelocities[i].y = 0.0f;
             }
             // The center of mass is what the velocity moves; the origin
             // swings around it. With the COM on the origin both extra
             // terms are exact zeros and the old bits fall out.
-            m2Vec2 lc = world->localCenters[i];
-            m2Vec2 rlcOld = m2RotateVec2(world->transforms[i].q, lc);
-            world->transforms[i].p.x += (double)world->linearVelocities[i].x * (double)h;
-            world->transforms[i].p.y += (double)world->linearVelocities[i].y * (double)h;
-            world->deltaPositions[i].x += world->linearVelocities[i].x * h;
-            world->deltaPositions[i].y += world->linearVelocities[i].y * h;
-            m2Rot dq = m2MakeRot(world->angularVelocities[i] * h);
-            world->transforms[i].q = m2MulRot(world->transforms[i].q, dq);
-            world->deltaRotations[i] = m2MulRot(world->deltaRotations[i], dq);
-            m2Vec2 rlcNew = m2RotateVec2(world->transforms[i].q, lc);
-            world->transforms[i].p.x += (double)(rlcOld.x - rlcNew.x);
-            world->transforms[i].p.y += (double)(rlcOld.y - rlcNew.y);
+            m2Vec2 lc = world->bodies.localCenters[i];
+            m2Vec2 rlcOld = m2RotateVec2(world->bodies.transforms[i].q, lc);
+            world->bodies.transforms[i].p.x +=
+                (double)world->bodies.linearVelocities[i].x * (double)h;
+            world->bodies.transforms[i].p.y +=
+                (double)world->bodies.linearVelocities[i].y * (double)h;
+            world->solver.deltaPositions[i].x += world->bodies.linearVelocities[i].x * h;
+            world->solver.deltaPositions[i].y += world->bodies.linearVelocities[i].y * h;
+            m2Rot dq = m2MakeRot(world->bodies.angularVelocities[i] * h);
+            world->bodies.transforms[i].q = m2MulRot(world->bodies.transforms[i].q, dq);
+            world->solver.deltaRotations[i] = m2MulRot(world->solver.deltaRotations[i], dq);
+            m2Vec2 rlcNew = m2RotateVec2(world->bodies.transforms[i].q, lc);
+            world->bodies.transforms[i].p.x += (double)(rlcOld.x - rlcNew.x);
+            world->bodies.transforms[i].p.y += (double)(rlcOld.y - rlcNew.y);
         }
 
         m2SolveContinuous(world); // the last transform-mutating pass (M13)
@@ -212,14 +218,14 @@ void m2SolveStep(m2World* world, float dt, int32_t substepCount)
     // impulses, so breaking is a pure function of state - twins snap
     // on the same step and replays never disagree. Canonical joint
     // order; the destroyed id is reported with the generation it had.
-    for (int32_t j = 0; j < world->maxJointIndex; ++j)
+    for (int32_t j = 0; j < world->joints.maxJointIndex; ++j)
     {
-        if (world->jointAlive[j] == 0)
+        if (world->joints.jointAlive[j] == 0)
         {
             continue;
         }
-        float breakForce = world->jointBreakForce[j];
-        float breakTorque = world->jointBreakTorque[j];
+        float breakForce = world->joints.jointBreakForce[j];
+        float breakTorque = world->joints.jointBreakTorque[j];
         if (breakForce == 0.0f && breakTorque == 0.0f)
         {
             continue;
@@ -236,13 +242,14 @@ void m2SolveStep(m2World* world, float dt, int32_t substepCount)
             continue;
         }
 
-        if (world->jointBreakEventCount < world->jointCapacity)
+        if (world->events.jointBreakEventCount < world->joints.jointCapacity)
         {
-            m2JointBreakEvent* e = &world->jointBreakEvents[world->jointBreakEventCount++];
+            m2JointBreakEvent* e =
+                &world->events.jointBreakEvents[world->events.jointBreakEventCount++];
             memset(e, 0, sizeof(*e));
             e->jointId.index1 = j + 1;
             e->jointId.world0 = world->worldIndex0;
-            e->jointId.generation = world->jointGenerations[j];
+            e->jointId.generation = world->joints.jointGenerations[j];
             e->step = world->stepCount;
             e->force = force;
             e->torque = torque;

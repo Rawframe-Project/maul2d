@@ -28,32 +28,34 @@ int32_t m2PrepareJoints(m2World* world, m2JointConstraint* joints, float h)
 {
     // Stiff default softness for hertz==0 (F-T5-4 surface pending).
     int32_t count = 0;
-    for (int32_t j = 0; j < world->maxJointIndex; ++j)
+    for (int32_t j = 0; j < world->joints.maxJointIndex; ++j)
     {
-        if (world->jointAlive[j] == 0)
+        if (world->joints.jointAlive[j] == 0)
         {
             continue;
         }
-        const m2JointKind* kind = s_kinds[world->jointType[j]];
+        const m2JointKind* kind = s_kinds[world->joints.jointType[j]];
         if (kind->prepare == NULL)
         {
             continue; // filter joints have no rows at all
         }
-        if (world->jointType[j] == (uint8_t)m2_mouseJoint &&
-            (world->types[world->jointBodyB[j]] != (uint8_t)m2_dynamicBody ||
-             world->asleep[world->jointBodyB[j]] != 0))
+        if (world->joints.jointType[j] == (uint8_t)m2_mouseJoint &&
+            (world->bodies.types[world->joints.jointBodyB[j]] != (uint8_t)m2_dynamicBody ||
+             world->bodies.asleep[world->joints.jointBodyB[j]] != 0))
         {
             continue; // a mouse joint only ever moves body B
         }
-        if (world->disabled[world->jointBodyA[j]] != 0 ||
-            world->disabled[world->jointBodyB[j]] != 0)
+        if (world->bodies.disabled[world->joints.jointBodyA[j]] != 0 ||
+            world->bodies.disabled[world->joints.jointBodyB[j]] != 0)
         {
             continue; // a dormant end pauses the whole joint
         }
-        int32_t bodyA = world->jointBodyA[j];
-        int32_t bodyB = world->jointBodyB[j];
-        if ((world->types[bodyA] != (uint8_t)m2_dynamicBody || world->asleep[bodyA] != 0) &&
-            (world->types[bodyB] != (uint8_t)m2_dynamicBody || world->asleep[bodyB] != 0))
+        int32_t bodyA = world->joints.jointBodyA[j];
+        int32_t bodyB = world->joints.jointBodyB[j];
+        if ((world->bodies.types[bodyA] != (uint8_t)m2_dynamicBody ||
+             world->bodies.asleep[bodyA] != 0) &&
+            (world->bodies.types[bodyB] != (uint8_t)m2_dynamicBody ||
+             world->bodies.asleep[bodyB] != 0))
         {
             continue; // both ends inert this step
         }
@@ -62,39 +64,41 @@ int32_t m2PrepareJoints(m2World* world, m2JointConstraint* joints, float h)
         c->jointIndex = j;
         c->bodyA = bodyA;
         c->bodyB = bodyB;
-        c->type = world->jointType[j];
-        c->flags = world->jointFlags[j];
-        float hertz = world->jointHertz[j] > 0.0f ? world->jointHertz[j] : 60.0f;
-        float damping = world->jointHertz[j] > 0.0f ? world->jointDamping[j] : 2.0f;
+        c->type = world->joints.jointType[j];
+        c->flags = world->joints.jointFlags[j];
+        float hertz = world->joints.jointHertz[j] > 0.0f ? world->joints.jointHertz[j] : 60.0f;
+        float damping = world->joints.jointHertz[j] > 0.0f ? world->joints.jointDamping[j] : 2.0f;
         c->softness = m2MakeSoft(hertz, damping, h);
-        c->impulse = world->jointImpulse[j];
-        c->motorSpeed = world->jointMotorSpeed[j];
-        c->maxMotorImpulse = h * world->jointMaxMotor[j];
-        c->lower = world->jointLower[j];
-        c->upper = world->jointUpper[j];
-        c->motorImpulse = world->jointMotorImpulse[j];
-        c->lowerImpulse = world->jointLowerImpulse[j];
-        c->upperImpulse = world->jointUpperImpulse[j];
-        c->springImpulse = world->jointSpringImpulse[j];
+        c->impulse = world->joints.jointImpulse[j];
+        c->motorSpeed = world->joints.jointMotorSpeed[j];
+        c->maxMotorImpulse = h * world->joints.jointMaxMotor[j];
+        c->lower = world->joints.jointLower[j];
+        c->upper = world->joints.jointUpper[j];
+        c->motorImpulse = world->joints.jointMotorImpulse[j];
+        c->lowerImpulse = world->joints.jointLowerImpulse[j];
+        c->upperImpulse = world->joints.jointUpperImpulse[j];
+        c->springImpulse = world->joints.jointSpringImpulse[j];
 
-        m2Rot qA = world->transforms[bodyA].q;
-        m2Rot qB = world->transforms[bodyB].q;
-        m2Vec2 lcA = world->localCenters[bodyA];
-        m2Vec2 lcB = world->localCenters[bodyB];
-        c->rA = m2RotateVec2(qA, (m2Vec2){world->jointLocalAnchorA[j].x - lcA.x,
-                                          world->jointLocalAnchorA[j].y - lcA.y});
-        c->rB = m2RotateVec2(qB, (m2Vec2){world->jointLocalAnchorB[j].x - lcB.x,
-                                          world->jointLocalAnchorB[j].y - lcB.y});
+        m2Rot qA = world->bodies.transforms[bodyA].q;
+        m2Rot qB = world->bodies.transforms[bodyB].q;
+        m2Vec2 lcA = world->bodies.localCenters[bodyA];
+        m2Vec2 lcB = world->bodies.localCenters[bodyB];
+        c->rA = m2RotateVec2(qA, (m2Vec2){world->joints.jointLocalAnchorA[j].x - lcA.x,
+                                          world->joints.jointLocalAnchorA[j].y - lcA.y});
+        c->rB = m2RotateVec2(qB, (m2Vec2){world->joints.jointLocalAnchorB[j].x - lcB.x,
+                                          world->joints.jointLocalAnchorB[j].y - lcB.y});
         m2Vec2 comA = m2RotateVec2(qA, lcA);
         m2Vec2 comB = m2RotateVec2(qB, lcB);
-        float dx = (float)(world->transforms[bodyB].p.x - world->transforms[bodyA].p.x) +
-                   (comB.x - comA.x) + c->rB.x - c->rA.x;
-        float dy = (float)(world->transforms[bodyB].p.y - world->transforms[bodyA].p.y) +
-                   (comB.y - comA.y) + c->rB.y - c->rA.y;
-        float mA = world->invMass[bodyA];
-        float iA = world->invInertia[bodyA];
-        float mB = world->invMass[bodyB];
-        float iB = world->invInertia[bodyB];
+        float dx =
+            (float)(world->bodies.transforms[bodyB].p.x - world->bodies.transforms[bodyA].p.x) +
+            (comB.x - comA.x) + c->rB.x - c->rA.x;
+        float dy =
+            (float)(world->bodies.transforms[bodyB].p.y - world->bodies.transforms[bodyA].p.y) +
+            (comB.y - comA.y) + c->rB.y - c->rA.y;
+        float mA = world->bodies.invMass[bodyA];
+        float iA = world->bodies.invInertia[bodyA];
+        float mB = world->bodies.invMass[bodyB];
+        float iB = world->bodies.invInertia[bodyB];
 
         m2JointFrame frame = {j, h, qA, qB, lcA, lcB, dx, dy, mA, iA, mB, iB};
         kind->prepare(world, c, &frame);
@@ -118,14 +122,15 @@ void m2SolveJoints(m2World* world, m2JointConstraint* joints, int32_t count, boo
     {
         m2JointConstraint* c = joints + i;
         m2JointSolveContext ctx;
-        ctx.vA = world->linearVelocities[c->bodyA];
-        ctx.wA = world->angularVelocities[c->bodyA];
-        ctx.vB = world->linearVelocities[c->bodyB];
-        ctx.wB = world->angularVelocities[c->bodyB];
-        m2Vec2 dp = {world->deltaPositions[c->bodyB].x - world->deltaPositions[c->bodyA].x,
-                     world->deltaPositions[c->bodyB].y - world->deltaPositions[c->bodyA].y};
-        ctx.drB = m2RotateVec2(world->deltaRotations[c->bodyB], c->rB);
-        ctx.drA = m2RotateVec2(world->deltaRotations[c->bodyA], c->rA);
+        ctx.vA = world->bodies.linearVelocities[c->bodyA];
+        ctx.wA = world->bodies.angularVelocities[c->bodyA];
+        ctx.vB = world->bodies.linearVelocities[c->bodyB];
+        ctx.wB = world->bodies.angularVelocities[c->bodyB];
+        m2Vec2 dp = {
+            world->solver.deltaPositions[c->bodyB].x - world->solver.deltaPositions[c->bodyA].x,
+            world->solver.deltaPositions[c->bodyB].y - world->solver.deltaPositions[c->bodyA].y};
+        ctx.drB = m2RotateVec2(world->solver.deltaRotations[c->bodyB], c->rB);
+        ctx.drA = m2RotateVec2(world->solver.deltaRotations[c->bodyA], c->rA);
         ctx.ds = (m2Vec2){dp.x + (ctx.drB.x - c->rB.x) - (ctx.drA.x - c->rA.x),
                           dp.y + (ctx.drB.y - c->rB.y) - (ctx.drA.y - c->rA.y)};
         ctx.useBias = useBias;
@@ -139,11 +144,11 @@ void m2StoreJointImpulses(m2World* world, m2JointConstraint* joints, int32_t cou
     for (int32_t i = 0; i < count; ++i)
     {
         int32_t j = joints[i].jointIndex;
-        world->jointImpulse[j] = joints[i].impulse;
-        world->jointMotorImpulse[j] = joints[i].motorImpulse;
-        world->jointLowerImpulse[j] = joints[i].lowerImpulse;
-        world->jointUpperImpulse[j] = joints[i].upperImpulse;
-        world->jointSpringImpulse[j] = joints[i].springImpulse;
+        world->joints.jointImpulse[j] = joints[i].impulse;
+        world->joints.jointMotorImpulse[j] = joints[i].motorImpulse;
+        world->joints.jointLowerImpulse[j] = joints[i].lowerImpulse;
+        world->joints.jointUpperImpulse[j] = joints[i].upperImpulse;
+        world->joints.jointSpringImpulse[j] = joints[i].springImpulse;
     }
 }
 
@@ -152,7 +157,7 @@ void m2JointReactionMagnitudes(const m2World* world, int32_t j, float invH, floa
 {
     *force = 0.0f;
     *torque = 0.0f;
-    const m2JointKind* kind = s_kinds[world->jointType[j]];
+    const m2JointKind* kind = s_kinds[world->joints.jointType[j]];
     if (kind->reaction != NULL)
     {
         kind->reaction(world, j, invH, force, torque);
@@ -163,16 +168,16 @@ void m2JointReactionMagnitudes(const m2World* world, int32_t j, float invH, floa
 
 void m2ApplyJointImpulse(m2World* world, const m2JointConstraint* c, m2Vec2 P)
 {
-    float mA = world->invMass[c->bodyA];
-    float iA = world->invInertia[c->bodyA];
-    float mB = world->invMass[c->bodyB];
-    float iB = world->invInertia[c->bodyB];
-    world->linearVelocities[c->bodyA].x -= mA * P.x;
-    world->linearVelocities[c->bodyA].y -= mA * P.y;
-    world->angularVelocities[c->bodyA] -= iA * m2Cross2(c->rA, P);
-    world->linearVelocities[c->bodyB].x += mB * P.x;
-    world->linearVelocities[c->bodyB].y += mB * P.y;
-    world->angularVelocities[c->bodyB] += iB * m2Cross2(c->rB, P);
+    float mA = world->bodies.invMass[c->bodyA];
+    float iA = world->bodies.invInertia[c->bodyA];
+    float mB = world->bodies.invMass[c->bodyB];
+    float iB = world->bodies.invInertia[c->bodyB];
+    world->bodies.linearVelocities[c->bodyA].x -= mA * P.x;
+    world->bodies.linearVelocities[c->bodyA].y -= mA * P.y;
+    world->bodies.angularVelocities[c->bodyA] -= iA * m2Cross2(c->rA, P);
+    world->bodies.linearVelocities[c->bodyB].x += mB * P.x;
+    world->bodies.linearVelocities[c->bodyB].y += mB * P.y;
+    world->bodies.angularVelocities[c->bodyB] += iB * m2Cross2(c->rB, P);
 }
 
 // Slider impulses act along Jacobians frozen at prepare, not through rA
@@ -180,16 +185,16 @@ void m2ApplyJointImpulse(m2World* world, const m2JointConstraint* c, m2Vec2 P)
 void m2ApplyJointArmImpulse(m2World* world, const m2JointConstraint* c, m2Vec2 P, float LA,
                             float LB)
 {
-    float mA = world->invMass[c->bodyA];
-    float iA = world->invInertia[c->bodyA];
-    float mB = world->invMass[c->bodyB];
-    float iB = world->invInertia[c->bodyB];
-    world->linearVelocities[c->bodyA].x -= mA * P.x;
-    world->linearVelocities[c->bodyA].y -= mA * P.y;
-    world->angularVelocities[c->bodyA] -= iA * LA;
-    world->linearVelocities[c->bodyB].x += mB * P.x;
-    world->linearVelocities[c->bodyB].y += mB * P.y;
-    world->angularVelocities[c->bodyB] += iB * LB;
+    float mA = world->bodies.invMass[c->bodyA];
+    float iA = world->bodies.invInertia[c->bodyA];
+    float mB = world->bodies.invMass[c->bodyB];
+    float iB = world->bodies.invInertia[c->bodyB];
+    world->bodies.linearVelocities[c->bodyA].x -= mA * P.x;
+    world->bodies.linearVelocities[c->bodyA].y -= mA * P.y;
+    world->bodies.angularVelocities[c->bodyA] -= iA * LA;
+    world->bodies.linearVelocities[c->bodyB].x += mB * P.x;
+    world->bodies.linearVelocities[c->bodyB].y += mB * P.y;
+    world->bodies.angularVelocities[c->bodyB] += iB * LB;
 }
 
 // One axial sub-constraint (motor or limit) on the shared axial
@@ -234,8 +239,8 @@ void m2WarmStartPointJoint(m2World* world, const m2JointConstraint* c)
 {
     m2ApplyJointImpulse(world, c, c->impulse);
     float axial = c->springImpulse + c->motorImpulse + c->lowerImpulse - c->upperImpulse;
-    world->angularVelocities[c->bodyA] -= world->invInertia[c->bodyA] * axial;
-    world->angularVelocities[c->bodyB] += world->invInertia[c->bodyB] * axial;
+    world->bodies.angularVelocities[c->bodyA] -= world->bodies.invInertia[c->bodyA] * axial;
+    world->bodies.angularVelocities[c->bodyB] += world->bodies.invInertia[c->bodyB] * axial;
 }
 
 // The revolute and weld point block, after their angular rows: stores
@@ -244,8 +249,8 @@ void m2WarmStartPointJoint(m2World* world, const m2JointConstraint* c)
 void m2SolvePointBlock(m2World* world, m2JointConstraint* c, const m2JointSolveContext* ctx,
                        float wA, float wB, bool biased)
 {
-    world->angularVelocities[c->bodyA] = wA;
-    world->angularVelocities[c->bodyB] = wB;
+    world->bodies.angularVelocities[c->bodyA] = wA;
+    world->bodies.angularVelocities[c->bodyB] = wB;
     m2Vec2 vA = ctx->vA;
     m2Vec2 vB = ctx->vB;
     m2Vec2 bias = {0.0f, 0.0f};

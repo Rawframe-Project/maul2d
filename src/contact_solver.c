@@ -29,32 +29,32 @@ int32_t m2PrepareContacts(m2World* world, m2ContactConstraint* constraints, floa
     m2Softness soft = m2MakeSoft(M2_CONTACT_HERTZ, M2_CONTACT_DAMPING_RATIO, h);
     m2Softness staticSoft = m2MakeSoft(2.0f * M2_CONTACT_HERTZ, M2_CONTACT_DAMPING_RATIO, h);
     int32_t count = 0;
-    for (int32_t i = 0; i < world->pairCount; ++i)
+    for (int32_t i = 0; i < world->contacts.pairCount; ++i)
     {
-        m2Manifold* manifold = &world->manifolds[i];
+        m2Manifold* manifold = &world->contacts.manifolds[i];
         if (manifold->pointCount == 0)
         {
             continue;
         }
-        int32_t shapeA = (int32_t)(world->pairKeys[i] >> 32);
-        int32_t shapeB = (int32_t)(world->pairKeys[i] & 0xFFFFFFFFu);
-        if (world->shapeSensor[shapeA] != 0 || world->shapeSensor[shapeB] != 0)
+        int32_t shapeA = (int32_t)(world->contacts.pairKeys[i] >> 32);
+        int32_t shapeB = (int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu);
+        if (world->shapes.shapeSensor[shapeA] != 0 || world->shapes.shapeSensor[shapeB] != 0)
         {
             continue; // sensors observe, never push
         }
-        int32_t bodyA = world->shapeBody[shapeA];
-        int32_t bodyB = world->shapeBody[shapeB];
-        float mA = world->invMass[bodyA];
-        float iA = world->invInertia[bodyA];
-        float mB = world->invMass[bodyB];
-        float iB = world->invInertia[bodyB];
+        int32_t bodyA = world->shapes.shapeBody[shapeA];
+        int32_t bodyB = world->shapes.shapeBody[shapeB];
+        float mA = world->bodies.invMass[bodyA];
+        float iA = world->bodies.invInertia[bodyA];
+        float mB = world->bodies.invMass[bodyB];
+        float iB = world->bodies.invInertia[bodyB];
         // Dominance (contacts only): the higher side is unmovable in
         // this pair; statics outrank every dynamic by construction.
-        int32_t domA = world->types[bodyA] == (uint8_t)m2_dynamicBody
-                           ? (int32_t)world->dominances[bodyA]
+        int32_t domA = world->bodies.types[bodyA] == (uint8_t)m2_dynamicBody
+                           ? (int32_t)world->bodies.dominances[bodyA]
                            : 128;
-        int32_t domB = world->types[bodyB] == (uint8_t)m2_dynamicBody
-                           ? (int32_t)world->dominances[bodyB]
+        int32_t domB = world->bodies.types[bodyB] == (uint8_t)m2_dynamicBody
+                           ? (int32_t)world->bodies.dominances[bodyB]
                            : 128;
         if (domA > domB)
         {
@@ -70,8 +70,10 @@ int32_t m2PrepareContacts(m2World* world, m2ContactConstraint* constraints, floa
         {
             continue; // both non-dynamic
         }
-        bool asleepA = world->types[bodyA] != (uint8_t)m2_dynamicBody || world->asleep[bodyA] != 0;
-        bool asleepB = world->types[bodyB] != (uint8_t)m2_dynamicBody || world->asleep[bodyB] != 0;
+        bool asleepA = world->bodies.types[bodyA] != (uint8_t)m2_dynamicBody ||
+                       world->bodies.asleep[bodyA] != 0;
+        bool asleepB = world->bodies.types[bodyB] != (uint8_t)m2_dynamicBody ||
+                       world->bodies.asleep[bodyB] != 0;
         if (asleepA && asleepB)
         {
             continue; // frozen contact inside a sleeping island
@@ -87,26 +89,28 @@ int32_t m2PrepareContacts(m2World* world, m2ContactConstraint* constraints, floa
         c->invMassB = mB;
         c->invIB = iB;
         // Geometric-mean friction, max restitution (reference mixing).
-        c->friction = sqrtf(world->shapeFriction[shapeA] * world->shapeFriction[shapeB]);
-        c->tangentSpeed = world->shapeTangentSpeed[shapeA] + world->shapeTangentSpeed[shapeB];
-        float restA = world->shapeRestitution[shapeA];
-        float restB = world->shapeRestitution[shapeB];
+        c->friction =
+            sqrtf(world->shapes.shapeFriction[shapeA] * world->shapes.shapeFriction[shapeB]);
+        c->tangentSpeed =
+            world->shapes.shapeTangentSpeed[shapeA] + world->shapes.shapeTangentSpeed[shapeB];
+        float restA = world->shapes.shapeRestitution[shapeA];
+        float restB = world->shapes.shapeRestitution[shapeB];
         c->restitution = m2MaxF(restA, restB);
-        c->softness = world->types[bodyA] != (uint8_t)m2_dynamicBody ||
-                              world->types[bodyB] != (uint8_t)m2_dynamicBody
+        c->softness = world->bodies.types[bodyA] != (uint8_t)m2_dynamicBody ||
+                              world->bodies.types[bodyB] != (uint8_t)m2_dynamicBody
                           ? staticSoft
                           : soft;
         c->pointCount = manifold->pointCount;
 
-        m2Rot qA = world->transforms[bodyA].q;
-        m2Rot qB = world->transforms[bodyB].q;
+        m2Rot qA = world->bodies.transforms[bodyA].q;
+        m2Rot qB = world->bodies.transforms[bodyB].q;
         c->normal = m2RotateVec2(qA, manifold->normal);
         m2Vec2 tangent = {-c->normal.y, c->normal.x};
 
-        m2Vec2 vA = world->linearVelocities[bodyA];
-        float wA = world->angularVelocities[bodyA];
-        m2Vec2 vB = world->linearVelocities[bodyB];
-        float wB = world->angularVelocities[bodyB];
+        m2Vec2 vA = world->bodies.linearVelocities[bodyA];
+        float wA = world->bodies.angularVelocities[bodyA];
+        m2Vec2 vB = world->bodies.linearVelocities[bodyB];
+        float wB = world->bodies.angularVelocities[bodyB];
 
         for (int32_t k = 0; k < manifold->pointCount; ++k)
         {
@@ -115,8 +119,8 @@ int32_t m2PrepareContacts(m2World* world, m2ContactConstraint* constraints, floa
             // Anchors relative to each body's center of mass: the arm
             // the impulse actually torques about (bit-neutral when the
             // COM sits on the origin).
-            m2Vec2 lcA = world->localCenters[bodyA];
-            m2Vec2 lcB = world->localCenters[bodyB];
+            m2Vec2 lcA = world->bodies.localCenters[bodyA];
+            m2Vec2 lcB = world->bodies.localCenters[bodyB];
             cp->rA = m2RotateVec2(qA, (m2Vec2){mp->anchorA.x - lcA.x, mp->anchorA.y - lcA.y});
             cp->rB = m2RotateVec2(qB, (m2Vec2){mp->anchorB.x - lcB.x, mp->anchorB.y - lcB.y});
             // Reference factoring: fold the prepare-time anchor gap in,
@@ -152,10 +156,10 @@ void m2WarmStartOne(m2World* world, m2ContactConstraint* c)
     float iA = c->invIA;
     float mB = c->invMassB;
     float iB = c->invIB;
-    m2Vec2 vA = world->linearVelocities[c->bodyA];
-    float wA = world->angularVelocities[c->bodyA];
-    m2Vec2 vB = world->linearVelocities[c->bodyB];
-    float wB = world->angularVelocities[c->bodyB];
+    m2Vec2 vA = world->bodies.linearVelocities[c->bodyA];
+    float wA = world->bodies.angularVelocities[c->bodyA];
+    m2Vec2 vB = world->bodies.linearVelocities[c->bodyB];
+    float wB = world->bodies.angularVelocities[c->bodyB];
     m2Vec2 tangent = {-c->normal.y, c->normal.x};
     for (int32_t k = 0; k < c->pointCount; ++k)
     {
@@ -180,17 +184,18 @@ void m2SolveContactOne(m2World* world, m2ContactConstraint* c, float invH, float
         float iA = c->invIA;
         float mB = c->invMassB;
         float iB = c->invIB;
-        m2Vec2 vA = world->linearVelocities[c->bodyA];
-        float wA = world->angularVelocities[c->bodyA];
-        m2Vec2 vB = world->linearVelocities[c->bodyB];
-        float wB = world->angularVelocities[c->bodyB];
+        m2Vec2 vA = world->bodies.linearVelocities[c->bodyA];
+        float wA = world->bodies.angularVelocities[c->bodyA];
+        m2Vec2 vB = world->bodies.linearVelocities[c->bodyB];
+        float wB = world->bodies.angularVelocities[c->bodyB];
         m2Vec2 normal = c->normal;
         m2Vec2 tangent = {-normal.y, normal.x};
 
         // Separation drift from accumulated deltas (never fresh
         // world-space math inside the step).
-        m2Vec2 dp = {world->deltaPositions[c->bodyB].x - world->deltaPositions[c->bodyA].x,
-                     world->deltaPositions[c->bodyB].y - world->deltaPositions[c->bodyA].y};
+        m2Vec2 dp = {
+            world->solver.deltaPositions[c->bodyB].x - world->solver.deltaPositions[c->bodyA].x,
+            world->solver.deltaPositions[c->bodyB].y - world->solver.deltaPositions[c->bodyA].y};
 
         for (int32_t k = 0; k < c->pointCount; ++k)
         {
@@ -198,8 +203,8 @@ void m2SolveContactOne(m2World* world, m2ContactConstraint* c, float invH, float
             // Reference discipline: FIXED prepare-time anchors for the
             // Jacobian and the applied torque; anchors re-rotated by
             // the substep deltas only measure the current separation.
-            m2Vec2 rsA = m2RotateVec2(world->deltaRotations[c->bodyA], cp->rA);
-            m2Vec2 rsB = m2RotateVec2(world->deltaRotations[c->bodyB], cp->rB);
+            m2Vec2 rsA = m2RotateVec2(world->solver.deltaRotations[c->bodyA], cp->rA);
+            m2Vec2 rsB = m2RotateVec2(world->solver.deltaRotations[c->bodyB], cp->rB);
             m2Vec2 ds = {dp.x + rsB.x - rsA.x, dp.y + rsB.y - rsA.y};
             float s = cp->baseSeparation + ds.x * normal.x + ds.y * normal.y;
 
@@ -289,10 +294,10 @@ void m2RestitutionOne(m2World* world, m2ContactConstraint* c)
         float iA = c->invIA;
         float mB = c->invMassB;
         float iB = c->invIB;
-        m2Vec2 vA = world->linearVelocities[c->bodyA];
-        float wA = world->angularVelocities[c->bodyA];
-        m2Vec2 vB = world->linearVelocities[c->bodyB];
-        float wB = world->angularVelocities[c->bodyB];
+        m2Vec2 vA = world->bodies.linearVelocities[c->bodyA];
+        float wA = world->bodies.angularVelocities[c->bodyA];
+        m2Vec2 vB = world->bodies.linearVelocities[c->bodyB];
+        float wB = world->bodies.angularVelocities[c->bodyB];
         for (int32_t k = 0; k < c->pointCount; ++k)
         {
             m2ConstraintPoint* cp = &c->points[k];
@@ -339,7 +344,7 @@ void m2ContactStageRange(int32_t begin, int32_t end, void* userCtx)
             break;
         default:
         {
-            m2Manifold* manifold = &ctx->world->manifolds[c->pairIndex];
+            m2Manifold* manifold = &ctx->world->contacts.manifolds[c->pairIndex];
             for (int32_t j = 0; j < c->pointCount; ++j)
             {
                 manifold->points[j].normalImpulse = c->points[j].normalImpulse;

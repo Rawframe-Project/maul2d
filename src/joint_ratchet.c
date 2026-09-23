@@ -64,23 +64,23 @@ m2JointId m2CreateRatchetJoint(m2WorldId worldId, const m2RatchetJointDef* def)
     m2Vec2 zero = {0.0f, 0.0f};
     m2JointId jointId = m2FinishJoint(world, worldId, index, (uint8_t)m2_ratchetJoint, bodyA, bodyB,
                                       zero, zero, 0.0f, 0.0f, 0.0f);
-    world->jointLength[index] = def->ratchet;
-    world->jointRefAngle[index] = def->phase;
-    m2Rot qA = world->transforms[bodyA].q;
-    m2Rot qB = world->transforms[bodyB].q;
-    world->jointLocalAnchorA[index] = (m2Vec2){qA.c, qA.s};
-    world->jointLocalAnchorB[index] = (m2Vec2){qB.c, qB.s};
-    world->jointUpper[index] = 0.0f; // accumulated relative angle
+    world->joints.jointLength[index] = def->ratchet;
+    world->joints.jointRefAngle[index] = def->phase;
+    m2Rot qA = world->bodies.transforms[bodyA].q;
+    m2Rot qB = world->bodies.transforms[bodyB].q;
+    world->joints.jointLocalAnchorA[index] = (m2Vec2){qA.c, qA.s};
+    world->joints.jointLocalAnchorB[index] = (m2Vec2){qB.c, qB.s};
+    world->joints.jointUpper[index] = 0.0f; // accumulated relative angle
     // Engage the tooth at or behind the spawn angle (reference click).
-    world->jointLower[index] =
+    world->joints.jointLower[index] =
         floorf((0.0f - def->phase) / def->ratchet) * def->ratchet + def->phase;
-    world->jointUserData[index] = def->userData;
-    world->jointCollide[index] = def->collideConnected ? 1 : 0;
+    world->joints.jointUserData[index] = def->userData;
+    world->joints.jointCollide[index] = def->collideConnected ? 1 : 0;
     if (def->collideConnected == false)
     {
         m2RefilterJointedBodies(world, bodyA, bodyB);
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpCreateRatchetJoint record;
         memset(&record, 0, sizeof(record));
@@ -95,14 +95,14 @@ float m2RatchetJoint_GetRatchet(m2JointId jointId)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_ratchetJoint);
-    return index >= 0 ? world->jointLength[index] : 0.0f;
+    return index >= 0 ? world->joints.jointLength[index] : 0.0f;
 }
 
 float m2RatchetJoint_GetPhase(m2JointId jointId)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_ratchetJoint);
-    return index >= 0 ? world->jointRefAngle[index] : 0.0f;
+    return index >= 0 ? world->joints.jointRefAngle[index] : 0.0f;
 }
 
 // --- Solver ---------------------------------------------------------------
@@ -118,22 +118,22 @@ static void PrepareRatchet(m2World* world, m2JointConstraint* c, const m2JointFr
     // the relative angle multi-turn exact via previous-rotation
     // slots, click the engaged tooth forward when the angle
     // passes it, and hold a one-sided row against back-spin.
-    float ratchet = world->jointLength[j];
-    float phase = world->jointRefAngle[j];
-    m2Rot prevA = {world->jointLocalAnchorA[j].x, world->jointLocalAnchorA[j].y};
-    m2Rot prevB = {world->jointLocalAnchorB[j].x, world->jointLocalAnchorB[j].y};
-    float angle = world->jointUpper[j];
+    float ratchet = world->joints.jointLength[j];
+    float phase = world->joints.jointRefAngle[j];
+    m2Rot prevA = {world->joints.jointLocalAnchorA[j].x, world->joints.jointLocalAnchorA[j].y};
+    m2Rot prevB = {world->joints.jointLocalAnchorB[j].x, world->joints.jointLocalAnchorB[j].y};
+    float angle = world->joints.jointUpper[j];
     angle += m2RelativeJointAngle(prevB, qB) - m2RelativeJointAngle(prevA, qA);
-    world->jointUpper[j] = angle;
-    world->jointLocalAnchorA[j] = (m2Vec2){qA.c, qA.s};
-    world->jointLocalAnchorB[j] = (m2Vec2){qB.c, qB.s};
-    float engaged = world->jointLower[j];
+    world->joints.jointUpper[j] = angle;
+    world->joints.jointLocalAnchorA[j] = (m2Vec2){qA.c, qA.s};
+    world->joints.jointLocalAnchorB[j] = (m2Vec2){qB.c, qB.s};
+    float engaged = world->joints.jointLower[j];
     float diff = engaged - angle;
     if (!(diff * ratchet > 0.0f))
     {
         // Free direction: click to the tooth at or behind us.
         engaged = floorf((angle - phase) / ratchet) * ratchet + phase;
-        world->jointLower[j] = engaged;
+        world->joints.jointLower[j] = engaged;
     }
     c->baseAngle = angle - engaged; // C0, sign-adjusted in solve
     c->motorSpeed = ratchet;        // carries the free direction
@@ -146,8 +146,8 @@ static void WarmStartRatchet(m2World* world, const m2JointConstraint* c)
     // Ratchet: one-sided angular impulse in the hold direction.
     float s = c->motorSpeed > 0.0f ? 1.0f : -1.0f;
     float L = s * c->impulse.x;
-    world->angularVelocities[c->bodyA] -= world->invInertia[c->bodyA] * L;
-    world->angularVelocities[c->bodyB] += world->invInertia[c->bodyB] * L;
+    world->bodies.angularVelocities[c->bodyA] -= world->bodies.invInertia[c->bodyA] * L;
+    world->bodies.angularVelocities[c->bodyB] += world->bodies.invInertia[c->bodyB] * L;
 }
 
 static void SolveRatchet(m2World* world, m2JointConstraint* c, const m2JointSolveContext* ctx)
@@ -160,10 +160,10 @@ static void SolveRatchet(m2World* world, m2JointConstraint* c, const m2JointSolv
     // direction never feels it: C' = s*(angle - engaged) >= 0,
     // speculative when open, stiff-soft when violated.
     float s = c->motorSpeed > 0.0f ? 1.0f : -1.0f;
-    float iA = world->invInertia[c->bodyA];
-    float iB = world->invInertia[c->bodyB];
-    float angleNow = c->baseAngle + m2RelativeJointAngle(world->deltaRotations[c->bodyA],
-                                                         world->deltaRotations[c->bodyB]);
+    float iA = world->bodies.invInertia[c->bodyA];
+    float iB = world->bodies.invInertia[c->bodyB];
+    float angleNow = c->baseAngle + m2RelativeJointAngle(world->solver.deltaRotations[c->bodyA],
+                                                         world->solver.deltaRotations[c->bodyB]);
     float C = s * angleNow;
     float bias = 0.0f;
     float massScale = 1.0f;
@@ -184,8 +184,8 @@ static void SolveRatchet(m2World* world, m2JointConstraint* c, const m2JointSolv
     next = next > 0.0f ? next : 0.0f;
     impulse = next - c->impulse.x;
     c->impulse.x = next;
-    world->angularVelocities[c->bodyA] = wA - iA * (s * impulse);
-    world->angularVelocities[c->bodyB] = wB + iB * (s * impulse);
+    world->bodies.angularVelocities[c->bodyA] = wA - iA * (s * impulse);
+    world->bodies.angularVelocities[c->bodyB] = wB + iB * (s * impulse);
 }
 
 static void RatchetReaction(const m2World* world, int32_t j, float invH, float* force,
@@ -193,7 +193,7 @@ static void RatchetReaction(const m2World* world, int32_t j, float invH, float* 
 {
     // A pure holding torque.
     *force = 0.0f;
-    *torque = m2AbsF(world->jointImpulse[j].x) * invH;
+    *torque = m2AbsF(world->joints.jointImpulse[j].x) * invH;
 }
 
 const m2JointKind m2_ratchetJointKind = {PrepareRatchet, WarmStartRatchet, SolveRatchet,

@@ -6,6 +6,10 @@
 
 #include "world.h"
 
+#include "buoyancy.h"
+#include "island.h"
+#include "particle.h"
+#include "solver.h"
 #include "world_state.h"
 
 #include "broadphase.h"
@@ -157,30 +161,30 @@ m2WorldId m2CreateWorld(const m2WorldDef* def)
     world->gravity = def->gravity;
     world->windVelocity = (m2Vec2){0.0f, 0.0f};
     world->windLinearDrag = 0.0f; // wind is opt-in via m2World_SetWind
-    world->bodyCapacity = cap;
-    world->shapeCapacity = shapeCap;
-    world->jointCapacity = jointCap;
-    world->treeNodeCapacity = 2 * shapeCap;
-    world->pairCapacity = 8 * shapeCap;
-    world->particleCapacity = def->particleCapacity;
-    world->fvCapacity = def->fluidVolumeCapacity;
-    world->particleRadius = def->particleRadius;
-    world->particleDensity = def->particleDensity;
-    world->particleGravityScale = def->particleGravityScale;
-    world->particlePressureStrength = def->particlePressureStrength;
-    world->particleDampingStrength = def->particleDampingStrength;
-    world->particleViscousStrength = def->particleViscousStrength;
-    world->particleTensilePressure = def->particleTensilePressureStrength;
-    world->particlePowderStrength = def->particlePowderStrength;
-    world->particleSpringStrength = def->particleSpringStrength;
-    world->particleElasticStrength = def->particleElasticStrength;
-    world->particleTensileNormal = def->particleTensileNormalStrength;
+    world->bodies.bodyCapacity = cap;
+    world->shapes.shapeCapacity = shapeCap;
+    world->joints.jointCapacity = jointCap;
+    world->broadphase.treeNodeCapacity = 2 * shapeCap;
+    world->contacts.pairCapacity = 8 * shapeCap;
+    world->particles.particleCapacity = def->particleCapacity;
+    world->volumes.fvCapacity = def->fluidVolumeCapacity;
+    world->particles.particleRadius = def->particleRadius;
+    world->particles.particleDensity = def->particleDensity;
+    world->particles.particleGravityScale = def->particleGravityScale;
+    world->particles.particlePressureStrength = def->particlePressureStrength;
+    world->particles.particleDampingStrength = def->particleDampingStrength;
+    world->particles.particleViscousStrength = def->particleViscousStrength;
+    world->particles.particleTensilePressure = def->particleTensilePressureStrength;
+    world->particles.particlePowderStrength = def->particlePowderStrength;
+    world->particles.particleSpringStrength = def->particleSpringStrength;
+    world->particles.particleElasticStrength = def->particleElasticStrength;
+    world->particles.particleTensileNormal = def->particleTensileNormalStrength;
 
     int32_t particleCap = def->particleCapacity;
-    world->particlePairCapacity = 12 * particleCap;
-    world->particleSpringCapacity = 4 * particleCap;
-    world->particleTriadCapacity = 2 * particleCap;
-    world->particleBodyCapacity = 4 * particleCap;
+    world->particles.particlePairCapacity = 12 * particleCap;
+    world->particles.particleSpringCapacity = 4 * particleCap;
+    world->particles.particleTriadCapacity = 2 * particleCap;
+    world->particles.particleBodyCapacity = 4 * particleCap;
     world->enqueueTask = def->enqueueTask;
     world->finishTask = def->finishTask;
     world->userTaskContext = def->userTaskContext;
@@ -197,48 +201,49 @@ m2WorldId m2CreateWorld(const m2WorldDef* def)
 
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
-        m2TreeInit(&world->trees[t], world->treeNodes[t], world->treeNodeCapacity);
+        m2TreeInit(&world->broadphase.trees[t], world->broadphase.treeNodes[t],
+                   world->broadphase.treeNodeCapacity);
     }
     for (int32_t i = 0; i < cap; ++i)
     {
-        world->freeQueue[i] = i;
-        world->bodyShapeHead[i] = -1;
-        world->bodyJointHead[i] = -1;
+        world->bodies.freeQueue[i] = i;
+        world->bodies.bodyShapeHead[i] = -1;
+        world->joints.bodyJointHead[i] = -1;
     }
     for (int32_t i = 0; i < shapeCap; ++i)
     {
-        world->shapeFreeQueue[i] = i;
-        world->shapeNext[i] = -1;
-        world->proxyIds[i] = M2_NULL_NODE;
-        world->shapeChain[i] = -1;
-        world->chainFreeQueue[i] = i;
+        world->shapes.shapeFreeQueue[i] = i;
+        world->shapes.shapeNext[i] = -1;
+        world->broadphase.proxyIds[i] = M2_NULL_NODE;
+        world->shapes.shapeChain[i] = -1;
+        world->chains.chainFreeQueue[i] = i;
     }
     for (int32_t i = 0; i < jointCap; ++i)
     {
-        world->jointFreeQueue[i] = i;
+        world->joints.jointFreeQueue[i] = i;
     }
     for (int32_t i = 0; i < 2 * jointCap; ++i)
     {
-        world->jointEdgeNext[i] = -1;
+        world->joints.jointEdgeNext[i] = -1;
     }
-    world->jointFreeCount = jointCap;
-    for (int32_t i = 0; i < world->particleCapacity; ++i)
+    world->joints.jointFreeCount = jointCap;
+    for (int32_t i = 0; i < world->particles.particleCapacity; ++i)
     {
-        world->particleFreeQueue[i] = i;
+        world->particles.particleFreeQueue[i] = i;
     }
-    world->particleFreeCount = world->particleCapacity;
-    for (int32_t i = 0; i < world->fvCapacity; ++i)
+    world->particles.particleFreeCount = world->particles.particleCapacity;
+    for (int32_t i = 0; i < world->volumes.fvCapacity; ++i)
     {
-        world->fvFreeQueue[i] = i;
+        world->volumes.fvFreeQueue[i] = i;
     }
-    world->fvFreeCount = world->fvCapacity;
-    world->freeHead = 0;
-    world->freeTail = 0;
-    world->freeCount = cap;
-    world->shapeFreeHead = 0;
-    world->shapeFreeTail = 0;
-    world->shapeFreeCount = shapeCap;
-    world->chainFreeCount = shapeCap;
+    world->volumes.fvFreeCount = world->volumes.fvCapacity;
+    world->bodies.freeHead = 0;
+    world->bodies.freeTail = 0;
+    world->bodies.freeCount = cap;
+    world->shapes.shapeFreeHead = 0;
+    world->shapes.shapeFreeTail = 0;
+    world->shapes.shapeFreeCount = shapeCap;
+    world->chains.chainFreeCount = shapeCap;
 
     s_worldGenerations[slot] += 1;
     world->worldGeneration = s_worldGenerations[slot];
@@ -279,7 +284,7 @@ void m2World_Step(m2WorldId worldId, float dt, int32_t substepCount)
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpStep marker;
         memset(&marker, 0, sizeof(marker));
@@ -290,21 +295,23 @@ void m2World_Step(m2WorldId worldId, float dt, int32_t substepCount)
 
     // Fresh event window: clear the public buffers, then flush ends
     // queued by between-step destroys (they belong to this window).
-    world->beginEventCount = 0;
-    world->endEventCount = 0;
-    for (int32_t i = 0; i < world->pendingEndCount && i < world->pairCapacity; ++i)
+    world->events.beginEventCount = 0;
+    world->events.endEventCount = 0;
+    for (int32_t i = 0; i < world->events.pendingEndCount && i < world->contacts.pairCapacity; ++i)
     {
-        world->endEvents[world->endEventCount++] = world->pendingEndEvents[i];
+        world->events.endEvents[world->events.endEventCount++] = world->events.pendingEndEvents[i];
     }
-    world->pendingEndCount = 0;
-    world->sensorBeginCount = 0;
-    world->sensorEndCount = 0;
-    for (int32_t i = 0; i < world->pendingSensorEndCount && i < world->pairCapacity; ++i)
+    world->events.pendingEndCount = 0;
+    world->events.sensorBeginCount = 0;
+    world->events.sensorEndCount = 0;
+    for (int32_t i = 0; i < world->events.pendingSensorEndCount && i < world->contacts.pairCapacity;
+         ++i)
     {
-        world->sensorEndEvents[world->sensorEndCount++] = world->pendingSensorEnd[i];
+        world->events.sensorEndEvents[world->events.sensorEndCount++] =
+            world->events.pendingSensorEnd[i];
     }
-    world->pendingSensorEndCount = 0;
-    world->jointBreakEventCount = 0;
+    world->events.pendingSensorEndCount = 0;
+    world->events.jointBreakEventCount = 0;
 
     // Wall-clock diagnostics only; never fed back into simulation.
     uint64_t tStart = m2TimeNowNs();
@@ -315,28 +322,28 @@ void m2World_Step(m2WorldId worldId, float dt, int32_t substepCount)
     // rebuild to the same roots, the solver has no constraints). Skip
     // it wholesale - bit-identical by construction, and a sleeping
     // city costs what a sleeping city should.
-    if (world->movedCount == 0 && world->particleCount == 0)
+    if (world->broadphase.movedCount == 0 && world->particles.particleCount == 0)
     {
         bool anyoneStirring = false;
-        for (int32_t i = 0; i < world->maxBodyIndex && !anyoneStirring; ++i)
+        for (int32_t i = 0; i < world->bodies.maxBodyIndex && !anyoneStirring; ++i)
         {
-            if (world->alive[i] == 0)
+            if (world->bodies.alive[i] == 0)
             {
                 continue;
             }
-            if (world->types[i] == (uint8_t)m2_dynamicBody)
+            if (world->bodies.types[i] == (uint8_t)m2_dynamicBody)
             {
                 // A body that JUST fell asleep still owes one manifold
                 // refresh (its stash can be one solve stale - the same
                 // freshness rule the frozen-pair skip lives by).
-                anyoneStirring =
-                    world->disabled[i] == 0 && (world->asleep[i] == 0 || world->sleepStreak[i] < 2);
+                anyoneStirring = world->bodies.disabled[i] == 0 &&
+                                 (world->bodies.asleep[i] == 0 || world->bodies.sleepStreak[i] < 2);
             }
-            else if (world->types[i] == (uint8_t)m2_kinematicBody)
+            else if (world->bodies.types[i] == (uint8_t)m2_kinematicBody)
             {
-                anyoneStirring = world->linearVelocities[i].x != 0.0f ||
-                                 world->linearVelocities[i].y != 0.0f ||
-                                 world->angularVelocities[i] != 0.0f;
+                anyoneStirring = world->bodies.linearVelocities[i].x != 0.0f ||
+                                 world->bodies.linearVelocities[i].y != 0.0f ||
+                                 world->bodies.angularVelocities[i] != 0.0f;
             }
         }
         if (!anyoneStirring)
@@ -356,27 +363,28 @@ void m2World_Step(m2WorldId worldId, float dt, int32_t substepCount)
     // world. Warm-start impulses arrive via the manifold carry.
     // Broadphase update: single-threaded, fixed body order, shape-list
     // order within a body (both snapshot-deterministic).
-    for (int32_t i = 0; i < world->maxBodyIndex; ++i)
+    for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
-        if (world->alive[i] == 0 || world->disabled[i] != 0 ||
-            world->types[i] == (uint8_t)m2_staticBody ||
-            (world->types[i] == (uint8_t)m2_dynamicBody && world->asleep[i] != 0))
+        if (world->bodies.alive[i] == 0 || world->bodies.disabled[i] != 0 ||
+            world->bodies.types[i] == (uint8_t)m2_staticBody ||
+            (world->bodies.types[i] == (uint8_t)m2_dynamicBody && world->bodies.asleep[i] != 0))
         {
             continue;
         }
-        for (int32_t s = world->bodyShapeHead[i]; s != -1; s = world->shapeNext[s])
+        for (int32_t s = world->bodies.bodyShapeHead[i]; s != -1; s = world->shapes.shapeNext[s])
         {
             m2AABB tight = m2ShapeTightAABB(world, s);
             int32_t tree = m2ShapeTreeIndex(world, s);
-            if (!m2AABB_Contains(world->treeNodes[tree][world->proxyIds[s]].aabb, tight))
+            if (!m2AABB_Contains(
+                    world->broadphase.treeNodes[tree][world->broadphase.proxyIds[s]].aabb, tight))
             {
-                m2TreeMove(&world->trees[tree], world->treeNodes[tree], world->proxyIds[s],
-                           m2Fatten(tight));
+                m2TreeMove(&world->broadphase.trees[tree], world->broadphase.treeNodes[tree],
+                           world->broadphase.proxyIds[s], m2Fatten(tight));
                 m2PushMoved(world, s);
             }
         }
     }
-    world->oldPairCount = world->pairCount;
+    world->contacts.oldPairCount = world->contacts.pairCount;
     m2StashContacts(world);
     m2UpdatePairs(world);
     uint64_t tPairs = m2TimeNowNs();
@@ -385,14 +393,14 @@ void m2World_Step(m2WorldId worldId, float dt, int32_t substepCount)
 
     // Touch transitions in canonical contact order (serial compaction:
     // the topic-08 event law, scalar edition).
-    for (int32_t i = 0; i < world->pairCount; ++i)
+    for (int32_t i = 0; i < world->contacts.pairCount; ++i)
     {
-        uint8_t touchingNow = world->manifolds[i].pointCount > 0 ? 1 : 0;
-        if (touchingNow != world->pairTouching[i])
+        uint8_t touchingNow = world->contacts.manifolds[i].pointCount > 0 ? 1 : 0;
+        if (touchingNow != world->contacts.pairTouching[i])
         {
-            int32_t a = (int32_t)(world->pairKeys[i] >> 32);
-            int32_t b = (int32_t)(world->pairKeys[i] & 0xFFFFFFFFu);
-            bool sensor = world->shapeSensor[a] != 0 || world->shapeSensor[b] != 0;
+            int32_t a = (int32_t)(world->contacts.pairKeys[i] >> 32);
+            int32_t b = (int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu);
+            bool sensor = world->shapes.shapeSensor[a] != 0 || world->shapes.shapeSensor[b] != 0;
             if (touchingNow != 0)
             {
                 if (sensor)
@@ -412,11 +420,11 @@ void m2World_Step(m2WorldId worldId, float dt, int32_t substepCount)
             {
                 m2EmitEnd(world, a, b);
             }
-            world->pairTouching[i] = touchingNow;
+            world->contacts.pairTouching[i] = touchingNow;
         }
     }
 
-    if (world->particleCount > 0)
+    if (world->particles.particleCount > 0)
     {
         // The whole fluid pass runs once per step before the rigid
         // solve, the reference schedule; pairs freeze at step start.
@@ -426,24 +434,26 @@ void m2World_Step(m2WorldId worldId, float dt, int32_t substepCount)
         // Lifetimes count down and expire in ascending slot order at
         // step end; derived from state, so no journal op and it
         // replays and rolls back by itself.
-        for (int32_t i = 0; i < world->maxParticleIndex; ++i)
+        for (int32_t i = 0; i < world->particles.maxParticleIndex; ++i)
         {
-            if (world->particleAlive[i] == 0 || world->particleLifetime[i] <= 0.0f)
+            if (world->particles.particleAlive[i] == 0 ||
+                world->particles.particleLifetime[i] <= 0.0f)
             {
                 continue;
             }
-            world->particleLifetime[i] -= dt;
-            if (world->particleLifetime[i] <= 0.0f)
+            world->particles.particleLifetime[i] -= dt;
+            if (world->particles.particleLifetime[i] <= 0.0f)
             {
-                m2ParticleId dying = {i + 1, worldId.index1, world->particleGenerations[i]};
-                uint8_t journalWas = world->journalActive;
-                world->journalActive = 0; // derived death is never recorded
+                m2ParticleId dying = {i + 1, worldId.index1,
+                                      world->particles.particleGenerations[i]};
+                uint8_t journalWas = world->recorder.journalActive;
+                world->recorder.journalActive = 0; // derived death is never recorded
                 m2World_DestroyParticle(dying);
-                world->journalActive = journalWas;
+                world->recorder.journalActive = journalWas;
             }
         }
     }
-    if (world->maxFvIndex > 0)
+    if (world->volumes.maxFvIndex > 0)
     {
         // Buoyancy feeds the force accumulators before the solve, so
         // it integrates alongside gravity and dies with the step.
@@ -467,15 +477,15 @@ void m2World_Step(m2WorldId worldId, float dt, int32_t substepCount)
 #endif
     // Freshness streak: two consecutive step-ends asleep guarantee the
     // stashed manifolds were computed from these exact transforms.
-    for (int32_t i = 0; i < world->maxBodyIndex; ++i)
+    for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
-        if (world->alive[i] == 0 || world->types[i] != (uint8_t)m2_dynamicBody)
+        if (world->bodies.alive[i] == 0 || world->bodies.types[i] != (uint8_t)m2_dynamicBody)
         {
             continue;
         }
-        world->sleepStreak[i] =
-            world->asleep[i] != 0
-                ? (uint8_t)(world->sleepStreak[i] < 2 ? world->sleepStreak[i] + 1 : 2)
+        world->bodies.sleepStreak[i] =
+            world->bodies.asleep[i] != 0
+                ? (uint8_t)(world->bodies.sleepStreak[i] < 2 ? world->bodies.sleepStreak[i] + 1 : 2)
                 : 0;
     }
     uint64_t tEnd = m2TimeNowNs();
@@ -488,10 +498,10 @@ void m2World_Step(m2WorldId worldId, float dt, int32_t substepCount)
         (float)((double)(tIslands - tContacts) * 1.0e-6 + (double)(tEnd - tSolve) * 1.0e-6);
 
     // Forces live for exactly one step (reference lifetime).
-    for (int32_t i = 0; i < world->maxBodyIndex; ++i)
+    for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
-        world->forces[i] = (m2Vec2){0.0f, 0.0f};
-        world->torques[i] = 0.0f;
+        world->bodies.forces[i] = (m2Vec2){0.0f, 0.0f};
+        world->bodies.torques[i] = 0.0f;
     }
     world->stepCount += 1;
 }
@@ -524,7 +534,7 @@ void m2World_EnableSleeping(m2WorldId worldId, bool flag)
     {
         return; // no-op stays unjournaled, like SetGravity
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpFlag record;
         record.flag = next;
@@ -535,12 +545,12 @@ void m2World_EnableSleeping(m2WorldId worldId, bool flag)
     {
         // The rule that let them sleep is gone; wake everyone (the
         // SetGravity law).
-        for (int32_t i = 0; i < world->maxBodyIndex; ++i)
+        for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
         {
-            if (world->alive[i] != 0 && world->types[i] == (uint8_t)m2_dynamicBody)
+            if (world->bodies.alive[i] != 0 && world->bodies.types[i] == (uint8_t)m2_dynamicBody)
             {
-                world->asleep[i] = 0;
-                world->sleepTimes[i] = 0.0f;
+                world->bodies.asleep[i] = 0;
+                world->bodies.sleepTimes[i] = 0.0f;
             }
         }
     }
@@ -571,20 +581,20 @@ double m2World_GetKineticEnergy(m2WorldId worldId)
         return 0.0;
     }
     double energy = 0.0;
-    for (int32_t i = 0; i < world->maxBodyIndex; ++i)
+    for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
-        if (world->alive[i] == 0 || world->types[i] != (uint8_t)m2_dynamicBody ||
-            world->invMass[i] == 0.0f)
+        if (world->bodies.alive[i] == 0 || world->bodies.types[i] != (uint8_t)m2_dynamicBody ||
+            world->bodies.invMass[i] == 0.0f)
         {
             continue;
         }
-        double vx = (double)world->linearVelocities[i].x;
-        double vy = (double)world->linearVelocities[i].y;
-        energy += 0.5 * (1.0 / (double)world->invMass[i]) * (vx * vx + vy * vy);
-        if (world->invInertia[i] > 0.0f)
+        double vx = (double)world->bodies.linearVelocities[i].x;
+        double vy = (double)world->bodies.linearVelocities[i].y;
+        energy += 0.5 * (1.0 / (double)world->bodies.invMass[i]) * (vx * vx + vy * vy);
+        if (world->bodies.invInertia[i] > 0.0f)
         {
-            double w = (double)world->angularVelocities[i];
-            energy += 0.5 * (1.0 / (double)world->invInertia[i]) * w * w;
+            double w = (double)world->bodies.angularVelocities[i];
+            energy += 0.5 * (1.0 / (double)world->bodies.invInertia[i]) * w * w;
         }
     }
     return energy;
@@ -602,7 +612,7 @@ void m2World_SetGravity(m2WorldId worldId, m2Vec2 gravity)
     {
         return; // no-op, not journaled
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpVec record;
         memset(&record, 0, sizeof(record));
@@ -612,13 +622,13 @@ void m2World_SetGravity(m2WorldId worldId, m2Vec2 gravity)
     world->gravity = gravity;
     // Honesty over precedent: a sleeping stack must feel the new
     // world. Wake every dynamic sleeper (deterministic, one pass).
-    for (int32_t i = 0; i < world->maxBodyIndex; ++i)
+    for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
-        if (world->alive[i] != 0 && world->types[i] == (uint8_t)m2_dynamicBody &&
-            world->asleep[i] != 0)
+        if (world->bodies.alive[i] != 0 && world->bodies.types[i] == (uint8_t)m2_dynamicBody &&
+            world->bodies.asleep[i] != 0)
         {
-            world->asleep[i] = 0;
-            world->sleepTimes[i] = 0.0f;
+            world->bodies.asleep[i] = 0;
+            world->bodies.sleepTimes[i] = 0.0f;
         }
     }
 }
@@ -642,7 +652,7 @@ void m2World_SetWind(m2WorldId worldId, m2Vec2 velocity, float linearDrag)
     {
         return; // no-op, not journaled
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpSetWind record;
         memset(&record, 0, sizeof(record));
@@ -686,36 +696,36 @@ m2Counters m2World_GetCounters(m2WorldId worldId)
     {
         return counters;
     }
-    for (int32_t i = 0; i < world->maxBodyIndex; ++i)
+    for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
-        if (world->alive[i] == 0)
+        if (world->bodies.alive[i] == 0)
         {
             continue;
         }
         counters.bodies += 1;
-        counters.awakeBodies += world->asleep[i] == 0 ? 1 : 0;
+        counters.awakeBodies += world->bodies.asleep[i] == 0 ? 1 : 0;
     }
-    for (int32_t i = 0; i < world->maxShapeIndex; ++i)
+    for (int32_t i = 0; i < world->shapes.maxShapeIndex; ++i)
     {
-        counters.shapes += world->shapeAlive[i] != 0 ? 1 : 0;
+        counters.shapes += world->shapes.shapeAlive[i] != 0 ? 1 : 0;
     }
-    for (int32_t i = 0; i < world->maxJointIndex; ++i)
+    for (int32_t i = 0; i < world->joints.maxJointIndex; ++i)
     {
-        counters.joints += world->jointAlive[i] != 0 ? 1 : 0;
+        counters.joints += world->joints.jointAlive[i] != 0 ? 1 : 0;
     }
-    counters.pairs = world->pairCount;
-    for (int32_t i = 0; i < world->pairCount; ++i)
+    counters.pairs = world->contacts.pairCount;
+    for (int32_t i = 0; i < world->contacts.pairCount; ++i)
     {
-        counters.touchingPairs += world->pairTouching[i] != 0 ? 1 : 0;
+        counters.touchingPairs += world->contacts.pairTouching[i] != 0 ? 1 : 0;
     }
-    counters.constraints = world->lastConstraintCount;
-    counters.graphColors = world->lastGraphColors;
-    counters.overflowConstraints = world->lastOverflow;
+    counters.constraints = world->solver.lastConstraintCount;
+    counters.graphColors = world->solver.lastGraphColors;
+    counters.overflowConstraints = world->solver.lastOverflow;
     counters.stepCount = world->stepCount;
-    counters.pairOverflow = world->pairOverflow;
-    counters.particlePairOverflow = world->particlePairOverflow;
-    counters.particleBodyOverflow = world->particleBodyOverflow;
-    counters.particlePoolFull = world->particlePoolFullCount;
+    counters.pairOverflow = world->contacts.pairOverflow;
+    counters.particlePairOverflow = world->particles.particlePairOverflow;
+    counters.particleBodyOverflow = world->particles.particleBodyOverflow;
+    counters.particlePoolFull = world->particles.particlePoolFullCount;
     counters.misuse = m2MisuseCount(world);
     return counters;
 }
@@ -728,15 +738,15 @@ int32_t m2World_GetBodies(m2WorldId worldId, m2BodyId* ids, int32_t capacity)
         return 0;
     }
     int32_t total = 0;
-    for (int32_t i = 0; i < world->maxBodyIndex; ++i)
+    for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
-        if (world->alive[i] == 0)
+        if (world->bodies.alive[i] == 0)
         {
             continue;
         }
         if (ids != NULL && total < capacity)
         {
-            m2BodyId id = {i + 1, world->worldIndex0, world->generations[i]};
+            m2BodyId id = {i + 1, world->worldIndex0, world->bodies.generations[i]};
             ids[total] = id;
         }
         total += 1;
@@ -752,15 +762,15 @@ int32_t m2World_GetJoints(m2WorldId worldId, m2JointId* ids, int32_t capacity)
         return 0;
     }
     int32_t total = 0;
-    for (int32_t i = 0; i < world->maxJointIndex; ++i)
+    for (int32_t i = 0; i < world->joints.maxJointIndex; ++i)
     {
-        if (world->jointAlive[i] == 0)
+        if (world->joints.jointAlive[i] == 0)
         {
             continue;
         }
         if (ids != NULL && total < capacity)
         {
-            m2JointId id = {i + 1, world->worldIndex0, world->jointGenerations[i]};
+            m2JointId id = {i + 1, world->worldIndex0, world->joints.jointGenerations[i]};
             ids[total] = id;
         }
         total += 1;
@@ -776,15 +786,15 @@ int32_t m2World_GetChains(m2WorldId worldId, m2ChainId* ids, int32_t capacity)
         return 0;
     }
     int32_t total = 0;
-    for (int32_t i = 0; i < world->maxChainIndex; ++i)
+    for (int32_t i = 0; i < world->chains.maxChainIndex; ++i)
     {
-        if (world->chainAlive[i] == 0)
+        if (world->chains.chainAlive[i] == 0)
         {
             continue;
         }
         if (ids != NULL && total < capacity)
         {
-            m2ChainId id = {i + 1, world->worldIndex0, world->chainGenerations[i]};
+            m2ChainId id = {i + 1, world->worldIndex0, world->chains.chainGenerations[i]};
             ids[total] = id;
         }
         total += 1;
@@ -812,72 +822,75 @@ bool m2World_Validate(m2WorldId worldId)
         }                                                                                          \
     } while (0)
 
-    for (int32_t i = 0; i < world->maxBodyIndex; ++i)
+    for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
-        if (world->alive[i] == 0)
+        if (world->bodies.alive[i] == 0)
         {
             continue;
         }
-        m2Transform xf = world->transforms[i];
+        m2Transform xf = world->bodies.transforms[i];
         M2_CHECK_INVARIANT(m2FinitePos2(xf.p));
         M2_CHECK_INVARIANT(m2FiniteF(xf.q.c) && m2FiniteF(xf.q.s));
-        m2Vec2 v = world->linearVelocities[i];
+        m2Vec2 v = world->bodies.linearVelocities[i];
         M2_CHECK_INVARIANT(m2FiniteVec2(v));
-        M2_CHECK_INVARIANT(m2FiniteF(world->angularVelocities[i]));
-        M2_CHECK_INVARIANT(world->types[i] <= 2);
+        M2_CHECK_INVARIANT(m2FiniteF(world->bodies.angularVelocities[i]));
+        M2_CHECK_INVARIANT(world->bodies.types[i] <= 2);
     }
-    for (int32_t i = 0; i < world->maxShapeIndex; ++i)
+    for (int32_t i = 0; i < world->shapes.maxShapeIndex; ++i)
     {
-        if (world->shapeAlive[i] == 0)
+        if (world->shapes.shapeAlive[i] == 0)
         {
             continue;
         }
-        int32_t body = world->shapeBody[i];
-        M2_CHECK_INVARIANT(body >= 0 && body < world->bodyCapacity && world->alive[body] != 0);
+        int32_t body = world->shapes.shapeBody[i];
+        M2_CHECK_INVARIANT(body >= 0 && body < world->bodies.bodyCapacity &&
+                           world->bodies.alive[body] != 0);
     }
-    for (int32_t i = 0; i < world->maxJointIndex; ++i)
+    for (int32_t i = 0; i < world->joints.maxJointIndex; ++i)
     {
-        if (world->jointAlive[i] == 0)
+        if (world->joints.jointAlive[i] == 0)
         {
             continue;
         }
-        M2_CHECK_INVARIANT(world->jointType[i] <= 10);
-        int32_t a = world->jointBodyA[i];
-        int32_t b = world->jointBodyB[i];
-        M2_CHECK_INVARIANT(a >= 0 && a < world->bodyCapacity && world->alive[a] != 0);
-        M2_CHECK_INVARIANT(b >= 0 && b < world->bodyCapacity && world->alive[b] != 0);
+        M2_CHECK_INVARIANT(world->joints.jointType[i] <= 10);
+        int32_t a = world->joints.jointBodyA[i];
+        int32_t b = world->joints.jointBodyB[i];
+        M2_CHECK_INVARIANT(a >= 0 && a < world->bodies.bodyCapacity && world->bodies.alive[a] != 0);
+        M2_CHECK_INVARIANT(b >= 0 && b < world->bodies.bodyCapacity && world->bodies.alive[b] != 0);
     }
-    for (int32_t i = 1; i < world->pairCount; ++i)
+    for (int32_t i = 1; i < world->contacts.pairCount; ++i)
     {
         // The canonical ordering law, checked where it lives.
-        M2_CHECK_INVARIANT(world->pairKeys[i - 1] < world->pairKeys[i]);
+        M2_CHECK_INVARIANT(world->contacts.pairKeys[i - 1] < world->contacts.pairKeys[i]);
     }
-    if (world->particleCapacity > 0)
+    if (world->particles.particleCapacity > 0)
     {
         int32_t alive = 0;
-        for (int32_t i = 0; i < world->maxParticleIndex; ++i)
+        for (int32_t i = 0; i < world->particles.maxParticleIndex; ++i)
         {
-            if (world->particleAlive[i] == 0)
+            if (world->particles.particleAlive[i] == 0)
             {
                 continue;
             }
             alive += 1;
-            m2Pos2 p = world->particlePositions[i];
+            m2Pos2 p = world->particles.particlePositions[i];
             M2_CHECK_INVARIANT(m2FinitePos2(p));
-            m2Vec2 v = world->particleVelocities[i];
+            m2Vec2 v = world->particles.particleVelocities[i];
             M2_CHECK_INVARIANT(m2FiniteVec2(v));
         }
-        M2_CHECK_INVARIANT(alive == world->particleCount);
-        for (int32_t k = 0; k < world->particleSpringCount; ++k)
+        M2_CHECK_INVARIANT(alive == world->particles.particleCount);
+        for (int32_t k = 0; k < world->particles.particleSpringCount; ++k)
         {
-            M2_CHECK_INVARIANT(world->particleAlive[world->particleSpringA[k]] != 0 &&
-                               world->particleAlive[world->particleSpringB[k]] != 0);
+            M2_CHECK_INVARIANT(
+                world->particles.particleAlive[world->particles.particleSpringA[k]] != 0 &&
+                world->particles.particleAlive[world->particles.particleSpringB[k]] != 0);
         }
-        for (int32_t k = 0; k < world->particleTriadCount; ++k)
+        for (int32_t k = 0; k < world->particles.particleTriadCount; ++k)
         {
-            M2_CHECK_INVARIANT(world->particleAlive[world->particleTriadA[k]] != 0 &&
-                               world->particleAlive[world->particleTriadB[k]] != 0 &&
-                               world->particleAlive[world->particleTriadC[k]] != 0);
+            M2_CHECK_INVARIANT(
+                world->particles.particleAlive[world->particles.particleTriadA[k]] != 0 &&
+                world->particles.particleAlive[world->particles.particleTriadB[k]] != 0 &&
+                world->particles.particleAlive[world->particles.particleTriadC[k]] != 0);
         }
     }
 #undef M2_CHECK_INVARIANT

@@ -6,6 +6,7 @@
 #include "destruction.h"
 
 #include "body.h"
+#include "distance.h"
 #include "journal.h"
 #include "world.h"
 #include "world_internal.h"
@@ -39,28 +40,29 @@ void m2World_Explode(m2WorldId worldId, const m2ExplosionDef* def)
     m2JournalRecord(world, m2_opExplode, def, (int32_t)sizeof(*def));
     // The blast applies raw impulses below; they must not be recorded
     // twice (the chain-create suppression pattern).
-    uint8_t journalWasActive = world->journalActive;
-    world->journalActive = 0;
+    uint8_t journalWasActive = world->recorder.journalActive;
+    world->recorder.journalActive = 0;
 
     float reach = def->radius + def->falloff;
-    for (int32_t s = 0; s < world->maxShapeIndex; ++s)
+    for (int32_t s = 0; s < world->shapes.maxShapeIndex; ++s)
     {
-        if (world->shapeAlive[s] == 0 || world->shapeSensor[s] != 0 ||
-            (world->shapeCategory[s] & def->maskBits) == 0)
+        if (world->shapes.shapeAlive[s] == 0 || world->shapes.shapeSensor[s] != 0 ||
+            (world->shapes.shapeCategory[s] & def->maskBits) == 0)
         {
             continue;
         }
-        int32_t body = world->shapeBody[s];
-        if (world->types[body] != (uint8_t)m2_dynamicBody || world->disabled[body] != 0)
+        int32_t body = world->shapes.shapeBody[s];
+        if (world->bodies.types[body] != (uint8_t)m2_dynamicBody ||
+            world->bodies.disabled[body] != 0)
         {
             continue;
         }
         // Closest point on the shape to the blast center, in the
         // shape's body frame (one f64 crossing).
-        m2Transform xf = world->transforms[body];
+        m2Transform xf = world->bodies.transforms[body];
         m2Vec2 rel = {(float)(def->position.x - xf.p.x), (float)(def->position.y - xf.p.y)};
         m2Vec2 local = {xf.q.c * rel.x + xf.q.s * rel.y, -xf.q.s * rel.x + xf.q.c * rel.y};
-        m2DistanceProxy target = m2GeometryProxy(&world->shapeGeometry[s]);
+        m2DistanceProxy target = m2GeometryProxy(&world->shapes.shapeGeometry[s]);
         m2DistanceProxy point;
         point.points[0] = local;
         point.count = 1;
@@ -81,7 +83,7 @@ void m2World_Explode(m2WorldId worldId, const m2ExplosionDef* def)
         }
         else
         {
-            m2Vec2 lc = world->localCenters[body];
+            m2Vec2 lc = world->bodies.localCenters[body];
             dir = (m2Vec2){lc.x - local.x, lc.y - local.y};
             float len = sqrtf(dir.x * dir.x + dir.y * dir.y);
             if (!(len > 0.0f))
@@ -95,21 +97,21 @@ void m2World_Explode(m2WorldId worldId, const m2ExplosionDef* def)
         float mag = def->impulse * scale;
         m2Vec2 hitLocal = {d.pointA.x + target.radius * d.normal.x,
                            d.pointA.y + target.radius * d.normal.y};
-        m2Vec2 lc = world->localCenters[body];
+        m2Vec2 lc = world->bodies.localCenters[body];
         m2Vec2 arm = {hitLocal.x - lc.x, hitLocal.y - lc.y};
         m2Vec2 impulseLocal = {mag * dir.x, mag * dir.y};
         // Rotate impulse and arm out to world axes for the velocity
         // update (angular uses the local cross, identical either way).
         m2Vec2 impulseWorld = {xf.q.c * impulseLocal.x - xf.q.s * impulseLocal.y,
                                xf.q.s * impulseLocal.x + xf.q.c * impulseLocal.y};
-        world->linearVelocities[body].x += world->invMass[body] * impulseWorld.x;
-        world->linearVelocities[body].y += world->invMass[body] * impulseWorld.y;
-        world->angularVelocities[body] +=
-            world->invInertia[body] * (arm.x * impulseLocal.y - arm.y * impulseLocal.x);
-        world->asleep[body] = 0;
-        world->sleepTimes[body] = 0.0f;
+        world->bodies.linearVelocities[body].x += world->bodies.invMass[body] * impulseWorld.x;
+        world->bodies.linearVelocities[body].y += world->bodies.invMass[body] * impulseWorld.y;
+        world->bodies.angularVelocities[body] +=
+            world->bodies.invInertia[body] * (arm.x * impulseLocal.y - arm.y * impulseLocal.x);
+        world->bodies.asleep[body] = 0;
+        world->bodies.sleepTimes[body] = 0.0f;
     }
-    world->journalActive = journalWasActive;
+    world->recorder.journalActive = journalWasActive;
 }
 
 // --- Shatter: the destruction road ------------------------------------------------
@@ -120,7 +122,7 @@ int32_t m2World_ShatterBody(m2BodyId bodyId, const m2Polygon* pieces, int32_t pi
     m2World* world = m2WorldFromIndex(bodyId.world0);
     int32_t parent = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (parent < 0 || pieces == NULL || pieceCount < 1 || pieceCount > 64 ||
-        world->types[parent] != (uint8_t)m2_dynamicBody)
+        world->bodies.types[parent] != (uint8_t)m2_dynamicBody)
     {
         m2Refuse(world, m2_errorInvalid);
         return 0;
@@ -133,39 +135,39 @@ int32_t m2World_ShatterBody(m2BodyId bodyId, const m2Polygon* pieces, int32_t pi
             return 0;
         }
     }
-    if (world->freeCount < pieceCount || world->shapeFreeCount < pieceCount)
+    if (world->bodies.freeCount < pieceCount || world->shapes.shapeFreeCount < pieceCount)
     {
         return 0; // cannot seat every piece: a runtime fact, all or nothing
     }
 
     // The parent's rigid field, sampled before anything moves.
-    m2Transform xf = world->transforms[parent];
-    m2Vec2 vParent = world->linearVelocities[parent];
-    float wParent = world->angularVelocities[parent];
-    m2Vec2 lcParent = world->localCenters[parent];
+    m2Transform xf = world->bodies.transforms[parent];
+    m2Vec2 vParent = world->bodies.linearVelocities[parent];
+    float wParent = world->bodies.angularVelocities[parent];
+    m2Vec2 lcParent = world->bodies.localCenters[parent];
     m2Vec2 comArm = {xf.q.c * lcParent.x - xf.q.s * lcParent.y,
                      xf.q.s * lcParent.x + xf.q.c * lcParent.y};
 
     // Materials and filter ride from the parent's first shape; a
     // shapeless parent hands out defaults (documented).
     m2ShapeDef pieceShape = m2DefaultShapeDef();
-    int32_t firstShape = world->bodyShapeHead[parent];
+    int32_t firstShape = world->bodies.bodyShapeHead[parent];
     if (firstShape != -1)
     {
-        pieceShape.density = world->shapeDensity[firstShape];
-        pieceShape.friction = world->shapeFriction[firstShape];
-        pieceShape.restitution = world->shapeRestitution[firstShape];
-        pieceShape.tangentSpeed = world->shapeTangentSpeed[firstShape];
-        pieceShape.categoryBits = world->shapeCategory[firstShape];
-        pieceShape.maskBits = world->shapeMask[firstShape];
-        pieceShape.groupIndex = world->shapeGroup[firstShape];
+        pieceShape.density = world->shapes.shapeDensity[firstShape];
+        pieceShape.friction = world->shapes.shapeFriction[firstShape];
+        pieceShape.restitution = world->shapes.shapeRestitution[firstShape];
+        pieceShape.tangentSpeed = world->shapes.shapeTangentSpeed[firstShape];
+        pieceShape.categoryBits = world->shapes.shapeCategory[firstShape];
+        pieceShape.maskBits = world->shapes.shapeMask[firstShape];
+        pieceShape.groupIndex = world->shapes.shapeGroup[firstShape];
     }
 
     // Ids carry the 1-based world index; the world keeps its generation.
     m2WorldId worldId = {bodyId.world0, world->worldGeneration};
 
-    uint8_t journalWasActive = world->journalActive;
-    world->journalActive = 0;
+    uint8_t journalWasActive = world->recorder.journalActive;
+    world->recorder.journalActive = 0;
 
     int32_t firstIndex1 = 0;
     for (int32_t i = 0; i < pieceCount; ++i)
@@ -174,20 +176,20 @@ int32_t m2World_ShatterBody(m2BodyId bodyId, const m2Polygon* pieces, int32_t pi
         bd.type = m2_dynamicBody;
         bd.position = xf.p;
         bd.rotation = xf.q;
-        bd.gravityScale = world->gravityScales[parent];
-        bd.linearDamping = world->linearDampings[parent];
-        bd.angularDamping = world->angularDampings[parent];
+        bd.gravityScale = world->bodies.gravityScales[parent];
+        bd.linearDamping = world->bodies.linearDampings[parent];
+        bd.angularDamping = world->bodies.angularDampings[parent];
         m2BodyId piece = m2CreateBody(worldId, &bd);
         m2CreatePolygonShape(piece, &pieceShape, &pieces[i]);
         int32_t pieceIndex = piece.index1 - 1;
         // The rigid field at this piece's own center of mass.
-        m2Vec2 lc = world->localCenters[pieceIndex];
+        m2Vec2 lc = world->bodies.localCenters[pieceIndex];
         m2Vec2 arm = {xf.q.c * lc.x - xf.q.s * lc.y, xf.q.s * lc.x + xf.q.c * lc.y};
         float rx = arm.x - comArm.x;
         float ry = arm.y - comArm.y;
-        world->linearVelocities[pieceIndex] =
+        world->bodies.linearVelocities[pieceIndex] =
             (m2Vec2){vParent.x - wParent * ry, vParent.y + wParent * rx};
-        world->angularVelocities[pieceIndex] = wParent;
+        world->bodies.angularVelocities[pieceIndex] = wParent;
         if (i == 0)
         {
             firstIndex1 = piece.index1;
@@ -199,7 +201,7 @@ int32_t m2World_ShatterBody(m2BodyId bodyId, const m2Polygon* pieces, int32_t pi
     }
     m2DestroyBody(bodyId); // joints die with it, touching sleepers wake
 
-    world->journalActive = journalWasActive;
+    world->recorder.journalActive = journalWasActive;
     m2JournalRecordShatter(world, bodyId, pieces, pieceCount, firstIndex1);
     return pieceCount;
 }

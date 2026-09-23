@@ -69,23 +69,23 @@ m2JointId m2CreateMotorJoint(m2WorldId worldId, const m2MotorJointDef* def)
     m2Vec2 zero = {0.0f, 0.0f};
     m2JointId jointId = m2FinishJoint(world, worldId, index, (uint8_t)m2_motorJoint, bodyA, bodyB,
                                       zero, zero, 0.0f, 0.0f, 0.0f);
-    world->jointLocalAxisA[index] = def->linearOffset;
-    world->jointRefAngle[index] = def->angularOffset;
-    world->jointMaxMotor[index] = def->maxTorque;
-    world->jointLength[index] = def->maxForce;
-    world->jointDamping[index] = def->correctionFactor;
+    world->joints.jointLocalAxisA[index] = def->linearOffset;
+    world->joints.jointRefAngle[index] = def->angularOffset;
+    world->joints.jointMaxMotor[index] = def->maxTorque;
+    world->joints.jointLength[index] = def->maxForce;
+    world->joints.jointDamping[index] = def->correctionFactor;
     // Spring drive rides the otherwise-idle secondary spring slots
     // (jointHertz2/jointDamping2 are only read for the angular spring of
     // the revolute and weld, which type 6 is not).
-    world->jointHertz2[index] = def->hertz;
-    world->jointDamping2[index] = def->dampingRatio;
-    world->jointUserData[index] = def->userData;
-    world->jointCollide[index] = def->collideConnected ? 1 : 0;
+    world->joints.jointHertz2[index] = def->hertz;
+    world->joints.jointDamping2[index] = def->dampingRatio;
+    world->joints.jointUserData[index] = def->userData;
+    world->joints.jointCollide[index] = def->collideConnected ? 1 : 0;
     if (def->collideConnected == false)
     {
         m2RefilterJointedBodies(world, bodyA, bodyB);
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpCreateMotorJoint record;
         memset(&record, 0, sizeof(record));
@@ -109,7 +109,7 @@ void m2MotorJoint_SetOffsets(m2JointId jointId, m2Vec2 linearOffset, float angul
         m2Refuse(world, m2_errorInvalid);
         return;
     }
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpMotorOffsets record;
         memset(&record, 0, sizeof(record));
@@ -118,20 +118,20 @@ void m2MotorJoint_SetOffsets(m2JointId jointId, m2Vec2 linearOffset, float angul
         record.angular = angularOffset;
         m2JournalRecord(world, m2_opMotorOffsets, &record, (int32_t)sizeof(record));
     }
-    world->jointLocalAxisA[index] = linearOffset;
-    world->jointRefAngle[index] = angularOffset;
+    world->joints.jointLocalAxisA[index] = linearOffset;
+    world->joints.jointRefAngle[index] = angularOffset;
     // Retargeting wakes both ends: the platform starts moving.
-    int32_t bodyA = world->jointBodyA[index];
-    int32_t bodyB = world->jointBodyB[index];
-    if (world->types[bodyA] == (uint8_t)m2_dynamicBody)
+    int32_t bodyA = world->joints.jointBodyA[index];
+    int32_t bodyB = world->joints.jointBodyB[index];
+    if (world->bodies.types[bodyA] == (uint8_t)m2_dynamicBody)
     {
-        world->asleep[bodyA] = 0;
-        world->sleepTimes[bodyA] = 0.0f;
+        world->bodies.asleep[bodyA] = 0;
+        world->bodies.sleepTimes[bodyA] = 0.0f;
     }
-    if (world->types[bodyB] == (uint8_t)m2_dynamicBody)
+    if (world->bodies.types[bodyB] == (uint8_t)m2_dynamicBody)
     {
-        world->asleep[bodyB] = 0;
-        world->sleepTimes[bodyB] = 0.0f;
+        world->bodies.asleep[bodyB] = 0;
+        world->bodies.sleepTimes[bodyB] = 0.0f;
     }
 }
 
@@ -140,28 +140,28 @@ m2Vec2 m2MotorJoint_GetLinearOffset(m2JointId jointId)
     m2World* world = m2WorldFromIndex(jointId.world0);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
     m2Vec2 zero = {0.0f, 0.0f};
-    return index >= 0 ? world->jointLocalAxisA[index] : zero;
+    return index >= 0 ? world->joints.jointLocalAxisA[index] : zero;
 }
 
 float m2MotorJoint_GetAngularOffset(m2JointId jointId)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
-    return index >= 0 ? world->jointRefAngle[index] : 0.0f;
+    return index >= 0 ? world->joints.jointRefAngle[index] : 0.0f;
 }
 
 float m2MotorJoint_GetMaxForce(m2JointId jointId)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
-    return index >= 0 ? world->jointLength[index] : 0.0f;
+    return index >= 0 ? world->joints.jointLength[index] : 0.0f;
 }
 
 float m2MotorJoint_GetCorrectionFactor(m2JointId jointId)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
-    return index >= 0 ? world->jointDamping[index] : 0.0f;
+    return index >= 0 ? world->joints.jointDamping[index] : 0.0f;
 }
 
 // --- Solver ---------------------------------------------------------------
@@ -174,21 +174,22 @@ static void PrepareMotor(m2World* world, m2JointConstraint* c, const m2JointFram
     // Separations are measured against the offsets. linearOffset lives
     // in A's frame (the documented contract; the reference's code
     // disagrees with its own comment and we side with the comment).
-    m2Vec2 offset = m2RotateVec2(f->qA, world->jointLocalAxisA[j]);
+    m2Vec2 offset = m2RotateVec2(f->qA, world->joints.jointLocalAxisA[j]);
     c->baseCVec = (m2Vec2){f->dx - offset.x, f->dy - offset.y};
-    c->baseAngle = m2UnwindAngle(m2RelativeJointAngle(f->qA, f->qB) - world->jointRefAngle[j]);
+    c->baseAngle =
+        m2UnwindAngle(m2RelativeJointAngle(f->qA, f->qB) - world->joints.jointRefAngle[j]);
     float k = f->iA + f->iB;
     c->axialMass = k > 0.0f ? 1.0f / k : 0.0f;
     // correctionFactor rides the motorSpeed slot into the solve; the
     // linear budget rides lower.
-    c->motorSpeed = world->jointDamping[j];
-    c->lower = h * world->jointLength[j];
-    if (world->jointHertz2[j] > 0.0f)
+    c->motorSpeed = world->joints.jointDamping[j];
+    c->lower = h * world->joints.jointLength[j];
+    if (world->joints.jointHertz2[j] > 0.0f)
     {
         // Spring drive: a soft softness replaces the hard
         // correctionFactor bias in both rows.
         c->flags |= M2_JOINT_SPRING_DRIVE;
-        c->softness = m2MakeSoft(world->jointHertz2[j], world->jointDamping2[j], h);
+        c->softness = m2MakeSoft(world->joints.jointHertz2[j], world->joints.jointDamping2[j], h);
     }
     c->linearSpring = false;
     c->angularSpring = false;
@@ -206,15 +207,15 @@ static void SolveMotor(m2World* world, m2JointConstraint* c, const m2JointSolveC
     // Motor joint (reference solve, always biased): angular row
     // first, then the clamped linear block. correctionFactor
     // rides the motorSpeed slot, the force budget rides lower.
-    float mA = world->invMass[c->bodyA];
-    float iA = world->invInertia[c->bodyA];
-    float mB = world->invMass[c->bodyB];
-    float iB = world->invInertia[c->bodyB];
+    float mA = world->bodies.invMass[c->bodyA];
+    float iA = world->bodies.invInertia[c->bodyA];
+    float mB = world->bodies.invMass[c->bodyB];
+    float iB = world->bodies.invInertia[c->bodyB];
     bool motorSpring = (c->flags & M2_JOINT_SPRING_DRIVE) != 0;
     {
-        float angC =
-            m2UnwindAngle(c->baseAngle + m2RelativeJointAngle(world->deltaRotations[c->bodyA],
-                                                              world->deltaRotations[c->bodyB]));
+        float angC = m2UnwindAngle(c->baseAngle +
+                                   m2RelativeJointAngle(world->solver.deltaRotations[c->bodyA],
+                                                        world->solver.deltaRotations[c->bodyB]));
         float impulse;
         if (motorSpring)
         {
@@ -278,24 +279,24 @@ static void SolveMotor(m2World* world, m2JointConstraint* c, const m2JointSolveC
         vB.y += mB * impulse.y;
         wB += iB * m2Cross2(c->rB, impulse);
     }
-    if (world->types[c->bodyA] == (uint8_t)m2_dynamicBody)
+    if (world->bodies.types[c->bodyA] == (uint8_t)m2_dynamicBody)
     {
-        world->linearVelocities[c->bodyA] = vA;
-        world->angularVelocities[c->bodyA] = wA;
+        world->bodies.linearVelocities[c->bodyA] = vA;
+        world->bodies.angularVelocities[c->bodyA] = wA;
     }
-    if (world->types[c->bodyB] == (uint8_t)m2_dynamicBody)
+    if (world->bodies.types[c->bodyB] == (uint8_t)m2_dynamicBody)
     {
-        world->linearVelocities[c->bodyB] = vB;
-        world->angularVelocities[c->bodyB] = wB;
+        world->bodies.linearVelocities[c->bodyB] = vB;
+        world->bodies.angularVelocities[c->bodyB] = wB;
     }
 }
 
 static void MotorReaction(const m2World* world, int32_t j, float invH, float* force, float* torque)
 {
     // The linear block, and the pure torque in the motor slot.
-    m2Vec2 impulse = world->jointImpulse[j];
+    m2Vec2 impulse = world->joints.jointImpulse[j];
     *force = sqrtf(impulse.x * impulse.x + impulse.y * impulse.y) * invH;
-    *torque = m2AbsF(world->jointMotorImpulse[j]) * invH;
+    *torque = m2AbsF(world->joints.jointMotorImpulse[j]) * invH;
 }
 
 const m2JointKind m2_motorJointKind = {PrepareMotor, m2WarmStartPointJoint, SolveMotor,

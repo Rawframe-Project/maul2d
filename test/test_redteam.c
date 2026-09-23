@@ -8,6 +8,7 @@
 // joints, rollback and journal replay into the 13th gated hash line.
 
 #include "test_harness.h"
+#include "world.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -192,7 +193,7 @@ static void TestHostileFills(void)
     int32_t speckMade = m2World_FillPolygonWithParticles(world, &speck, (m2Pos2){0.0, 0.0},
                                                          (m2Vec2){0.0f, 0.0f}, m2_springParticle);
     CHECK(speckMade <= 1, "a speck holds at most one droplet");
-    CHECK(w->particleSpringCount == 0, "one droplet, no springs");
+    CHECK(w->particles.particleSpringCount == 0, "one droplet, no springs");
 
     // A pool that fills mid-lattice: nets only reference what exists.
     m2Polygon big = m2MakeBox(0.5f, 0.5f);
@@ -201,17 +202,17 @@ static void TestHostileFills(void)
                                          m2_springParticle | m2_elasticParticle);
     CHECK(made == 32 - speckMade, "the pool grants exactly its remaining capacity");
     CHECK(m2World_GetParticleCount(world) == 32, "the pool is exactly full");
-    for (int32_t k = 0; k < w->particleSpringCount; ++k)
+    for (int32_t k = 0; k < w->particles.particleSpringCount; ++k)
     {
-        CHECK(w->particleAlive[w->particleSpringA[k]] == 1 &&
-                  w->particleAlive[w->particleSpringB[k]] == 1,
+        CHECK(w->particles.particleAlive[w->particles.particleSpringA[k]] == 1 &&
+                  w->particles.particleAlive[w->particles.particleSpringB[k]] == 1,
               "every spring end is a live particle");
     }
-    for (int32_t k = 0; k < w->particleTriadCount; ++k)
+    for (int32_t k = 0; k < w->particles.particleTriadCount; ++k)
     {
-        CHECK(w->particleAlive[w->particleTriadA[k]] == 1 &&
-                  w->particleAlive[w->particleTriadB[k]] == 1 &&
-                  w->particleAlive[w->particleTriadC[k]] == 1,
+        CHECK(w->particles.particleAlive[w->particles.particleTriadA[k]] == 1 &&
+                  w->particles.particleAlive[w->particles.particleTriadB[k]] == 1 &&
+                  w->particles.particleAlive[w->particles.particleTriadC[k]] == 1,
               "every triad corner is a live particle");
     }
     for (int32_t i = 0; i < 60; ++i)
@@ -238,10 +239,10 @@ static void TestHostileFills(void)
     int32_t b = m2World_FillPolygonWithParticles(twin, &small, (m2Pos2){0.14, 0.0},
                                                  (m2Vec2){0.0f, 0.0f}, m2_springParticle);
     CHECK(a > 0 && b > 0, "both overlapping fills land");
-    for (int32_t k = 0; k < tw->particleSpringCount; ++k)
+    for (int32_t k = 0; k < tw->particles.particleSpringCount; ++k)
     {
-        bool aInFirst = tw->particleSpringA[k] < a;
-        bool bInFirst = tw->particleSpringB[k] < a;
+        bool aInFirst = tw->particles.particleSpringA[k] < a;
+        bool bInFirst = tw->particles.particleSpringB[k] < a;
         CHECK(aInFirst == bInFirst, "springs never bridge two fills");
     }
     m2DestroyWorld(twin);

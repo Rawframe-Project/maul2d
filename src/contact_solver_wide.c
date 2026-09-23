@@ -9,6 +9,7 @@
 #include "contact_solver.h"
 #include "simd.h"
 #include "solver.h"
+#include "world.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -67,8 +68,8 @@ int32_t m2ContactBlockScratchBytes(int32_t pairCapacity)
 static int32_t PackRun(m2World* world, m2ContactConstraint* constraints, const int32_t* order,
                        int32_t count, int32_t pointCount, int32_t blockCount)
 {
-    m2ContactBlock* blocks = (m2ContactBlock*)world->contactBlocks;
-    int32_t dummy = world->bodyCapacity;
+    m2ContactBlock* blocks = (m2ContactBlock*)world->solver.contactBlocks;
+    int32_t dummy = world->bodies.bodyCapacity;
     for (int32_t base = 0; base < count; base += M2_LANES)
     {
         m2ContactBlock* block = blocks + blockCount;
@@ -163,7 +164,7 @@ int32_t m2PackContactBlocks(m2World* world, m2ContactConstraint* constraints,
         int32_t ones = 0;
         for (int32_t k = begin; k < end; ++k)
         {
-            int32_t index = world->colorOrder[k];
+            int32_t index = world->solver.colorOrder[k];
             if (constraints[index].pointCount == 2)
             {
                 if (twos < 256)
@@ -215,12 +216,12 @@ static void WarmStartBlock(m2World* world, m2ContactBlock* b)
     float wB[M2_LANES];
     for (int32_t lane = 0; lane < M2_LANES; ++lane)
     {
-        vAx[lane] = world->linearVelocities[b->bodyA[lane]].x;
-        vAy[lane] = world->linearVelocities[b->bodyA[lane]].y;
-        wA[lane] = world->angularVelocities[b->bodyA[lane]];
-        vBx[lane] = world->linearVelocities[b->bodyB[lane]].x;
-        vBy[lane] = world->linearVelocities[b->bodyB[lane]].y;
-        wB[lane] = world->angularVelocities[b->bodyB[lane]];
+        vAx[lane] = world->bodies.linearVelocities[b->bodyA[lane]].x;
+        vAy[lane] = world->bodies.linearVelocities[b->bodyA[lane]].y;
+        wA[lane] = world->bodies.angularVelocities[b->bodyA[lane]];
+        vBx[lane] = world->bodies.linearVelocities[b->bodyB[lane]].x;
+        vBy[lane] = world->bodies.linearVelocities[b->bodyB[lane]].y;
+        wB[lane] = world->bodies.angularVelocities[b->bodyB[lane]];
     }
     // Vector body (simd.h bit law): tangent = (-ny, nx), P = nImp*n +
     // tImp*t, velocities pick up the usual +-invMass * P terms.
@@ -263,15 +264,15 @@ static void WarmStartBlock(m2World* world, m2ContactBlock* b)
     m2F8Store(wB, awB);
     for (int32_t lane = 0; lane < M2_LANES; ++lane)
     {
-        if (world->types[b->bodyA[lane]] == (uint8_t)m2_dynamicBody)
+        if (world->bodies.types[b->bodyA[lane]] == (uint8_t)m2_dynamicBody)
         {
-            world->linearVelocities[b->bodyA[lane]] = (m2Vec2){vAx[lane], vAy[lane]};
-            world->angularVelocities[b->bodyA[lane]] = wA[lane];
+            world->bodies.linearVelocities[b->bodyA[lane]] = (m2Vec2){vAx[lane], vAy[lane]};
+            world->bodies.angularVelocities[b->bodyA[lane]] = wA[lane];
         }
-        if (world->types[b->bodyB[lane]] == (uint8_t)m2_dynamicBody)
+        if (world->bodies.types[b->bodyB[lane]] == (uint8_t)m2_dynamicBody)
         {
-            world->linearVelocities[b->bodyB[lane]] = (m2Vec2){vBx[lane], vBy[lane]};
-            world->angularVelocities[b->bodyB[lane]] = wB[lane];
+            world->bodies.linearVelocities[b->bodyB[lane]] = (m2Vec2){vBx[lane], vBy[lane]};
+            world->bodies.angularVelocities[b->bodyB[lane]] = wB[lane];
         }
     }
 }
@@ -295,18 +296,18 @@ static void SolveBlock(m2World* world, m2ContactBlock* b, float invH, float minB
     {
         int32_t iA = b->bodyA[lane];
         int32_t iB = b->bodyB[lane];
-        vAx[lane] = world->linearVelocities[iA].x;
-        vAy[lane] = world->linearVelocities[iA].y;
-        wA[lane] = world->angularVelocities[iA];
-        vBx[lane] = world->linearVelocities[iB].x;
-        vBy[lane] = world->linearVelocities[iB].y;
-        wB[lane] = world->angularVelocities[iB];
-        dpx[lane] = world->deltaPositions[iB].x - world->deltaPositions[iA].x;
-        dpy[lane] = world->deltaPositions[iB].y - world->deltaPositions[iA].y;
-        dqAc[lane] = world->deltaRotations[iA].c;
-        dqAs[lane] = world->deltaRotations[iA].s;
-        dqBc[lane] = world->deltaRotations[iB].c;
-        dqBs[lane] = world->deltaRotations[iB].s;
+        vAx[lane] = world->bodies.linearVelocities[iA].x;
+        vAy[lane] = world->bodies.linearVelocities[iA].y;
+        wA[lane] = world->bodies.angularVelocities[iA];
+        vBx[lane] = world->bodies.linearVelocities[iB].x;
+        vBy[lane] = world->bodies.linearVelocities[iB].y;
+        wB[lane] = world->bodies.angularVelocities[iB];
+        dpx[lane] = world->solver.deltaPositions[iB].x - world->solver.deltaPositions[iA].x;
+        dpy[lane] = world->solver.deltaPositions[iB].y - world->solver.deltaPositions[iA].y;
+        dqAc[lane] = world->solver.deltaRotations[iA].c;
+        dqAs[lane] = world->solver.deltaRotations[iA].s;
+        dqBc[lane] = world->solver.deltaRotations[iB].c;
+        dqBs[lane] = world->solver.deltaRotations[iB].s;
     }
 
     // Vector body (simd.h bit law). The selects mirror the scalar
@@ -422,15 +423,15 @@ static void SolveBlock(m2World* world, m2ContactBlock* b, float invH, float minB
 
     for (int32_t lane = 0; lane < M2_LANES; ++lane)
     {
-        if (world->types[b->bodyA[lane]] == (uint8_t)m2_dynamicBody)
+        if (world->bodies.types[b->bodyA[lane]] == (uint8_t)m2_dynamicBody)
         {
-            world->linearVelocities[b->bodyA[lane]] = (m2Vec2){vAx[lane], vAy[lane]};
-            world->angularVelocities[b->bodyA[lane]] = wA[lane];
+            world->bodies.linearVelocities[b->bodyA[lane]] = (m2Vec2){vAx[lane], vAy[lane]};
+            world->bodies.angularVelocities[b->bodyA[lane]] = wA[lane];
         }
-        if (world->types[b->bodyB[lane]] == (uint8_t)m2_dynamicBody)
+        if (world->bodies.types[b->bodyB[lane]] == (uint8_t)m2_dynamicBody)
         {
-            world->linearVelocities[b->bodyB[lane]] = (m2Vec2){vBx[lane], vBy[lane]};
-            world->angularVelocities[b->bodyB[lane]] = wB[lane];
+            world->bodies.linearVelocities[b->bodyB[lane]] = (m2Vec2){vBx[lane], vBy[lane]};
+            world->bodies.angularVelocities[b->bodyB[lane]] = wB[lane];
         }
     }
 }
@@ -445,12 +446,12 @@ static void RestitutionBlock(m2World* world, m2ContactBlock* b)
         {
             continue;
         }
-        float vAx = world->linearVelocities[b->bodyA[lane]].x;
-        float vAy = world->linearVelocities[b->bodyA[lane]].y;
-        float wA = world->angularVelocities[b->bodyA[lane]];
-        float vBx = world->linearVelocities[b->bodyB[lane]].x;
-        float vBy = world->linearVelocities[b->bodyB[lane]].y;
-        float wB = world->angularVelocities[b->bodyB[lane]];
+        float vAx = world->bodies.linearVelocities[b->bodyA[lane]].x;
+        float vAy = world->bodies.linearVelocities[b->bodyA[lane]].y;
+        float wA = world->bodies.angularVelocities[b->bodyA[lane]];
+        float vBx = world->bodies.linearVelocities[b->bodyB[lane]].x;
+        float vBy = world->bodies.linearVelocities[b->bodyB[lane]].y;
+        float wB = world->bodies.angularVelocities[b->bodyB[lane]];
         for (int32_t k = 0; k < b->pointCount; ++k)
         {
             if (b->relVel[k][lane] > -M2_RESTITUTION_THRESHOLD || b->normalImp[k][lane] == 0.0f)
@@ -476,15 +477,15 @@ static void RestitutionBlock(m2World* world, m2ContactBlock* b)
             vBy += b->invMassB[lane] * Py;
             wB += b->invIB[lane] * (b->rBX[k][lane] * Py - b->rBY[k][lane] * Px);
         }
-        if (world->types[b->bodyA[lane]] == (uint8_t)m2_dynamicBody)
+        if (world->bodies.types[b->bodyA[lane]] == (uint8_t)m2_dynamicBody)
         {
-            world->linearVelocities[b->bodyA[lane]] = (m2Vec2){vAx, vAy};
-            world->angularVelocities[b->bodyA[lane]] = wA;
+            world->bodies.linearVelocities[b->bodyA[lane]] = (m2Vec2){vAx, vAy};
+            world->bodies.angularVelocities[b->bodyA[lane]] = wA;
         }
-        if (world->types[b->bodyB[lane]] == (uint8_t)m2_dynamicBody)
+        if (world->bodies.types[b->bodyB[lane]] == (uint8_t)m2_dynamicBody)
         {
-            world->linearVelocities[b->bodyB[lane]] = (m2Vec2){vBx, vBy};
-            world->angularVelocities[b->bodyB[lane]] = wB;
+            world->bodies.linearVelocities[b->bodyB[lane]] = (m2Vec2){vBx, vBy};
+            world->bodies.angularVelocities[b->bodyB[lane]] = wB;
         }
     }
 }
@@ -493,7 +494,7 @@ static void StoreBlock(m2World* world, m2ContactBlock* b)
 {
     for (int32_t lane = 0; lane < b->lanes; ++lane)
     {
-        m2Manifold* manifold = &world->manifolds[b->pairIndex[lane]];
+        m2Manifold* manifold = &world->contacts.manifolds[b->pairIndex[lane]];
         for (int32_t k = 0; k < b->pointCount; ++k)
         {
             manifold->points[k].normalImpulse = b->normalImp[k][lane];
@@ -533,7 +534,7 @@ void m2RunContactStageWide(m2World* world, m2ContactConstraint* constraints,
 {
     m2BlockStageCtx ctx;
     ctx.world = world;
-    ctx.blocks = (m2ContactBlock*)world->contactBlocks;
+    ctx.blocks = (m2ContactBlock*)world->solver.contactBlocks;
     ctx.stage = stage;
     ctx.invH = invH;
     ctx.minBiasVel = minBiasVel;
@@ -546,7 +547,7 @@ void m2RunContactStageWide(m2World* world, m2ContactConstraint* constraints,
         {
             continue;
         }
-        ctx.blocks = (m2ContactBlock*)world->contactBlocks + begin;
+        ctx.blocks = (m2ContactBlock*)world->solver.contactBlocks + begin;
         m2RunParallel(world, BlockStageRange, &ctx, end - begin, 1);
     }
 
@@ -558,7 +559,7 @@ void m2RunContactStageWide(m2World* world, m2ContactConstraint* constraints,
         m2ContactStageCtx overflow;
         overflow.world = world;
         overflow.constraints = constraints;
-        overflow.order = world->colorOrder + begin;
+        overflow.order = world->solver.colorOrder + begin;
         overflow.stage = stage;
         overflow.invH = invH;
         overflow.minBiasVel = minBiasVel;

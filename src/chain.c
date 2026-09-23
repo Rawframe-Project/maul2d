@@ -17,16 +17,16 @@
 
 void m2RetireChainSlot(m2World* world, int32_t chainIndex)
 {
-    world->chainAlive[chainIndex] = 0;
-    if (world->chainGenerations[chainIndex] == UINT16_MAX)
+    world->chains.chainAlive[chainIndex] = 0;
+    if (world->chains.chainGenerations[chainIndex] == UINT16_MAX)
     {
-        world->chainRetiredCount += 1;
+        world->chains.chainRetiredCount += 1;
         return;
     }
-    world->chainGenerations[chainIndex] += 1;
-    world->chainFreeQueue[world->chainFreeTail] = chainIndex;
-    world->chainFreeTail = (world->chainFreeTail + 1) % world->shapeCapacity;
-    world->chainFreeCount += 1;
+    world->chains.chainGenerations[chainIndex] += 1;
+    world->chains.chainFreeQueue[world->chains.chainFreeTail] = chainIndex;
+    world->chains.chainFreeTail = (world->chains.chainFreeTail + 1) % world->shapes.shapeCapacity;
+    world->chains.chainFreeCount += 1;
 }
 
 m2ChainDef m2DefaultChainDef(void)
@@ -46,7 +46,7 @@ m2ChainId m2CreateChain(m2BodyId bodyId, const m2ChainDef* def)
     int32_t bodyIndex = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (bodyIndex < 0 || def == NULL || def->internalValue != M2_CHAIN_COOKIE ||
         def->points == NULL || (def->isLoop ? def->count < 3 : def->count < 4) ||
-        world->chainFreeCount == 0)
+        world->chains.chainFreeCount == 0)
     {
         m2Refuse(world, m2_errorInvalid);
         return m2_nullChainId;
@@ -54,14 +54,14 @@ m2ChainId m2CreateChain(m2BodyId bodyId, const m2ChainDef* def)
 
     // Claim the chain slot before making shapes so each segment can be
     // tagged with its owner as it is born.
-    int32_t chainIndex = world->chainFreeQueue[world->chainFreeHead];
-    world->chainFreeHead = (world->chainFreeHead + 1) % world->shapeCapacity;
-    world->chainFreeCount -= 1;
+    int32_t chainIndex = world->chains.chainFreeQueue[world->chains.chainFreeHead];
+    world->chains.chainFreeHead = (world->chains.chainFreeHead + 1) % world->shapes.shapeCapacity;
+    world->chains.chainFreeCount -= 1;
 
     // One journal op describes the whole chain; the per-shape creates
     // below must not double-record.
-    uint8_t journalWasActive = world->journalActive;
-    world->journalActive = 0;
+    uint8_t journalWasActive = world->recorder.journalActive;
+    world->recorder.journalActive = 0;
 
     m2ShapeDef shapeDef = m2DefaultShapeDef();
     shapeDef.density = 0.0f;
@@ -99,11 +99,11 @@ m2ChainId m2CreateChain(m2BodyId bodyId, const m2ChainDef* def)
         {
             break; // capacity: partial chain, loud via the segment count
         }
-        world->shapeChain[shape.index1 - 1] = chainIndex;
+        world->shapes.shapeChain[shape.index1 - 1] = chainIndex;
         created += 1;
     }
 
-    world->journalActive = journalWasActive;
+    world->recorder.journalActive = journalWasActive;
     if (created == 0)
     {
         // Nothing was made: retire the claimed slot. The generation
@@ -112,22 +112,22 @@ m2ChainId m2CreateChain(m2BodyId bodyId, const m2ChainDef* def)
         m2Refuse(world, m2_errorCapacity);
         return m2_nullChainId;
     }
-    world->chainAlive[chainIndex] = 1;
-    world->chainBody[chainIndex] = bodyIndex;
-    if (chainIndex + 1 > world->maxChainIndex)
+    world->chains.chainAlive[chainIndex] = 1;
+    world->chains.chainBody[chainIndex] = bodyIndex;
+    if (chainIndex + 1 > world->chains.maxChainIndex)
     {
-        world->maxChainIndex = chainIndex + 1;
+        world->chains.maxChainIndex = chainIndex + 1;
     }
     m2JournalRecordChain(world, bodyId, def, created);
-    m2ChainId id = {chainIndex + 1, world->worldIndex0, world->chainGenerations[chainIndex]};
+    m2ChainId id = {chainIndex + 1, world->worldIndex0, world->chains.chainGenerations[chainIndex]};
     return id;
 }
 
 static int32_t ChainSlot(const m2World* world, m2ChainId chainId)
 {
     int32_t index = chainId.index1 - 1;
-    if (index < 0 || index >= world->shapeCapacity || world->chainAlive[index] == 0 ||
-        world->chainGenerations[index] != chainId.generation)
+    if (index < 0 || index >= world->shapes.shapeCapacity || world->chains.chainAlive[index] == 0 ||
+        world->chains.chainGenerations[index] != chainId.generation)
     {
         return -1;
     }
@@ -148,23 +148,23 @@ void m2DestroyChain(m2ChainId chainId)
     // One canonical walk over the body's insertion-ordered shape list,
     // unlinking members in place; m2DestroyShapeInternal ends contacts
     // and wakes whoever was resting on each segment.
-    int32_t bodyIndex = world->chainBody[index];
+    int32_t bodyIndex = world->chains.chainBody[index];
     int32_t prev = -1;
-    int32_t s = world->bodyShapeHead[bodyIndex];
+    int32_t s = world->bodies.bodyShapeHead[bodyIndex];
     while (s != -1)
     {
-        int32_t next = world->shapeNext[s];
-        if (world->shapeChain[s] == index)
+        int32_t next = world->shapes.shapeNext[s];
+        if (world->shapes.shapeChain[s] == index)
         {
             if (prev == -1)
             {
-                world->bodyShapeHead[bodyIndex] = next;
+                world->bodies.bodyShapeHead[bodyIndex] = next;
             }
             else
             {
-                world->shapeNext[prev] = next;
+                world->shapes.shapeNext[prev] = next;
             }
-            world->shapeNext[s] = -1;
+            world->shapes.shapeNext[s] = -1;
             m2DestroyShapeInternal(world, s);
         }
         else
@@ -175,10 +175,10 @@ void m2DestroyChain(m2ChainId chainId)
     }
     m2RetireChainSlot(world, index);
     m2RecomputeMass(world, bodyIndex);
-    if (world->types[bodyIndex] == (uint8_t)m2_dynamicBody)
+    if (world->bodies.types[bodyIndex] == (uint8_t)m2_dynamicBody)
     {
-        world->asleep[bodyIndex] = 0;
-        world->sleepTimes[bodyIndex] = 0.0f;
+        world->bodies.asleep[bodyIndex] = 0;
+        world->bodies.sleepTimes[bodyIndex] = 0.0f;
     }
 }
 
@@ -198,10 +198,10 @@ int32_t m2Chain_GetSegmentCount(m2ChainId chainId)
         return 0;
     }
     int32_t count = 0;
-    for (int32_t s = world->bodyShapeHead[world->chainBody[index]]; s != -1;
-         s = world->shapeNext[s])
+    for (int32_t s = world->bodies.bodyShapeHead[world->chains.chainBody[index]]; s != -1;
+         s = world->shapes.shapeNext[s])
     {
-        count += world->shapeChain[s] == index ? 1 : 0;
+        count += world->shapes.shapeChain[s] == index ? 1 : 0;
     }
     return count;
 }
@@ -209,7 +209,7 @@ int32_t m2Chain_GetSegmentCount(m2ChainId chainId)
 static void ChainMaterialInternal(m2World* world, m2ChainId chainId, int32_t chainIndex, uint8_t op,
                                   float value)
 {
-    if (world->journalActive != 0)
+    if (world->recorder.journalActive != 0)
     {
         m2OpChainFloat record;
         memset(&record, 0, sizeof(record));
@@ -217,20 +217,20 @@ static void ChainMaterialInternal(m2World* world, m2ChainId chainId, int32_t cha
         record.value = value;
         m2JournalRecord(world, op, &record, (int32_t)sizeof(record));
     }
-    int32_t body = world->chainBody[chainIndex];
-    for (int32_t s = world->bodyShapeHead[body]; s != -1; s = world->shapeNext[s])
+    int32_t body = world->chains.chainBody[chainIndex];
+    for (int32_t s = world->bodies.bodyShapeHead[body]; s != -1; s = world->shapes.shapeNext[s])
     {
-        if (world->shapeChain[s] != chainIndex)
+        if (world->shapes.shapeChain[s] != chainIndex)
         {
             continue;
         }
         if (op == m2_opChainFriction)
         {
-            world->shapeFriction[s] = value;
+            world->shapes.shapeFriction[s] = value;
         }
         else
         {
-            world->shapeRestitution[s] = value;
+            world->shapes.shapeRestitution[s] = value;
         }
     }
 }
@@ -282,9 +282,9 @@ int32_t m2Chain_GetShapes(m2ChainId chainId, m2ShapeId* ids, int32_t capacity)
         return 0;
     }
     int32_t total = 0;
-    for (int32_t i = 0; i < world->maxShapeIndex; ++i)
+    for (int32_t i = 0; i < world->shapes.maxShapeIndex; ++i)
     {
-        if (world->shapeAlive[i] == 0 || world->shapeChain[i] != chainIndex)
+        if (world->shapes.shapeAlive[i] == 0 || world->shapes.shapeChain[i] != chainIndex)
         {
             continue;
         }

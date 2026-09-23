@@ -12,6 +12,7 @@
 // overlapping inputs must stay finite, and the shape cast is exercised
 // both ways. White-box (the proxy kernel is internal); no gated hash.
 
+#include "distance.h"
 #include "test_harness.h"
 #include "world_internal.h"
 

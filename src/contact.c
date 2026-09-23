@@ -16,11 +16,11 @@
 
 void m2EmitEnd(m2World* world, int32_t shapeA, int32_t shapeB)
 {
-    if (world->endEventCount >= world->pairCapacity)
+    if (world->events.endEventCount >= world->contacts.pairCapacity)
     {
         return;
     }
-    m2ContactEndEvent* e = &world->endEvents[world->endEventCount++];
+    m2ContactEndEvent* e = &world->events.endEvents[world->events.endEventCount++];
     e->shapeIdA = m2MakeShapeId(world, shapeA);
     e->shapeIdB = m2MakeShapeId(world, shapeB);
     e->step = world->stepCount;
@@ -33,10 +33,10 @@ void m2EmitEnd(m2World* world, int32_t shapeA, int32_t shapeB)
 static void FillBeginGeometry(m2World* world, m2ContactBeginEvent* e, int32_t pairIndex,
                               int32_t shapeA, int32_t shapeB)
 {
-    const m2Manifold* manifold = &world->manifolds[pairIndex];
-    int32_t bodyA = world->shapeBody[shapeA];
-    int32_t bodyB = world->shapeBody[shapeB];
-    m2Transform xfA = world->transforms[bodyA];
+    const m2Manifold* manifold = &world->contacts.manifolds[pairIndex];
+    int32_t bodyA = world->shapes.shapeBody[shapeA];
+    int32_t bodyB = world->shapes.shapeBody[shapeB];
+    m2Transform xfA = world->bodies.transforms[bodyA];
     m2Rot qA = xfA.q;
     e->normal = (m2Vec2){qA.c * manifold->normal.x - qA.s * manifold->normal.y,
                          qA.s * manifold->normal.x + qA.c * manifold->normal.y};
@@ -51,20 +51,21 @@ static void FillBeginGeometry(m2World* world, m2ContactBeginEvent* e, int32_t pa
     if (manifold->pointCount > 0)
     {
         // Closing speed at the first point: how hard the hit landed.
-        m2Vec2 lcA = world->localCenters[bodyA];
-        m2Vec2 lcB = world->localCenters[bodyB];
+        m2Vec2 lcA = world->bodies.localCenters[bodyA];
+        m2Vec2 lcB = world->bodies.localCenters[bodyB];
         m2Vec2 anchor = manifold->points[0].anchorA;
         m2Vec2 rA = {qA.c * (anchor.x - lcA.x) - qA.s * (anchor.y - lcA.y),
                      qA.s * (anchor.x - lcA.x) + qA.c * (anchor.y - lcA.y)};
-        m2Rot qB = world->transforms[bodyB].q;
+        m2Rot qB = world->bodies.transforms[bodyB].q;
         // The same world point measured from B's center of mass.
-        m2Vec2 rB = {
-            (float)(e->points[0].x - world->transforms[bodyB].p.x) - (qB.c * lcB.x - qB.s * lcB.y),
-            (float)(e->points[0].y - world->transforms[bodyB].p.y) - (qB.s * lcB.x + qB.c * lcB.y)};
-        m2Vec2 vA = world->linearVelocities[bodyA];
-        m2Vec2 vB = world->linearVelocities[bodyB];
-        float wA = world->angularVelocities[bodyA];
-        float wB = world->angularVelocities[bodyB];
+        m2Vec2 rB = {(float)(e->points[0].x - world->bodies.transforms[bodyB].p.x) -
+                         (qB.c * lcB.x - qB.s * lcB.y),
+                     (float)(e->points[0].y - world->bodies.transforms[bodyB].p.y) -
+                         (qB.s * lcB.x + qB.c * lcB.y)};
+        m2Vec2 vA = world->bodies.linearVelocities[bodyA];
+        m2Vec2 vB = world->bodies.linearVelocities[bodyB];
+        float wA = world->bodies.angularVelocities[bodyA];
+        float wB = world->bodies.angularVelocities[bodyB];
         m2Vec2 velA = {vA.x - wA * rA.y, vA.y + wA * rA.x};
         m2Vec2 velB = {vB.x - wB * rB.y, vB.y + wB * rB.x};
         float vn = (velB.x - velA.x) * e->normal.x + (velB.y - velA.y) * e->normal.y;
@@ -74,11 +75,11 @@ static void FillBeginGeometry(m2World* world, m2ContactBeginEvent* e, int32_t pa
 
 void m2EmitBegin(m2World* world, int32_t shapeA, int32_t shapeB, int32_t pairIndex)
 {
-    if (world->beginEventCount >= world->pairCapacity)
+    if (world->events.beginEventCount >= world->contacts.pairCapacity)
     {
         return;
     }
-    m2ContactBeginEvent* e = &world->beginEvents[world->beginEventCount++];
+    m2ContactBeginEvent* e = &world->events.beginEvents[world->events.beginEventCount++];
     memset(e, 0, sizeof(*e)); // no stack garbage in observer payloads
     e->shapeIdA = m2MakeShapeId(world, shapeA);
     e->shapeIdB = m2MakeShapeId(world, shapeB);
@@ -88,9 +89,9 @@ void m2EmitBegin(m2World* world, int32_t shapeA, int32_t shapeB, int32_t pairInd
 
 void m2EmitSensorEnd(m2World* world, int32_t shapeA, int32_t shapeB)
 {
-    if (world->sensorEndCount < world->pairCapacity)
+    if (world->events.sensorEndCount < world->contacts.pairCapacity)
     {
-        m2ContactEndEvent* e = &world->sensorEndEvents[world->sensorEndCount++];
+        m2ContactEndEvent* e = &world->events.sensorEndEvents[world->events.sensorEndCount++];
         e->shapeIdA = m2MakeShapeId(world, shapeA);
         e->shapeIdB = m2MakeShapeId(world, shapeB);
         e->step = world->stepCount;
@@ -99,9 +100,9 @@ void m2EmitSensorEnd(m2World* world, int32_t shapeA, int32_t shapeB)
 
 void m2EmitSensorBegin(m2World* world, int32_t shapeA, int32_t shapeB, int32_t pairIndex)
 {
-    if (world->sensorBeginCount < world->pairCapacity)
+    if (world->events.sensorBeginCount < world->contacts.pairCapacity)
     {
-        m2ContactBeginEvent* e = &world->sensorBeginEvents[world->sensorBeginCount++];
+        m2ContactBeginEvent* e = &world->events.sensorBeginEvents[world->events.sensorBeginCount++];
         memset(e, 0, sizeof(*e));
         e->shapeIdA = m2MakeShapeId(world, shapeA);
         e->shapeIdB = m2MakeShapeId(world, shapeB);
@@ -117,8 +118,8 @@ void m2EmitSensorBegin(m2World* world, int32_t shapeA, int32_t shapeB, int32_t p
 // f64 -> f32 crossing for the contact stage.
 static m2RelativePose MakeRelativePose(const m2World* world, int32_t bodyA, int32_t bodyB)
 {
-    m2Transform xfA = world->transforms[bodyA];
-    m2Transform xfB = world->transforms[bodyB];
+    m2Transform xfA = world->bodies.transforms[bodyA];
+    m2Transform xfB = world->bodies.transforms[bodyB];
     float dx = (float)(xfB.p.x - xfA.p.x);
     float dy = (float)(xfB.p.y - xfA.p.y);
     m2RelativePose pose;
@@ -214,8 +215,8 @@ static m2Manifold ComputeManifoldRaw(const m2World* world, int32_t shapeA, int32
 static m2Manifold ComputeManifold(const m2World* world, int32_t shapeA, int32_t shapeB,
                                   m2RelativePose pose)
 {
-    const m2ShapeGeometry* ga = &world->shapeGeometry[shapeA];
-    const m2ShapeGeometry* gb = &world->shapeGeometry[shapeB];
+    const m2ShapeGeometry* ga = &world->shapes.shapeGeometry[shapeA];
+    const m2ShapeGeometry* gb = &world->shapes.shapeGeometry[shapeB];
     if (gb->type == m2_chainSegmentShape && ga->type != m2_chainSegmentShape)
     {
         // Canonical: the chain plays shape A so its laws apply in its
@@ -234,8 +235,8 @@ static m2Manifold ComputeManifold(const m2World* world, int32_t shapeA, int32_t 
 static m2Manifold ComputeManifoldRaw(const m2World* world, int32_t shapeA, int32_t shapeB,
                                      m2RelativePose pose)
 {
-    const m2ShapeGeometry* ga = &world->shapeGeometry[shapeA];
-    const m2ShapeGeometry* gb = &world->shapeGeometry[shapeB];
+    const m2ShapeGeometry* ga = &world->shapes.shapeGeometry[shapeA];
+    const m2ShapeGeometry* gb = &world->shapes.shapeGeometry[shapeB];
 
     if (ga->type == m2_circleShape && gb->type == m2_circleShape)
     {
@@ -315,8 +316,10 @@ static m2Manifold ComputeManifoldRaw(const m2World* world, int32_t shapeA, int32
 // array, carrying warm-start impulses across by pair key and point id.
 void m2StashContacts(m2World* world)
 {
-    memcpy(world->oldPairScratch, world->pairKeys, (size_t)world->pairCount * sizeof(uint64_t));
-    memcpy(world->manifoldScratch, world->manifolds, (size_t)world->pairCount * sizeof(m2Manifold));
+    memcpy(world->contacts.oldPairScratch, world->contacts.pairKeys,
+           (size_t)world->contacts.pairCount * sizeof(uint64_t));
+    memcpy(world->contacts.manifoldScratch, world->contacts.manifolds,
+           (size_t)world->contacts.pairCount * sizeof(m2Manifold));
 }
 
 typedef struct m2UpdateContactsCtx
@@ -331,42 +334,44 @@ static void UpdateContactsRange(int32_t begin, int32_t end, void* userCtx)
     m2World* world = ((m2UpdateContactsCtx*)userCtx)->world;
     for (int32_t i = begin; i < end; ++i)
     {
-        int32_t shapeA = (int32_t)(world->pairKeys[i] >> 32);
-        int32_t shapeB = (int32_t)(world->pairKeys[i] & 0xFFFFFFFFu);
+        int32_t shapeA = (int32_t)(world->contacts.pairKeys[i] >> 32);
+        int32_t shapeB = (int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu);
 
         // Frozen pair: both ends static or sleeping, so transforms and
         // geometry are untouched and the stored manifold is exactly
         // what ComputeManifold would return - skip the arithmetic,
         // keep the bits. A kinematic end never freezes (its velocity
         // can change without stepping).
-        int32_t frozenBodyA = world->shapeBody[shapeA];
-        int32_t frozenBodyB = world->shapeBody[shapeB];
-        bool frozenA = world->types[frozenBodyA] == (uint8_t)m2_staticBody ||
-                       (world->types[frozenBodyA] == (uint8_t)m2_dynamicBody &&
-                        world->asleep[frozenBodyA] != 0 && world->sleepStreak[frozenBodyA] >= 2);
-        bool frozenB = world->types[frozenBodyB] == (uint8_t)m2_staticBody ||
-                       (world->types[frozenBodyB] == (uint8_t)m2_dynamicBody &&
-                        world->asleep[frozenBodyB] != 0 && world->sleepStreak[frozenBodyB] >= 2);
+        int32_t frozenBodyA = world->shapes.shapeBody[shapeA];
+        int32_t frozenBodyB = world->shapes.shapeBody[shapeB];
+        bool frozenA =
+            world->bodies.types[frozenBodyA] == (uint8_t)m2_staticBody ||
+            (world->bodies.types[frozenBodyA] == (uint8_t)m2_dynamicBody &&
+             world->bodies.asleep[frozenBodyA] != 0 && world->bodies.sleepStreak[frozenBodyA] >= 2);
+        bool frozenB =
+            world->bodies.types[frozenBodyB] == (uint8_t)m2_staticBody ||
+            (world->bodies.types[frozenBodyB] == (uint8_t)m2_dynamicBody &&
+             world->bodies.asleep[frozenBodyB] != 0 && world->bodies.sleepStreak[frozenBodyB] >= 2);
         if (frozenA && frozenB)
         {
             int32_t flo = 0;
-            int32_t fhi = world->oldPairCount - 1;
+            int32_t fhi = world->contacts.oldPairCount - 1;
             while (flo <= fhi)
             {
                 int32_t mid = (flo + fhi) / 2;
-                if (world->oldPairScratch[mid] == world->pairKeys[i])
+                if (world->contacts.oldPairScratch[mid] == world->contacts.pairKeys[i])
                 {
                     // NOLINTNEXTLINE(clang-analyzer-core.NullDereference): allocated at creation
-                    world->manifolds[i] = world->manifoldScratch[mid];
+                    world->contacts.manifolds[i] = world->contacts.manifoldScratch[mid];
                     // Recompute would match every id against itself and
                     // set the persisted bit; the copy owes the same.
-                    for (int32_t k = 0; k < world->manifolds[i].pointCount; ++k)
+                    for (int32_t k = 0; k < world->contacts.manifolds[i].pointCount; ++k)
                     {
-                        world->manifolds[i].points[k].flags |= 1;
+                        world->contacts.manifolds[i].points[k].flags |= 1;
                     }
                     break;
                 }
-                if (world->oldPairScratch[mid] < world->pairKeys[i])
+                if (world->contacts.oldPairScratch[mid] < world->contacts.pairKeys[i])
                 {
                     flo = mid + 1;
                 }
@@ -383,24 +388,24 @@ static void UpdateContactsRange(int32_t begin, int32_t end, void* userCtx)
             // fall through and compute once.
         }
 
-        m2RelativePose pose =
-            MakeRelativePose(world, world->shapeBody[shapeA], world->shapeBody[shapeB]);
+        m2RelativePose pose = MakeRelativePose(world, world->shapes.shapeBody[shapeA],
+                                               world->shapes.shapeBody[shapeB]);
         m2Manifold fresh = ComputeManifold(world, shapeA, shapeB, pose);
 
         // Locate the previous manifold for this pair (both lists sorted;
         // binary search keeps this O(P log P) worst case).
         const m2Manifold* previous = NULL;
         int32_t lo = 0;
-        int32_t hi = world->oldPairCount - 1;
+        int32_t hi = world->contacts.oldPairCount - 1;
         while (lo <= hi)
         {
             int32_t mid = (lo + hi) / 2;
-            if (world->oldPairScratch[mid] == world->pairKeys[i])
+            if (world->contacts.oldPairScratch[mid] == world->contacts.pairKeys[i])
             {
-                previous = &world->manifoldScratch[mid];
+                previous = &world->contacts.manifoldScratch[mid];
                 break;
             }
-            if (world->oldPairScratch[mid] < world->pairKeys[i])
+            if (world->contacts.oldPairScratch[mid] < world->contacts.pairKeys[i])
             {
                 lo = mid + 1;
             }
@@ -426,14 +431,14 @@ static void UpdateContactsRange(int32_t begin, int32_t end, void* userCtx)
                 }
             }
         }
-        world->manifolds[i] = fresh;
+        world->contacts.manifolds[i] = fresh;
     }
 }
 
 void m2UpdateContacts(m2World* world)
 {
     m2UpdateContactsCtx ctx = {world};
-    m2RunParallel(world, UpdateContactsRange, &ctx, world->pairCount, 16);
+    m2RunParallel(world, UpdateContactsRange, &ctx, world->contacts.pairCount, 16);
 }
 
 m2ContactEvents m2World_GetContactEvents(m2WorldId worldId)
@@ -444,10 +449,10 @@ m2ContactEvents m2World_GetContactEvents(m2WorldId worldId)
     {
         return events;
     }
-    events.beginEvents = world->beginEvents;
-    events.beginCount = world->beginEventCount;
-    events.endEvents = world->endEvents;
-    events.endCount = world->endEventCount;
+    events.beginEvents = world->events.beginEvents;
+    events.beginCount = world->events.beginEventCount;
+    events.endEvents = world->events.endEvents;
+    events.endCount = world->events.endEventCount;
     return events;
 }
 
@@ -459,10 +464,10 @@ m2SensorEvents m2World_GetSensorEvents(m2WorldId worldId)
     {
         return events;
     }
-    events.beginEvents = world->sensorBeginEvents;
-    events.beginCount = world->sensorBeginCount;
-    events.endEvents = world->sensorEndEvents;
-    events.endCount = world->sensorEndCount;
+    events.beginEvents = world->events.sensorBeginEvents;
+    events.beginCount = world->events.sensorBeginCount;
+    events.endEvents = world->events.sensorEndEvents;
+    events.endCount = world->events.sensorEndCount;
     return events;
 }
 
@@ -474,8 +479,8 @@ m2JointEvents m2World_GetJointEvents(m2WorldId worldId)
     {
         return events;
     }
-    events.breakEvents = world->jointBreakEvents;
-    events.breakCount = world->jointBreakEventCount;
+    events.breakEvents = world->events.jointBreakEvents;
+    events.breakCount = world->events.jointBreakEventCount;
     return events;
 }
 
@@ -487,21 +492,22 @@ int32_t m2Shape_GetSensorOverlaps(m2ShapeId sensorShapeId, m2ShapeId* overlaps, 
         return 0;
     }
     int32_t sensor = sensorShapeId.index1 - 1;
-    if (sensor < 0 || sensor >= world->shapeCapacity || world->shapeAlive[sensor] == 0 ||
-        world->shapeGenerations[sensor] != sensorShapeId.generation ||
-        world->shapeSensor[sensor] == 0)
+    if (sensor < 0 || sensor >= world->shapes.shapeCapacity ||
+        world->shapes.shapeAlive[sensor] == 0 ||
+        world->shapes.shapeGenerations[sensor] != sensorShapeId.generation ||
+        world->shapes.shapeSensor[sensor] == 0)
     {
         return 0;
     }
     int32_t total = 0;
-    for (int32_t i = 0; i < world->pairCount; ++i)
+    for (int32_t i = 0; i < world->contacts.pairCount; ++i)
     {
-        if (world->pairTouching[i] == 0)
+        if (world->contacts.pairTouching[i] == 0)
         {
             continue;
         }
-        int32_t a = (int32_t)(world->pairKeys[i] >> 32);
-        int32_t b = (int32_t)(world->pairKeys[i] & 0xFFFFFFFFu);
+        int32_t a = (int32_t)(world->contacts.pairKeys[i] >> 32);
+        int32_t b = (int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu);
         if (a != sensor && b != sensor)
         {
             continue;
@@ -523,29 +529,29 @@ int32_t m2World_GetContactData(m2WorldId worldId, m2ContactData* data, int32_t c
         return 0;
     }
     int32_t total = 0;
-    for (int32_t i = 0; i < world->pairCount; ++i)
+    for (int32_t i = 0; i < world->contacts.pairCount; ++i)
     {
-        if (world->pairTouching[i] == 0)
+        if (world->contacts.pairTouching[i] == 0)
         {
             continue;
         }
         {
-            int32_t sa = (int32_t)(world->pairKeys[i] >> 32);
-            int32_t sb = (int32_t)(world->pairKeys[i] & 0xFFFFFFFFu);
-            if (world->shapeSensor[sa] != 0 || world->shapeSensor[sb] != 0)
+            int32_t sa = (int32_t)(world->contacts.pairKeys[i] >> 32);
+            int32_t sb = (int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu);
+            if (world->shapes.shapeSensor[sa] != 0 || world->shapes.shapeSensor[sb] != 0)
             {
                 continue; // sensors carry no physical contact
             }
         }
         if (total < capacity)
         {
-            int32_t shapeA = (int32_t)(world->pairKeys[i] >> 32);
-            int32_t shapeB = (int32_t)(world->pairKeys[i] & 0xFFFFFFFFu);
-            m2Manifold* manifold = &world->manifolds[i];
+            int32_t shapeA = (int32_t)(world->contacts.pairKeys[i] >> 32);
+            int32_t shapeB = (int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu);
+            m2Manifold* manifold = &world->contacts.manifolds[i];
             m2ContactData* out = data + total;
             out->shapeIdA = m2MakeShapeId(world, shapeA);
             out->shapeIdB = m2MakeShapeId(world, shapeB);
-            m2Rot qA = world->transforms[world->shapeBody[shapeA]].q;
+            m2Rot qA = world->bodies.transforms[world->shapes.shapeBody[shapeA]].q;
             out->normal = (m2Vec2){qA.c * manifold->normal.x - qA.s * manifold->normal.y,
                                    qA.s * manifold->normal.x + qA.c * manifold->normal.y};
             out->pointCount = manifold->pointCount;

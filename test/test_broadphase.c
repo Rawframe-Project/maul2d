@@ -8,6 +8,7 @@
 // evolution hash compared across CI cells.
 
 #include "test_harness.h"
+#include "world.h"
 #include "world_internal.h"
 
 static m2ShapeId AttachUnitBox(m2BodyId body)
@@ -109,27 +110,28 @@ static void TestTreeStructure(void)
 
 static m2AABB ShapeFat(const m2World* world, int32_t s)
 {
-    int32_t tree = world->types[world->shapeBody[s]];
-    return world->treeNodes[tree][world->proxyIds[s]].aabb;
+    int32_t tree = world->bodies.types[world->shapes.shapeBody[s]];
+    return world->broadphase.treeNodes[tree][world->broadphase.proxyIds[s]].aabb;
 }
 
 static int32_t BrutePairCount(const m2World* world)
 {
     int32_t count = 0;
-    for (int32_t a = 0; a < world->maxShapeIndex; ++a)
+    for (int32_t a = 0; a < world->shapes.maxShapeIndex; ++a)
     {
-        if (world->shapeAlive[a] == 0)
+        if (world->shapes.shapeAlive[a] == 0)
         {
             continue;
         }
-        for (int32_t b = a + 1; b < world->maxShapeIndex; ++b)
+        for (int32_t b = a + 1; b < world->shapes.maxShapeIndex; ++b)
         {
-            if (world->shapeAlive[b] == 0 || world->shapeBody[a] == world->shapeBody[b])
+            if (world->shapes.shapeAlive[b] == 0 ||
+                world->shapes.shapeBody[a] == world->shapes.shapeBody[b])
             {
                 continue;
             }
-            if (world->types[world->shapeBody[a]] != (uint8_t)m2_dynamicBody &&
-                world->types[world->shapeBody[b]] != (uint8_t)m2_dynamicBody)
+            if (world->bodies.types[world->shapes.shapeBody[a]] != (uint8_t)m2_dynamicBody &&
+                world->bodies.types[world->shapes.shapeBody[b]] != (uint8_t)m2_dynamicBody)
             {
                 continue;
             }
@@ -158,8 +160,9 @@ static void TestPairPipeline(void)
         AttachUnitBox(grid[i]);
     }
     m2World_Step(worldId, 1.0f / 60.0f, 4);
-    CHECK(world->pairCount == 0, "sparse grid has no pairs");
-    CHECK(world->pairCount == BrutePairCount(world), "pair set matches brute force (sparse)");
+    CHECK(world->contacts.pairCount == 0, "sparse grid has no pairs");
+    CHECK(world->contacts.pairCount == BrutePairCount(world),
+          "pair set matches brute force (sparse)");
 
     // Two overlapping dynamics pair up on creation (eager proxies).
     m2BodyDef bd = m2DefaultBodyDef();
@@ -168,8 +171,9 @@ static void TestPairPipeline(void)
     m2BodyId intruder = m2CreateBody(worldId, &bd);
     AttachUnitBox(intruder);
     m2World_Step(worldId, 1.0f / 60.0f, 4);
-    CHECK(world->pairCount == BrutePairCount(world), "pair set matches brute force (intruder)");
-    CHECK(world->pairCount >= 1, "creation overlap must produce a pair");
+    CHECK(world->contacts.pairCount == BrutePairCount(world),
+          "pair set matches brute force (intruder)");
+    CHECK(world->contacts.pairCount >= 1, "creation overlap must produce a pair");
 
     // Kinematic sweep: a kinematic body plows through the
     // grid; every overlap it reaches must become a pair.
@@ -183,11 +187,12 @@ static void TestPairPipeline(void)
     for (int32_t i = 0; i < 60; ++i)
     {
         m2World_Step(worldId, 1.0f / 60.0f, 4);
-        CHECK(world->pairCount == BrutePairCount(world), "pair set tracks the kinematic sweep");
-        for (int32_t p = 0; p < world->pairCount; ++p)
+        CHECK(world->contacts.pairCount == BrutePairCount(world),
+              "pair set tracks the kinematic sweep");
+        for (int32_t p = 0; p < world->contacts.pairCount; ++p)
         {
-            int32_t a = (int32_t)(world->pairKeys[p] >> 32);
-            int32_t b = (int32_t)(world->pairKeys[p] & 0xFFFFFFFFu);
+            int32_t a = (int32_t)(world->contacts.pairKeys[p] >> 32);
+            int32_t b = (int32_t)(world->contacts.pairKeys[p] & 0xFFFFFFFFu);
             if (a == sweeperShape.index1 - 1 || b == sweeperShape.index1 - 1)
             {
                 sweeperPaired = true;
@@ -198,7 +203,7 @@ static void TestPairPipeline(void)
 
     // Destroy pruning: removing a body removes its pairs the same call.
     m2DestroyBody(intruder);
-    CHECK(world->pairCount == BrutePairCount(world), "destroy prunes pairs immediately");
+    CHECK(world->contacts.pairCount == BrutePairCount(world), "destroy prunes pairs immediately");
     (void)grid;
 
     m2DestroyWorld(worldId);
@@ -283,8 +288,9 @@ static uint64_t BroadphaseSweepHash(void)
             AttachUnitBox(m2CreateBody(worldId, &bd));
         }
         m2World_Step(worldId, 1.0f / 60.0f, 4);
-        h = m2Hash64(h, world->pairKeys, world->pairCount * (int32_t)sizeof(uint64_t));
-        h = m2Hash64(h, &world->pairCount, (int32_t)sizeof(world->pairCount));
+        h = m2Hash64(h, world->contacts.pairKeys,
+                     world->contacts.pairCount * (int32_t)sizeof(uint64_t));
+        h = m2Hash64(h, &world->contacts.pairCount, (int32_t)sizeof(world->contacts.pairCount));
     }
     m2DestroyWorld(worldId);
     return h;
@@ -347,9 +353,9 @@ static void TestFullPairTableIsCounted(void)
     CHECK(c.pairOverflow == 30, "and the 30 dropped pairs are counted");
     m2World* w = m2WorldFromId(world);
     bool ascending = true;
-    for (int32_t k = 1; k < w->pairCount; ++k)
+    for (int32_t k = 1; k < w->contacts.pairCount; ++k)
     {
-        ascending = ascending && w->pairKeys[k - 1] < w->pairKeys[k];
+        ascending = ascending && w->contacts.pairKeys[k - 1] < w->contacts.pairKeys[k];
     }
     CHECK(ascending, "the kept pairs stay strictly ascending");
     m2DestroyWorld(world);

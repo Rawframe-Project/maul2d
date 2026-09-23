@@ -7,6 +7,7 @@
 #ifndef MAUL2D_BASE_H
 #define MAUL2D_BASE_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
