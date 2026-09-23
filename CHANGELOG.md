@@ -117,3 +117,7 @@ Work toward 0.0.1, the first release of the reworked library.
   default C mode reject, so a consumer that did not ask for C11 could
   not include them. The layout checks moved into the library's own
   sources.
+- The CPU check that lets an AVX2 build refuse to run on an older CPU
+  was compiled with the AVX2 flags itself, so the compiler was free to
+  use AVX2 instructions before the check ran. It now lives in
+  `src/cpu.c`, compiled without the backend's architecture flags.

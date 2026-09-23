@@ -48,6 +48,7 @@ elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "x86_64|AMD64")
     else()
         set(MAUL_ARCH_FLAGS -mavx2 -mfma)
     endif()
+    list(APPEND MAUL_EXTRA_DEFINITIONS MAUL2D_BUILT_FOR_AVX2=1)
 endif()
 if(MAUL2D_VALIDATE)
     list(APPEND MAUL_EXTRA_DEFINITIONS MAUL2D_VALIDATE=1)
@@ -76,6 +77,20 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/solver.c
     src/world.c)
 maul_configure_library(maul2d)
+
+# The CPU check must run on CPUs the backend does not support, so it is
+# compiled without the architecture flags and linked into the library.
+add_library(maul2d_cpu OBJECT src/cpu.c)
+set(maul_saved_arch_flags "${MAUL_ARCH_FLAGS}")
+set(MAUL_ARCH_FLAGS "")
+maul_apply_flags(maul2d_cpu)
+set(MAUL_ARCH_FLAGS "${maul_saved_arch_flags}")
+target_include_directories(maul2d_cpu PRIVATE ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/src)
+set_target_properties(maul2d_cpu PROPERTIES C_VISIBILITY_PRESET hidden POSITION_INDEPENDENT_CODE ON)
+if(MAUL2D_BUILD_SHARED)
+    target_compile_definitions(maul2d_cpu PRIVATE MAUL2D_SHARED maul2d_EXPORTS)
+endif()
+target_sources(maul2d PRIVATE $<TARGET_OBJECTS:maul2d_cpu>)
 
 if(MAUL2D_BUILD_TESTS)
     enable_testing()
