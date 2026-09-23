@@ -753,6 +753,64 @@ static void TestHostileJointDefs(void)
     m2DestroyWorld(world);
 }
 
+// Restore checks every incoming block before any of it lands: poison
+// each 32-bit word of a snapshot in turn with a huge value. Every index,
+// count, flag and float block must refuse it, and a refused restore
+// leaves the world untouched. (Words the checks accept, like user data
+// and generations, carry no index.)
+static void TestHostileSnapshotWords(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    def.jointCapacity = 2;
+    m2WorldId world = m2CreateWorld(&def);
+    m2BodyDef gd = m2DefaultBodyDef();
+    m2BodyId ground = m2CreateBody(world, &gd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon floor = m2MakeBox(5.0f, 0.5f);
+    m2CreatePolygonShape(ground, &sd, &floor);
+    m2BodyId box = AddBox(world, 0.0, 1.2);
+    m2RevoluteJointDef rj = m2DefaultRevoluteJointDef();
+    rj.bodyIdA = ground;
+    rj.bodyIdB = box;
+    m2CreateRevoluteJoint(world, &rj);
+    m2World_Step(world, 1.0f / 60.0f, 4);
+
+    int32_t size = m2World_SnapshotSize(world);
+    uint8_t* clean = (uint8_t*)malloc((size_t)size);
+    uint8_t* poisoned = (uint8_t*)malloc((size_t)size);
+    CHECK(clean != NULL && poisoned != NULL, "snapshot buffers");
+    if (clean == NULL || poisoned == NULL)
+    {
+        free(clean);
+        free(poisoned);
+        return;
+    }
+    m2World_Snapshot(world, clean, size);
+    uint64_t cleanHash = m2World_Hash(world);
+    int32_t refused = 0;
+    int32_t untouched = 0;
+    for (int32_t at = 0; at + 4 <= size; at += 4)
+    {
+        memcpy(poisoned, clean, (size_t)size);
+        int32_t huge = 0x7FFFFFFF;
+        memcpy(poisoned + at, &huge, sizeof(huge));
+        if (!m2World_Restore(world, poisoned, size))
+        {
+            refused += 1;
+            untouched += m2World_Hash(world) == cleanHash ? 1 : 0;
+            continue;
+        }
+        m2World_Restore(world, clean, size);
+    }
+    CHECK(refused > 0, "hostile words are refused");
+    CHECK(untouched == refused, "a refused restore leaves the world as it was");
+    free(clean);
+    free(poisoned);
+    m2DestroyWorld(world);
+}
+
 static void TestJournalSlotReuse(void)
 {
     // The nasty replay path: a session whose ids die and whose slots
@@ -2143,6 +2201,7 @@ int main(void)
     TestParameterChannels();
     TestHostileQueries();
     TestHostileJointDefs();
+    TestHostileSnapshotWords();
     TestJournalSlotReuse();
     TestQueryEdges();
     TestMultiWorldIsolation();

@@ -23,4 +23,9 @@ void m2StateFree(m2World* world);
 // number of bytes.
 int32_t m2StateWalk(m2World* world, uint8_t* out, const uint8_t* in, int direction);
 
+// Checks an incoming snapshot block against the table before any of it
+// lands: every index in range, every flag a flag, every count within its
+// capacity. The block must be exactly the walk's size.
+bool m2StateValidate(const m2World* world, const uint8_t* in);
+
 #endif // MAUL2D_SRC_WORLD_STATE_H

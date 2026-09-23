@@ -249,9 +249,15 @@ extern "C"
     /// or 0 if capacity is insufficient. Thread class: reader.
     M2_API int32_t m2World_Snapshot(m2WorldId worldId, void* buffer, int32_t capacity);
 
-    /// Restore a snapshot taken from a world with the same def shape.
-    /// Returns false on header mismatch. All sim state - bodies, id pools,
-    /// step counter - returns to the snapshot instant, bit-exactly.
+    /// Restore a snapshot taken from a world with the same def shape. All
+    /// sim state - bodies, id pools, step counter - returns to the
+    /// snapshot instant, bit-exactly. Before any byte lands, the buffer
+    /// is checked: a header from another build or world shape refuses
+    /// with m2_errorConfig; out-of-range indices and counts, flags that
+    /// are not flags, and non-finite state refuse with m2_errorInvalid,
+    /// and the world is left as it was. The checks make every index safe
+    /// to use; they do not re-derive every structural invariant (tree
+    /// shape, list links), so restore only snapshots this engine wrote.
     /// Thread class: writer.
     M2_API bool m2World_Restore(m2WorldId worldId, const void* buffer, int32_t size);
 

@@ -136,15 +136,26 @@ bool m2World_Restore(m2WorldId worldId, const void* buffer, int32_t size)
     m2World* world = m2GetWorld(worldId);
     if (world == NULL || buffer == NULL || size < (int32_t)sizeof(m2SnapshotHeader))
     {
+        m2Refuse(world, m2_errorInvalid);
         return false;
     }
     m2SnapshotHeader header;
     memcpy(&header, buffer, sizeof(header));
     if (header.magic != M2_SNAPSHOT_MAGIC || header.version != M2_SNAPSHOT_VERSION ||
         header.bodyCapacity != world->bodies.bodyCapacity ||
-        header.shapeCapacity != world->shapes.shapeCapacity ||
-        size != (int32_t)sizeof(header) + BlockBytes(world) || !HeaderCountsInRange(&header))
+        header.shapeCapacity != world->shapes.shapeCapacity)
     {
+        m2Refuse(world, m2_errorConfig); // another build or another world shape
+        return false;
+    }
+    // Hostile bytes are checked before any of them land: the header
+    // counts, then every block the table describes.
+    const uint8_t* in = buffer;
+    if (size != (int32_t)sizeof(header) + BlockBytes(world) || !HeaderCountsInRange(&header) ||
+        !m2FiniteVec2(header.gravity) || !m2FiniteVec2(header.windVelocity) ||
+        !m2FiniteF(header.windLinearDrag) || !m2StateValidate(world, in + sizeof(header)))
+    {
+        m2Refuse(world, m2_errorInvalid);
         return false;
     }
 
@@ -165,7 +176,6 @@ bool m2World_Restore(m2WorldId worldId, const void* buffer, int32_t size)
     world->shapes.shapeFreeCount = header.shapeFreeCount;
     world->shapes.shapeRetiredCount = header.shapeRetiredCount;
 
-    const uint8_t* in = buffer;
     int32_t cursor = (int32_t)sizeof(header) + m2StateWalk(world, NULL, in + sizeof(header), 1);
     M2_ASSERT(cursor == size);
     (void)cursor;

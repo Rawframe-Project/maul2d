@@ -25,13 +25,11 @@ _Static_assert(_Alignof(m2Pos2) == 8 && _Alignof(m2Transform) == 8, "double alig
 
 float m2UnwindAngle(float radians)
 {
-    M2_ASSERT(radians >= -1.0e6f && radians <= 1.0e6f);
-
     // Map toward [-pi, pi] using only *, +, - and floorf, then re-fold
     // once: twoPi * k carries rounding error, so a single fold pass pulls
-    // boundary spill back in. The final clamp is the deterministic
-    // fallback for out-of-range garbage (release builds, no assert):
-    // finite boundary values, never NaN downstream.
+    // boundary spill back in. The final clamp is the deterministic answer
+    // for angles too large to fold precisely (beyond about 1e6 radians),
+    // which caller or snapshot data can carry.
     float twoPi = 2.0f * M2_PI;
     float k = floorf((radians + M2_PI) / twoPi);
     float u = radians - twoPi * k;

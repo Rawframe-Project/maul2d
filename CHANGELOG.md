@@ -192,3 +192,12 @@ Work toward 0.0.1, the first release of the reworked library.
   range, or a correction factor outside [0, 1] was accepted and fed to
   the solver. Every joint kind now checks its def and refuses such
   input.
+- m2World_Restore checked the header but trusted the arrays: a
+  corrupted snapshot could carry out-of-range body, shape, joint,
+  particle or tree indices, an oversized polygon count, invalid flags
+  or non-finite state straight into the world. Every snapshot block is
+  now checked against its description in the state table before any
+  byte lands; a failed check refuses (m2_errorConfig for another build
+  or world shape, m2_errorInvalid otherwise) and leaves the world
+  untouched. m2UnwindAngle no longer asserts on angles beyond 1e6
+  radians; it returns the documented clamped boundary.

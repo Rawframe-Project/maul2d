@@ -126,9 +126,9 @@ extern "C"
 
     /// Map an angle to [-pi, pi] (boundary within one rounding step of pi).
     /// Deterministic on every platform (uses only +, -, *, / and floorf).
-    /// Valid input range is |radians| <= 1.0e6f (asserted in debug); beyond
-    /// float precision limits an angle is meaningless anyway, and the
-    /// deterministic fallback is the clamped boundary, never NaN.
+    /// Beyond about |radians| = 1.0e6f an angle cannot fold precisely in
+    /// float; such input returns the clamped boundary, deterministically
+    /// and never NaN.
     M2_API float m2UnwindAngle(float radians);
 
     /// Build a rotation from an angle. Deterministic across platforms:

@@ -66,7 +66,7 @@ Clamp to [lo, hi] using the pinned min/max.
 ```c
 float m2UnwindAngle(float radians);
 ```
-Map an angle to [-pi, pi] (boundary within one rounding step of pi). Deterministic on every platform (uses only +, -, *, / and floorf). Valid input range is |radians| <= 1.0e6f (asserted in debug); beyond float precision limits an angle is meaningless anyway, and the deterministic fallback is the clamped boundary, never NaN.
+Map an angle to [-pi, pi] (boundary within one rounding step of pi). Deterministic on every platform (uses only +, -, *, / and floorf). Beyond about |radians| = 1.0e6f an angle cannot fold precisely in float; such input returns the clamped boundary, deterministically and never NaN.
 
 ```c
 m2Rot m2MakeRot(float radians);
@@ -196,7 +196,7 @@ Write a full snapshot into caller memory. Returns bytes written, or 0 if capacit
 ```c
 bool m2World_Restore(m2WorldId worldId, const void* buffer, int32_t size);
 ```
-Restore a snapshot taken from a world with the same def shape. Returns false on header mismatch. All sim state - bodies, id pools, step counter - returns to the snapshot instant, bit-exactly. Thread class: writer.
+Restore a snapshot taken from a world with the same def shape. All sim state - bodies, id pools, step counter - returns to the snapshot instant, bit-exactly. Before any byte lands, the buffer is checked: a header from another build or world shape refuses with m2_errorConfig; out-of-range indices and counts, flags that are not flags, and non-finite state refuse with m2_errorInvalid, and the world is left as it was. The checks make every index safe to use; they do not re-derive every structural invariant (tree shape, list links), so restore only snapshots this engine wrote. Thread class: writer.
 
 ```c
 uint64_t m2World_Hash(m2WorldId worldId);
