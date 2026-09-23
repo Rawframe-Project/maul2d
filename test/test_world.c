@@ -9,6 +9,7 @@
 #include "maul2d/maul2d.h"
 #include "test_harness.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1706,7 +1707,7 @@ static void TestInfiniteInputIsRefused(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.particleCapacity = 8;
     m2WorldId world = m2CreateWorld(&def);
-    float inf = 1.0f / 0.0f;
+    float inf = INFINITY;
     m2ParticleId p =
         m2World_EmitParticle(world, (m2Pos2){0.0, (double)inf}, (m2Vec2){0.0f, 0.0f}, 0);
     CHECK(p.index1 == 0 && m2LastResult() == m2_errorInvalid, "an infinite position is refused");
