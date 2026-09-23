@@ -14,3 +14,11 @@ Work toward 0.0.1, the first release of the reworked library.
 
 - The version history restarts at 0.0.1. Earlier numbered releases
   were withdrawn.
+
+### Fixed
+
+- The broadphase checked every candidate pair against every joint in
+  the world to decide whether jointed bodies may collide. Each body
+  now keeps a list of its joints, so the check costs the body's joint
+  count. A 2000-link revolute chain steps 2.2 times faster, and
+  `m2Body_GetJoints` and body destruction no longer scan all joints.

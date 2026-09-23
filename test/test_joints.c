@@ -2035,8 +2035,95 @@ static void TestPrismaticStressStability(void)
     CHECK(hashes[0] == hashes[1], "the stressed slider is worker-count deterministic");
 }
 
+static int32_t JointIndices(m2BodyId body, int32_t* out, int32_t capacity)
+{
+    m2JointId ids[16];
+    int32_t count = m2Body_GetJoints(body, ids, 16);
+    for (int32_t i = 0; i < count && i < capacity; ++i)
+    {
+        out[i] = ids[i].index1;
+    }
+    return count;
+}
+
+static void TestJointAdjacency(void)
+{
+    // A hub body with four spokes. Body joint lists come back in slot
+    // order, follow destruction, and are rebuilt by a restore.
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 16;
+    def.shapeCapacity = 16;
+    def.jointCapacity = 16;
+    m2WorldId world = m2CreateWorld(&def);
+    m2BodyId hub = AddBall(world, 0.0, 0.0, 0.5f);
+    m2BodyId spokes[4];
+    m2JointId joints[4];
+    for (int32_t i = 0; i < 4; ++i)
+    {
+        spokes[i] = AddBall(world, 0.5 * (double)(i + 1), 0.0, 0.5f);
+        m2DistanceJointDef jd = m2DefaultDistanceJointDef();
+        jd.bodyIdA = (i % 2 == 0) ? hub : spokes[i];
+        jd.bodyIdB = (i % 2 == 0) ? spokes[i] : hub;
+        jd.length = 0.5f * (float)(i + 1);
+        joints[i] = m2CreateDistanceJoint(world, &jd);
+    }
+
+    int32_t got[8];
+    CHECK(JointIndices(hub, got, 8) == 4, "the hub lists all four joints");
+    CHECK(got[0] < got[1] && got[1] < got[2] && got[2] < got[3], "in ascending slot order");
+    CHECK(JointIndices(spokes[2], got, 8) == 1 && got[0] == joints[2].index1,
+          "each spoke lists its own joint");
+
+    int32_t size = m2World_SnapshotSize(world);
+    void* snap = malloc((size_t)size);
+    CHECK(m2World_Snapshot(world, snap, size) == size, "snapshot taken");
+
+    m2DestroyJoint(joints[1]);
+    CHECK(JointIndices(hub, got, 8) == 3 && got[1] == joints[2].index1,
+          "a destroyed joint leaves the hub list");
+    CHECK(JointIndices(spokes[1], got, 8) == 0, "and the spoke list");
+    m2DestroyBody(spokes[3]);
+    CHECK(JointIndices(hub, got, 8) == 2, "a destroyed body takes its joint along");
+
+    CHECK(m2World_Restore(world, snap, size), "restore");
+    CHECK(JointIndices(hub, got, 8) == 4 && got[1] == joints[1].index1 &&
+              got[3] == joints[3].index1,
+          "the restore rebuilds the hub list");
+    CHECK(JointIndices(spokes[1], got, 8) == 1, "and every spoke list");
+
+    // The spokes overlap the hub, yet jointed bodies never touch: the
+    // pair filter reads the rebuilt lists. Spokes still touch each
+    // other, which proves contacts are being generated at all.
+    int32_t hubTouches = 0;
+    int32_t spokeTouches = 0;
+    for (int32_t i = 0; i < 10; ++i)
+    {
+        m2World_Step(world, 1.0f / 60.0f, 4);
+        m2ContactEvents events = m2World_GetContactEvents(world);
+        for (int32_t e = 0; e < events.beginCount; ++e)
+        {
+            int32_t a = m2Shape_GetBody(events.beginEvents[e].shapeIdA).index1;
+            int32_t b = m2Shape_GetBody(events.beginEvents[e].shapeIdB).index1;
+            if (a == hub.index1 || b == hub.index1)
+            {
+                hubTouches += 1;
+            }
+            else
+            {
+                spokeTouches += 1;
+            }
+        }
+    }
+    CHECK(hubTouches == 0, "jointed bodies never touch after a restore");
+    CHECK(spokeTouches > 0, "unjointed overlapping bodies do touch");
+
+    free(snap);
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
+    TestJointAdjacency();
     TestDistancePendulum();
     TestDistanceRope();
     TestRevoluteChain();

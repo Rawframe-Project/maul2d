@@ -122,9 +122,15 @@ typedef struct m2World
     float* jointSpringImpulse; // revolute angular spring accumulator
     float* jointBreakForce;    // 0 = unbreakable (snapshot state)
     uint8_t* jointCollide;     // 0 = connected bodies never pair (snapshot state)
-    m2Pos2* jointTargets;      // mouse joints: world target (snapshot state)
-    m2Pos2* jointTargetsB;     // pulley: second ground anchor (snapshot state)
-    uint64_t* jointUserData;   // opaque (snapshot state)
+    // Per-body joint adjacency. Each live joint is listed once under
+    // each of its bodies as edge 2 * joint + side (side 0 = body A,
+    // side 1 = body B); every list is kept in ascending joint order.
+    // Derived state: never snapshotted, rebuilt after a restore.
+    int32_t* bodyJointHead;  // first edge per body, -1 = none
+    int32_t* jointEdgeNext;  // next edge in the same body's list, -1 = end
+    m2Pos2* jointTargets;    // mouse joints: world target (snapshot state)
+    m2Pos2* jointTargetsB;   // pulley: second ground anchor (snapshot state)
+    uint64_t* jointUserData; // opaque (snapshot state)
     float* jointBreakTorque;
     uint16_t* jointGenerations;
     // Fluids: slot-stable SoA, FIFO recycling, never compacted (the

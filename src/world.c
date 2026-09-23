@@ -142,19 +142,77 @@ static void PushMoved(m2World* world, int32_t shapeIndex)
     world->movedCount += 1;
 }
 
-// Reference default: jointed bodies do not collide. A linear scan is
-// fine at Maul's joint counts; worlds without joints skip it via the
-// maxJointIndex fast path at the call site.
-static bool JointsForbidPair(const m2World* world, int32_t bodyA, int32_t bodyB)
+// Inserts edge (2 * joint + side) into body's list, keeping the list in
+// ascending joint order so walks visit joints in slot order.
+static void LinkJointEdge(m2World* world, int32_t body, int32_t edge)
 {
+    int32_t joint = edge >> 1;
+    int32_t* link = &world->bodyJointHead[body];
+    while (*link != -1 && (*link >> 1) < joint)
+    {
+        link = &world->jointEdgeNext[*link];
+    }
+    world->jointEdgeNext[edge] = *link;
+    *link = edge;
+}
+
+static void UnlinkJointEdge(m2World* world, int32_t body, int32_t edge)
+{
+    int32_t* link = &world->bodyJointHead[body];
+    while (*link != -1 && *link != edge)
+    {
+        link = &world->jointEdgeNext[*link];
+    }
+    M2_ASSERT(*link == edge);
+    if (*link == edge)
+    {
+        *link = world->jointEdgeNext[edge];
+        world->jointEdgeNext[edge] = -1;
+    }
+}
+
+static void LinkJoint(m2World* world, int32_t joint)
+{
+    LinkJointEdge(world, world->jointBodyA[joint], 2 * joint);
+    LinkJointEdge(world, world->jointBodyB[joint], 2 * joint + 1);
+}
+
+static void UnlinkJoint(m2World* world, int32_t joint)
+{
+    UnlinkJointEdge(world, world->jointBodyA[joint], 2 * joint);
+    UnlinkJointEdge(world, world->jointBodyB[joint], 2 * joint + 1);
+}
+
+// Rebuilds every adjacency list from the joint arrays, after a restore
+// has replaced them wholesale.
+static void RebuildJointEdges(m2World* world)
+{
+    for (int32_t b = 0; b < world->bodyCapacity; ++b)
+    {
+        world->bodyJointHead[b] = -1;
+    }
+    for (int32_t e = 0; e < 2 * world->jointCapacity; ++e)
+    {
+        world->jointEdgeNext[e] = -1;
+    }
     for (int32_t j = 0; j < world->maxJointIndex; ++j)
     {
-        if (world->jointAlive[j] == 0 || world->jointCollide[j] != 0)
+        if (world->jointAlive[j] != 0)
         {
-            continue;
+            LinkJoint(world, j);
         }
-        if ((world->jointBodyA[j] == bodyA && world->jointBodyB[j] == bodyB) ||
-            (world->jointBodyA[j] == bodyB && world->jointBodyB[j] == bodyA))
+    }
+}
+
+// Jointed bodies do not collide unless the joint allows it. Walks only
+// body A's joints, so the cost is its joint count, not the world's.
+static bool JointsForbidPair(const m2World* world, int32_t bodyA, int32_t bodyB)
+{
+    for (int32_t e = world->bodyJointHead[bodyA]; e != -1; e = world->jointEdgeNext[e])
+    {
+        int32_t j = e >> 1;
+        int32_t other = (e & 1) != 0 ? world->jointBodyA[j] : world->jointBodyB[j];
+        if (other == bodyB && world->jointCollide[j] == 0)
         {
             return true;
         }
@@ -386,8 +444,7 @@ static void UpdatePairs(m2World* world)
                 {
                     continue; // filtered out (category/mask, both ways)
                 }
-                if (world->maxJointIndex > 0 &&
-                    JointsForbidPair(world, world->shapeBody[shapeIndex], world->shapeBody[other]))
+                if (JointsForbidPair(world, world->shapeBody[shapeIndex], world->shapeBody[other]))
                 {
                     continue; // connected without collideConnected
                 }
@@ -1100,6 +1157,8 @@ m2WorldId m2CreateWorld(const m2WorldDef* def)
     M2_ALLOC(jointAlive, jointCap, uint8_t);
     M2_ALLOC(jointBodyA, jointCap, int32_t);
     M2_ALLOC(jointBodyB, jointCap, int32_t);
+    M2_ALLOC(bodyJointHead, cap, int32_t);
+    M2_ALLOC(jointEdgeNext, 2 * jointCap, int32_t);
     M2_ALLOC(jointLocalAnchorA, jointCap, m2Vec2);
     M2_ALLOC(jointLocalAnchorB, jointCap, m2Vec2);
     M2_ALLOC(jointLength, jointCap, float);
@@ -1258,6 +1317,7 @@ m2WorldId m2CreateWorld(const m2WorldDef* def)
     {
         world->freeQueue[i] = i;
         world->bodyShapeHead[i] = -1;
+        world->bodyJointHead[i] = -1;
     }
     for (int32_t i = 0; i < shapeCap; ++i)
     {
@@ -1270,6 +1330,10 @@ m2WorldId m2CreateWorld(const m2WorldDef* def)
     for (int32_t i = 0; i < jointCap; ++i)
     {
         world->jointFreeQueue[i] = i;
+    }
+    for (int32_t i = 0; i < 2 * jointCap; ++i)
+    {
+        world->jointEdgeNext[i] = -1;
     }
     world->jointFreeCount = jointCap;
     for (int32_t i = 0; i < world->particleCapacity; ++i)
@@ -1353,6 +1417,8 @@ void m2DestroyWorld(m2WorldId worldId)
     m2Free(world->jointAlive);
     m2Free(world->jointBodyA);
     m2Free(world->jointBodyB);
+    m2Free(world->bodyJointHead);
+    m2Free(world->jointEdgeNext);
     m2Free(world->jointLocalAnchorA);
     m2Free(world->jointLocalAnchorB);
     m2Free(world->jointLength);
@@ -2009,6 +2075,7 @@ bool m2World_Restore(m2WorldId worldId, const void* buffer, int32_t size)
     int32_t cursor = (int32_t)sizeof(header) + WalkBlocks(world, NULL, in + sizeof(header), 1);
     M2_ASSERT(cursor == size);
     (void)cursor;
+    RebuildJointEdges(world);
 
     // Restores are first-class journal citizens: the tape carries the
     // snapshot itself, so rollback-heavy sessions replay bit-exactly.
@@ -2351,13 +2418,11 @@ void m2DestroyBody(m2BodyId bodyId)
 
     // Joints attached to this body die with it; the counterpart body
     // wakes (a support vanished).
-    for (int32_t j = 0; j < world->maxJointIndex; ++j)
+    // The body's list is in ascending joint order, the order a full
+    // scan would free the slots in.
+    while (world->bodyJointHead[index] != -1)
     {
-        if (world->jointAlive[j] == 0 ||
-            (world->jointBodyA[j] != index && world->jointBodyB[j] != index))
-        {
-            continue;
-        }
+        int32_t j = world->bodyJointHead[index] >> 1;
         int32_t other = world->jointBodyA[j] == index ? world->jointBodyB[j] : world->jointBodyA[j];
         if (world->types[other] == (uint8_t)m2_dynamicBody)
         {
@@ -2365,6 +2430,7 @@ void m2DestroyBody(m2BodyId bodyId)
             world->sleepTimes[other] = 0.0f;
         }
         world->jointAlive[j] = 0;
+        UnlinkJoint(world, j);
         if (world->jointGenerations[j] == UINT16_MAX)
         {
             world->jointRetiredCount += 1;
@@ -4092,13 +4158,9 @@ int32_t m2Body_GetJoints(m2BodyId bodyId, m2JointId* ids, int32_t capacity)
         return 0;
     }
     int32_t total = 0;
-    for (int32_t j = 0; j < world->maxJointIndex; ++j)
+    for (int32_t e = world->bodyJointHead[index]; e != -1; e = world->jointEdgeNext[e])
     {
-        if (world->jointAlive[j] == 0 ||
-            (world->jointBodyA[j] != index && world->jointBodyB[j] != index))
-        {
-            continue;
-        }
+        int32_t j = e >> 1;
         if (ids != NULL && total < capacity)
         {
             m2JointId id = {j + 1, world->worldIndex0, world->jointGenerations[j]};
@@ -4729,6 +4791,7 @@ static m2JointId FinishJoint(m2World* world, m2WorldId worldId, int32_t index, u
     world->jointTargetsB[index] = (m2Pos2){0.0, 0.0};
     world->jointUserData[index] = 0;
     world->jointAlive[index] = 1;
+    LinkJoint(world, index);
     // A new constraint wakes both ends.
     world->asleep[bodyA] = 0;
     world->sleepTimes[bodyA] = 0.0f;
@@ -5356,6 +5419,7 @@ void m2DestroyJointInternal(m2World* world, int32_t index)
         world->sleepTimes[bodyB] = 0.0f;
     }
     world->jointAlive[index] = 0;
+    UnlinkJoint(world, index);
     if (world->jointCollide[index] == 0)
     {
         RefilterJointedBodies(world, bodyA, bodyB); // pairs may return
