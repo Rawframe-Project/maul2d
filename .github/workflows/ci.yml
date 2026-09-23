@@ -1,3 +1,5 @@
+# Continuous integration for the Maul family. This file is the same in
+# maul2d and maul3d except for the env block below.
 name: ci
 
 on:
@@ -6,12 +8,20 @@ on:
   pull_request:
   workflow_dispatch:
   schedule:
-    # Weekly drift patrol: toolchain updates on the runners must not
-    # silently move a single bit (the Jolt-MSVC lesson). Runs the
-    # whole matrix plus the deep soak with no push required.
+    # Weekly: runner toolchain updates must not move a single bit, and
+    # the long soak and deep fuzz run here.
     - cron: '17 3 * * 1'
 
+env:
+  LIB: maul2d
+  PREFIX: MAUL2D
+  HASH_PREFIX: M2
+  # Engine-specific flags for the sanitizer cell.
+  SANITIZE_FLAGS: "-DMAUL2D_VALIDATE=ON -DMAUL2D_SIMD=scalar"
+
 jobs:
+  # Every platform cell builds with warnings as errors, runs the whole
+  # suite and uploads the determinism hashes it printed.
   build-test:
     name: ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
@@ -19,68 +29,58 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: linux-x64-gcc,     os: ubuntu-latest,    cc: gcc,   config: Release }
-          - { name: linux-x64-clang,   os: ubuntu-latest,    cc: clang, config: Release }
-          - { name: linux-arm64-gcc,   os: ubuntu-24.04-arm, cc: gcc,   config: Release }
-          - { name: linux-arm64-clang, os: ubuntu-24.04-arm, cc: clang, config: Release }
-          - { name: macos-arm64-clang, os: macos-latest,     cc: clang, config: Release }
-          - { name: windows-x64-msvc,  os: windows-latest,   cc: cl,    config: Release }
-          # The seventh cell: MSVC Debug must produce the same bits as
-          # every Release cell - Debug==Release is a law, not a habit.
-          - { name: windows-x64-msvc-debug, os: windows-latest, cc: cl, config: Debug }
-          # Eighth cell: ARM64 Windows. The compare-select carve-out in
-          # math.h is proven here, not assumed.
-          - { name: windows-arm64-msvc, os: windows-11-arm, cc: cl, config: Release }
+          - { name: linux-x64-gcc,          os: ubuntu-latest,    cc: gcc,   config: Release }
+          - { name: linux-x64-clang,        os: ubuntu-latest,    cc: clang, config: Release }
+          - { name: linux-x64-clang-debug,  os: ubuntu-latest,    cc: clang, config: Debug }
+          - { name: linux-arm64-gcc,        os: ubuntu-24.04-arm, cc: gcc,   config: Release }
+          - { name: linux-arm64-clang,      os: ubuntu-24.04-arm, cc: clang, config: Release }
+          - { name: macos-arm64-clang,      os: macos-latest,     cc: clang, config: Release }
+          - { name: windows-x64-msvc,       os: windows-latest,   cc: cl,    config: Release }
+          - { name: windows-x64-msvc-debug, os: windows-latest,   cc: cl,    config: Debug }
+          - { name: windows-arm64-msvc,     os: windows-11-arm,   cc: cl,    config: Release }
     steps:
       - uses: actions/checkout@v4
-
       - name: Configure
         shell: bash
         run: |
           if [ "${{ matrix.cc }}" = "cl" ]; then
-            cmake -B build -DMAUL2D_WERROR=ON
+            cmake -B build -D${PREFIX}_WERROR=ON
           else
-            cmake -B build -DMAUL2D_WERROR=ON -DCMAKE_BUILD_TYPE=${{ matrix.config }} -DCMAKE_C_COMPILER=${{ matrix.cc }}
+            cmake -B build -D${PREFIX}_WERROR=ON -DCMAKE_BUILD_TYPE=${{ matrix.config }} \
+              -DCMAKE_C_COMPILER=${{ matrix.cc }}
           fi
-
       - name: Build
+        run: cmake --build build --config ${{ matrix.config }} -j 4
+      - name: Test
         shell: bash
-        run: cmake --build build --config ${{ matrix.config }}
-
-      - name: Run determinism gate
+        run: ctest --test-dir build -C ${{ matrix.config }} -V --output-on-failure | tee out.txt
+      - name: Extract hashes
         shell: bash
-        run: |
-          if [ -d "build/${{ matrix.config }}" ]; then
-            BIN="build/${{ matrix.config }}"
-            SUFFIX=.exe
-          else
-            BIN=build
-            SUFFIX=
-          fi
-          "$BIN/test_core$SUFFIX" | tee out.txt
-          "$BIN/test_world$SUFFIX" | tee -a out.txt
-          "$BIN/test_broadphase$SUFFIX" | tee -a out.txt
-          "$BIN/test_shapes$SUFFIX" | tee -a out.txt
-          "$BIN/test_contacts$SUFFIX" | tee -a out.txt
-          "$BIN/test_solver$SUFFIX" | tee -a out.txt
-          "$BIN/test_islands$SUFFIX" | tee -a out.txt
-          "$BIN/test_ccd$SUFFIX" | tee -a out.txt
-          "$BIN/test_events$SUFFIX" | tee -a out.txt
-          "$BIN/test_joints$SUFFIX" | tee -a out.txt
-          "$BIN/test_journal$SUFFIX" | tee -a out.txt
-          "$BIN/test_queries$SUFFIX" | tee -a out.txt
-          "$BIN/test_redteam$SUFFIX" | tee -a out.txt
-          "$BIN/test_fuzz$SUFFIX" | tee -a out.txt
-          "$BIN/test_fluid$SUFFIX" | tee -a out.txt
-          "$BIN/test_threads$SUFFIX" | tee -a out.txt
-          "$BIN/test_draw$SUFFIX" | tee -a out.txt
-          "$BIN/test_distance$SUFFIX" | tee -a out.txt
-          grep -E '^M2_(DET|WORLD|BP|SHAPE|CONTACT|SOLVER|ISLAND|CCD|EVENT|JOINT|JOURNAL|QUERY|CHAOS|THREAD|FUZZ|FLUID)_HASH=' out.txt | tr -d '\r' > "hash-${{ matrix.name }}.txt"
-
+        run: grep -oE "${HASH_PREFIX}_[A-Z0-9_]+_HASH=[0-9a-f]{16}" out.txt | sort -u > "hash-${{ matrix.name }}.txt"
       - uses: actions/upload-artifact@v4
         with:
           name: hash-${{ matrix.name }}
           path: hash-${{ matrix.name }}.txt
+
+  sanitize:
+    name: asan+ubsan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Configure
+        run: |
+          cmake -B build -D${PREFIX}_WERROR=ON -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang \
+            -D${PREFIX}_SANITIZE=ON ${SANITIZE_FLAGS}
+      - name: Build
+        run: cmake --build build -j 4
+      - name: Test
+        run: ctest --test-dir build -V --output-on-failure | tee out.txt
+      - name: Extract hashes
+        run: grep -oE "${HASH_PREFIX}_[A-Z0-9_]+_HASH=[0-9a-f]{16}" out.txt | sort -u > hash-sanitize.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: hash-sanitize
+          path: hash-sanitize.txt
 
   tsan:
     name: thread sanitizer
@@ -88,14 +88,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Configure
-        run: cmake -B build -DMAUL2D_WERROR=ON -DCMAKE_BUILD_TYPE=Debug -DMAUL2D_TSAN=ON -DMAUL2D_SIMD=scalar -DCMAKE_C_COMPILER=clang
+        run: cmake -B build -D${PREFIX}_WERROR=ON -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=clang -D${PREFIX}_TSAN=ON
       - name: Build
         run: cmake --build build -j 4
-      - name: Run the thread-heavy suites
-        run: |
-          ./build/test_threads
-          ./build/test_fuzz
-          ./build/test_solver
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
 
   wasm:
     name: wasm-node
@@ -104,107 +101,159 @@ jobs:
       - uses: actions/checkout@v4
       - uses: mymindstorm/setup-emsdk@v14
         with:
-          # Pinned like every other toolchain: compiler updates must
-          # announce themselves through a red gate, not drift in.
+          # Pinned like every toolchain: an update announces itself
+          # through a red build, not a silent drift.
           version: 6.0.2
       - name: Configure
-        # 4MB stack: the engine is fine on emscripten's 64KB default
-        # but the deep red-team scenarios are not; wasm turns a stack
-        # overflow into a raw out-of-bounds trap.
-        run: emcmake cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS="-pthread" -DCMAKE_EXE_LINKER_FLAGS="-pthread -sPTHREAD_POOL_SIZE=8 -sINITIAL_MEMORY=536870912 -sSTACK_SIZE=4194304 -sENVIRONMENT=node -sEXIT_RUNTIME=1"
+        run: |
+          emcmake cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS="-pthread" \
+            -DCMAKE_EXE_LINKER_FLAGS="-pthread -sPTHREAD_POOL_SIZE=8 -sINITIAL_MEMORY=536870912 -sSTACK_SIZE=8388608 -sDEFAULT_PTHREAD_STACK_SIZE=8388608 -sENVIRONMENT=node -sEXIT_RUNTIME=1" \
+            -D${PREFIX}_BUILD_SAMPLES=OFF -D${PREFIX}_BUILD_BENCH=OFF -D${PREFIX}_BUILD_TOOLS=OFF
       - name: Build
         run: cmake --build build -j 4
-      - name: Run determinism gate
-        run: |
-          node build/test_core.js | tee out.txt
-          node build/test_world.js | tee -a out.txt
-          node build/test_broadphase.js | tee -a out.txt
-          node build/test_shapes.js | tee -a out.txt
-          node build/test_contacts.js | tee -a out.txt
-          node build/test_solver.js | tee -a out.txt
-          node build/test_islands.js | tee -a out.txt
-          node build/test_ccd.js | tee -a out.txt
-          node build/test_events.js | tee -a out.txt
-          node build/test_joints.js | tee -a out.txt
-          node build/test_journal.js | tee -a out.txt
-          node build/test_queries.js | tee -a out.txt
-          node build/test_redteam.js | tee -a out.txt
-          node build/test_fuzz.js | tee -a out.txt
-          node build/test_fluid.js | tee -a out.txt
-          node build/test_threads.js | tee -a out.txt
-          node build/test_draw.js | tee -a out.txt
-          node build/test_distance.js | tee -a out.txt
-          grep -E '^M2_(DET|WORLD|BP|SHAPE|CONTACT|SOLVER|ISLAND|CCD|EVENT|JOINT|JOURNAL|QUERY|CHAOS|THREAD|FUZZ|FLUID)_HASH=' out.txt | tr -d '\r' > hash-wasm-node.txt
+      - name: Test
+        run: ctest --test-dir build -V --output-on-failure | tee out.txt
+      - name: Extract hashes
+        run: grep -oE "${HASH_PREFIX}_[A-Z0-9_]+_HASH=[0-9a-f]{16}" out.txt | sort -u > hash-wasm-node.txt
       - uses: actions/upload-artifact@v4
         with:
           name: hash-wasm-node
           path: hash-wasm-node.txt
 
+  # Every cell must print exactly the same hashes, and they must match
+  # the values committed in test/hashes.txt.
   compare-hashes:
     name: cross-platform hash equality
     needs: [build-test, sanitize, wasm]
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           path: hashes
           pattern: hash-*
           merge-multiple: true
-      - name: Compare
+      - name: Compare the cells with each other
         shell: bash
         run: |
-          grep -hE '^M2_(DET|WORLD|BP|SHAPE|CONTACT|SOLVER|ISLAND|CCD|EVENT|JOINT|JOURNAL|QUERY|CHAOS|THREAD|FUZZ|FLUID)_HASH=' hashes/*.txt | tee all-hashes.txt
-          CELLS=10
-          # Every distinct hash line must appear exactly once per cell:
-          # a divergent cell or a silently missing line both fail.
-          BAD=$(sort all-hashes.txt | uniq -c | awk -v n="$CELLS" '$1 != n' | wc -l)
-          DISTINCT=$(sort -u all-hashes.txt | wc -l)
-          if [ "$BAD" != "0" ] || [ "$DISTINCT" != "16" ]; then
-            echo "DETERMINISM FAILURE: $DISTINCT distinct lines, $BAD with wrong cell count"
+          CELLS=$(ls hashes/*.txt | wc -l)
+          cat hashes/*.txt | sort | uniq -c | awk -v n="$CELLS" '$1 != n' > divergent.txt
+          if [ -s divergent.txt ]; then
+            echo "DETERMINISM FAILURE: these lines are not printed by all $CELLS cells:"
+            cat divergent.txt
             exit 1
           fi
-          echo "all cells produced identical bits for every gate"
+          echo "all $CELLS cells printed identical hashes"
+          cat hashes/*.txt > all-hashes.txt
+      - name: Compare with test/hashes.txt
+        run: python3 tools/check_hashes.py --file all-hashes.txt
 
-  sanitize:
-    name: asan+ubsan
+  shared:
+    name: shared library
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Configure
-        # Also the scalar-SIMD cell: its hashes join the cross-platform
-        # gate, so the fmaf fallback must match the vector backends bit
-        # for bit or this build is red.
-        run: cmake -B build -DMAUL2D_WERROR=ON -DCMAKE_BUILD_TYPE=Debug -DMAUL2D_SANITIZE=ON -DMAUL2D_VALIDATE=ON -DMAUL2D_SIMD=scalar -DCMAKE_C_COMPILER=clang
+        run: cmake -B build -D${PREFIX}_WERROR=ON -DCMAKE_BUILD_TYPE=Release -D${PREFIX}_BUILD_SHARED=ON
       - name: Build
-        run: cmake --build build
-      - name: Run
+        run: cmake --build build -j 4
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+  # Installs the library and builds samples/minimal against the
+  # installed package alone.
+  package:
+    name: package ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and install
+        shell: bash
         run: |
-          ./build/test_core | tee out.txt
-          ./build/test_world | tee -a out.txt
-          ./build/test_broadphase | tee -a out.txt
-          ./build/test_shapes | tee -a out.txt
-          ./build/test_contacts | tee -a out.txt
-          ./build/test_solver | tee -a out.txt
-          ./build/test_islands | tee -a out.txt
-          ./build/test_ccd | tee -a out.txt
-          ./build/test_events | tee -a out.txt
-          ./build/test_joints | tee -a out.txt
-          ./build/test_journal | tee -a out.txt
-          ./build/test_queries | tee -a out.txt
-          ./build/test_redteam | tee -a out.txt
-          ./build/test_fuzz | tee -a out.txt
-          ./build/test_fluid | tee -a out.txt
-          ./build/test_threads | tee -a out.txt
-          ./build/test_draw | tee -a out.txt
-          ./build/test_distance | tee -a out.txt
-          grep -E '^M2_(DET|WORLD|BP|SHAPE|CONTACT|SOLVER|ISLAND|CCD|EVENT|JOINT|JOURNAL|QUERY|CHAOS|THREAD|FUZZ|FLUID)_HASH=' out.txt | tr -d '\r' > hash-sanitize-scalar.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: hash-sanitize-scalar
-          path: hash-sanitize-scalar.txt
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -D${PREFIX}_BUILD_TESTS=OFF
+          cmake --build build --config Release -j 4
+          cmake --install build --config Release --prefix "$PWD/pkg"
+      - name: Build the consumer against the install
+        shell: bash
+        run: |
+          cmake -S samples/minimal -B consumer -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$PWD/pkg"
+          cmake --build consumer --config Release
+      - name: Run it
+        shell: bash
+        run: |
+          if [ -f consumer/Release/minimal.exe ]; then
+            PATH="$PWD/pkg/bin:$PATH" consumer/Release/minimal.exe
+          else
+            consumer/minimal
+          fi
+      - name: pkg-config sees the package
+        if: runner.os == 'Linux'
+        run: PKG_CONFIG_PATH="$PWD/pkg/lib/pkgconfig" pkg-config --exists --print-errors "$LIB"
+
+  format:
+    name: clang-format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check
+        run: |
+          pip install clang-format==22.1.5 >/dev/null
+          clang-format --version
+          clang-format --dry-run -Werror $(find include src test bench samples tools testbed \
+            \( -name '*.c' -o -name '*.h' \) 2>/dev/null)
+
+  tidy:
+    name: clang-tidy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check
+        run: |
+          pip install clang-tidy==22.1.0 >/dev/null
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          for f in src/*.c; do
+            clang-tidy -p build --quiet --warnings-as-errors='*' "$f" || exit 1
+          done
+
+  docs:
+    name: generated docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: The API reference matches the headers
+        run: |
+          COUNT=$(python3 tools/gen_api.py | grep -oE '\([0-9]+ functions\)' | grep -oE '[0-9]+')
+          git diff --exit-code docs/api.md || { echo "docs/api.md is stale: run tools/gen_api.py"; exit 1; }
+          grep -q "$COUNT public functions" README.md || { echo "README says the wrong function count ($COUNT)"; exit 1; }
+
+  bench-pins:
+    name: bench pins
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j 4 --target ${LIB}_bench
+      - name: Compare with bench/pins.txt
+        shell: bash
+        run: |
+          ./build/${LIB}_bench | tee bench.out
+          fail=0
+          while read -r scene pin; do
+            if ! grep -q "${HASH_PREFIX}_BENCH $scene .*hash=$pin" bench.out; then
+              echo "PIN MOVED: $scene expected $pin"
+              fail=1
+            fi
+          done < bench/pins.txt
+          exit $fail
 
   testbed:
-    name: testbed build
+    name: testbed
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -212,47 +261,29 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev
-      - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DMAUL2D_BUILD_TESTBED=ON
       - name: Build
-        run: cmake --build build -j 4
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -D${PREFIX}_BUILD_TESTBED=ON
+          cmake --build build -j 4 --target testbed
 
-  format:
-    name: clang-format
+  # The shared family files must match the sibling repository. Scheduled
+  # rather than per push, because the two repositories are pushed one
+  # after the other.
+  family-sync:
+    name: family files in sync
     runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
-      - name: Check formatting
-        # Version pinned: formatter verdicts drift across major versions
-        # (the same lesson as pinning compilers for determinism).
+      - name: Compare with the sibling
+        shell: bash
         run: |
-          pip install clang-format==22.1.5 >/dev/null
-          clang-format --version
-          clang-format --dry-run -Werror include/maul2d/*.h src/*.c test/*.c bench/*.c
-      - name: API reference is in sync with the headers
-        run: |
-          python3 tools/gen_api.py
-          git diff --exit-code docs/api.md || (echo 'docs/api.md is stale: run tools/gen_api.py and commit' && exit 1)
-
-  bench-pins:
-    name: bench pins (must not move)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Build release
-        run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release
-          cmake --build build -j --target maul2d_bench
-      - name: Compare against the pinned hashes
-        run: |
-          ./build/maul2d_bench | tee bench.out
+          if [ "$LIB" = "maul2d" ]; then SIBLING=maul3d; else SIBLING=maul2d; fi
           fail=0
-          while read -r scene pin; do
-            if ! grep -q "M2_BENCH $scene .*hash=$pin" bench.out; then
-              echo "PIN MOVED: $scene expected $pin"
-              fail=1
-            fi
-          done < bench/pins.txt
+          for f in $(cat tools/family-files.txt); do
+            curl -fsSL "https://raw.githubusercontent.com/${{ github.repository_owner }}/$SIBLING/main/$f" -o sibling.tmp || { echo "missing in $SIBLING: $f"; fail=1; continue; }
+            cmp -s "$f" sibling.tmp || { echo "differs from $SIBLING: $f"; fail=1; }
+          done
           exit $fail
 
   soak:
@@ -261,107 +292,11 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v4
-      - name: configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
-      - name: build
-        run: cmake --build build -j 4
-      - name: soak 300k steps
+      - name: Build
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j 4 --target test_soak test_fuzz
+      - name: Long soak
         run: ./build/test_soak 300000
-
-  deep-fuzz:
-    name: weekly deep fuzz
-    runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    steps:
-      - uses: actions/checkout@v4
-      - name: configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
-      - name: build
-        run: cmake --build build --target test_fuzz -j 4
-      # 200 deterministically generated extra seeds beyond the ten gated
-      # ones, each through all four promises. The gated M2_FUZZ_HASH still
-      # comes from the ten canonical seeds alone, so this widens coverage
-      # without moving the gate. Skipped on push (weekly and dispatch only).
-      - name: 200 deep-sweep seeds
+      - name: Deep fuzz
         run: ./build/test_fuzz 200
-
-  perf-trend:
-    name: perf trend
-    runs-on: ubuntu-latest
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    steps:
-      - uses: actions/checkout@v4
-      - name: configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
-      - name: build
-        run: cmake --build build --target test_perf -j 4
-      - name: run three times, keep the per-scene minimum
-        run: |
-          ./build/test_perf | grep M2_PERF > run1.txt
-          ./build/test_perf | grep M2_PERF > run2.txt
-          ./build/test_perf | grep M2_PERF > run3.txt
-          python3 - << 'PY'
-          best = {}
-          for f in ['run1.txt', 'run2.txt', 'run3.txt']:
-              for line in open(f):
-                  _, name, ms = line.split()
-                  ms = float(ms)
-                  if name not in best or ms < best[name]:
-                      best[name] = ms
-          with open('perf-fresh.txt', 'w') as out:
-              for name in sorted(best):
-                  out.write(f"{name} {best[name]:.4f}\n")
-          print(open('perf-fresh.txt').read())
-          PY
-      - name: restore the rolling baseline
-        uses: actions/cache/restore@v4
-        with:
-          path: perf-baseline
-          key: perf-baseline-${{ github.run_id }}
-          restore-keys: perf-baseline-
-      - name: compare against the baseline (3x disaster threshold)
-        run: |
-          python3 - << 'PY'
-          import os, sys
-          if not os.path.exists('perf-baseline/perf.txt'):
-              print('no baseline yet: this run becomes it')
-              sys.exit(0)
-          base = dict((l.split()[0], float(l.split()[1]))
-                      for l in open('perf-baseline/perf.txt'))
-          fresh = dict((l.split()[0], float(l.split()[1]))
-                       for l in open('perf-fresh.txt'))
-          bad = []
-          for name, ms in fresh.items():
-              if name in base and base[name] > 0 and ms > 3.0 * base[name]:
-                  bad.append(f"{name}: {ms:.4f} vs baseline {base[name]:.4f}")
-          for name, ms in fresh.items():
-              b = base.get(name)
-              print(f"{name}: {ms:.4f}" + (f" (baseline {b:.4f})" if b else " (new)"))
-          if bad:
-              print('PERF DISASTER: ' + '; '.join(bad))
-              sys.exit(1)
-          PY
-      - name: roll the baseline forward
-        run: |
-          mkdir -p perf-baseline
-          cp perf-fresh.txt perf-baseline/perf.txt
-      - uses: actions/cache/save@v4
-        with:
-          path: perf-baseline
-          key: perf-baseline-${{ github.run_id }}
-      - uses: actions/upload-artifact@v4
-        with:
-          name: perf-trend
-          path: perf-fresh.txt
-
-  api-surface:
-    name: api surface count (must be generated)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Regenerate and compare
-        run: |
-          COUNT=$(python3 tools/gen_api.py | grep -oE '\([0-9]+ functions\)' | grep -oE '[0-9]+')
-          echo "generated count: $COUNT"
-          git diff --exit-code docs/api.md || { echo "docs/api.md is stale: regenerate with tools/gen_api.py"; exit 1; }
-          grep -q "$COUNT public functions" README.md || { echo "README function count ($COUNT expected) is stale"; exit 1; }

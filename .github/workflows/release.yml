@@ -1,16 +1,18 @@
+# A pushed tag vX.Y.Z builds the release: the installed library tree
+# (library, headers, CMake package, pkg-config file) for each platform,
+# and the testbed. The same file serves both engines.
 name: release
 
-# Tag push = prebuilt static libraries attached to the GitHub
-# release: install tree (lib + headers + cmake package + pkg-config)
-# per platform, straight from the same sources the gates just ran.
-# The tag name only ever enters shell steps through a quoted
-# environment variable (workflow-injection hygiene).
 on:
   push:
     tags: ['v*']
 
 permissions:
   contents: write
+
+env:
+  LIB: maul2d
+  PREFIX: MAUL2D
 
 jobs:
   package:
@@ -20,52 +22,43 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { name: linux-x64, os: ubuntu-latest, archive: tar, simd: auto }
-          - { name: windows-x64, os: windows-latest, archive: zip, simd: auto }
-          - { name: macos-arm64, os: macos-latest, archive: tar, simd: auto }
-          # Portable x64 variants: the scalar backend is bit-identical to
-          # AVX2 (the scalar CI cell proves it) but runs on any x64,
-          # including pre-Haswell, at the cost of some speed. The default
-          # x64 packages above require AVX2 (Haswell 2013+).
-          - { name: linux-x64-portable, os: ubuntu-latest, archive: tar, simd: scalar }
-          - { name: windows-x64-portable, os: windows-latest, archive: zip, simd: scalar }
-    env:
-      TAG: ${{ github.ref_name }}
-      PLATFORM: ${{ matrix.name }}
+          - { name: linux-x64, os: ubuntu-latest, archive: tar }
+          - { name: linux-arm64, os: ubuntu-24.04-arm, archive: tar }
+          - { name: macos-arm64, os: macos-latest, archive: tar }
+          - { name: windows-x64, os: windows-latest, archive: zip }
     steps:
       - uses: actions/checkout@v4
-      - name: configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DMAUL2D_SIMD=${{ matrix.simd }}
-      - name: build
-        run: cmake --build build --config Release -j 4
-      - name: install
+      - name: Build and install
         shell: bash
-        run: cmake --install build --config Release --prefix "stage/maul2d-$TAG-$PLATFORM"
-      - name: archive (tar)
-        if: matrix.archive == 'tar'
-        working-directory: stage
-        shell: bash
-        run: tar czf "../maul2d-$TAG-$PLATFORM.tar.gz" "maul2d-$TAG-$PLATFORM"
-      - name: archive (zip)
-        if: matrix.archive == 'zip'
-        working-directory: stage
-        shell: bash
-        run: 7z a "../maul2d-$TAG-$PLATFORM.zip" "maul2d-$TAG-$PLATFORM"
-      - name: ensure the release exists
         env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: gh release view "$TAG" || gh release create "$TAG" --title "$TAG" --generate-notes || true
-      - name: upload to the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
+          TAG: ${{ github.ref_name }}
         run: |
-          FILE=$(ls "maul2d-$TAG-$PLATFORM."*)
-          gh release upload "$TAG" "$FILE" --clobber
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -D${PREFIX}_BUILD_TESTS=OFF \
+            -D${PREFIX}_BUILD_SAMPLES=OFF -D${PREFIX}_BUILD_BENCH=OFF
+          cmake --build build --config Release -j 4
+          cmake --install build --config Release --prefix "stage/$LIB-$TAG-${{ matrix.name }}"
+      - name: Archive
+        shell: bash
+        env:
+          TAG: ${{ github.ref_name }}
+        working-directory: stage
+        run: |
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            7z a "../$LIB-$TAG-${{ matrix.name }}.zip" "$LIB-$TAG-${{ matrix.name }}"
+          else
+            tar czf "../$LIB-$TAG-${{ matrix.name }}.tar.gz" "$LIB-$TAG-${{ matrix.name }}"
+          fi
+      - name: Upload
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release view "$TAG" || gh release create "$TAG" --title "$TAG" --notes-file CHANGELOG.md || true
+          gh release upload "$TAG" $(ls "$LIB-$TAG-${{ matrix.name }}".*) --clobber
 
   testbed:
-    name: package testbed ${{ matrix.name }}
+    name: testbed ${{ matrix.name }}
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -73,38 +66,34 @@ jobs:
         include:
           - { name: linux-x64, os: ubuntu-latest }
           - { name: windows-x64, os: windows-latest }
-    env:
-      TAG: ${{ github.ref_name }}
-      PLATFORM: ${{ matrix.name }}
     steps:
       - uses: actions/checkout@v4
-      - name: install X11 and OpenGL (linux testbed viewer)
-        if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev libglu1-mesa-dev libxkbcommon-dev
-      - name: configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DMAUL2D_BUILD_TESTBED=ON
-      - name: build
-        run: cmake --build build --config Release --target testbed -j 4
-      - name: stage and archive
+      - name: Dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev
+      - name: Build
         shell: bash
+        run: |
+          cmake -B build -DCMAKE_BUILD_TYPE=Release -D${PREFIX}_BUILD_TESTBED=ON
+          cmake --build build --config Release --target testbed -j 4
+      - name: Archive and upload
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
         run: |
           mkdir -p stage
-          if [ "$PLATFORM" = "windows-x64" ]; then
-            cp build/testbed/Release/testbed.exe "stage/Maul2D-testbed.exe" 2>/dev/null || cp build/testbed/testbed.exe "stage/Maul2D-testbed.exe"
-            cd stage && 7z a "../Maul2D-testbed-$TAG-$PLATFORM.zip" "Maul2D-testbed.exe"
+          NAME="$LIB-testbed-$TAG-${{ matrix.name }}"
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            cp build/testbed/Release/testbed.exe "stage/$LIB-testbed.exe"
+            (cd stage && 7z a "../$NAME.zip" .)
+            FILE="$NAME.zip"
           else
-            cp build/testbed/testbed "stage/Maul2D-testbed"
-            cd stage && tar czf "../Maul2D-testbed-$TAG-$PLATFORM.tar.gz" "Maul2D-testbed"
+            cp build/testbed/testbed "stage/$LIB-testbed"
+            (cd stage && tar czf "../$NAME.tar.gz" .)
+            FILE="$NAME.tar.gz"
           fi
-      - name: ensure the release exists
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: gh release view "$TAG" || gh release create "$TAG" --title "$TAG" --generate-notes || true
-      - name: upload to the release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        shell: bash
-        run: |
-          FILE=$(ls "Maul2D-testbed-$TAG-$PLATFORM."*)
+          gh release view "$TAG" || gh release create "$TAG" --title "$TAG" --notes-file CHANGELOG.md || true
           gh release upload "$TAG" "$FILE" --clobber

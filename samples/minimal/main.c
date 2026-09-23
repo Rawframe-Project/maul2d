@@ -50,13 +50,13 @@ int main(void)
     printf("wrecked hash %016llx\n", (unsigned long long)m2World_Hash(world));
 
     m2World_Restore(world, snap, size);
+    int matches = m2World_Hash(world) == before;
     printf("restored hash %016llx (matches the snapshot moment: %s)\n",
-           (unsigned long long)m2World_Hash(world),
-           (unsigned long long)m2World_Hash(world) == before ? "yes" : "NO");
+           (unsigned long long)m2World_Hash(world), matches ? "yes" : "NO");
 
     m2Pos2 p = m2Body_GetPosition(top);
     printf("tower top after rollback: (%.2f, %.2f)\n", p.x, p.y);
     free(snap);
     m2DestroyWorld(world);
-    return 0;
+    return matches ? 0 : 1;
 }

@@ -45,6 +45,14 @@ Work toward 0.0.1, the first release of the reworked library.
   engine does not use.
 - Every test suite uses the shared `test/test_harness.h` instead of
   its own copy of the check macro.
+- CI is the family workflow shared with Maul3D: every test suite runs
+  on every cell through CTest, hashes are compared across cells and
+  with `test/hashes.txt`, and clang-tidy, the package consumer and a
+  shared-library build are checked on every push. Releases ship Linux
+  (x64 and arm64), macOS and Windows packages; the portable x64
+  package is gone, build with `-DMAUL2D_SIMD=scalar` instead. The
+  documentation site now carries the guide, the API reference and the
+  changelog, and the browser testbed moves to `/testbed/`.
 
 ### Removed
 

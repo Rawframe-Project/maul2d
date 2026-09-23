@@ -20,7 +20,7 @@ m2World_Snapshot(world, buffer, size);
 m2World_Restore(world, buffer, size); // bit-exact resimulation from here
 ```
 
-**[Try the testbed in your browser](https://rawframe-project.github.io/maul2d/)**.
+**[Try the testbed in your browser](https://rawframe-project.github.io/maul2d/testbed/)**.
 It is the same engine compiled to WebAssembly; hold R and time runs
 backward.
 
@@ -95,9 +95,11 @@ character mover, a machinery hall, particle goo and a rewind ring.
 - One set of results across the AVX2, NEON and scalar kernels.
 - Canonical ordering on every path, and scheduling that never changes
   results.
-- CI compares the determinism hashes printed by the tests across ten
-  platform cells: x64 and arm64, GCC, Clang and MSVC, scalar and
-  WebAssembly.
+- CI compares the determinism hashes printed by the tests across
+  eleven cells: GCC, Clang and MSVC on x64 and arm64 Linux and
+  Windows, Clang on arm64 macOS, Debug builds, a sanitizer build with
+  the scalar backend, and WebAssembly. They must also match the
+  values committed in `test/hashes.txt`.
 - A fuzzer drives random sessions through journal replay, rollback,
   unjournaled and threaded twins on every seed, and a weekly
   scheduled run adds a long soak.
