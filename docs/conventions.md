@@ -115,8 +115,10 @@ Root files are `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`,
 - Public headers declare only the API. Nothing internal appears in
   `include/`, not even "for internal use" declarations.
 - A source file stays under 1000 lines and a function under 80 lines.
-  A longer function carries a one-line comment at its top saying why
-  it is kept whole. CI measures both.
+  A longer one is listed in `tools/length-exceptions.txt` with a
+  ceiling and the reason it is kept whole. The list only shrinks:
+  nothing may grow past its ceiling, and an entry that is back under
+  its limit is deleted. CI runs `tools/check_lengths.py`.
 - No global mutable state except the documented process-wide hooks
   (allocator, assert handler), which are set before the first world
   exists, and the thread-local error slot.

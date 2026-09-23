@@ -86,6 +86,14 @@ Work toward 0.0.1, the first release of the reworked library.
   headers, with new distance.h, island.h, ccd.h, buoyancy.h and
   query.h. maul2d/base.h includes <stdbool.h> like Maul3D's. Results
   are bit-identical.
+- The step reads as its stages: m2World_Step and m2SolveStep hand
+  their passes (the event window, hibernation, proxy refits, touch
+  events, particle aging, velocity and position integration, joint
+  breaks) to named functions. A length rule now holds functions to 80
+  lines and source files to 1000: tools/check_lengths.py runs in CI,
+  and the existing exceptions sit in tools/length-exceptions.txt with
+  their reasons and a ceiling that may only shrink. Results are bit-
+  identical.
 
 ### Removed
 

@@ -276,25 +276,10 @@ bool m2World_IsValid(m2WorldId worldId)
     return m2GetWorld(worldId) != NULL;
 }
 
-void m2World_Step(m2WorldId worldId, float dt, int32_t substepCount)
+// Opens a fresh event window: clears the public buffers, then flushes the
+// ends queued by destroys between steps (they belong to this window).
+static void OpenEventWindow(m2World* world)
 {
-    m2World* world = m2GetWorld(worldId);
-    if (world == NULL || !m2FiniteF(dt) || !(dt > 0.0f) || substepCount < 1)
-    {
-        m2Refuse(world, m2_errorInvalid);
-        return;
-    }
-    if (world->recorder.journalActive != 0)
-    {
-        m2OpStep marker;
-        memset(&marker, 0, sizeof(marker));
-        marker.dt = dt;
-        marker.substepCount = substepCount;
-        m2JournalRecord(world, m2_opStep, &marker, (int32_t)sizeof(marker));
-    }
-
-    // Fresh event window: clear the public buffers, then flush ends
-    // queued by between-step destroys (they belong to this window).
     world->events.beginEventCount = 0;
     world->events.endEventCount = 0;
     for (int32_t i = 0; i < world->events.pendingEndCount && i < world->contacts.pairCapacity; ++i)
@@ -312,57 +297,47 @@ void m2World_Step(m2WorldId worldId, float dt, int32_t substepCount)
     }
     world->events.pendingSensorEndCount = 0;
     world->events.jointBreakEventCount = 0;
+}
 
-    // Wall-clock diagnostics only; never fed back into simulation.
-    uint64_t tStart = m2TimeNowNs();
-
-    // Hibernation: when every dynamic body sleeps, no kinematic is
-    // moving and nothing was teleported, the full pipeline provably
-    // changes no state at all (frozen pairs copy themselves, islands
-    // rebuild to the same roots, the solver has no constraints). Skip
-    // it wholesale - bit-identical by construction, and a sleeping
-    // city costs what a sleeping city should.
-    if (world->broadphase.movedCount == 0 && world->particles.particleCount == 0)
+// Hibernation: when every dynamic body sleeps, no kinematic moves and
+// nothing was teleported, the pipeline provably changes no state (frozen
+// pairs copy themselves, islands rebuild to the same roots, the solver
+// has no constraints), so the step can skip it bit-identically.
+static bool WorldIsHibernating(const m2World* world)
+{
+    if (world->broadphase.movedCount != 0 || world->particles.particleCount != 0)
     {
-        bool anyoneStirring = false;
-        for (int32_t i = 0; i < world->bodies.maxBodyIndex && !anyoneStirring; ++i)
+        return false;
+    }
+    bool anyoneStirring = false;
+    for (int32_t i = 0; i < world->bodies.maxBodyIndex && !anyoneStirring; ++i)
+    {
+        if (world->bodies.alive[i] == 0)
         {
-            if (world->bodies.alive[i] == 0)
-            {
-                continue;
-            }
-            if (world->bodies.types[i] == (uint8_t)m2_dynamicBody)
-            {
-                // A body that JUST fell asleep still owes one manifold
-                // refresh (its stash can be one solve stale - the same
-                // freshness rule the frozen-pair skip lives by).
-                anyoneStirring = world->bodies.disabled[i] == 0 &&
-                                 (world->bodies.asleep[i] == 0 || world->bodies.sleepStreak[i] < 2);
-            }
-            else if (world->bodies.types[i] == (uint8_t)m2_kinematicBody)
-            {
-                anyoneStirring = world->bodies.linearVelocities[i].x != 0.0f ||
-                                 world->bodies.linearVelocities[i].y != 0.0f ||
-                                 world->bodies.angularVelocities[i] != 0.0f;
-            }
+            continue;
         }
-        if (!anyoneStirring)
+        if (world->bodies.types[i] == (uint8_t)m2_dynamicBody)
         {
-            world->profile.stepMs = (float)((double)(m2TimeNowNs() - tStart) * 1.0e-6);
-            world->profile.pairsMs = 0.0f;
-            world->profile.contactsMs = 0.0f;
-            world->profile.solveMs = 0.0f;
-            world->profile.sleepMs = 0.0f;
-            world->stepCount += 1;
-            return;
+            // A body that JUST fell asleep still owes one manifold
+            // refresh (its stash can be one solve stale - the same
+            // freshness rule the frozen-pair skip lives by).
+            anyoneStirring = world->bodies.disabled[i] == 0 &&
+                             (world->bodies.asleep[i] == 0 || world->bodies.sleepStreak[i] < 2);
+        }
+        else if (world->bodies.types[i] == (uint8_t)m2_kinematicBody)
+        {
+            anyoneStirring = world->bodies.linearVelocities[i].x != 0.0f ||
+                             world->bodies.linearVelocities[i].y != 0.0f ||
+                             world->bodies.angularVelocities[i] != 0.0f;
         }
     }
+    return !anyoneStirring;
+}
 
-    // Collide first (reference order): broadphase + narrowphase produce
-    // fresh manifolds from current positions, then the solver moves the
-    // world. Warm-start impulses arrive via the manifold carry.
-    // Broadphase update: single-threaded, fixed body order, shape-list
-    // order within a body (both snapshot-deterministic).
+// Refits the proxies of every moving body whose tight box left its fat
+// box: fixed body order, shape-list order within a body.
+static void MoveProxies(m2World* world)
+{
     for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
         if (world->bodies.alive[i] == 0 || world->bodies.disabled[i] != 0 ||
@@ -384,15 +359,12 @@ void m2World_Step(m2WorldId worldId, float dt, int32_t substepCount)
             }
         }
     }
-    world->contacts.oldPairCount = world->contacts.pairCount;
-    m2StashContacts(world);
-    m2UpdatePairs(world);
-    uint64_t tPairs = m2TimeNowNs();
-    m2UpdateContacts(world);
-    uint64_t tContacts = m2TimeNowNs();
+}
 
-    // Touch transitions in canonical contact order (serial compaction:
-    // the topic-08 event law, scalar edition).
+// Begin and end events for every pair whose touching flag changed, in
+// canonical pair order.
+static void EmitTouchEvents(m2World* world)
+{
     for (int32_t i = 0; i < world->contacts.pairCount; ++i)
     {
         uint8_t touchingNow = world->contacts.manifolds[i].pointCount > 0 ? 1 : 0;
@@ -423,60 +395,35 @@ void m2World_Step(m2WorldId worldId, float dt, int32_t substepCount)
             world->contacts.pairTouching[i] = touchingNow;
         }
     }
+}
 
-    if (world->particles.particleCount > 0)
+// Particle lifetimes count down and expire in ascending slot order at
+// step end; derived from state, so no journal op, and it replays and
+// rolls back by itself.
+static void AgeParticles(m2World* world, m2WorldId worldId, float dt)
+{
+    for (int32_t i = 0; i < world->particles.maxParticleIndex; ++i)
     {
-        // The whole fluid pass runs once per step before the rigid
-        // solve, the reference schedule; pairs freeze at step start.
-        // It runs BEFORE the island update so a body the water wakes
-        // pulls its whole island awake, the island-coupled sleep law.
-        m2SolveParticles(world, dt);
-        // Lifetimes count down and expire in ascending slot order at
-        // step end; derived from state, so no journal op and it
-        // replays and rolls back by itself.
-        for (int32_t i = 0; i < world->particles.maxParticleIndex; ++i)
+        if (world->particles.particleAlive[i] == 0 || world->particles.particleLifetime[i] <= 0.0f)
         {
-            if (world->particles.particleAlive[i] == 0 ||
-                world->particles.particleLifetime[i] <= 0.0f)
-            {
-                continue;
-            }
-            world->particles.particleLifetime[i] -= dt;
-            if (world->particles.particleLifetime[i] <= 0.0f)
-            {
-                m2ParticleId dying = {i + 1, worldId.index1,
-                                      world->particles.particleGenerations[i]};
-                uint8_t journalWas = world->recorder.journalActive;
-                world->recorder.journalActive = 0; // derived death is never recorded
-                m2World_DestroyParticle(dying);
-                world->recorder.journalActive = journalWas;
-            }
+            continue;
+        }
+        world->particles.particleLifetime[i] -= dt;
+        if (world->particles.particleLifetime[i] <= 0.0f)
+        {
+            m2ParticleId dying = {i + 1, worldId.index1, world->particles.particleGenerations[i]};
+            uint8_t journalWas = world->recorder.journalActive;
+            world->recorder.journalActive = 0; // derived death is never recorded
+            m2World_DestroyParticle(dying);
+            world->recorder.journalActive = journalWas;
         }
     }
-    if (world->volumes.maxFvIndex > 0)
-    {
-        // Buoyancy feeds the force accumulators before the solve, so
-        // it integrates alongside gravity and dies with the step.
-        m2ApplyFluidVolumes(world, dt);
-    }
-    if (world->windLinearDrag > 0.0f)
-    {
-        // Global wind, after buoyancy and before the solve (canonical
-        // fluid-then-wind order): an area-weighted linear drag toward
-        // the wind velocity into the same force accumulators.
-        m2ApplyWind(world, dt);
-    }
-    m2UpdateIslandsAndWake(world);
-    uint64_t tIslands = m2TimeNowNs();
-    m2SolveStep(world, dt, substepCount);
-    uint64_t tSolve = m2TimeNowNs();
-    m2UpdateSleep(world, dt);
-#ifdef MAUL2D_VALIDATE
-    // The validate build walks the invariants after every step.
-    M2_ASSERT(m2World_Validate(worldId));
-#endif
-    // Freshness streak: two consecutive step-ends asleep guarantee the
-    // stashed manifolds were computed from these exact transforms.
+}
+
+// Two consecutive step ends asleep guarantee the stashed manifolds were
+// computed from these exact transforms.
+static void AgeSleepStreaks(m2World* world)
+{
     for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
         if (world->bodies.alive[i] == 0 || world->bodies.types[i] != (uint8_t)m2_dynamicBody)
@@ -488,21 +435,108 @@ void m2World_Step(m2WorldId worldId, float dt, int32_t substepCount)
                 ? (uint8_t)(world->bodies.sleepStreak[i] < 2 ? world->bodies.sleepStreak[i] + 1 : 2)
                 : 0;
     }
-    uint64_t tEnd = m2TimeNowNs();
+}
 
-    world->profile.stepMs = (float)((double)(tEnd - tStart) * 1.0e-6);
-    world->profile.pairsMs = (float)((double)(tPairs - tStart) * 1.0e-6);
-    world->profile.contactsMs = (float)((double)(tContacts - tPairs) * 1.0e-6);
-    world->profile.solveMs = (float)((double)(tSolve - tIslands) * 1.0e-6);
-    world->profile.sleepMs =
-        (float)((double)(tIslands - tContacts) * 1.0e-6 + (double)(tEnd - tSolve) * 1.0e-6);
-
-    // Forces live for exactly one step (reference lifetime).
+// Forces live for exactly one step.
+static void ClearForces(m2World* world)
+{
     for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
         world->bodies.forces[i] = (m2Vec2){0.0f, 0.0f};
         world->bodies.torques[i] = 0.0f;
     }
+}
+
+// Wall-clock stage times from the step's clock marks: start, pairs,
+// contacts, islands, solve, end. Diagnostics only.
+static void RecordProfile(m2World* world, const uint64_t marks[6])
+{
+    world->profile.stepMs = (float)((double)(marks[5] - marks[0]) * 1.0e-6);
+    world->profile.pairsMs = (float)((double)(marks[1] - marks[0]) * 1.0e-6);
+    world->profile.contactsMs = (float)((double)(marks[2] - marks[1]) * 1.0e-6);
+    world->profile.solveMs = (float)((double)(marks[4] - marks[3]) * 1.0e-6);
+    world->profile.sleepMs =
+        (float)((double)(marks[3] - marks[2]) * 1.0e-6 + (double)(marks[5] - marks[4]) * 1.0e-6);
+}
+
+void m2World_Step(m2WorldId worldId, float dt, int32_t substepCount)
+{
+    m2World* world = m2GetWorld(worldId);
+    if (world == NULL || !m2FiniteF(dt) || !(dt > 0.0f) || substepCount < 1)
+    {
+        m2Refuse(world, m2_errorInvalid);
+        return;
+    }
+    if (world->recorder.journalActive != 0)
+    {
+        m2OpStep marker;
+        memset(&marker, 0, sizeof(marker));
+        marker.dt = dt;
+        marker.substepCount = substepCount;
+        m2JournalRecord(world, m2_opStep, &marker, (int32_t)sizeof(marker));
+    }
+    OpenEventWindow(world);
+
+    // Wall-clock diagnostics only; never fed back into simulation.
+    uint64_t tStart = m2TimeNowNs();
+    if (WorldIsHibernating(world))
+    {
+        world->profile.stepMs = (float)((double)(m2TimeNowNs() - tStart) * 1.0e-6);
+        world->profile.pairsMs = 0.0f;
+        world->profile.contactsMs = 0.0f;
+        world->profile.solveMs = 0.0f;
+        world->profile.sleepMs = 0.0f;
+        world->stepCount += 1;
+        return;
+    }
+
+    // Collide first: broadphase and narrowphase build fresh manifolds from
+    // the current positions (warm-start impulses carry over through them),
+    // then the solver moves the world.
+    MoveProxies(world);
+    world->contacts.oldPairCount = world->contacts.pairCount;
+    m2StashContacts(world);
+    m2UpdatePairs(world);
+    uint64_t tPairs = m2TimeNowNs();
+    m2UpdateContacts(world);
+    uint64_t tContacts = m2TimeNowNs();
+    EmitTouchEvents(world);
+
+    if (world->particles.particleCount > 0)
+    {
+        // The fluid pass runs once per step before the rigid solve, with
+        // pairs frozen at step start, and before the island update, so a
+        // body the water wakes pulls its whole island awake.
+        m2SolveParticles(world, dt);
+        AgeParticles(world, worldId, dt);
+    }
+    if (world->volumes.maxFvIndex > 0)
+    {
+        // Buoyancy feeds the force accumulators before the solve, so it
+        // integrates alongside gravity and dies with the step.
+        m2ApplyFluidVolumes(world, dt);
+    }
+    if (world->windLinearDrag > 0.0f)
+    {
+        // Wind after buoyancy and before the solve: an area-weighted
+        // linear drag toward the wind velocity, into the same accumulators.
+        m2ApplyWind(world, dt);
+    }
+    m2UpdateIslandsAndWake(world);
+    uint64_t tIslands = m2TimeNowNs();
+    m2SolveStep(world, dt, substepCount);
+    uint64_t tSolve = m2TimeNowNs();
+    m2UpdateSleep(world, dt);
+#ifdef MAUL2D_VALIDATE
+    // The validate build walks the invariants after every step.
+    M2_ASSERT(m2World_Validate(worldId));
+#endif
+    AgeSleepStreaks(world);
+    uint64_t tEnd = m2TimeNowNs();
+
+    uint64_t marks[6] = {tStart, tPairs, tContacts, tIslands, tSolve, tEnd};
+    RecordProfile(world, marks);
+    ClearForces(world);
     world->stepCount += 1;
 }
 

@@ -20,5 +20,6 @@ docs/conventions.md
 test/test_harness.h
 tools/build_docs.py
 tools/check_hashes.py
+tools/check_lengths.py
 tools/family-files.txt
 tools/gen_api.py
