@@ -234,3 +234,6 @@ Work toward 0.0.1, the first release of the reworked library.
 - A ray starting inside a rounded polygon reported the exit point as a
   hit; it now hits at fraction 0 with a zero normal, like every other
   solid shape.
+- GJK reported rounding noise as a small positive distance, with a
+  noise normal, when the origin fell on the simplex of overlapping
+  cores; it now reports the overlap.

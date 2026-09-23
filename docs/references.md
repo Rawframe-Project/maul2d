@@ -65,9 +65,27 @@ these descriptions, never copied from other implementations (see
 - A. M. Andrew, "Another Efficient Algorithm for Convex Hulls in Two
   Dimensions", *Information Processing Letters* 9(5), 1979. The
   monotone chain hull.
+- C. B. Barber, D. P. Dobkin and H. Huhdanpaa, "The Quickhull Algorithm
+  for Convex Hulls", *ACM Transactions on Mathematical Software* 22(4),
+  1996. The 3D hull: points wait on the face they lie farthest above,
+  and the farthest is added next through the horizon of the faces it
+  sees.
+- D. Gregorius, "The Separating Axis Test between Convex Polyhedra",
+  Game Developers Conference, 2013. Edge pairs of two hulls only form a
+  face of their Minkowski difference when the Gauss map arcs of their
+  adjacent face normals cross; only those pairs are tested.
+- M. E. Newell's method for the plane of a polygon (see I. E.
+  Sutherland, R. F. Sproull and R. A. Schumacker, "A Characterization of
+  Ten Hidden-Surface Algorithms", *Computing Surveys* 6(1), 1974): the
+  normal as the sum over edges, robust for nearly flat loops.
 
 ## Mass properties
 
+- J. Blow and A. J. Binstock, "How to Find the Inertia Tensor (or Other
+  Mass Properties) of a 3D Solid Body Represented by a Triangle Mesh",
+  2004. The covariance of a tetrahedron as the canonical tetrahedron's
+  covariance mapped by the tetrahedron's edge matrix; the 3D hull mass
+  sums it over a fan of each face.
 - J. Steiner's formula for parallel bodies: a convex region swollen by
   a radius r gains its perimeter times r plus a disc of radius r. The
   mass of rounded polygons and capsules follows this decomposition

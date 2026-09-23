@@ -170,6 +170,7 @@ m2DistanceResult m2ShapeDistance(const m2DistanceProxy* proxyA, const m2Distance
     Simplex s;
     s.v[0] = MakeVertex(proxyA, proxyB, 0, 0);
     s.count = 1;
+    bool enclosed = false;
     for (int32_t iter = 0; iter < 24; ++iter)
     {
         // A support point already in the simplex before this reduction
@@ -185,7 +186,8 @@ m2DistanceResult m2ShapeDistance(const m2DistanceProxy* proxyA, const m2Distance
         }
         if (s.count == 3)
         {
-            break; // the origin is enclosed: the cores overlap
+            enclosed = true; // the origin is enclosed: the cores overlap
+            break;
         }
         m2Vec2 v = {0.0f, 0.0f}; // the closest point of the difference to the origin
         for (int32_t i = 0; i < s.count; ++i)
@@ -193,10 +195,19 @@ m2DistanceResult m2ShapeDistance(const m2DistanceProxy* proxyA, const m2Distance
             v.x += s.v[i].weight * s.v[i].w.x;
             v.y += s.v[i].weight * s.v[i].w.y;
         }
+        // The origin on the simplex, up to rounding against the simplex's
+        // own size: the cores touch, and the blended witnesses would only
+        // carry noise.
         float vv = Dot(v, v);
-        if (vv == 0.0f)
+        float scale = 0.0f;
+        for (int32_t i = 0; i < s.count; ++i)
         {
-            break; // exactly touching cores
+            scale = m2MaxF(scale, Dot(s.v[i].w, s.v[i].w));
+        }
+        if (vv <= 1.0e-12f * scale)
+        {
+            enclosed = true;
+            break;
         }
         // The support point opposite v: A's farthest along v, B's
         // farthest against it.
@@ -211,13 +222,13 @@ m2DistanceResult m2ShapeDistance(const m2DistanceProxy* proxyA, const m2Distance
     }
     m2DistanceResult result;
     result.pointA = Blend(&s, true);
-    result.pointB = s.count == 3 ? result.pointA : Blend(&s, false);
+    result.pointB = enclosed ? result.pointA : Blend(&s, false);
     m2Vec2 gap = Sub(result.pointB, result.pointA);
     result.distance = sqrtf(Dot(gap, gap));
     result.normal = result.distance > 0.0f
                         ? (m2Vec2){gap.x / result.distance, gap.y / result.distance}
                         : (m2Vec2){0.0f, 0.0f};
-    if (s.count == 3)
+    if (enclosed)
     {
         result.distance = 0.0f;
         result.normal = (m2Vec2){0.0f, 0.0f};

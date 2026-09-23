@@ -299,8 +299,29 @@ static void TestFromGeometry(void)
     CHECK(fabsf(r.distance - 4.0f) < 1.0e-3f, "a geometry box measures 4 to a point at x=5");
 }
 
+// Nested cores whose simplex passes exactly through the origin: the
+// origin lies on the simplex, which is an overlap, not a tiny distance
+// with a noise normal.
+static void TestOriginOnSimplex(void)
+{
+    const float sizes[3][2] = {{1.0f, 0.3f}, {1.7f, 0.2f}, {3.5f, 0.4f}};
+    for (int32_t k = 0; k < 3; ++k)
+    {
+        float ha = sizes[k][0];
+        float hb = sizes[k][1];
+        m2Vec2 big[4] = {{-ha, -ha}, {ha, -ha}, {ha, ha}, {-ha, ha}};
+        m2Vec2 small[4] = {{-hb, -hb}, {hb, -hb}, {hb, hb}, {-hb, hb}};
+        m2DistanceProxy a = Proxy(big, 4, 0.0f);
+        m2DistanceProxy b = Proxy(small, 4, 0.0f);
+        m2DistanceResult r = m2ShapeDistance(&a, &b);
+        CHECK(r.distance == 0.0f, "nested cores report no distance");
+        CHECK(r.normal.x == 0.0f && r.normal.y == 0.0f, "and no normal");
+    }
+}
+
 int main(void)
 {
+    TestOriginOnSimplex();
     TestAnalyticDistances();
     TestSimplexRegionSweep();
     TestOverlapAndContainment();
