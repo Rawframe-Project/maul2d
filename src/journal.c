@@ -345,7 +345,7 @@ static bool ReplayOps(m2WorldId worldId, const void* data, int32_t size)
     {                                                                                              \
         return false;                                                                              \
     }                                                                                              \
-    memcpy(&name, in + cursor, sizeof(type));                                                      \
+    memcpy(&name, in + cursor, sizeof(type)); /* NOLINT(bugprone-macro-parentheses): a type */     \
     cursor += (int32_t)sizeof(type)
         switch (op)
         {

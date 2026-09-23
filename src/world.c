@@ -914,6 +914,7 @@ static void UpdateContactsRange(int32_t begin, int32_t end, void* userCtx)
                 int32_t mid = (flo + fhi) / 2;
                 if (world->oldPairScratch[mid] == world->pairKeys[i])
                 {
+                    // NOLINTNEXTLINE(clang-analyzer-core.NullDereference): allocated at creation
                     world->manifolds[i] = world->manifoldScratch[mid];
                     // Recompute would match every id against itself and
                     // set the persisted bit; the copy owes the same.
@@ -1059,9 +1060,8 @@ m2WorldId m2CreateWorld(const m2WorldDef* def)
     if (def->particleCapacity < 0 ||
         (def->particleCapacity > 0 &&
          (!(def->particleRadius >= 0.02f) || !(def->particleDensity > 0.0f) ||
-          !(def->particleGravityScale == def->particleGravityScale) ||
-          !(def->particlePressureStrength >= 0.0f) || !(def->particleDampingStrength >= 0.0f) ||
-          !(def->particleViscousStrength >= 0.0f) ||
+          !m2FiniteF(def->particleGravityScale) || !(def->particlePressureStrength >= 0.0f) ||
+          !(def->particleDampingStrength >= 0.0f) || !(def->particleViscousStrength >= 0.0f) ||
           !(def->particleTensilePressureStrength >= 0.0f) ||
           !(def->particleTensileNormalStrength >= 0.0f) || !(def->particlePowderStrength >= 0.0f) ||
           !(def->particleSpringStrength >= 0.0f) || !(def->particleElasticStrength >= 0.0f))))
@@ -3698,8 +3698,7 @@ m2Vec2 m2World_GetGravity(m2WorldId worldId)
 void m2World_SetWind(m2WorldId worldId, m2Vec2 velocity, float linearDrag)
 {
     m2World* world = GetWorld(worldId);
-    if (world == NULL || !(linearDrag >= 0.0f) || !(velocity.x == velocity.x) ||
-        !(velocity.y == velocity.y))
+    if (world == NULL || !(linearDrag >= 0.0f) || !m2FiniteVec2(velocity))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -3827,7 +3826,7 @@ void m2SetShapeParamInternal(m2World* world, m2ShapeId shapeId, uint8_t param, f
 void m2Shape_SetTangentSpeed(m2ShapeId shapeId, float speed)
 {
     m2World* world = WorldFromIndex(shapeId.world0);
-    if (world != NULL && speed == speed)
+    if (world != NULL && m2FiniteF(speed))
     {
         // The wake now rides inside the journaled channel, so the live call
         // and its replay leave identical sleep state.
@@ -6900,8 +6899,7 @@ m2ParticleId m2World_EmitParticle(m2WorldId worldId, m2Pos2 position, m2Vec2 vel
         m2Refuse(world, m2_errorInvalid); // no particle system in this world: misuse
         return m2_nullParticleId;
     }
-    if (!(position.x == position.x && position.y == position.y && velocity.x == velocity.x &&
-          velocity.y == velocity.y))
+    if (!m2FinitePos2(position) || !m2FiniteVec2(velocity))
     {
         m2Refuse(world, m2_errorInvalid); // NaN screen, the def-validation law
         return m2_nullParticleId;
@@ -7039,7 +7037,7 @@ void m2Particle_SetVelocity(m2ParticleId particleId, m2Vec2 velocity)
 {
     m2World* world = WorldFromIndex(particleId.world0);
     int32_t index = ParticleSlot(world, particleId);
-    if (index < 0 || !(velocity.x == velocity.x && velocity.y == velocity.y))
+    if (index < 0 || !m2FiniteVec2(velocity))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -7395,11 +7393,11 @@ bool m2World_Validate(m2WorldId worldId)
             continue;
         }
         m2Transform xf = world->transforms[i];
-        M2_CHECK_INVARIANT(xf.p.x == xf.p.x && xf.p.y == xf.p.y);
-        M2_CHECK_INVARIANT(xf.q.c == xf.q.c && xf.q.s == xf.q.s);
+        M2_CHECK_INVARIANT(m2FinitePos2(xf.p));
+        M2_CHECK_INVARIANT(m2FiniteF(xf.q.c) && m2FiniteF(xf.q.s));
         m2Vec2 v = world->linearVelocities[i];
-        M2_CHECK_INVARIANT(v.x == v.x && v.y == v.y);
-        M2_CHECK_INVARIANT(world->angularVelocities[i] == world->angularVelocities[i]);
+        M2_CHECK_INVARIANT(m2FiniteVec2(v));
+        M2_CHECK_INVARIANT(m2FiniteF(world->angularVelocities[i]));
         M2_CHECK_INVARIANT(world->types[i] <= 2);
     }
     for (int32_t i = 0; i < world->maxShapeIndex; ++i)
@@ -7439,9 +7437,9 @@ bool m2World_Validate(m2WorldId worldId)
             }
             alive += 1;
             m2Pos2 p = world->particlePositions[i];
-            M2_CHECK_INVARIANT(p.x == p.x && p.y == p.y);
+            M2_CHECK_INVARIANT(m2FinitePos2(p));
             m2Vec2 v = world->particleVelocities[i];
-            M2_CHECK_INVARIANT(v.x == v.x && v.y == v.y);
+            M2_CHECK_INVARIANT(m2FiniteVec2(v));
         }
         M2_CHECK_INVARIANT(alive == world->particleCount);
         for (int32_t k = 0; k < world->particleSpringCount; ++k)

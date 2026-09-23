@@ -189,7 +189,7 @@ m2FluidVolumeId m2World_CreateFluidVolume(m2WorldId worldId, const m2FluidVolume
         return m2_nullFluidVolumeId;
     }
     if (!(def->density >= 0.0f) || !(def->linearDrag >= 0.0f) || !(def->angularDrag >= 0.0f) ||
-        !(def->surface == def->surface))
+        !m2FiniteF(def->surface))
     {
         m2Refuse(world, m2_errorInvalid);
         return m2_nullFluidVolumeId;
@@ -276,7 +276,7 @@ void m2FluidVolume_SetSurface(m2FluidVolumeId volumeId, double surface)
 {
     m2World* world = m2WorldFromIndex0(volumeId.world0);
     int32_t index = FvSlot(world, volumeId);
-    if (index < 0 || !(surface == surface))
+    if (index < 0 || !m2FiniteF(surface))
     {
         m2Refuse(world, m2_errorInvalid);
         return;

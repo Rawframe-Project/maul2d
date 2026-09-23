@@ -6,7 +6,7 @@
 // the host's executor (integration audit A1): observer machinery,
 // never a hash input.
 #if !defined(_WIN32)
-#define _POSIX_C_SOURCE 199309L // clock_gettime
+#define _POSIX_C_SOURCE 199309L // NOLINT(bugprone-reserved-identifier): clock_gettime
 #endif
 #include "world_internal.h"
 

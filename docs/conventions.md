@@ -93,6 +93,10 @@ Root files are `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`,
 - 4 spaces, no tabs, 100 columns, Allman braces, braces on every
   `if`, `else`, `for`, `while` and `do`.
 - One declaration per line. Declare variables at first use.
+- `clang-tidy` runs with the checked-in `.clang-tidy` and CI fails on
+  any finding. A finding is fixed, or, when the code is right as it
+  stands, suppressed on its line with `NOLINT(check-name)` followed by
+  the reason.
 - Files end with one newline, use LF line endings and UTF-8 without a
   byte order mark (`.editorconfig`, `.gitattributes`).
 

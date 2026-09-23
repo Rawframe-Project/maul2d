@@ -23,7 +23,7 @@
 
 static bool IsFiniteF(float x)
 {
-    return x == x && x < 3.4e38f && x > -3.4e38f;
+    return m2FiniteF(x);
 }
 
 static bool IsFiniteVec(m2Vec2 v)
@@ -582,7 +582,7 @@ int32_t m2DecomposeOutline(const m2Vec2* points, int32_t count, m2Polygon* piece
     for (int32_t i = 0; i < count; ++i)
     {
         m2Vec2 p = points[i];
-        if (!(p.x == p.x) || !(p.y == p.y))
+        if (!m2FiniteF(p.x) || !m2FiniteF(p.y))
         {
             m2Refuse(NULL, m2_errorInvalid);
             return 0;

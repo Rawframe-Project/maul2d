@@ -1710,6 +1710,24 @@ static void TestValidateAndCounters(void)
     m2DestroyWorld(world);
 }
 
+static void TestInfiniteInputIsRefused(void)
+{
+    // NaN was refused before; infinity slipped through the x == x
+    // check. Both are refused now.
+    m2WorldDef def = m2DefaultWorldDef();
+    def.particleCapacity = 8;
+    m2WorldId world = m2CreateWorld(&def);
+    float inf = 1.0f / 0.0f;
+    m2ParticleId p =
+        m2World_EmitParticle(world, (m2Pos2){0.0, (double)inf}, (m2Vec2){0.0f, 0.0f}, 0);
+    CHECK(p.index1 == 0 && m2LastResult() == m2_errorInvalid, "an infinite position is refused");
+    m2World_SetWind(world, (m2Vec2){inf, 0.0f}, 0.1f);
+    m2Vec2 wind = {1.0f, 1.0f};
+    m2World_GetWind(world, &wind, NULL);
+    CHECK(wind.x == 0.0f && wind.y == 0.0f, "an infinite wind is refused");
+    m2DestroyWorld(world);
+}
+
 static void TestEveryRefusalHasAReason(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
@@ -2281,6 +2299,7 @@ static void TestWind(void)
 
 int main(void)
 {
+    TestInfiniteInputIsRefused();
     TestEveryRefusalHasAReason();
     TestRuntimeGravity();
     TestDominance();

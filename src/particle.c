@@ -904,6 +904,7 @@ int32_t m2World_FillPolygonWithParticles(m2WorldId worldId, const m2Polygon* pol
     bool wantTriads = (flags & m2_elasticParticle) != 0;
     int32_t count = 0;
     bool full = false;
+    // NOLINTNEXTLINE(bugprone-float-loop-counter): the accumulated rows are part of the fill result
     for (float y = minY + 0.5f * stride; y < maxY && !full; y += stride)
     {
         for (int32_t i = 0; i < M2_FILL_COLUMNS; ++i)
@@ -911,6 +912,7 @@ int32_t m2World_FillPolygonWithParticles(m2WorldId worldId, const m2Polygon* pol
             currRow[i] = -1;
         }
         int32_t col = 0;
+        // NOLINTNEXTLINE(bugprone-float-loop-counter): as above, for columns
         for (float x = minX + 0.5f * stride; x < maxX && !full; x += stride, ++col)
         {
             bool inside = true;

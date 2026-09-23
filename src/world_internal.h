@@ -492,6 +492,26 @@ int32_t m2ContactConstraintSize(void);
 // stale or null id. Not part of the public ABI.
 m2World* m2World_GetInternal(m2WorldId worldId);
 
+// Finite checks for caller input and invariants. NaN compares false
+// and infinity minus infinity is NaN, so x - x == 0 refuses NaN and
+// both infinities in one test without libm.
+static inline bool m2FiniteF(float x)
+{
+    return x - x == 0.0f; // NOLINT(misc-redundant-expression): the finite test
+}
+static inline bool m2FiniteD(double x)
+{
+    return x - x == 0.0; // NOLINT(misc-redundant-expression): the finite test
+}
+static inline bool m2FiniteVec2(m2Vec2 v)
+{
+    return m2FiniteF(v.x) && m2FiniteF(v.y);
+}
+static inline bool m2FinitePos2(m2Pos2 p)
+{
+    return m2FiniteD(p.x) && m2FiniteD(p.y);
+}
+
 // Refuses a caller's input: records the reason for m2LastResult on this
 // thread and, for an invalid argument against a live world, counts it in
 // m2Counters.misuse. Refusals never assert; M2_ASSERT is for internal

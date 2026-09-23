@@ -75,3 +75,6 @@ Work toward 0.0.1, the first release of the reworked library.
   trailing comment into the previous entry, so it listed 276 functions
   where the headers declare 289. `tools/gen_api.py` now parses each
   declaration on its own and is shared with Maul3D.
+- Input checks that tested `x == x` let infinities through. They now
+  use finite checks, so infinite positions, velocities and parameters
+  are refused like NaN.
