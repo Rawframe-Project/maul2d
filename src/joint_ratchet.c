@@ -33,11 +33,17 @@ m2RatchetJointDef m2DefaultRatchetJointDef(void)
 // jointUpper (multi-turn exact via the gear trick: previous body
 // rotations live in the anchor slots as (c, s) pairs), and the
 // engaged tooth rides jointLower. All snapshot state.
+// The def contract: finite values, non-negative gains and budgets,
+// ordered ranges.
+static bool DefValid(const m2RatchetJointDef* def)
+{
+    return m2FiniteF(def->ratchet) && def->ratchet != 0.0f && m2FiniteF(def->phase);
+}
+
 m2JointId m2CreateRatchetJoint(m2WorldId worldId, const m2RatchetJointDef* def)
 {
     m2World* world = m2GetWorld(worldId);
-    if (world == NULL || def == NULL || def->internalValue != M2_RTJOINT_COOKIE ||
-        !(def->ratchet != 0.0f))
+    if (world == NULL || def == NULL || def->internalValue != M2_RTJOINT_COOKIE || !DefValid(def))
     {
         m2Refuse(world, m2_errorInvalid);
         return m2_nullJointId;

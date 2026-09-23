@@ -48,11 +48,19 @@ float m2PulleyLiveLength(m2World* world, int32_t index, int32_t side)
 // (A side, shared with mouse) and jointTargetsB. The total is
 // CAPTURED from spawn geometry, the reference-angle convention: defs
 // carry no length knobs. All snapshot state.
+// The def contract: finite values, non-negative gains and budgets,
+// ordered ranges.
+static bool DefValid(const m2PulleyJointDef* def)
+{
+    return m2FinitePos2(def->groundAnchorA) && m2FinitePos2(def->groundAnchorB) &&
+           m2FiniteVec2(def->localAnchorA) && m2FiniteVec2(def->localAnchorB) &&
+           m2FiniteF(def->ratio) && def->ratio > 0.0f;
+}
+
 m2JointId m2CreatePulleyJoint(m2WorldId worldId, const m2PulleyJointDef* def)
 {
     m2World* world = m2GetWorld(worldId);
-    if (world == NULL || def == NULL || def->internalValue != M2_PLJOINT_COOKIE ||
-        !(def->ratio > 0.0f))
+    if (world == NULL || def == NULL || def->internalValue != M2_PLJOINT_COOKIE || !DefValid(def))
     {
         m2Refuse(world, m2_errorInvalid);
         return m2_nullJointId;

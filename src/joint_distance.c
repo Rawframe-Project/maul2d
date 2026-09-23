@@ -27,10 +27,20 @@ m2DistanceJointDef m2DefaultDistanceJointDef(void)
     return def;
 }
 
+// The def contract: finite values, non-negative gains and budgets,
+// ordered ranges.
+static bool DefValid(const m2DistanceJointDef* def)
+{
+    return m2FiniteVec2(def->localAnchorA) && m2FiniteVec2(def->localAnchorB) &&
+           m2FiniteF(def->length) && m2FiniteF(def->minLength) && m2FiniteF(def->maxLength) &&
+           !(def->maxLength > 0.0f && def->minLength > def->maxLength) && m2JointGain(def->hertz) &&
+           m2JointGain(def->dampingRatio);
+}
+
 m2JointId m2CreateDistanceJoint(m2WorldId worldId, const m2DistanceJointDef* def)
 {
     m2World* world = m2GetWorld(worldId);
-    if (world == NULL || def == NULL || def->internalValue != M2_DJOINT_COOKIE)
+    if (world == NULL || def == NULL || def->internalValue != M2_DJOINT_COOKIE || !DefValid(def))
     {
         m2Refuse(world, m2_errorInvalid);
         return m2_nullJointId;

@@ -702,6 +702,56 @@ static void TestHostileQueries(void)
     m2DestroyWorld(world);
 }
 
+// Joint defs are caller data: a NaN anchor, a negative stiffness, an
+// inverted range or a correction factor past one is refused at create
+// instead of poisoning the solver.
+static void TestHostileJointDefs(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 8;
+    def.shapeCapacity = 8;
+    def.jointCapacity = 8;
+    m2WorldId world = m2CreateWorld(&def);
+    m2BodyDef gd = m2DefaultBodyDef();
+    m2BodyId ground = m2CreateBody(world, &gd);
+    m2BodyId box = AddBox(world, 0.0, 2.0);
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+
+    m2RevoluteJointDef rj = m2DefaultRevoluteJointDef();
+    rj.bodyIdA = ground;
+    rj.bodyIdB = box;
+    rj.localAnchorA = (m2Vec2){NAN, 0.0f};
+    CHECK(m2CreateRevoluteJoint(world, &rj).index1 == 0, "a NaN anchor is refused");
+    rj.localAnchorA = (m2Vec2){0.0f, 0.0f};
+    rj.lowerAngle = 1.0f;
+    rj.upperAngle = -1.0f;
+    CHECK(m2CreateRevoluteJoint(world, &rj).index1 == 0, "an inverted angle range is refused");
+
+    m2DistanceJointDef dj = m2DefaultDistanceJointDef();
+    dj.bodyIdA = ground;
+    dj.bodyIdB = box;
+    dj.hertz = -2.0f;
+    CHECK(m2CreateDistanceJoint(world, &dj).index1 == 0, "a negative stiffness is refused");
+
+    m2MotorJointDef mj = m2DefaultMotorJointDef();
+    mj.bodyIdA = ground;
+    mj.bodyIdB = box;
+    mj.correctionFactor = 2.0f;
+    CHECK(m2CreateMotorJoint(world, &mj).index1 == 0, "a correction factor past one is refused");
+
+    m2MouseJointDef sj = m2DefaultMouseJointDef();
+    sj.bodyIdA = ground;
+    sj.bodyIdB = box;
+    sj.target = (m2Pos2){(double)INFINITY, 0.0};
+    CHECK(m2CreateMouseJoint(world, &sj).index1 == 0, "an infinite target is refused");
+    CHECK(m2World_GetCounters(world).misuse == misuse + 5, "each refusal counts once");
+
+    rj.lowerAngle = -1.0f;
+    rj.upperAngle = 1.0f;
+    CHECK(m2CreateRevoluteJoint(world, &rj).index1 != 0, "an honest def still creates");
+    m2DestroyWorld(world);
+}
+
 static void TestJournalSlotReuse(void)
 {
     // The nasty replay path: a session whose ids die and whose slots
@@ -2092,6 +2142,7 @@ int main(void)
     TestJournalDefenses();
     TestParameterChannels();
     TestHostileQueries();
+    TestHostileJointDefs();
     TestJournalSlotReuse();
     TestQueryEdges();
     TestMultiWorldIsolation();

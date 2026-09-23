@@ -31,11 +31,17 @@ m2GearJointDef m2DefaultGearJointDef(void)
 // body rotations ride the anchor slots as (c, s) pairs so the phase
 // accumulator in prepare survives any number of full turns; the
 // accumulated phase itself rides jointRefAngle. All snapshot state.
+// The def contract: finite values, non-negative gains and budgets,
+// ordered ranges.
+static bool DefValid(const m2GearJointDef* def)
+{
+    return m2FiniteF(def->ratio) && def->ratio != 0.0f;
+}
+
 m2JointId m2CreateGearJoint(m2WorldId worldId, const m2GearJointDef* def)
 {
     m2World* world = m2GetWorld(worldId);
-    if (world == NULL || def == NULL || def->internalValue != M2_GJOINT_COOKIE ||
-        !(def->ratio != 0.0f))
+    if (world == NULL || def == NULL || def->internalValue != M2_GJOINT_COOKIE || !DefValid(def))
     {
         m2Refuse(world, m2_errorInvalid);
         return m2_nullJointId;

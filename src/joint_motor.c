@@ -35,10 +35,20 @@ m2MotorJointDef m2DefaultMotorJointDef(void)
 // angularOffset in jointRefAngle, maxForce in jointLength and
 // correctionFactor in jointDamping; mouse keeps maxForce in
 // jointLength and its world target in jointTargets.
+// The def contract: finite values, non-negative gains and budgets,
+// ordered ranges.
+static bool DefValid(const m2MotorJointDef* def)
+{
+    return m2FiniteVec2(def->linearOffset) && m2FiniteF(def->angularOffset) &&
+           m2JointGain(def->maxForce) && m2JointGain(def->maxTorque) &&
+           m2JointGain(def->correctionFactor) && def->correctionFactor <= 1.0f &&
+           m2JointGain(def->hertz) && m2JointGain(def->dampingRatio);
+}
+
 m2JointId m2CreateMotorJoint(m2WorldId worldId, const m2MotorJointDef* def)
 {
     m2World* world = m2GetWorld(worldId);
-    if (world == NULL || def == NULL || def->internalValue != M2_MOJOINT_COOKIE)
+    if (world == NULL || def == NULL || def->internalValue != M2_MOJOINT_COOKIE || !DefValid(def))
     {
         m2Refuse(world, m2_errorInvalid);
         return m2_nullJointId;

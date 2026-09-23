@@ -30,10 +30,18 @@ m2MouseJointDef m2DefaultMouseJointDef(void)
     return def;
 }
 
+// The def contract: finite values, non-negative gains and budgets,
+// ordered ranges.
+static bool DefValid(const m2MouseJointDef* def)
+{
+    return m2FinitePos2(def->target) && m2JointGain(def->hertz) && m2JointGain(def->dampingRatio) &&
+           m2JointGain(def->maxForce);
+}
+
 m2JointId m2CreateMouseJoint(m2WorldId worldId, const m2MouseJointDef* def)
 {
     m2World* world = m2GetWorld(worldId);
-    if (world == NULL || def == NULL || def->internalValue != M2_MSJOINT_COOKIE)
+    if (world == NULL || def == NULL || def->internalValue != M2_MSJOINT_COOKIE || !DefValid(def))
     {
         m2Refuse(world, m2_errorInvalid);
         return m2_nullJointId;

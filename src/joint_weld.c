@@ -27,10 +27,19 @@ m2WeldJointDef m2DefaultWeldJointDef(void)
     return def;
 }
 
+// The def contract: finite values, non-negative gains and budgets,
+// ordered ranges.
+static bool DefValid(const m2WeldJointDef* def)
+{
+    return m2FiniteVec2(def->localAnchorA) && m2FiniteVec2(def->localAnchorB) &&
+           m2JointGain(def->linearHertz) && m2JointGain(def->linearDampingRatio) &&
+           m2JointGain(def->angularHertz) && m2JointGain(def->angularDampingRatio);
+}
+
 m2JointId m2CreateWeldJoint(m2WorldId worldId, const m2WeldJointDef* def)
 {
     m2World* world = m2GetWorld(worldId);
-    if (world == NULL || def == NULL || def->internalValue != M2_WJOINT_COOKIE)
+    if (world == NULL || def == NULL || def->internalValue != M2_WJOINT_COOKIE || !DefValid(def))
     {
         m2Refuse(world, m2_errorInvalid);
         return m2_nullJointId;

@@ -26,6 +26,13 @@ void m2RebuildJointEdges(m2World* world);
 bool m2JointsForbidPair(const m2World* world, int32_t bodyA, int32_t bodyB);
 float m2RelativeJointAngle(m2Rot qA, m2Rot qB);
 
+// Def checks shared by the kinds: a finite value, and a finite value that
+// is not negative (stiffness, damping, budgets).
+static inline bool m2JointGain(float x)
+{
+    return m2FiniteF(x) && x >= 0.0f;
+}
+
 // Slot lookups: the live slot of a joint id, or -1. The typed lookup
 // also demands a joint type and refuses (world may be NULL) on a miss.
 int32_t m2JointSlotChecked(const m2World* world, m2JointId jointId);

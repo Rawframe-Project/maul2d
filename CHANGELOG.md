@@ -168,3 +168,9 @@ Work toward 0.0.1, the first release of the reworked library.
   the whole world; m2Body_SetTransform also refuses a non-unit
   rotation, which it stored as given and which sheared the body.
 - m2World_Step refuses an infinite dt.
+- Joint creation validated the bodies and the cookie but none of the
+  def's numbers: a NaN or infinite anchor, axis, offset or target, a
+  negative stiffness, damping or budget, an inverted limit or length
+  range, or a correction factor outside [0, 1] was accepted and fed to
+  the solver. Every joint kind now checks its def and refuses such
+  input.

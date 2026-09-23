@@ -28,10 +28,21 @@ m2PrismaticJointDef m2DefaultPrismaticJointDef(void)
     return def;
 }
 
+// The def contract: finite values, non-negative gains and budgets,
+// ordered ranges.
+static bool DefValid(const m2PrismaticJointDef* def)
+{
+    return m2FiniteVec2(def->localAnchorA) && m2FiniteVec2(def->localAnchorB) &&
+           m2FiniteVec2(def->localAxisA) && m2JointGain(def->hertz) &&
+           m2JointGain(def->dampingRatio) && m2FiniteF(def->motorSpeed) &&
+           m2JointGain(def->maxMotorForce) && m2FiniteF(def->lowerTranslation) &&
+           m2FiniteF(def->upperTranslation) && def->lowerTranslation <= def->upperTranslation;
+}
+
 m2JointId m2CreatePrismaticJoint(m2WorldId worldId, const m2PrismaticJointDef* def)
 {
     m2World* world = m2GetWorld(worldId);
-    if (world == NULL || def == NULL || def->internalValue != M2_PJOINT_COOKIE)
+    if (world == NULL || def == NULL || def->internalValue != M2_PJOINT_COOKIE || !DefValid(def))
     {
         m2Refuse(world, m2_errorInvalid);
         return m2_nullJointId;
