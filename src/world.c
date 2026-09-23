@@ -1808,6 +1808,26 @@ _Static_assert(sizeof(m2SnapshotHeader) == 96, "snapshot header must be padding-
 
 static int32_t WalkBlocks(m2World* world, uint8_t* out, const uint8_t* in, int direction);
 
+static bool InRange(int32_t value, int32_t lo, int32_t hi)
+{
+    return value >= lo && value <= hi;
+}
+
+// The header's counters index the world's arrays directly after a
+// restore, so a buffer whose counters point outside the capacities is
+// refused before anything is overwritten.
+static bool HeaderCountsInRange(const m2SnapshotHeader* h)
+{
+    int32_t bodies = h->bodyCapacity;
+    int32_t shapes = h->shapeCapacity;
+    return InRange(h->maxBodyIndex, 0, bodies) && InRange(h->freeHead, 0, bodies - 1) &&
+           InRange(h->freeTail, 0, bodies - 1) && InRange(h->freeCount, 0, bodies) &&
+           InRange(h->retiredCount, 0, bodies) && InRange(h->movedCount, 0, shapes) &&
+           InRange(h->pairCount, 0, 8 * shapes) && InRange(h->maxShapeIndex, 0, shapes) &&
+           InRange(h->shapeFreeHead, 0, shapes - 1) && InRange(h->shapeFreeTail, 0, shapes - 1) &&
+           InRange(h->shapeFreeCount, 0, shapes) && InRange(h->shapeRetiredCount, 0, shapes);
+}
+
 // Single source of truth: the size IS the walk (measure mode). The
 // duplicated byte formula died here after its third drift (assert-caught
 // every time; root cause now removed).
@@ -2047,7 +2067,7 @@ bool m2World_Restore(m2WorldId worldId, const void* buffer, int32_t size)
     if (header.magic != M2_SNAPSHOT_MAGIC || header.version != M2_SNAPSHOT_VERSION ||
         header.bodyCapacity != world->bodyCapacity ||
         header.shapeCapacity != world->shapeCapacity ||
-        size != (int32_t)sizeof(header) + BlockBytes(world))
+        size != (int32_t)sizeof(header) + BlockBytes(world) || !HeaderCountsInRange(&header))
     {
         return false;
     }

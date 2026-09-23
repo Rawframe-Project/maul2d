@@ -30,3 +30,11 @@ Work toward 0.0.1, the first release of the reworked library.
 - `m2World_CastRayAll` and `m2World_CastCircleAll` silently kept at
   most 64 hits even when the caller's array was larger. They now keep
   as many as the array holds.
+- Journal replay is now atomic: a tape that fails part way, whether
+  truncated, corrupt or recreating an object under a different id than
+  the recording saw, is refused and the world is rolled back to where
+  it was. An id mismatch used to be a debug-only assert, so release
+  builds replayed onward into a different world.
+- `m2World_Restore` refuses a snapshot whose header counters point
+  outside the world's capacities before overwriting anything, instead
+  of indexing past the arrays afterwards.

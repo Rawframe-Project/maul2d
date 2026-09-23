@@ -291,7 +291,21 @@ typedef struct m2OpBodyFloat
     float value;
 } m2OpBodyFloat;
 
-bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
+// A replayed create must land on the id the recording saw; anything
+// else means the tape does not belong to this world's history.
+#define M2_REPLAY_EXPECT(cond)                                                                     \
+    do                                                                                             \
+    {                                                                                              \
+        if (!(cond))                                                                               \
+        {                                                                                          \
+            return false;                                                                          \
+        }                                                                                          \
+    } while (0)
+
+// Applies a tape to a world. Returns false on the first op that is
+// malformed, unknown, or recreates an object under a different id than
+// the recording saw; the caller rolls the world back.
+static bool ReplayOps(m2WorldId worldId, const void* data, int32_t size)
 {
     m2World* world = m2World_GetInternal(worldId);
     if (world == NULL || data == NULL || size < (int32_t)sizeof(m2JournalHeader) ||
@@ -345,9 +359,8 @@ bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
         {
             M2_READ_OP(m2OpCreateBody, create);
             m2BodyId id = m2CreateBody(worldId, &create.def);
-            M2_ASSERT(id.index1 == create.expected.index1 &&
-                      id.generation == create.expected.generation);
-            (void)id;
+            M2_REPLAY_EXPECT(id.index1 == create.expected.index1 &&
+                             id.generation == create.expected.generation);
             break;
         }
         case m2_opDestroyBody:
@@ -391,9 +404,8 @@ bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
                 id = m2CreateSegmentShape(create.body, &create.def, &create.geometry.segment);
                 break;
             }
-            M2_ASSERT(id.index1 == create.expected.index1 &&
-                      id.generation == create.expected.generation);
-            (void)id;
+            M2_REPLAY_EXPECT(id.index1 == create.expected.index1 &&
+                             id.generation == create.expected.generation);
             break;
         }
         case m2_opCreateDistanceJoint:
@@ -402,8 +414,7 @@ bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
             create.def.bodyIdA.world0 = here;
             create.def.bodyIdB.world0 = here;
             m2JointId id = m2CreateDistanceJoint(worldId, &create.def);
-            M2_ASSERT(id.index1 == create.expected.index1);
-            (void)id;
+            M2_REPLAY_EXPECT(id.index1 == create.expected.index1);
             break;
         }
         case m2_opCreateRevoluteJoint:
@@ -412,8 +423,7 @@ bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
             create.def.bodyIdA.world0 = here;
             create.def.bodyIdB.world0 = here;
             m2JointId id = m2CreateRevoluteJoint(worldId, &create.def);
-            M2_ASSERT(id.index1 == create.expected.index1);
-            (void)id;
+            M2_REPLAY_EXPECT(id.index1 == create.expected.index1);
             break;
         }
         case m2_opCreatePrismaticJoint:
@@ -422,8 +432,7 @@ bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
             create.def.bodyIdA.world0 = here;
             create.def.bodyIdB.world0 = here;
             m2JointId id = m2CreatePrismaticJoint(worldId, &create.def);
-            M2_ASSERT(id.index1 == create.expected.index1);
-            (void)id;
+            M2_REPLAY_EXPECT(id.index1 == create.expected.index1);
             break;
         }
         case m2_opCreateWeldJoint:
@@ -432,8 +441,7 @@ bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
             create.def.bodyIdA.world0 = here;
             create.def.bodyIdB.world0 = here;
             m2JointId id = m2CreateWeldJoint(worldId, &create.def);
-            M2_ASSERT(id.index1 == create.expected.index1);
-            (void)id;
+            M2_REPLAY_EXPECT(id.index1 == create.expected.index1);
             break;
         }
         case m2_opCreateWheelJoint:
@@ -442,8 +450,7 @@ bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
             create.def.bodyIdA.world0 = here;
             create.def.bodyIdB.world0 = here;
             m2JointId id = m2CreateWheelJoint(worldId, &create.def);
-            M2_ASSERT(id.index1 == create.expected.index1);
-            (void)id;
+            M2_REPLAY_EXPECT(id.index1 == create.expected.index1);
             break;
         }
         case m2_opDestroyJoint:
@@ -526,8 +533,7 @@ bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
             fj.def.bodyIdA.world0 = here;
             fj.def.bodyIdB.world0 = here;
             m2JointId made = m2CreateFilterJoint(worldId, &fj.def);
-            M2_ASSERT(made.index1 == fj.expected.index1);
-            (void)made;
+            M2_REPLAY_EXPECT(made.index1 == fj.expected.index1);
             break;
         }
         case m2_opCreateMotorJoint:
@@ -541,8 +547,7 @@ bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
             mj.def.bodyIdA.world0 = here;
             mj.def.bodyIdB.world0 = here;
             m2JointId made = m2CreateMotorJoint(worldId, &mj.def);
-            M2_ASSERT(made.index1 == mj.expected.index1);
-            (void)made;
+            M2_REPLAY_EXPECT(made.index1 == mj.expected.index1);
             break;
         }
         case m2_opCreateMouseJoint:
@@ -556,8 +561,7 @@ bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
             sj.def.bodyIdA.world0 = here;
             sj.def.bodyIdB.world0 = here;
             m2JointId made = m2CreateMouseJoint(worldId, &sj.def);
-            M2_ASSERT(made.index1 == sj.expected.index1);
-            (void)made;
+            M2_REPLAY_EXPECT(made.index1 == sj.expected.index1);
             break;
         }
         case m2_opMotorOffsets:
@@ -777,8 +781,7 @@ bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
             gj.def.bodyIdA.world0 = here;
             gj.def.bodyIdB.world0 = here;
             m2JointId made = m2CreateGearJoint(worldId, &gj.def);
-            M2_ASSERT(made.index1 == gj.expected.index1);
-            (void)made;
+            M2_REPLAY_EXPECT(made.index1 == gj.expected.index1);
             break;
         }
         case m2_opCreatePulleyJoint:
@@ -792,8 +795,7 @@ bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
             pj.def.bodyIdA.world0 = here;
             pj.def.bodyIdB.world0 = here;
             m2JointId made = m2CreatePulleyJoint(worldId, &pj.def);
-            M2_ASSERT(made.index1 == pj.expected.index1);
-            (void)made;
+            M2_REPLAY_EXPECT(made.index1 == pj.expected.index1);
             break;
         }
         case m2_opEmitParticle:
@@ -807,8 +809,7 @@ bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
             };
             M2_READ_OP(struct m2OpEmit, em);
             m2ParticleId made = m2World_EmitParticle(worldId, em.position, em.velocity, em.flags);
-            M2_ASSERT(made.index1 == em.expected.index1);
-            (void)made;
+            M2_REPLAY_EXPECT(made.index1 == em.expected.index1);
             break;
         }
         case m2_opDestroyParticle:
@@ -867,8 +868,7 @@ bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
             };
             M2_READ_OP(struct m2OpFluidVolume, fv);
             m2FluidVolumeId made = m2World_CreateFluidVolume(worldId, &fv.def);
-            M2_ASSERT(made.index1 == fv.expected.index1);
-            (void)made;
+            M2_REPLAY_EXPECT(made.index1 == fv.expected.index1);
             break;
         }
         case m2_opDestroyFluidVolume:
@@ -905,8 +905,7 @@ bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
             rj.def.bodyIdA.world0 = here;
             rj.def.bodyIdB.world0 = here;
             m2JointId made = m2CreateRatchetJoint(worldId, &rj.def);
-            M2_ASSERT(made.index1 == rj.expected.index1);
-            (void)made;
+            M2_REPLAY_EXPECT(made.index1 == rj.expected.index1);
             break;
         }
         case m2_opFillParticles:
@@ -922,8 +921,7 @@ bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
             M2_READ_OP(struct m2OpFill, fp);
             int32_t made = m2World_FillPolygonWithParticles(worldId, &fp.polygon, fp.position,
                                                             fp.velocity, fp.flags);
-            M2_ASSERT(made == fp.expected);
-            (void)made;
+            M2_REPLAY_EXPECT(made == fp.expected);
             break;
         }
         case m2_opApplyTorque:
@@ -997,9 +995,8 @@ bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
             sh.body.world0 = here;
             m2BodyId first[1];
             int32_t made = m2World_ShatterBody(sh.body, pieces, sh.pieceCount, first, 1);
-            M2_ASSERT(made == sh.pieceCount);
-            M2_ASSERT(made == 0 || first[0].index1 == sh.expectedFirst);
-            (void)made;
+            M2_REPLAY_EXPECT(made == sh.pieceCount);
+            M2_REPLAY_EXPECT(made == 0 || first[0].index1 == sh.expectedFirst);
             m2Free(pieces);
             break;
         }
@@ -1031,8 +1028,7 @@ bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
             ch.body.world0 = here;
             m2ChainId made = m2CreateChain(ch.body, &def);
             m2Free(pts);
-            M2_ASSERT(m2Chain_GetSegmentCount(made) == ch.createdCount);
-            (void)made;
+            M2_REPLAY_EXPECT(m2Chain_GetSegmentCount(made) == ch.createdCount);
             cursor += pointBytes;
             break;
         }
@@ -1111,4 +1107,32 @@ bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
 #undef M2_READ_OP
     }
     return true;
+}
+
+bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size)
+{
+    m2World* world = m2World_GetInternal(worldId);
+    if (world == NULL || data == NULL || world->journalActive != 0)
+    {
+        return false;
+    }
+    // Atomic: the world takes the whole tape or none of it. A snapshot
+    // taken first backs out a replay that fails part way, so a corrupt
+    // or truncated tape never leaves a half-built world behind.
+    int32_t backupSize = m2World_SnapshotSize(worldId);
+    void* backup = m2AllocZeroed((size_t)backupSize);
+    if (backup == NULL)
+    {
+        return false; // no memory for the guarantee means no replay
+    }
+    bool ok = m2World_Snapshot(worldId, backup, backupSize) == backupSize &&
+              ReplayOps(worldId, data, size);
+    if (!ok)
+    {
+        bool restored = m2World_Restore(worldId, backup, backupSize);
+        M2_ASSERT(restored);
+        (void)restored;
+    }
+    m2Free(backup);
+    return ok;
 }

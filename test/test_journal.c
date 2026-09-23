@@ -440,8 +440,74 @@ static void TestRollbackWhileRecording(void)
     free(tape);
 }
 
+static void TestReplayIsAtomic(void)
+{
+    // Record a session, then offer the tape cut short in the middle of
+    // an op to a world with a history of its own: the replay refuses
+    // and the world is exactly as it was.
+    enum
+    {
+        CAPACITY = 1 << 20
+    };
+    uint8_t* tape = malloc(CAPACITY);
+    m2WorldDef def = TestDef();
+    m2WorldId recorder = m2CreateWorld(&def);
+    int32_t size = 0;
+    uint64_t recordedHash = 0;
+    RunSession(recorder, tape, CAPACITY, &size, &recordedHash);
+    m2DestroyWorld(recorder);
+
+    m2WorldId target = m2CreateWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    bd.position = (m2Pos2){1.0, 7.0};
+    m2BodyId own = m2CreateBody(target, &bd);
+    m2Circle ball = {{0.0f, 0.0f}, 0.5f};
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2CreateCircleShape(own, &sd, &ball);
+    m2World_Step(target, 1.0f / 60.0f, 4);
+    uint64_t before = m2World_Hash(target);
+
+    CHECK(!m2World_ReplayJournal(target, tape, size - 3), "a truncated tape is refused");
+    CHECK(m2World_Hash(target) == before, "and the world is untouched");
+    CHECK(m2World_ReplayJournal(target, tape, size), "the whole tape replays");
+    CHECK(m2World_Hash(target) == recordedHash, "onto the recorded bits");
+
+    m2DestroyWorld(target);
+    free(tape);
+}
+
+static void TestRestoreRefusesBadCounters(void)
+{
+    // A snapshot whose header counters point past the capacities is
+    // refused before anything is overwritten.
+    m2WorldDef def = TestDef();
+    m2WorldId world = m2CreateWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    m2BodyId body = m2CreateBody(world, &bd);
+    m2Circle ball = {{0.0f, 0.0f}, 0.5f};
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2CreateCircleShape(body, &sd, &ball);
+    int32_t size = m2World_SnapshotSize(world);
+    uint8_t* snap = malloc((size_t)size);
+    CHECK(m2World_Snapshot(world, snap, size) == size, "snapshot taken");
+    m2World_Step(world, 1.0f / 60.0f, 4);
+    uint64_t before = m2World_Hash(world);
+
+    int32_t hostile = def.bodyCapacity + 1000;
+    memcpy(snap + 12, &hostile, sizeof(hostile)); // maxBodyIndex
+    CHECK(!m2World_Restore(world, snap, size), "an out-of-range body count is refused");
+    CHECK(m2World_Hash(world) == before, "and the world is untouched");
+
+    m2DestroyWorld(world);
+    free(snap);
+}
+
 int main(void)
 {
+    TestReplayIsAtomic();
+    TestRestoreRefusesBadCounters();
     TestRollbackWhileRecording();
     TestRecordReplay();
     TestOverflowIsLoud();
