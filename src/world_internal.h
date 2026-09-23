@@ -4,18 +4,36 @@
 // Internal world layout. Tests include this for white-box oracles; it is
 // never installed. Every array below is a snapshot block.
 
-#ifndef MAUL2D_WORLD_INTERNAL_H
-#define MAUL2D_WORLD_INTERNAL_H
+#ifndef MAUL2D_SRC_WORLD_INTERNAL_H
+#define MAUL2D_SRC_WORLD_INTERNAL_H
 
 #include "core.h"
 #include "dynamic_tree.h"
+#include "geometry.h"
 #include "maul2d/base.h"
 #include "maul2d/body.h"
 #include "maul2d/events.h"
 #include "maul2d/joint.h"
 #include "maul2d/particle.h"
 #include "maul2d/world.h"
-#include "shape_internal.h"
+
+// Def cookies: a def is valid only when its internalValue matches.
+#define M2_WORLD_COOKIE   (M2_COOKIE ^ ((int32_t)sizeof(m2WorldDef) << 8) ^ 1)
+#define M2_BODY_COOKIE    (M2_COOKIE ^ ((int32_t)sizeof(m2BodyDef) << 8) ^ 2)
+#define M2_SHAPE_COOKIE   (M2_COOKIE ^ ((int32_t)sizeof(m2ShapeDef) << 8) ^ 3)
+#define M2_DJOINT_COOKIE  (M2_COOKIE ^ ((int32_t)sizeof(m2DistanceJointDef) << 8) ^ 4)
+#define M2_RJOINT_COOKIE  (M2_COOKIE ^ ((int32_t)sizeof(m2RevoluteJointDef) << 8) ^ 5)
+#define M2_PJOINT_COOKIE  (M2_COOKIE ^ ((int32_t)sizeof(m2PrismaticJointDef) << 8) ^ 6)
+#define M2_WJOINT_COOKIE  (M2_COOKIE ^ ((int32_t)sizeof(m2WeldJointDef) << 8) ^ 7)
+#define M2_WHJOINT_COOKIE (M2_COOKIE ^ ((int32_t)sizeof(m2WheelJointDef) << 8) ^ 8)
+#define M2_CHAIN_COOKIE   (M2_COOKIE ^ ((int32_t)sizeof(m2ChainDef) << 8) ^ 9)
+#define M2_FJOINT_COOKIE  (M2_COOKIE ^ ((int32_t)sizeof(m2FilterJointDef) << 8) ^ 10)
+#define M2_MOJOINT_COOKIE (M2_COOKIE ^ ((int32_t)sizeof(m2MotorJointDef) << 8) ^ 11)
+#define M2_MSJOINT_COOKIE (M2_COOKIE ^ ((int32_t)sizeof(m2MouseJointDef) << 8) ^ 12)
+#define M2_EXPLODE_COOKIE (M2_COOKIE ^ ((int32_t)sizeof(m2ExplosionDef) << 8) ^ 13)
+#define M2_GJOINT_COOKIE  (M2_COOKIE ^ ((int32_t)sizeof(m2GearJointDef) << 8) ^ 14)
+#define M2_PLJOINT_COOKIE (M2_COOKIE ^ ((int32_t)sizeof(m2PulleyJointDef) << 8) ^ 15)
+#define M2_RTJOINT_COOKIE (M2_COOKIE ^ ((int32_t)sizeof(m2RatchetJointDef) << 8) ^ 16)
 
 #define M2_TREE_COUNT 3 // one per body type (topic-02 D1)
 
@@ -529,4 +547,4 @@ void m2RunParallel(m2World* world, m2TaskFn* fn, void* ctx, int32_t itemCount, i
 // Monotonic profile clock (observer only, never a hash input).
 uint64_t m2TimeNowNs(void);
 
-#endif // MAUL2D_WORLD_INTERNAL_H
+#endif // MAUL2D_SRC_WORLD_INTERNAL_H

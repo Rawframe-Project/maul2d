@@ -5,8 +5,8 @@
 // hooks and the CPU check. Every engine source reaches these through
 // world_internal.h or directly.
 
-#ifndef MAUL2D_CORE_H
-#define MAUL2D_CORE_H
+#ifndef MAUL2D_SRC_CORE_H
+#define MAUL2D_SRC_CORE_H
 
 #include "maul2d/base.h"
 
@@ -43,4 +43,4 @@ int m2VerifyCpuBackend(void);
 // nonzero when the host handled it.
 int m2ReportToHost(const char* message, const char* where);
 
-#endif // MAUL2D_CORE_H
+#endif // MAUL2D_SRC_CORE_H

@@ -7,8 +7,8 @@
 // arrays byte-exactly instead of rebuilding. Adapted from
 // Box2D's dynamic tree lineage (Copyright 2023 Erin Catto, MIT).
 
-#ifndef MAUL2D_DYNAMIC_TREE_H
-#define MAUL2D_DYNAMIC_TREE_H
+#ifndef MAUL2D_SRC_DYNAMIC_TREE_H
+#define MAUL2D_SRC_DYNAMIC_TREE_H
 
 #include "maul2d/core_math.h"
 
@@ -101,4 +101,4 @@ static inline bool m2AABB_Contains(m2AABB outer, m2AABB inner)
            inner.upperBound.x <= outer.upperBound.x && inner.upperBound.y <= outer.upperBound.y;
 }
 
-#endif // MAUL2D_DYNAMIC_TREE_H
+#endif // MAUL2D_SRC_DYNAMIC_TREE_H

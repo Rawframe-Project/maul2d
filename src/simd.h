@@ -19,8 +19,8 @@
 // - negation is a sign flip (exact), so composed forms like
 //   a*b - c == fma(a, b, -c) hold exactly on all three backends.
 
-#ifndef MAUL2D_SIMD_H
-#define MAUL2D_SIMD_H
+#ifndef MAUL2D_SRC_SIMD_H
+#define MAUL2D_SRC_SIMD_H
 
 #include <math.h>
 #include <stdint.h>
@@ -312,4 +312,4 @@ static inline m2f8 m2F8Min(m2f8 a, m2f8 b)
     return m2F8Select(m2F8LT(a, b), a, b);
 }
 
-#endif // MAUL2D_SIMD_H
+#endif // MAUL2D_SRC_SIMD_H

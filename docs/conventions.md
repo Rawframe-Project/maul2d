@@ -109,7 +109,9 @@ Root files are `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`,
   (`<...>`), one blank line between groups, each group sorted.
 - Every function with external linkage is declared in a header;
   `-Wmissing-prototypes` is on.
-- Header guards are `LIB_PATH_NAME_H` (`MAUL2D_DYNAMIC_TREE_H`).
+- Header guards follow the path: public headers use `LIB_NAME_H`
+  (`MAUL2D_BODY_H` for `include/maul2d/body.h`), internal headers
+  `LIB_SRC_NAME_H` (`MAUL2D_SRC_BODY_H` for `src/body.h`).
 - Public headers declare only the API. Nothing internal appears in
   `include/`, not even "for internal use" declarations.
 - A source file stays under 1000 lines and a function under 80 lines.

@@ -3,8 +3,8 @@
 //
 // Internal shape layout and geometry kernels.
 
-#ifndef MAUL2D_SHAPE_INTERNAL_H
-#define MAUL2D_SHAPE_INTERNAL_H
+#ifndef MAUL2D_SRC_GEOMETRY_H
+#define MAUL2D_SRC_GEOMETRY_H
 
 #include "dynamic_tree.h"
 #include "maul2d/shape.h"
@@ -92,4 +92,4 @@ m2Polygon m2MakeSegmentProxy(m2Vec2 p1, m2Vec2 p2, float radius);
 // kernel for bullet CCD.
 float m2PointShapeDistance(const m2ShapeGeometry* geometry, m2Vec2 point);
 
-#endif // MAUL2D_SHAPE_INTERNAL_H
+#endif // MAUL2D_SRC_GEOMETRY_H

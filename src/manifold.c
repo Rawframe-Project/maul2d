@@ -7,7 +7,7 @@
 // functions (Copyright 2023 Erin Catto, MIT). Pure functions of their inputs: no state, only
 // allowed ops, evaluated in canonical pair order by the world.
 
-#include "shape_internal.h"
+#include "geometry.h"
 
 #include "core.h"
 

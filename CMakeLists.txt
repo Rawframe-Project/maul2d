@@ -60,20 +60,29 @@ else()
     set(MAUL_LIBRARY_KIND STATIC)
 endif()
 add_library(maul2d ${MAUL_LIBRARY_KIND}
+    src/body.c
+    src/broadphase.c
     src/buoyancy.c
     src/ccd.c
+    src/chain.c
+    src/contact.c
     src/core.c
+    src/destruction.c
     src/distance.c
     src/draw.c
     src/dynamic_tree.c
+    src/geometry.c
     src/island.c
+    src/joint.c
     src/journal.c
     src/manifold.c
     src/math_functions.c
     src/particle.c
+    src/particle_solver.c
     src/platform_time.c
     src/query.c
     src/shape.c
+    src/snapshot.c
     src/solver.c
     src/world.c)
 maul_configure_library(maul2d)
