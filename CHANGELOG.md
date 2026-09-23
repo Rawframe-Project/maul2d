@@ -212,3 +212,11 @@ Work toward 0.0.1, the first release of the reworked library.
   cannot seat every piece, and refuses a malformed piece polygon up
   front. Before, a full world returned 0 silently and a bad polygon
   left a shapeless piece body behind.
+- `m2CreateChain` checks its points first: a NaN point or a zero-
+  length segment is refused as `m2_errorInvalid` (before, the segments
+  were built unchecked), and a full chain or shape pool is
+  `m2_errorCapacity` instead of `m2_errorInvalid`. A chain that builds
+  no segment no longer burns a chain id, which made a replay of the
+  session mint different ids.
+- Shape defs refuse an infinite density or friction and a NaN or
+  infinite tangent speed.

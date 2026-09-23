@@ -154,13 +154,66 @@ m2ShapeDef m2DefaultShapeDef(void)
     return def;
 }
 
+static bool ShapeDefValid(const m2ShapeDef* def)
+{
+    return def != NULL && def->internalValue == M2_SHAPE_COOKIE && m2FiniteF(def->density) &&
+           def->density >= 0.0f && m2FiniteF(def->friction) && def->friction >= 0.0f &&
+           def->restitution >= 0.0f && def->restitution <= 1.0f && m2FiniteF(def->tangentSpeed);
+}
+
+static void WriteShapeSlot(m2World* world, int32_t index, int32_t bodyIndex, const m2ShapeDef* def,
+                           const m2ShapeGeometry* geometry)
+{
+    m2Shapes* sh = &world->shapes;
+    // memset first: deterministic union tail bytes in the snapshot.
+    memset(&sh->shapeGeometry[index], 0, sizeof(m2ShapeGeometry));
+    sh->shapeGeometry[index] = *geometry;
+    sh->shapeDensity[index] = def->density;
+    sh->shapeFriction[index] = def->friction;
+    sh->shapeRestitution[index] = def->restitution;
+    sh->shapeTangentSpeed[index] = def->tangentSpeed;
+    sh->shapeUserData[index] = def->userData;
+    sh->shapeCategory[index] = def->categoryBits;
+    sh->shapeMask[index] = def->maskBits;
+    sh->shapeGroup[index] = def->groupIndex;
+    sh->shapeSensor[index] = def->isSensor ? 1 : 0;
+    sh->shapeChain[index] = -1;
+    sh->shapeBody[index] = bodyIndex;
+    sh->shapeNext[index] = world->bodies.bodyShapeHead[bodyIndex];
+    world->bodies.bodyShapeHead[bodyIndex] = index;
+    sh->shapeAlive[index] = 1;
+}
+
+// Enters the shape into its body's tree. A full node pool undoes the
+// create: the slot goes back to the head of the free ring with its
+// generation untouched, since a refused create moves no later id.
+static bool InsertShapeProxy(m2World* world, int32_t index, int32_t oldMaxShapeIndex)
+{
+    int32_t bodyIndex = world->shapes.shapeBody[index];
+    int32_t tree = world->bodies.types[bodyIndex];
+    world->broadphase.proxyIds[index] =
+        m2TreeInsert(&world->broadphase.trees[tree], world->broadphase.treeNodes[tree],
+                     m2Fatten(m2ShapeTightAABB(world, index)), index);
+    if (world->broadphase.proxyIds[index] != M2_NULL_NODE)
+    {
+        m2PushMoved(world, index);
+        return true;
+    }
+    m2Shapes* sh = &world->shapes;
+    world->bodies.bodyShapeHead[bodyIndex] = sh->shapeNext[index];
+    sh->shapeAlive[index] = 0;
+    sh->maxShapeIndex = oldMaxShapeIndex;
+    sh->shapeFreeHead = (sh->shapeFreeHead + sh->shapeCapacity - 1) % sh->shapeCapacity;
+    sh->shapeFreeQueue[sh->shapeFreeHead] = index;
+    sh->shapeFreeCount += 1;
+    return false;
+}
+
 m2ShapeId m2CreateShape(m2BodyId bodyId, const m2ShapeDef* def, const m2ShapeGeometry* geometry)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t bodyIndex = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (bodyIndex < 0 || def == NULL || def->internalValue != M2_SHAPE_COOKIE ||
-        !(def->density >= 0.0f) || !(def->friction >= 0.0f) ||
-        !(def->restitution >= 0.0f && def->restitution <= 1.0f))
+    if (bodyIndex < 0 || !ShapeDefValid(def))
     {
         m2Refuse(world, m2_errorInvalid);
         return m2_nullShapeId;
@@ -170,61 +223,22 @@ m2ShapeId m2CreateShape(m2BodyId bodyId, const m2ShapeDef* def, const m2ShapeGeo
         m2Refuse(world, m2_errorCapacity);
         return m2_nullShapeId;
     }
-
     int32_t index = world->shapes.shapeFreeQueue[world->shapes.shapeFreeHead];
     world->shapes.shapeFreeHead = (world->shapes.shapeFreeHead + 1) % world->shapes.shapeCapacity;
     world->shapes.shapeFreeCount -= 1;
-
-    // memset first: deterministic union tail bytes in the snapshot.
-    memset(&world->shapes.shapeGeometry[index], 0, sizeof(m2ShapeGeometry));
-    world->shapes.shapeGeometry[index] = *geometry;
-    world->shapes.shapeDensity[index] = def->density;
-    world->shapes.shapeFriction[index] = def->friction;
-    world->shapes.shapeRestitution[index] = def->restitution;
-    world->shapes.shapeTangentSpeed[index] = def->tangentSpeed;
-    world->shapes.shapeUserData[index] = def->userData;
-    world->shapes.shapeCategory[index] = def->categoryBits;
-    world->shapes.shapeMask[index] = def->maskBits;
-    world->shapes.shapeGroup[index] = def->groupIndex;
-    world->shapes.shapeSensor[index] = def->isSensor ? 1 : 0;
-    world->shapes.shapeChain[index] = -1;
-    world->shapes.shapeBody[index] = bodyIndex;
-    world->shapes.shapeNext[index] = world->bodies.bodyShapeHead[bodyIndex];
-    world->bodies.bodyShapeHead[bodyIndex] = index;
-    world->shapes.shapeAlive[index] = 1;
-    if (index + 1 > world->shapes.maxShapeIndex)
-    {
-        world->shapes.maxShapeIndex = index + 1;
-    }
-
-    if (world->bodies.disabled[bodyIndex] == 0)
-    {
-        int32_t tree = world->bodies.types[bodyIndex];
-        world->broadphase.proxyIds[index] =
-            m2TreeInsert(&world->broadphase.trees[tree], world->broadphase.treeNodes[tree],
-                         m2Fatten(m2ShapeTightAABB(world, index)), index);
-        if (world->broadphase.proxyIds[index] == M2_NULL_NODE)
-        {
-            // Node pool exhausted: undo everything; capacity error, not UB.
-            m2Refuse(world, m2_errorCapacity);
-            world->bodies.bodyShapeHead[bodyIndex] = world->shapes.shapeNext[index];
-            world->shapes.shapeAlive[index] = 0;
-            world->shapes.shapeFreeHead =
-                (world->shapes.shapeFreeHead + world->shapes.shapeCapacity - 1) %
-                world->shapes.shapeCapacity;
-            world->shapes.shapeFreeQueue[world->shapes.shapeFreeHead] = index;
-            world->shapes.shapeFreeCount += 1;
-            return m2_nullShapeId;
-        }
-        m2PushMoved(world, index);
-    }
+    WriteShapeSlot(world, index, bodyIndex, def, geometry);
+    int32_t oldMaxShapeIndex = world->shapes.maxShapeIndex;
+    world->shapes.maxShapeIndex = index + 1 > oldMaxShapeIndex ? index + 1 : oldMaxShapeIndex;
     // Dormant bodies keep the shape out of the trees until Enable, but
-    // EVERYTHING else (mass, journaling, the id) proceeds normally so
+    // everything else (mass, journaling, the id) proceeds normally so
     // replays mint identical worlds.
+    if (world->bodies.disabled[bodyIndex] == 0 && !InsertShapeProxy(world, index, oldMaxShapeIndex))
+    {
+        m2Refuse(world, m2_errorCapacity);
+        return m2_nullShapeId;
+    }
     m2RecomputeMass(world, bodyIndex);
-
     m2ShapeId id = {index + 1, bodyId.world0, world->shapes.shapeGenerations[index]};
-
     if (world->recorder.journalActive != 0)
     {
         m2OpCreateShape record;

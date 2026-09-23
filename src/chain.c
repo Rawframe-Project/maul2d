@@ -6,6 +6,7 @@
 #include "chain.h"
 
 #include "body.h"
+#include "geometry.h"
 #include "journal.h"
 #include "shape.h"
 #include "world.h"
@@ -40,15 +41,64 @@ m2ChainDef m2DefaultChainDef(void)
     return def;
 }
 
+// The segment i of a chain with its two ghost neighbors. An open chain's
+// first and last points are ghosts only.
+static m2ChainSegment ChainSegmentAt(const m2ChainDef* def, int32_t i)
+{
+    m2ChainSegment seg;
+    int32_t n = def->count;
+    int32_t first = def->isLoop ? i + n - 1 : i;
+    seg.ghost1 = def->points[first % n];
+    seg.segment.point1 = def->points[(first + 1) % n];
+    seg.segment.point2 = def->points[(first + 2) % n];
+    seg.ghost2 = def->points[(first + 3) % n];
+    return seg;
+}
+
+static int32_t ChainSegmentCount(const m2ChainDef* def)
+{
+    return def->isLoop ? def->count : def->count - 3;
+}
+
+// Finite points and a real length on every segment, so the segment
+// creates below can only fail for capacity.
+static bool ChainDefValid(const m2ChainDef* def)
+{
+    if (def->points == NULL || (def->isLoop ? def->count < 3 : def->count < 4))
+    {
+        return false;
+    }
+    for (int32_t i = 0; i < def->count; ++i)
+    {
+        if (!m2FiniteVec2(def->points[i]))
+        {
+            return false;
+        }
+    }
+    for (int32_t i = 0; i < ChainSegmentCount(def); ++i)
+    {
+        m2ChainSegment seg = ChainSegmentAt(def, i);
+        if (!m2ValidateSegment(&seg.segment))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 m2ChainId m2CreateChain(m2BodyId bodyId, const m2ChainDef* def)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t bodyIndex = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (bodyIndex < 0 || def == NULL || def->internalValue != M2_CHAIN_COOKIE ||
-        def->points == NULL || (def->isLoop ? def->count < 3 : def->count < 4) ||
-        world->chains.chainFreeCount == 0)
+        !ChainDefValid(def))
     {
         m2Refuse(world, m2_errorInvalid);
+        return m2_nullChainId;
+    }
+    if (world->chains.chainFreeCount == 0 || world->shapes.shapeFreeCount == 0)
+    {
+        m2Refuse(world, m2_errorCapacity);
         return m2_nullChainId;
     }
 
@@ -72,28 +122,13 @@ m2ChainId m2CreateChain(m2BodyId bodyId, const m2ChainDef* def)
     shapeDef.groupIndex = def->groupIndex;
     shapeDef.userData = def->userData;
 
-    int32_t segmentCount = def->isLoop ? def->count : def->count - 3;
     int32_t created = 0;
-    for (int32_t i = 0; i < segmentCount; ++i)
+    for (int32_t i = 0; i < ChainSegmentCount(def); ++i)
     {
         m2ShapeGeometry geometry;
         memset(&geometry, 0, sizeof(geometry));
         geometry.type = m2_chainSegmentShape;
-        if (def->isLoop)
-        {
-            int32_t n = def->count;
-            geometry.chainSegment.ghost1 = def->points[(i + n - 1) % n];
-            geometry.chainSegment.segment.point1 = def->points[i];
-            geometry.chainSegment.segment.point2 = def->points[(i + 1) % n];
-            geometry.chainSegment.ghost2 = def->points[(i + 2) % n];
-        }
-        else
-        {
-            geometry.chainSegment.ghost1 = def->points[i];
-            geometry.chainSegment.segment.point1 = def->points[i + 1];
-            geometry.chainSegment.segment.point2 = def->points[i + 2];
-            geometry.chainSegment.ghost2 = def->points[i + 3];
-        }
+        geometry.chainSegment = ChainSegmentAt(def, i);
         m2ShapeId shape = m2CreateShape(bodyId, &shapeDef, &geometry);
         if (shape.index1 == 0)
         {
@@ -106,9 +141,14 @@ m2ChainId m2CreateChain(m2BodyId bodyId, const m2ChainDef* def)
     world->recorder.journalActive = journalWasActive;
     if (created == 0)
     {
-        // Nothing was made: retire the claimed slot. The generation
-        // burns, which keeps the id sequence append-only either way.
-        m2RetireChainSlot(world, chainIndex);
+        // Unreachable while the shape pool had room: hand the claimed slot
+        // back to the head of the free ring, generation untouched, since a
+        // refused create is not journaled and must move no later id.
+        world->chains.chainFreeHead =
+            (world->chains.chainFreeHead + world->shapes.shapeCapacity - 1) %
+            world->shapes.shapeCapacity;
+        world->chains.chainFreeQueue[world->chains.chainFreeHead] = chainIndex;
+        world->chains.chainFreeCount += 1;
         m2Refuse(world, m2_errorCapacity);
         return m2_nullChainId;
     }

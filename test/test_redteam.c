@@ -2193,8 +2193,52 @@ static void TestSimdBackendStable(void)
     }
 }
 
+// A chain's points are checked before anything is built: a NaN point
+// or a degenerate segment is invalid input, and a full shape pool is a
+// capacity refusal that leaves no trace in the chain ids.
+static void TestChainRefusals(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    m2WorldId world = m2CreateWorld(&def);
+    m2BodyDef gd = m2DefaultBodyDef();
+    m2BodyId ground = m2CreateBody(world, &gd);
+    m2Vec2 pts[4] = {{3.0f, 0.0f}, {1.0f, 0.0f}, {-1.0f, 0.0f}, {-3.0f, 0.0f}};
+    m2ChainDef chain = m2DefaultChainDef();
+    chain.points = pts;
+    chain.count = 4;
+    pts[1].x = NAN;
+    CHECK(m2CreateChain(ground, &chain).index1 == 0, "a NaN chain point refuses");
+    CHECK(m2LastResult() == m2_errorInvalid, "as invalid input");
+    pts[1] = pts[2];
+    CHECK(m2CreateChain(ground, &chain).index1 == 0, "a zero-length segment refuses");
+    CHECK(m2LastResult() == m2_errorInvalid, "as invalid input too");
+    pts[1] = (m2Vec2){1.0f, 0.0f};
+    m2Circle ball = {{0.0f, 0.0f}, 0.5f};
+    m2ShapeDef sd = m2DefaultShapeDef();
+    for (int32_t i = 0; i < 4; ++i)
+    {
+        m2CreateCircleShape(ground, &sd, &ball);
+    }
+    CHECK(m2CreateChain(ground, &chain).index1 == 0, "a full shape pool refuses a chain");
+    CHECK(m2LastResult() == m2_errorCapacity, "as a capacity limit");
+    sd.friction = INFINITY;
+    m2DestroyWorld(world);
+
+    world = m2CreateWorld(&def);
+    ground = m2CreateBody(world, &gd);
+    CHECK(m2CreateCircleShape(ground, &sd, &ball).index1 == 0, "infinite friction refuses");
+    sd = m2DefaultShapeDef();
+    sd.tangentSpeed = NAN;
+    CHECK(m2CreateCircleShape(ground, &sd, &ball).index1 == 0, "a NaN belt speed refuses");
+    CHECK(m2LastResult() == m2_errorInvalid, "both as invalid input");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
+    TestChainRefusals();
     TestStaleIds();
     TestCapacityExhaustion();
     TestJournalDefenses();
