@@ -2,8 +2,9 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // Internal declarations for core.c: assertions, refusals, the memory
-// hooks, the CPU check, the finite-input checks and the profile clock. Every engine source reaches
-// these through world_internal.h or directly.
+// hooks, the CPU check, the finite-input checks and the profile clock.
+// Every engine source reaches these through world_internal.h or
+// directly.
 
 #ifndef MAUL2D_SRC_CORE_H
 #define MAUL2D_SRC_CORE_H
