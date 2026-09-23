@@ -25,6 +25,8 @@ Work toward 0.0.1, the first release of the reworked library.
 - The library target requires C11 of its consumers through CMake, and
   a test compiles the umbrella header as C++ so the API stays usable
   from C++.
+- Test for contacts past the last graph color (a plank carrying 40
+  boxes).
 
 ### Changed
 
@@ -112,6 +114,13 @@ Work toward 0.0.1, the first release of the reworked library.
   distance and shape cast kernels are rewritten from published sources
   (docs/references.md). Hashes and bench pins move; the pyramid bench
   settles exactly as before.
+- Contact solver rewritten: one lane kernel runs every stage, and the
+  graph-color overflow goes through the same kernel one constraint at
+  a time instead of a separate scalar path. The soft push limit now
+  applies to the scaled bias, so every contact pushes out at most 3
+  m/s. Contact points alternate their solve order each substep, which
+  removes most of the sideways drift of dropped stacks (the 30-row
+  pyramid top drifted 8.6 cm, now 0.1 cm).
 
 ### Removed
 

@@ -171,6 +171,60 @@ static void TestPyramid(void)
     m2DestroyWorld(world);
 }
 
+// A dynamic plank carrying more boxes than there are graph colors: the
+// constraints past the last color take the serial overflow path, and
+// the load must still come to rest on the plank.
+static void TestColorOverflow(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 64;
+    def.shapeCapacity = 64;
+    m2WorldId world = m2CreateWorld(&def);
+    AddSlab(world, -0.5, 0.6f);
+
+    m2BodyDef pd = m2DefaultBodyDef();
+    pd.type = m2_dynamicBody;
+    pd.position = (m2Pos2){0.0, 0.25};
+    m2BodyId plank = m2CreateBody(world, &pd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon board = m2MakeBox(16.0f, 0.25f);
+    m2CreatePolygonShape(plank, &sd, &board);
+
+    enum
+    {
+        BOXES = 40
+    };
+    m2BodyId boxes[BOXES];
+    m2Polygon small = m2MakeBox(0.3f, 0.3f);
+    for (int32_t i = 0; i < BOXES; ++i)
+    {
+        m2BodyDef bd = m2DefaultBodyDef();
+        bd.type = m2_dynamicBody;
+        bd.position = (m2Pos2){-15.6 + 0.8 * (double)i, 0.85};
+        boxes[i] = m2CreateBody(world, &bd);
+        m2CreatePolygonShape(boxes[i], &sd, &small);
+    }
+
+    int32_t overflow = 0;
+    for (int32_t i = 0; i < 120; ++i)
+    {
+        m2World_Step(world, 1.0f / 60.0f, 4);
+        int32_t now = m2World_GetCounters(world).overflowConstraints;
+        overflow = now > overflow ? now : overflow;
+    }
+    CHECK(overflow > 0, "the plank's contacts overflow the colors");
+    bool resting = true;
+    for (int32_t i = 0; i < BOXES; ++i)
+    {
+        double y = m2Body_GetPosition(boxes[i]).y;
+        m2Vec2 v = m2Body_GetLinearVelocity(boxes[i]);
+        resting = resting && y > 0.78 && y < 0.81 && v.x * v.x + v.y * v.y < 1e-4f;
+    }
+    CHECK(resting, "every box rests on the plank");
+
+    m2DestroyWorld(world);
+}
+
 static void TestSolverRollback(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
@@ -470,6 +524,7 @@ int main(void)
     TestRestitution();
     TestFriction();
     TestPyramid();
+    TestColorOverflow();
     TestSolverRollback();
 
     uint64_t hash = SolverSweepHash();

@@ -8,8 +8,6 @@
 
 #include "ccd.h"
 #include "contact_solver.h"
-#include "contact_solver_wide.h"
-#include "graph_color.h"
 #include "joint_solver.h"
 #include "world_internal.h"
 
@@ -17,24 +15,6 @@
 
 #include <math.h>
 #include <string.h>
-
-// Write-backs are guarded on dynamic bodies: a static or kinematic
-// body shared across graph colors must never be written, even with an
-// unchanged value - concurrent identical writes are still a race.
-void m2StoreBodyVelocities(m2World* world, const m2ContactConstraint* c, m2Vec2 vA, float wA,
-                           m2Vec2 vB, float wB)
-{
-    if (world->bodies.types[c->bodyA] == (uint8_t)m2_dynamicBody)
-    {
-        world->bodies.linearVelocities[c->bodyA] = vA;
-        world->bodies.angularVelocities[c->bodyA] = wA;
-    }
-    if (world->bodies.types[c->bodyB] == (uint8_t)m2_dynamicBody)
-    {
-        world->bodies.linearVelocities[c->bodyB] = vB;
-        world->bodies.angularVelocities[c->bodyB] = wB;
-    }
-}
 
 // Integrates velocities in fixed body order: v = lvd + damp * v with Pade
 // damping 1/(1+h*d) and lvd = h*invM*force + h*gScale*g; torque and angular
@@ -221,55 +201,46 @@ void m2SolveStep(m2World* world, float dt, int32_t substepCount)
         world->solver.deltaRotations[i] = (m2Rot){1.0f, 0.0f};
     }
 
-    m2ContactConstraint* constraints = (m2ContactConstraint*)world->solver.constraintScratch;
-    int32_t constraintCount = m2PrepareContacts(world, constraints, h);
+    m2ContactPlan plan;
+    plan.constraints = (m2ContactConstraint*)world->solver.constraintScratch;
+    plan.count = m2PrepareContacts(world, plan.constraints, h);
+    plan.invH = invH;
+    plan.reversed = false;
     m2JointConstraint* joints =
         (m2JointConstraint*)((uint8_t*)world->solver.constraintScratch +
                              (size_t)world->contacts.pairCapacity * sizeof(m2ContactConstraint));
     int32_t jointCount = m2PrepareJoints(world, joints, h);
 
-    int32_t colorStart[M2_GRAPH_COLORS + 2];
-    m2ColorConstraints(world, constraints, constraintCount, colorStart);
-    world->solver.lastConstraintCount = constraintCount;
-    world->solver.lastOverflow = colorStart[M2_GRAPH_COLORS + 1] - colorStart[M2_GRAPH_COLORS];
+    m2PlanContacts(world, &plan);
+    world->solver.lastConstraintCount = plan.count;
+    world->solver.lastOverflow =
+        plan.colorStart[M2_GRAPH_COLORS + 1] - plan.colorStart[M2_GRAPH_COLORS];
     world->solver.lastGraphColors = 0;
     for (int32_t c = 0; c < M2_GRAPH_COLORS; ++c)
     {
-        world->solver.lastGraphColors += colorStart[c + 1] > colorStart[c] ? 1 : 0;
+        world->solver.lastGraphColors += plan.colorStart[c + 1] > plan.colorStart[c] ? 1 : 0;
     }
-
-    // The push clamp is pre-divided by the static mass scale so the
-    // later massScale multiply cannot weaken it (reference detail).
-    m2Softness staticSoft = m2MakeSoft(2.0f * M2_CONTACT_HERTZ, M2_CONTACT_DAMPING_RATIO, h);
-    float minBiasVel = -M2_CONTACT_PUSH_MAX_SPEED / staticSoft.massScale;
-
-    int32_t blockStart[M2_GRAPH_COLORS + 1];
-    m2PackContactBlocks(world, constraints, colorStart, blockStart);
 
     for (int32_t sub = 0; sub < substepCount; ++sub)
     {
         IntegrateVelocities(world, h);
+        plan.reversed = (sub & 1) != 0;
 
         m2WarmStartJoints(world, joints, jointCount);
-        m2RunContactStageWide(world, constraints, colorStart, blockStart, m2_stageWarmStart, invH,
-                              minBiasVel, true);
+        m2RunContactStage(world, &plan, m2_stageWarmStart);
         m2SolveJoints(world, joints, jointCount, true, invH); // joints before contacts
-        m2RunContactStageWide(world, constraints, colorStart, blockStart, m2_stageSolve, invH,
-                              minBiasVel, true);
+        m2RunContactStage(world, &plan, m2_stageSolve);
 
         CaptureBulletOrigins(world);
         IntegratePositions(world, h, invH);
 
         m2SolveContinuous(world); // the last pass that moves transforms
         m2SolveJoints(world, joints, jointCount, false, invH);
-        m2RunContactStageWide(world, constraints, colorStart, blockStart, m2_stageSolve, invH,
-                              minBiasVel, false);
+        m2RunContactStage(world, &plan, m2_stageRelax);
     }
 
-    m2RunContactStageWide(world, constraints, colorStart, blockStart, m2_stageRestitution, invH,
-                          minBiasVel, false);
-    m2RunContactStageWide(world, constraints, colorStart, blockStart, m2_stageStore, invH,
-                          minBiasVel, false);
+    m2RunContactStage(world, &plan, m2_stageRestitution);
+    m2RunContactStage(world, &plan, m2_stageStore);
     m2StoreJointImpulses(world, joints, jointCount);
 
     BreakJoints(world, invH);

@@ -93,3 +93,24 @@ these descriptions, never copied from other implementations (see
   corner, each part's centroid and second moment taken in closed form
   (for example from the tables in F. P. Beer and E. R. Johnston,
   *Vector Mechanics for Engineers: Statics*).
+
+## Constraint solving
+
+- E. Catto, "Iterative Dynamics with Temporal Coherence", Game
+  Developers Conference, 2005. Sequential impulses: each constraint row
+  applies the impulse that meets its velocity target, clamped on the
+  accumulated impulse rather than the increment, and last step's
+  accumulated impulses warm start the next.
+- R. L. Smith, *Open Dynamics Engine User Guide*, 2006, the section on
+  soft constraints: error reduction (ERP) and constraint force mixing
+  (CFM) from a spring and damper under implicit integration. The
+  engines' soft rows are this relation written in frequency and damping
+  ratio on the row's effective mass (see m2MakeSoft and its maul3d
+  counterpart for the derivation).
+- M. Macklin, K. Storey, M. Lu, P. Terdiman, N. Chentanez, S. Jeschke
+  and M. Müller, "Small Steps in Physics Simulation", Symposium on
+  Computer Animation, 2019. Many substeps with one solver pass each
+  instead of one step with many iterations.
+- R. Tonge, "Solving Rigid Body Contacts", Game Developers Conference,
+  2012. Graph coloring so that constraints of one color touch disjoint
+  bodies, and lanes of such constraints solved together in SIMD.

@@ -13,24 +13,32 @@
 #define M2_CONTACT_DAMPING_RATIO  10.0f
 #define M2_CONTACT_PUSH_MAX_SPEED 3.0f
 
-// Reference (b2DefaultWorldDef) default maximum linear speed, 400 m/s. It
-// is a SAFETY bound, not a gameplay knob: an over-constrained or
-// near-degenerate configuration is bounded here instead of pumping speed
-// exponentially to infinity and then a NaN. Hardcoded like the angular cap
-// (M2_PI quarter-turn) so the guard stays off the determinism-sensitive
-// worldDef surface; 400 m/s leaves ample headroom over any real 2D motion.
+// A safety bound on linear speed, not a gameplay knob: a degenerate or
+// over-constrained setup is held here instead of pumping speed without
+// limit into a NaN. It stays off the world def, like the quarter-turn
+// angular cap, so tuning cannot touch it; 400 m/s is far above any real
+// 2D motion.
 #define M2_MAX_LINEAR_SPEED      400.0f
 #define M2_RESTITUTION_THRESHOLD 1.0f
 
+// A soft row: the constraint behaves as a spring of frequency hertz and
+// damping ratio zeta on the row's effective mass m.
 typedef struct m2Softness
 {
-    float biasRate;
-    float massScale;
-    float impulseScale;
+    float biasRate;     // fraction of the position error removed per second
+    float massScale;    // the row's mass is scaled down by this
+    float impulseScale; // this fraction of the accumulated impulse leaks away
 } m2Softness;
 
-// Reference formula (b2MakeSoft): bias = w/(2z+hw),
-// massScale = hw(2z+hw)/(1+hw(2z+hw)), impulseScale = 1/(1+hw(2z+hw)).
+// With w = 2 pi hertz, stiffness k = m w^2 and damping c = 2 m zeta w, an
+// implicit Euler step of length h turns the spring into a row that solves
+//   J v + (k / (h k + c)) C + (1 / (h (h k + c))) lambda = 0
+// for the total impulse lambda. Let a = h w (2 zeta + h w). Then
+//   biasRate     = k / (h k + c) = w / (2 zeta + h w)
+//   massScale    = a / (1 + a)   (m against m + the lambda term)
+//   impulseScale = 1 / (1 + a)   (the lambda term on the accumulated part)
+// and a solve adds -m massScale (J v + biasRate C) - impulseScale
+// accumulated. Zero hertz is a rigid row with no position feedback.
 static inline m2Softness m2MakeSoft(float hertz, float zeta, float h)
 {
     if (hertz == 0.0f)
@@ -38,10 +46,9 @@ static inline m2Softness m2MakeSoft(float hertz, float zeta, float h)
         return (m2Softness){0.0f, 0.0f, 0.0f};
     }
     float omega = 2.0f * M2_PI * hertz;
-    float a1 = 2.0f * zeta + h * omega;
-    float a2 = h * omega * a1;
-    float a3 = 1.0f / (1.0f + a2);
-    return (m2Softness){omega / a1, a2 * a3, a3};
+    float a = h * omega * (2.0f * zeta + h * omega);
+    float leak = 1.0f / (1.0f + a);
+    return (m2Softness){omega / (2.0f * zeta + h * omega), a * leak, leak};
 }
 
 static inline m2Vec2 m2RotateVec2(m2Rot q, m2Vec2 v)
@@ -53,20 +60,6 @@ static inline float m2Cross2(m2Vec2 a, m2Vec2 b)
 {
     return a.x * b.y - a.y * b.x;
 }
-
-typedef struct m2ConstraintPoint
-{
-    m2Vec2 rA; // anchor relative to body origin, world-rotated at prepare
-    m2Vec2 rB;
-    float baseSeparation;
-    float relativeVelocity; // normal speed at prepare (restitution input)
-    float normalMass;
-    float tangentMass;
-    float normalImpulse;
-    float tangentImpulse;
-    uint16_t id;
-    uint16_t persisted;
-} m2ConstraintPoint;
 
 typedef struct m2JointConstraint
 {
@@ -102,56 +95,11 @@ typedef struct m2JointConstraint
     float springImpulse; // revolute angular spring
 } m2JointConstraint;
 
-typedef struct m2ContactConstraint
-{
-    int32_t pairIndex;
-    int32_t bodyA;
-    int32_t bodyB;
-    // Pair-effective masses: usually the bodies' own, but dominance
-    // zeroes one side so the winner cannot be pushed in this pair.
-    float invMassA;
-    float invIA;
-    float invMassB;
-    float invIB;
-    m2Vec2 normal; // world frame
-    float friction;
-    float restitution;
-    float tangentSpeed; // conveyor: sum of both shapes (reference mixing)
-    m2Softness softness;
-    int32_t pointCount;
-    m2ConstraintPoint points[2];
-} m2ContactConstraint;
-
-// --- Graph coloring: constraints in one color share no
-// dynamic body, so a color solves in parallel with bit-identical
-// results at ANY worker count. The color assignment itself is greedy
-// over canonical constraint order - fully deterministic. The colored
-// order is used even when serial, so worker count can never change
-// the arithmetic sequence.
-
-#define M2_GRAPH_COLORS 24 // colors 0..23; 24 = overflow, solved serially
-
-typedef enum m2ContactStage
-{
-    m2_stageWarmStart,
-    m2_stageSolve,
-    m2_stageRestitution,
-    m2_stageStore,
-} m2ContactStage;
-
-typedef struct m2ContactStageCtx
-{
-    m2World* world;
-    m2ContactConstraint* constraints;
-    const int32_t* order;
-    m2ContactStage stage;
-    float invH;
-    float minBiasVel;
-    bool useBias;
-} m2ContactStageCtx;
-
-void m2StoreBodyVelocities(m2World* world, const m2ContactConstraint* c, m2Vec2 vA, float wA,
-                           m2Vec2 vB, float wB);
+// Contacts in one graph color share no dynamic body, so a color solves
+// in parallel. Colors are assigned greedily in canonical pair order and
+// the colored order is used even on one thread, so the worker count
+// never changes the arithmetic.
+#define M2_GRAPH_COLORS 24 // one more range holds the overflow, solved serially
 
 // The soft-step solve for one step.
 void m2SolveStep(m2World* world, float dt, int32_t substepCount);

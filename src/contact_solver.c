@@ -1,20 +1,22 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The scalar contact solver: preparation, warm starting, solving,
-// restitution and the serial and colored stage runners.
+// Contact constraints: one per touching manifold that can move, built
+// fresh every step, then colored and packed into lane blocks. Every
+// stage runs the one kernel in contact_kernel.c: colored blocks in
+// parallel, and the overflow, whose constraints may share bodies, one
+// constraint at a time through a single-lane block.
 
 #include "contact_solver.h"
 
-#include "solver.h"
+#include "contact_kernel.h"
+#include "graph_color.h"
+#include "world.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
 
 #include <math.h>
-
-// The whole solver scratch lives on world arrays sized at creation; the
-// constraint list is rebuilt every step (step-transient, snapshot-benign).
 
 int32_t m2ContactConstraintSize(void)
 {
@@ -22,336 +24,243 @@ int32_t m2ContactConstraintSize(void)
     return (int32_t)sizeof(m2ContactConstraint) + (int32_t)sizeof(m2JointConstraint);
 }
 
+int32_t m2ContactBlockScratchBytes(int32_t pairCapacity)
+{
+    // Full blocks, plus one partial block per color and point count.
+    int32_t blocks = pairCapacity / M2_LANES + 2 * M2_GRAPH_COLORS;
+    return blocks * (int32_t)sizeof(m2ContactBlock);
+}
+
+static bool IsDynamic(const m2World* world, int32_t body)
+{
+    return world->bodies.types[body] == (uint8_t)m2_dynamicBody;
+}
+
+// The pair's masses. Between dynamic bodies of different dominance the
+// stronger side acts as if it were static; statics outrank everything.
+static void PairMasses(const m2World* world, m2ContactConstraint* c)
+{
+    int32_t rankA = IsDynamic(world, c->bodyA) ? (int32_t)world->bodies.dominances[c->bodyA] : 128;
+    int32_t rankB = IsDynamic(world, c->bodyB) ? (int32_t)world->bodies.dominances[c->bodyB] : 128;
+    bool keepA = rankA <= rankB;
+    bool keepB = rankB <= rankA;
+    c->invMassA = keepA ? world->bodies.invMass[c->bodyA] : 0.0f;
+    c->invIA = keepA ? world->bodies.invInertia[c->bodyA] : 0.0f;
+    c->invMassB = keepB ? world->bodies.invMass[c->bodyB] : 0.0f;
+    c->invIB = keepB ? world->bodies.invInertia[c->bodyB] : 0.0f;
+}
+
+// Inverse effective mass of a row along dir through the arms; zero mass
+// marks a row that cannot move.
+static float RowMass(const m2ContactConstraint* c, m2Vec2 armA, m2Vec2 armB, m2Vec2 dir)
+{
+    float turnA = m2Cross2(armA, dir);
+    float turnB = m2Cross2(armB, dir);
+    float k = c->invMassA + c->invMassB + c->invIA * turnA * turnA + c->invIB * turnB * turnB;
+    return k > 0.0f ? 1.0f / k : 0.0f;
+}
+
+static m2Vec2 PointVelocity(const m2World* world, int32_t body, m2Vec2 arm)
+{
+    m2Vec2 v = world->bodies.linearVelocities[body];
+    float w = world->bodies.angularVelocities[body];
+    return (m2Vec2){v.x - w * arm.y, v.y + w * arm.x};
+}
+
+static void PreparePoint(const m2World* world, m2ContactConstraint* c, const m2ManifoldPoint* mp,
+                         m2ContactPoint* cp)
+{
+    m2Rot qA = world->bodies.transforms[c->bodyA].q;
+    m2Rot qB = world->bodies.transforms[c->bodyB].q;
+    m2Vec2 centerA = world->bodies.localCenters[c->bodyA];
+    m2Vec2 centerB = world->bodies.localCenters[c->bodyB];
+    cp->armA = m2RotateVec2(qA, (m2Vec2){mp->anchorA.x - centerA.x, mp->anchorA.y - centerA.y});
+    cp->armB = m2RotateVec2(qB, (m2Vec2){mp->anchorB.x - centerB.x, mp->anchorB.y - centerB.y});
+    // The solver measures separation as gap + n.(dB + armB' - dA - armA')
+    // with the arms turned by the rotation since the step began, so the
+    // prepare-time arm offset is taken out of the gap here once.
+    m2Vec2 n = c->normal;
+    m2Vec2 armGap = {cp->armB.x - cp->armA.x, cp->armB.y - cp->armA.y};
+    cp->gap = mp->separation - (armGap.x * n.x + armGap.y * n.y);
+    cp->normalImpulse = mp->normalImpulse;
+    cp->tangentImpulse = mp->tangentImpulse;
+    cp->normalMass = RowMass(c, cp->armA, cp->armB, n);
+    cp->tangentMass = RowMass(c, cp->armA, cp->armB, (m2Vec2){-n.y, n.x});
+    m2Vec2 vA = PointVelocity(world, c->bodyA, cp->armA);
+    m2Vec2 vB = PointVelocity(world, c->bodyB, cp->armB);
+    cp->approach = (vB.x - vA.x) * n.x + (vB.y - vA.y) * n.y;
+}
+
+// Surface mixing: friction by geometric mean, restitution by maximum,
+// belt speeds add. Contacts with a static or kinematic body use the
+// stiffer softness: a soft ground row stores energy under a tall stack.
+static void PrepareMaterial(const m2World* world, m2ContactConstraint* c, int32_t shapeA,
+                            int32_t shapeB, const m2Softness soft[2])
+{
+    c->friction = sqrtf(world->shapes.shapeFriction[shapeA] * world->shapes.shapeFriction[shapeB]);
+    c->restitution =
+        m2MaxF(world->shapes.shapeRestitution[shapeA], world->shapes.shapeRestitution[shapeB]);
+    c->beltSpeed =
+        world->shapes.shapeTangentSpeed[shapeA] + world->shapes.shapeTangentSpeed[shapeB];
+    bool anchored = !IsDynamic(world, c->bodyA) || !IsDynamic(world, c->bodyB);
+    c->softness = soft[anchored ? 1 : 0];
+}
+
+// True when the pair is solved this step: no sensor, something can move,
+// and at least one side is awake.
+static bool PairSolves(const m2World* world, int32_t shapeA, int32_t shapeB)
+{
+    if (world->shapes.shapeSensor[shapeA] != 0 || world->shapes.shapeSensor[shapeB] != 0)
+    {
+        return false;
+    }
+    int32_t bodyA = world->shapes.shapeBody[shapeA];
+    int32_t bodyB = world->shapes.shapeBody[shapeB];
+    bool awakeA = IsDynamic(world, bodyA) && world->bodies.asleep[bodyA] == 0;
+    bool awakeB = IsDynamic(world, bodyB) && world->bodies.asleep[bodyB] == 0;
+    return awakeA || awakeB;
+}
+
 int32_t m2PrepareContacts(m2World* world, m2ContactConstraint* constraints, float h)
 {
-    // Stiffer for static contacts, exactly like the reference: a soft
-    // ground row is an energy reservoir under a tall stack.
-    m2Softness soft = m2MakeSoft(M2_CONTACT_HERTZ, M2_CONTACT_DAMPING_RATIO, h);
-    m2Softness staticSoft = m2MakeSoft(2.0f * M2_CONTACT_HERTZ, M2_CONTACT_DAMPING_RATIO, h);
+    m2Softness soft[2] = {
+        m2MakeSoft(M2_CONTACT_HERTZ, M2_CONTACT_DAMPING_RATIO, h),
+        m2MakeSoft(2.0f * M2_CONTACT_HERTZ, M2_CONTACT_DAMPING_RATIO, h),
+    };
     int32_t count = 0;
     for (int32_t i = 0; i < world->contacts.pairCount; ++i)
     {
-        m2Manifold* manifold = &world->contacts.manifolds[i];
-        if (manifold->pointCount == 0)
+        const m2Manifold* manifold = &world->contacts.manifolds[i];
+        int32_t shapeA = (int32_t)(world->contacts.pairKeys[i] >> 32);
+        int32_t shapeB = (int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu);
+        if (manifold->pointCount == 0 || !PairSolves(world, shapeA, shapeB))
         {
             continue;
         }
-        int32_t shapeA = (int32_t)(world->contacts.pairKeys[i] >> 32);
-        int32_t shapeB = (int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu);
-        if (world->shapes.shapeSensor[shapeA] != 0 || world->shapes.shapeSensor[shapeB] != 0)
-        {
-            continue; // sensors observe, never push
-        }
-        int32_t bodyA = world->shapes.shapeBody[shapeA];
-        int32_t bodyB = world->shapes.shapeBody[shapeB];
-        float mA = world->bodies.invMass[bodyA];
-        float iA = world->bodies.invInertia[bodyA];
-        float mB = world->bodies.invMass[bodyB];
-        float iB = world->bodies.invInertia[bodyB];
-        // Dominance (contacts only): the higher side is unmovable in
-        // this pair; statics outrank every dynamic by construction.
-        int32_t domA = world->bodies.types[bodyA] == (uint8_t)m2_dynamicBody
-                           ? (int32_t)world->bodies.dominances[bodyA]
-                           : 128;
-        int32_t domB = world->bodies.types[bodyB] == (uint8_t)m2_dynamicBody
-                           ? (int32_t)world->bodies.dominances[bodyB]
-                           : 128;
-        if (domA > domB)
-        {
-            mA = 0.0f;
-            iA = 0.0f;
-        }
-        else if (domB > domA)
-        {
-            mB = 0.0f;
-            iB = 0.0f;
-        }
-        if (mA + mB == 0.0f && iA + iB == 0.0f)
-        {
-            continue; // both non-dynamic
-        }
-        bool asleepA = world->bodies.types[bodyA] != (uint8_t)m2_dynamicBody ||
-                       world->bodies.asleep[bodyA] != 0;
-        bool asleepB = world->bodies.types[bodyB] != (uint8_t)m2_dynamicBody ||
-                       world->bodies.asleep[bodyB] != 0;
-        if (asleepA && asleepB)
-        {
-            continue; // frozen contact inside a sleeping island
-        }
-
         m2ContactConstraint* c = constraints + count;
-        count += 1;
         c->pairIndex = i;
-        c->bodyA = bodyA;
-        c->bodyB = bodyB;
-        c->invMassA = mA;
-        c->invIA = iA;
-        c->invMassB = mB;
-        c->invIB = iB;
-        // Geometric-mean friction, max restitution (reference mixing).
-        c->friction =
-            sqrtf(world->shapes.shapeFriction[shapeA] * world->shapes.shapeFriction[shapeB]);
-        c->tangentSpeed =
-            world->shapes.shapeTangentSpeed[shapeA] + world->shapes.shapeTangentSpeed[shapeB];
-        float restA = world->shapes.shapeRestitution[shapeA];
-        float restB = world->shapes.shapeRestitution[shapeB];
-        c->restitution = m2MaxF(restA, restB);
-        c->softness = world->bodies.types[bodyA] != (uint8_t)m2_dynamicBody ||
-                              world->bodies.types[bodyB] != (uint8_t)m2_dynamicBody
-                          ? staticSoft
-                          : soft;
+        c->bodyA = world->shapes.shapeBody[shapeA];
+        c->bodyB = world->shapes.shapeBody[shapeB];
+        PairMasses(world, c);
+        if (c->invMassA + c->invMassB == 0.0f && c->invIA + c->invIB == 0.0f)
+        {
+            continue; // dominance left nothing to move
+        }
+        count += 1;
+        PrepareMaterial(world, c, shapeA, shapeB, soft);
+        c->normal = m2RotateVec2(world->bodies.transforms[c->bodyA].q, manifold->normal);
         c->pointCount = manifold->pointCount;
-
-        m2Rot qA = world->bodies.transforms[bodyA].q;
-        m2Rot qB = world->bodies.transforms[bodyB].q;
-        c->normal = m2RotateVec2(qA, manifold->normal);
-        m2Vec2 tangent = {-c->normal.y, c->normal.x};
-
-        m2Vec2 vA = world->bodies.linearVelocities[bodyA];
-        float wA = world->bodies.angularVelocities[bodyA];
-        m2Vec2 vB = world->bodies.linearVelocities[bodyB];
-        float wB = world->bodies.angularVelocities[bodyB];
-
         for (int32_t k = 0; k < manifold->pointCount; ++k)
         {
-            m2ManifoldPoint* mp = &manifold->points[k];
-            m2ConstraintPoint* cp = &c->points[k];
-            // Anchors relative to each body's center of mass: the arm
-            // the impulse actually torques about (bit-neutral when the
-            // COM sits on the origin).
-            m2Vec2 lcA = world->bodies.localCenters[bodyA];
-            m2Vec2 lcB = world->bodies.localCenters[bodyB];
-            cp->rA = m2RotateVec2(qA, (m2Vec2){mp->anchorA.x - lcA.x, mp->anchorA.y - lcA.y});
-            cp->rB = m2RotateVec2(qB, (m2Vec2){mp->anchorB.x - lcB.x, mp->anchorB.y - lcB.y});
-            // Reference factoring: fold the prepare-time anchor gap in,
-            // then track the ABSOLUTE rotated gap during solve - the
-            // incremental (rs - r0) form cancels catastrophically at
-            // small rotations and feeds the bias noise.
-            cp->baseSeparation = mp->separation - ((cp->rB.x - cp->rA.x) * c->normal.x +
-                                                   (cp->rB.y - cp->rA.y) * c->normal.y);
-            cp->normalImpulse = mp->normalImpulse;
-            cp->tangentImpulse = mp->tangentImpulse;
-            cp->id = mp->id;
-            cp->persisted = (uint16_t)(mp->flags & 1);
-
-            float kNormal = mA + mB +
-                            iA * m2Cross2(cp->rA, c->normal) * m2Cross2(cp->rA, c->normal) +
-                            iB * m2Cross2(cp->rB, c->normal) * m2Cross2(cp->rB, c->normal);
-            cp->normalMass = kNormal > 0.0f ? 1.0f / kNormal : 0.0f; // row-skip law
-            float kTangent = mA + mB + iA * m2Cross2(cp->rA, tangent) * m2Cross2(cp->rA, tangent) +
-                             iB * m2Cross2(cp->rB, tangent) * m2Cross2(cp->rB, tangent);
-            cp->tangentMass = kTangent > 0.0f ? 1.0f / kTangent : 0.0f;
-
-            m2Vec2 vrA = {vA.x - wA * cp->rA.y, vA.y + wA * cp->rA.x};
-            m2Vec2 vrB = {vB.x - wB * cp->rB.y, vB.y + wB * cp->rB.x};
-            cp->relativeVelocity = (vrB.x - vrA.x) * c->normal.x + (vrB.y - vrA.y) * c->normal.y;
+            PreparePoint(world, c, &manifold->points[k], &c->points[k]);
         }
     }
     return count;
 }
 
-void m2WarmStartOne(m2World* world, m2ContactConstraint* c)
+// Packs the constraints of one color with the given point count into
+// full blocks and one padded tail. Returns the new block count.
+static int32_t PackColor(m2World* world, const m2ContactPlan* plan, int32_t color,
+                         int32_t pointCount, int32_t blockCount)
 {
-    float mA = c->invMassA;
-    float iA = c->invIA;
-    float mB = c->invMassB;
-    float iB = c->invIB;
-    m2Vec2 vA = world->bodies.linearVelocities[c->bodyA];
-    float wA = world->bodies.angularVelocities[c->bodyA];
-    m2Vec2 vB = world->bodies.linearVelocities[c->bodyB];
-    float wB = world->bodies.angularVelocities[c->bodyB];
-    m2Vec2 tangent = {-c->normal.y, c->normal.x};
-    for (int32_t k = 0; k < c->pointCount; ++k)
+    m2ContactBlock* blocks = (m2ContactBlock*)world->solver.contactBlocks;
+    m2ContactBlock* block = NULL;
+    for (int32_t k = plan->colorStart[color]; k < plan->colorStart[color + 1]; ++k)
     {
-        m2ConstraintPoint* cp = &c->points[k];
-        m2Vec2 P = {cp->normalImpulse * c->normal.x + cp->tangentImpulse * tangent.x,
-                    cp->normalImpulse * c->normal.y + cp->tangentImpulse * tangent.y};
-        vA.x -= mA * P.x;
-        vA.y -= mA * P.y;
-        wA -= iA * m2Cross2(cp->rA, P);
-        vB.x += mB * P.x;
-        vB.y += mB * P.y;
-        wB += iB * m2Cross2(cp->rB, P);
+        const m2ContactConstraint* c = plan->constraints + world->solver.colorOrder[k];
+        if (c->pointCount != pointCount)
+        {
+            continue;
+        }
+        if (block == NULL || block->lanes == M2_LANES)
+        {
+            block = blocks + blockCount;
+            blockCount += 1;
+            block->lanes = 0;
+            block->pointCount = pointCount;
+        }
+        m2PackContactLane(block, block->lanes, c);
+        block->lanes += 1;
     }
-    m2StoreBodyVelocities(world, c, vA, wA, vB, wB);
+    if (block != NULL)
+    {
+        for (int32_t lane = block->lanes; lane < M2_LANES; ++lane)
+        {
+            m2PadContactLane(block, lane, world->bodies.bodyCapacity);
+        }
+    }
+    return blockCount;
 }
 
-void m2SolveContactOne(m2World* world, m2ContactConstraint* c, float invH, float minBiasVel,
-                       bool useBias)
+void m2PlanContacts(m2World* world, m2ContactPlan* plan)
 {
+    m2ColorConstraints(world, plan->constraints, plan->count, plan->colorStart);
+    int32_t blockCount = 0;
+    for (int32_t color = 0; color < M2_GRAPH_COLORS; ++color)
     {
-        float mA = c->invMassA;
-        float iA = c->invIA;
-        float mB = c->invMassB;
-        float iB = c->invIB;
-        m2Vec2 vA = world->bodies.linearVelocities[c->bodyA];
-        float wA = world->bodies.angularVelocities[c->bodyA];
-        m2Vec2 vB = world->bodies.linearVelocities[c->bodyB];
-        float wB = world->bodies.angularVelocities[c->bodyB];
-        m2Vec2 normal = c->normal;
-        m2Vec2 tangent = {-normal.y, normal.x};
+        plan->blockStart[color] = blockCount;
+        blockCount = PackColor(world, plan, color, 2, blockCount);
+        blockCount = PackColor(world, plan, color, 1, blockCount);
+    }
+    plan->blockStart[M2_GRAPH_COLORS] = blockCount;
+}
 
-        // Separation drift from accumulated deltas (never fresh
-        // world-space math inside the step).
-        m2Vec2 dp = {
-            world->solver.deltaPositions[c->bodyB].x - world->solver.deltaPositions[c->bodyA].x,
-            world->solver.deltaPositions[c->bodyB].y - world->solver.deltaPositions[c->bodyA].y};
+typedef struct StageTask
+{
+    m2World* world;
+    m2ContactBlock* blocks;
+    m2ContactStage stage;
+    float invH;
+    bool reversed;
+} StageTask;
 
-        for (int32_t k = 0; k < c->pointCount; ++k)
-        {
-            m2ConstraintPoint* cp = &c->points[k];
-            // Reference discipline: FIXED prepare-time anchors for the
-            // Jacobian and the applied torque; anchors re-rotated by
-            // the substep deltas only measure the current separation.
-            m2Vec2 rsA = m2RotateVec2(world->solver.deltaRotations[c->bodyA], cp->rA);
-            m2Vec2 rsB = m2RotateVec2(world->solver.deltaRotations[c->bodyB], cp->rB);
-            m2Vec2 ds = {dp.x + rsB.x - rsA.x, dp.y + rsB.y - rsA.y};
-            float s = cp->baseSeparation + ds.x * normal.x + ds.y * normal.y;
-
-            // Reference bias selection: the push clamp lands BEFORE the
-            // mass scale, and the whole (vn + bias) is scaled together.
-            float bias = 0.0f;
-            float massScale = 1.0f;
-            float impulseScale = 0.0f;
-            if (s > 0.0f)
-            {
-                bias = s * invH; // speculative: prevent crossing
-            }
-            else if (useBias)
-            {
-                bias = m2MaxF(c->softness.biasRate * s, minBiasVel);
-                massScale = c->softness.massScale;
-                impulseScale = c->softness.impulseScale;
-            }
-
-            m2Vec2 vrA = {vA.x - wA * cp->rA.y, vA.y + wA * cp->rA.x};
-            m2Vec2 vrB = {vB.x - wB * cp->rB.y, vB.y + wB * cp->rB.x};
-            float vn = (vrB.x - vrA.x) * normal.x + (vrB.y - vrA.y) * normal.y;
-
-            float impulse =
-                -cp->normalMass * massScale * (vn + bias) - impulseScale * cp->normalImpulse;
-            float newImpulse = m2MaxF(cp->normalImpulse + impulse, 0.0f);
-            impulse = newImpulse - cp->normalImpulse;
-            cp->normalImpulse = newImpulse;
-
-            m2Vec2 P = {impulse * normal.x, impulse * normal.y};
-            vA.x -= mA * P.x;
-            vA.y -= mA * P.y;
-            wA -= iA * m2Cross2(cp->rA, P);
-            vB.x += mB * P.x;
-            vB.y += mB * P.y;
-            wB += iB * m2Cross2(cp->rB, P);
-        }
-
-        {
-            // Friction solves in BOTH passes, like the reference. This
-            // was unstable for twenty slices - because the scrambled
-            // pair order was silently dropping warm-start carries and
-            // amplifying bias contamination in the accumulators. With
-            // the sort fixed, this schedule settles the pyramid benchmark
-            // fastest of the orders tried.
-            for (int32_t k = 0; k < c->pointCount; ++k)
-            {
-                m2ConstraintPoint* cp = &c->points[k];
-                m2Vec2 vrA = {vA.x - wA * cp->rA.y, vA.y + wA * cp->rA.x};
-                m2Vec2 vrB = {vB.x - wB * cp->rB.y, vB.y + wB * cp->rB.x};
-                // Our tangent is the LEFT perp of the normal (the
-                // reference uses the right perp), so the belt term
-                // ADDS: positive tangentSpeed drives riders toward
-                // +x on an upward-facing floor, the reference's
-                // observable convention.
-                float vt =
-                    (vrB.x - vrA.x) * tangent.x + (vrB.y - vrA.y) * tangent.y + c->tangentSpeed;
-                float impulse = -cp->tangentMass * vt;
-                float maxFriction = c->friction * cp->normalImpulse;
-                float newImpulse =
-                    m2ClampF(cp->tangentImpulse + impulse, -maxFriction, maxFriction);
-                impulse = newImpulse - cp->tangentImpulse;
-                cp->tangentImpulse = newImpulse;
-
-                m2Vec2 P = {impulse * tangent.x, impulse * tangent.y};
-                vA.x -= mA * P.x;
-                vA.y -= mA * P.y;
-                wA -= iA * m2Cross2(cp->rA, P);
-                vB.x += mB * P.x;
-                vB.y += mB * P.y;
-                wB += iB * m2Cross2(cp->rB, P);
-            }
-        }
-
-        m2StoreBodyVelocities(world, c, vA, wA, vB, wB);
+static void StageRange(int32_t begin, int32_t end, void* context)
+{
+    StageTask* task = (StageTask*)context;
+    for (int32_t i = begin; i < end; ++i)
+    {
+        m2RunContactBlock(task->world, task->blocks + i, task->stage, task->invH, task->reversed);
     }
 }
 
-void m2RestitutionOne(m2World* world, m2ContactConstraint* c)
+// The overflow in canonical order, each constraint alone in lane 0 of a
+// block whose other lanes stay inert.
+static void RunOverflow(m2World* world, const m2ContactPlan* plan, m2ContactStage stage)
 {
+    int32_t begin = plan->colorStart[M2_GRAPH_COLORS];
+    int32_t end = plan->colorStart[M2_GRAPH_COLORS + 1];
+    if (begin == end)
     {
-        if (c->restitution == 0.0f)
-        {
-            return;
-        }
-        float mA = c->invMassA;
-        float iA = c->invIA;
-        float mB = c->invMassB;
-        float iB = c->invIB;
-        m2Vec2 vA = world->bodies.linearVelocities[c->bodyA];
-        float wA = world->bodies.angularVelocities[c->bodyA];
-        m2Vec2 vB = world->bodies.linearVelocities[c->bodyB];
-        float wB = world->bodies.angularVelocities[c->bodyB];
-        for (int32_t k = 0; k < c->pointCount; ++k)
-        {
-            m2ConstraintPoint* cp = &c->points[k];
-            // Only points that arrived fast and actually carried load.
-            if (cp->relativeVelocity > -M2_RESTITUTION_THRESHOLD || cp->normalImpulse == 0.0f)
-            {
-                continue;
-            }
-            m2Vec2 vrA = {vA.x - wA * cp->rA.y, vA.y + wA * cp->rA.x};
-            m2Vec2 vrB = {vB.x - wB * cp->rB.y, vB.y + wB * cp->rB.x};
-            float vn = (vrB.x - vrA.x) * c->normal.x + (vrB.y - vrA.y) * c->normal.y;
-            float impulse = -cp->normalMass * (vn + c->restitution * cp->relativeVelocity);
-            float newImpulse = m2MaxF(cp->normalImpulse + impulse, 0.0f);
-            impulse = newImpulse - cp->normalImpulse;
-            cp->normalImpulse = newImpulse;
-            m2Vec2 P = {impulse * c->normal.x, impulse * c->normal.y};
-            vA.x -= mA * P.x;
-            vA.y -= mA * P.y;
-            wA -= iA * m2Cross2(cp->rA, P);
-            vB.x += mB * P.x;
-            vB.y += mB * P.y;
-            wB += iB * m2Cross2(cp->rB, P);
-        }
-        m2StoreBodyVelocities(world, c, vA, wA, vB, wB);
+        return;
     }
-}
-
-void m2ContactStageRange(int32_t begin, int32_t end, void* userCtx)
-{
-    m2ContactStageCtx* ctx = (m2ContactStageCtx*)userCtx;
+    m2ContactBlock block;
+    for (int32_t lane = 0; lane < M2_LANES; ++lane)
+    {
+        m2PadContactLane(&block, lane, world->bodies.bodyCapacity);
+    }
+    block.lanes = 1;
     for (int32_t k = begin; k < end; ++k)
     {
-        m2ContactConstraint* c = ctx->constraints + ctx->order[k];
-        switch (ctx->stage)
+        m2ContactConstraint* c = plan->constraints + world->solver.colorOrder[k];
+        block.pointCount = c->pointCount;
+        m2PackContactLane(&block, 0, c);
+        m2RunContactBlock(world, &block, stage, plan->invH, plan->reversed);
+        m2UnpackContactLane(&block, 0, c);
+    }
+}
+
+void m2RunContactStage(m2World* world, const m2ContactPlan* plan, m2ContactStage stage)
+{
+    StageTask task = {world, NULL, stage, plan->invH, plan->reversed};
+    for (int32_t color = 0; color < M2_GRAPH_COLORS; ++color)
+    {
+        int32_t begin = plan->blockStart[color];
+        int32_t count = plan->blockStart[color + 1] - begin;
+        if (count > 0)
         {
-        case m2_stageWarmStart:
-            m2WarmStartOne(ctx->world, c);
-            break;
-        case m2_stageSolve:
-            m2SolveContactOne(ctx->world, c, ctx->invH, ctx->minBiasVel, ctx->useBias);
-            break;
-        case m2_stageRestitution:
-            m2RestitutionOne(ctx->world, c);
-            break;
-        default:
-        {
-            m2Manifold* manifold = &ctx->world->contacts.manifolds[c->pairIndex];
-            for (int32_t j = 0; j < c->pointCount; ++j)
-            {
-                manifold->points[j].normalImpulse = c->points[j].normalImpulse;
-                manifold->points[j].tangentImpulse = c->points[j].tangentImpulse;
-            }
-            break;
-        }
+            task.blocks = (m2ContactBlock*)world->solver.contactBlocks + begin;
+            m2RunParallel(world, StageRange, &task, count, 1);
         }
     }
+    RunOverflow(world, plan, stage);
 }

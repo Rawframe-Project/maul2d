@@ -7,7 +7,6 @@
 #include "world_state.h"
 
 #include "contact_solver.h"
-#include "contact_solver_wide.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"

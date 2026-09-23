@@ -69,7 +69,7 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/chain.c
     src/contact.c
     src/contact_solver.c
-    src/contact_solver_wide.c
+    src/contact_kernel.c
     src/core.c
     src/destruction.c
     src/distance.c
