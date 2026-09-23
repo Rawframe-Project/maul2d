@@ -1,24 +1,22 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Islands and sleeping. v1 builds islands each step with a
+// Islands and sleeping. Islands are rebuilt each step with a
 // deterministic union-find over touching contacts in canonical pair
-// order - persistence (topic-06 D2) is a recorded optimization for
-// later; rebuilding from canonical inputs is history-free, so island
+// order. Rebuilding from canonical inputs is history-free, so island
 // structure needs no snapshot blocks. What DOES persist - and is
 // snapshot state and hashed - is per-body sleep: the asleep flag and
 // the sleep timer.
 //
-// Wake rules executed here (amended topic-06 §3): any awake member
-// wakes its whole island; a moving kinematic touching the island
-// disturbs it (the RT1-STAB-1 mechanism end to end); API setters wake
+// Wake rules: any awake member wakes its whole island; a moving
+// kinematic touching the island disturbs it; API setters wake
 // their body directly, and the island coupling spreads it next step.
 
 #include "world_internal.h"
 
 #include "maul2d/base.h"
 
-#define M2_SLEEP_LINEAR_TOLERANCE  0.05f // m/s (F-T6-2: harness-tuned later)
+#define M2_SLEEP_LINEAR_TOLERANCE  0.05f // m/s
 #define M2_SLEEP_ANGULAR_TOLERANCE 0.12f // rad/s
 #define M2_TIME_TO_SLEEP           0.5f  // seconds under tolerance
 
@@ -156,7 +154,7 @@ void m2UpdateIslandsAndWake(m2World* world)
 
 // Post-solve: island-coupled sleep accounting. An island sleeps only
 // when every member has stayed under tolerance for the full window; one
-// fast member resets the whole island (topic-06 D3).
+// fast member resets the whole island.
 void m2UpdateSleep(m2World* world, float dt)
 {
     int32_t* parent = world->islandParent;

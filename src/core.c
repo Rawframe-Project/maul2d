@@ -152,7 +152,7 @@ void m2SetAssertHandler(m2AssertFn* handler, void* context)
 
 int m2VerifyCpuBackend(void)
 {
-    // B1 (integration audit): the library never aborts in release.
+    // The library never aborts in release.
     // An unsupported CPU routes through the assert hook and refuses
     // the world with a null id; the printed reason remains for the
     // hookless case, and the host that skipped the public probe

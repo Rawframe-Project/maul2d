@@ -5,7 +5,7 @@
 // steps) replays into an identical world hash; recorded ids re-mint
 // bit-identically; overflow is loud; and the journal BYTES themselves
 // hash identically across CI cells - the wire format is part of the
-// determinism contract (ADR-0010 rule 6b).
+// determinism contract.
 
 #include "test_harness.h"
 #include "world_internal.h"
@@ -28,7 +28,7 @@ static m2WorldDef TestDef(void)
 }
 
 // A session with every op type: floor, rain of shapes, a pendulum, a
-// shove, a destroy, steps in two dt flavors (markers carry dt verbatim).
+// shove, a destroy, steps in two dt flavors (markers carry dt unchanged).
 static void RunSession(m2WorldId world, uint8_t* journal, int32_t capacity, int32_t* outSize,
                        uint64_t* outHash)
 {

@@ -286,7 +286,7 @@ static void TestFromGeometry(void)
 {
     // The proxy builder must round-trip a real polygon geometry: a box
     // built through the shape path should measure the same as the hand
-    // proxy. This keeps m2GeometryProxy honest.
+    // proxy. This keeps m2GeometryProxy accurate.
     m2Polygon poly = m2MakeBox(1.0f, 1.0f);
     m2ShapeGeometry geom;
     geom.type = m2_polygonShape;

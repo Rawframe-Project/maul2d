@@ -260,8 +260,8 @@ extern "C"
     /// Thread class: reader.
     M2_API uint64_t m2World_Hash(m2WorldId worldId);
 
-    /// Per-world persistent memory footprint in bytes (integration
-    /// audit D1): everything create allocated for this world,
+    /// Per-world persistent memory footprint in bytes: everything
+    /// create allocated for this world,
     /// including the world struct itself. Fixed for the world's
     /// lifetime (pools never grow; the journal buffer is the
     /// host's). Thread class: reader.

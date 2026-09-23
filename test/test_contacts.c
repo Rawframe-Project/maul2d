@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Contact gate, slice 3a: analytic manifold checks (circle kernels,
+// Contact checks: analytic manifold checks (circle kernels,
 // Voronoi regions, feature ids, the flip path), speculative existence
 // before touch, feature-id persistence with warm-start impulse carry,
 // rollback over the contact block, and the manifold evolution hash.
@@ -36,7 +36,7 @@ static void TestCircleKernels(void)
     CHECK_NEAR(m.points[0].anchorA.x, 0.4f, 1.0e-5f, "midpoint anchor");
 
     // Speculative: apart but within the margin - manifold exists with
-    // positive separation (topic-07 D1).
+    // positive separation.
     m2Circle far = {{1.01f, 0.0f}, 0.5f};
     m = m2CollideCircles(&a, &far, IdentityPose());
     CHECK(m.pointCount == 1 && m.points[0].separation > 0.0f, "speculative point before touch");
@@ -443,8 +443,7 @@ static void TestGroupIndex(void)
 
 // A chain id names the whole ground run: destroying it must remove
 // every segment, end the contacts, and wake the sleeper that was
-// resting on it (the destroy-path wake law, caught by the floor-yank
-// probe in slice 52).
+// resting on it.
 static void TestChainDestroy(void)
 {
     m2WorldDef def = m2DefaultWorldDef();

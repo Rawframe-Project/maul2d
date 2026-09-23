@@ -25,7 +25,7 @@ static uint32_t FloatBits(float x)
     return u;
 }
 
-// --- 1. Accuracy against libm (tolerances documented in topic-01) ---------
+// --- 1. Accuracy against libm ------------------------------------------------
 
 static void TestAccuracy(void)
 {
@@ -137,7 +137,7 @@ static void TestMinMaxSemantics(void)
     CHECK(FloatBits(m2MaxF(pz, nz)) == FloatBits(nz), "m2MaxF(+0,-0) must return -0");
     CHECK(FloatBits(m2MaxF(nz, pz)) == FloatBits(pz), "m2MaxF(-0,+0) must return +0");
 
-    // NaN never satisfies a comparison, so b comes back, verbatim.
+    // NaN never satisfies a comparison, so b comes back unchanged.
     uint32_t nanBits = 0x7FC00000u;
     float qnan;
     memcpy(&qnan, &nanBits, sizeof(qnan));

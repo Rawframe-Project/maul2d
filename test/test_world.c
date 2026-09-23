@@ -86,7 +86,7 @@ static void TestRollbackIdentity(void)
         CHECK(m2World_Hash(world) == hashes[i], "rollback identity: hash sequence must match");
     }
 
-    // Post-restore create/destroy determinism (topic-09 gate requirement):
+    // Post-restore create/destroy determinism:
     // the same commands after restore must mint bit-identical ids.
     CHECK(m2World_Restore(world, snapA, size), "restore for id re-mint");
     m2BodyDef bd = m2DefaultBodyDef();
@@ -563,8 +563,8 @@ static void TestRuntimeGravity(void)
 }
 
 // Destroying a body must wake whoever was resting on it, the same
-// law teleports and type changes already obey. Before slice 52 the
-// destroy paths skipped it and sleepers floated on a memory.
+// rule teleports and type changes already obey; otherwise sleepers
+// would float on nothing.
 static void TestDestroyWakesSleepers(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
@@ -1643,7 +1643,7 @@ static void TestLeftoverBasket(void)
     m2DestroyWorld(world);
 }
 
-// Dominance (slice 77, a rival lesson): the higher body cannot be
+// Dominance: the higher body cannot be
 // pushed by the lower one in contacts, statics outrank everyone,
 // joints stay symmetric.
 // The diagnostics surface: a healthy world validates, quiet facts

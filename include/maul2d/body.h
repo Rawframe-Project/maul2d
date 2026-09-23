@@ -63,7 +63,7 @@ extern "C"
         bool isEnabled;            // false = created dormant, outside simulation
         int8_t dominance;          // higher wins contacts: it cannot be pushed by lower
         bool isBullet;             // continuous collision vs non-bullets
-        uint64_t userData;         // opaque, copied verbatim through snapshots
+        uint64_t userData;         // opaque, copied unchanged through snapshots
         int32_t internalValue;
     } m2BodyDef;
 
@@ -101,7 +101,7 @@ extern "C"
     M2_API void m2Body_SetBullet(m2BodyId bodyId, bool flag);
     M2_API void m2Body_SetUserData(m2BodyId bodyId, uint64_t userData);
 
-    /// Contact dominance (a rival lesson worth keeping): in a pair,
+    /// Contact dominance: in a pair,
     /// the higher-dominance body acts as unmovable toward the lower
     /// one. Statics outrank everything. Enemies stop pushing the
     /// player. Contacts only; joints are unaffected. Journaled.

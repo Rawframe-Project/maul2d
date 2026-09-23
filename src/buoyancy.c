@@ -24,7 +24,7 @@
 
 // acos(x) = atan2(sqrt(1 - x^2), x), built on the engine's own
 // deterministic atan2 because libm acosf is not bit-identical
-// across platforms (the determinism contract, ADR-0010).
+// across platforms.
 static float FvAcos(float x)
 {
     float s = 1.0f - x * x;

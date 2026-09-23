@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // Shape validation, world-space AABBs, and mass properties. Validation
-// uses relative/geometric thresholds (topic-03 D4, RT1-NUM-1): these
+// uses relative and geometric thresholds: these
 // guarantees ARE the non-zero-divisor preconditions the sim path relies
 // on. Mass math follows the standard area/inertia integrals (reference:
 // Box2D's ComputeMass lineage, MIT).
@@ -13,8 +13,7 @@
 #include "maul2d/base.h"
 #include "maul2d/math.h"
 
-// Slop-scaled geometric floors (the b2_linearSlop model). Fixed constants
-// for now; harness-tuned alongside F-T2-1.
+// Slop-scaled geometric floors.
 #define M2_LINEAR_SLOP     0.005f
 #define M2_MIN_EDGE_LENGTH (2.0f * M2_LINEAR_SLOP)
 // Thinness bound: area must exceed this fraction of perimeter^2 (a
@@ -100,7 +99,7 @@ bool m2ValidatePolygon(const m2Polygon* polygon)
         }
     }
     // Scale-free sliver rejection (an absolute area epsilon would be
-    // scale-dependent, RT1-NUM-1).
+    // scale-dependent).
     return area > M2_MIN_THINNESS * perimeter * perimeter;
 }
 
@@ -361,7 +360,7 @@ m2Polygon m2MakeBox(float halfWidth, float halfHeight)
 static m2Pos2 WorldPoint(m2Transform xf, m2Vec2 local)
 {
     // The single f64 crossing for this stage: rotate in f32, then add to
-    // the f64 body position (topic-01 D1 discipline).
+    // the f64 body position.
     float x = xf.q.c * local.x - xf.q.s * local.y;
     float y = xf.q.s * local.x + xf.q.c * local.y;
     return (m2Pos2){xf.p.x + (double)x, xf.p.y + (double)y};

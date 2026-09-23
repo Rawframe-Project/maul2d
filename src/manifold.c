@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Narrowphase manifold kernels, slice 3a: circle-vs-circle and
-// polygon-vs-circle (Voronoi regions). Polygon-vs-polygon (SAT + clip,
-// covering capsules and segments as 2-vertex rounded polygons) lands in
-// slice 3b. Structure follows Box2D v3's manifold functions (Copyright
-// 2023 Erin Catto, MIT). Pure functions of their inputs: no state, only
+// Narrowphase manifold kernels: circle-vs-circle, polygon-vs-circle
+// (Voronoi regions) and polygon-vs-polygon (SAT + clip, covering
+// capsules and segments as 2-vertex rounded polygons). Structure follows Box2D v3's manifold
+// functions (Copyright 2023 Erin Catto, MIT). Pure functions of their inputs: no state, only
 // allowed ops, evaluated in canonical pair order by the world.
 
 #include "shape_internal.h"
@@ -60,8 +59,8 @@ m2Manifold m2CollideCircles(const m2Circle* a, const m2Circle* b, m2RelativePose
     }
     else
     {
-        // Coincident centers: the canonical fallback normal (topic-05
-        // NaN-free law) - deterministic, never NaN.
+        // Coincident centers: the canonical fallback normal,
+        // deterministic and never NaN.
         normal = (m2Vec2){0.0f, 1.0f};
     }
 

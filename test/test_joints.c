@@ -1539,7 +1539,7 @@ static void TestRatchetJoint(void)
 
     // Reverse under a CONTINUOUS torque (an instantaneous shove is
     // consumed in the first substep and reads zero at step end, the
-    // honest bookkeeping of speculative rows): the wheel gives back
+    // exact bookkeeping of speculative rows): the wheel gives back
     // less than one tooth, stalls on it, and carries the load.
     m2Rot before = m2Body_GetRotation(wheel);
     for (int32_t i = 0; i < 180; ++i)

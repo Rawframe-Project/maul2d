@@ -23,7 +23,7 @@ extern "C"
         uint16_t generation;
     } m2ShapeId;
 
-    /// All geometry is authored in body-local space, f32 (topic-01 D1).
+    /// All geometry is authored in body-local space, in 32-bit floats.
     typedef struct m2Circle
     {
         m2Vec2 center;
@@ -38,7 +38,7 @@ extern "C"
     } m2Capsule;
 
     /// Convex, counter-clockwise, at most 8 vertices. radius > 0 makes a
-    /// rounded polygon (first-class, topic-03 D2). Build via m2MakePolygon
+    /// rounded polygon. Build via m2MakePolygon
     /// or m2MakeBox so normals and validity are computed for you.
     typedef struct m2Polygon
     {
@@ -140,8 +140,9 @@ extern "C"
 
     M2_API m2ShapeDef m2DefaultShapeDef(void);
 
-    /// Validated constructors (topic-03 D4: relative thresholds, reject
-    /// loudly). A returned polygon with count == 0 is invalid input.
+    /// Validated constructors. Thresholds are relative to the shape's
+    /// size; a returned polygon with count == 0 means the input was
+    /// refused.
     M2_API m2Polygon m2MakePolygon(const m2Vec2* points, int32_t count, float radius);
 
     /// Convex hull of a loose point cloud (welding, collinear

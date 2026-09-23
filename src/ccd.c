@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Bullet continuous collision (topic-07 D2/D3): conservative advancement
+// Bullet continuous collision: conservative advancement
 // per substep for bullet-flagged bodies. Deterministic by construction:
 // bullets advance in body-index order, candidates come from tree queries
 // filtered and processed in canonical shape order, iteration counts are
 // capped, and hitting the cap is documented behavior (slight overlap
 // next substep, which the speculative solver then resolves). Bullets do
-// not sweep against other bullets (F-T7-1, reference behavior).
+// not sweep against other bullets.
 //
-// v1 simplifications, recorded: the bullet sweeps as its bounding circle
-// (exact for circle shapes, conservative for the rest), and rotation
-// during the sweep is ignored (F-T7-3 territory).
+// Simplifications: the bullet sweeps as its bounding circle (exact for
+// circle shapes, conservative for the rest), and rotation during the
+// sweep is ignored.
 
 #include "world_internal.h"
 
@@ -132,7 +132,7 @@ static void SweepBullet(m2World* world, int32_t body, m2Pos2 p0)
             int32_t other = world->shapeBody[shape];
             if (other == body || world->bullets[other] != 0)
             {
-                continue; // self, or bullet-vs-bullet (excluded, F-T7-1)
+                continue; // self, or bullet-vs-bullet (excluded)
             }
             // Collision filters apply to bullets too: keep the
             // candidate only if some bullet shape may hit it.

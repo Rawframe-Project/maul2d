@@ -3,7 +3,7 @@
 //
 // Island/sleep gate: a settled pyramid must sleep with zeroed
 // velocities and frozen positions; waking is island-transitive; a
-// kinematic sweep into a sleeping stack wakes it (RT1-STAB-1 end to
+// kinematic sweep into a sleeping stack wakes it (end to
 // end); sleep counters survive rollback bit-exactly; and the sleep and
 // wake cycle hash crosses CI cells.
 
@@ -93,7 +93,7 @@ static void TestPyramidSleeps(void)
 
 static void TestKinematicWakesSleepers(void)
 {
-    // RT1-STAB-1, end to end: a stack sleeps, a kinematic platform
+    // End to end: a stack sleeps, a kinematic platform
     // sweeps into it, the stack must wake and get pushed.
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 16;

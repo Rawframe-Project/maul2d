@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Fluids, the neighbor structure (chapter slice 2): a uniform grid
+// Fluids, the neighbor structure: a uniform grid
 // with cell size = particle diameter, rebuilt from positions every
 // step (history-free, the island precedent: derived structures
 // never enter the snapshot). The pair list is canonical by
@@ -20,8 +20,7 @@
 //      the distance test guards even that.
 //   2. Coincident particles (distance exactly zero) get the
 //      canonical fallback normal (0, 1) and full weight instead of
-//      the reference's NaN (0 * inf); the NaN-free invariant is
-//      constitution.
+//      the reference's NaN (0 * inf); the engine never produces NaN.
 //   3. The pair buffer is fixed (12 per particle of capacity);
 //      overflow truncates DETERMINISTICALLY in sweep order and
 //      counts loudly in particlePairOverflow. LiquidFun grows
@@ -199,7 +198,7 @@ void m2UpdateParticlePairs(m2World* world)
     }
 }
 
-// Particle-vs-body contacts (chapter slice 4): for every particle,
+// Particle-vs-body contacts: for every particle,
 // every shape whose surface sits within one diameter contributes a
 // contact carrying the reference fields (weight, outward normal,
 // pair-effective mass). Candidates come from the three trees like
@@ -383,7 +382,7 @@ static void UpdateParticleBodyContacts(m2World* world)
     }
 }
 
-// The water pass (chapter slice 3), the reference relaxation solver
+// The water pass, the reference relaxation solver
 // on the frozen pair list, once per step before the rigid solve:
 // weight (dimensionless density) -> viscosity (system-level strength;
 // zero means plain water) -> gravity -> pressure -> damping ->
@@ -1024,7 +1023,7 @@ int32_t m2World_FillPolygonWithParticles(m2WorldId worldId, const m2Polygon* pol
 }
 
 // Region query over the pool: a plain ascending scan. Particles
-// carry no tree (their grid is step-transient); an honest linear
+// carry no tree (their grid is step-transient); a linear
 // walk over a fixed-capacity pool is deterministic and cheap.
 int32_t m2World_OverlapParticlesAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper,
                                      m2ParticleId* ids, int32_t capacity)

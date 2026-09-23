@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Internal dynamic AABB tree (topic-02 D1). Index-based node pool, AVL
+// Internal dynamic AABB tree. Index-based node pool, AVL
 // balancing, fat leaf AABBs. Every field is POD and snapshot-visible:
 // tree shape is insertion-history-dependent, so rollback restores these
 // arrays byte-exactly instead of rebuilding. Adapted from
@@ -16,8 +16,7 @@
 
 #define M2_NULL_NODE (-1)
 
-// World-space AABB in f64 (topic-01 D1; interior-node f32 compression is
-// the F-T2-4 optimization, not taken until measured).
+// World-space AABB in f64.
 typedef struct m2AABB
 {
     m2Pos2 lowerBound;

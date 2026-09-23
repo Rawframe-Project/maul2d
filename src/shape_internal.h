@@ -13,7 +13,7 @@
 #include <string.h>
 
 // Tagged geometry union. Writers must memset the whole struct first so
-// union tail bytes are deterministic in snapshots (topic-01 D2).
+// union tail bytes are deterministic in snapshots.
 typedef struct m2ShapeGeometry
 {
     int32_t type; // m2ShapeType
@@ -75,8 +75,8 @@ typedef struct m2RelativePose
     m2Rot q;  // B rotation in A frame
 } m2RelativePose;
 
-// Speculative distance: manifolds exist slightly before touch
-// (topic-07 D1). Constant shared with the fat margin family.
+// Speculative distance: manifolds exist slightly before touch.
+// Constant shared with the fat margin family.
 #define M2_SPECULATIVE_DISTANCE (4.0f * 0.005f)
 
 m2Manifold m2CollideCircles(const m2Circle* a, const m2Circle* b, m2RelativePose pose);

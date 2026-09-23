@@ -65,7 +65,7 @@ static void TestLifecycle(void)
     }
     CHECK(m2World_GetParticleCount(world) == 13, "destroys drop the count");
     CHECK(!m2Particle_IsValid(ids[0]), "a destroyed id goes stale");
-    // FIFO promise (the round-7 lesson): freed slots return at the
+    // FIFO promise: freed slots return at the
     // END of the queue, never next; drain the 44 untouched slots and
     // the 45th emit lands on the first freed slot, fresh generation.
     m2ParticleId reborn = m2_nullParticleId;

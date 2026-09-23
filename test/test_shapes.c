@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Shape gate: validation thresholds (the RT1-NUM-1 relative-threshold
+// Shape checks: validation thresholds (the relative-threshold
 // family, adversarial inputs included), rotation-aware AABBs against
 // analytic expectations, mass properties against closed forms, mixed
 // shapes through the pair pipeline, rollback over shape state, and the
@@ -35,7 +35,7 @@ static void TestValidation(void)
     CHECK(sliverPoly.count == 0, "sliver polygon must be rejected");
 
     // Winding: clockwise input violates the CCW contract - rejected, not
-    // silently repaired (topic-03 D4).
+    // silently repaired.
     m2Vec2 clockwise[3] = {{0.0f, 0.0f}, {0.0f, 1.0f}, {1.0f, 0.0f}};
     CHECK(m2MakePolygon(clockwise, 3, 0.0f).count == 0, "CW winding must be rejected");
 

@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Command journal (topic-09 D3). Wire format, all little-endian raw
-// structs (floats as IEEE-754 bit patterns by construction - ADR-0010
-// rule 6b): header { magic, version, worldDef echo, snapshotSize },
+// Command journal. Wire format, all little-endian raw structs (floats
+// as IEEE-754 bit patterns): header { magic, version, worldDef echo,
+// snapshotSize },
 // the embedded snapshot, then op records. Step markers carry dt and
 // substepCount verbatim. Replay = restore + re-apply through the same
-// public entry points; deterministic id re-minting is asserted.
+// public entry points, and every recreated id must match the
+// recording.
 
 #include "world_internal.h"
 

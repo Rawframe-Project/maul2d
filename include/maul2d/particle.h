@@ -69,7 +69,7 @@ extern "C"
     M2_API void m2Particle_SetLifetime(m2ParticleId particleId, float seconds);
     M2_API float m2Particle_GetLifetime(m2ParticleId particleId);
 
-    /// Opaque per-particle game data, copied verbatim through
+    /// Opaque per-particle game data, copied unchanged through
     /// snapshots and journals. Journaled. Thread class: writer/reader.
     M2_API void m2Particle_SetUserData(m2ParticleId particleId, uint64_t userData);
     M2_API uint64_t m2Particle_GetUserData(m2ParticleId particleId);

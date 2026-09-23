@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Convex distance and translation casts (parity sprint, slice 63).
+// Convex distance and translation casts.
 // Every convex Maul shape is a point set plus a radius, so ONE GJK
 // distance kernel and one conservative-advancement cast serve circle,
 // capsule, polygon, segment and chain segment alike. The algorithm is

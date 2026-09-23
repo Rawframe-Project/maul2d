@@ -1762,7 +1762,7 @@ static void TestBeltWakeReplayStorm(void)
 {
     // A tangent-speed change wakes riders, and that wake now rides the
     // journaled channel so a replay reproduces it. A rider left asleep on
-    // replay would diverge (the exact bug slice 117 fixed).
+    // replay would diverge.
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
@@ -1873,8 +1873,8 @@ static void TestNewFeatureStorm(void)
 static void TestOffCenterInertiaPrismatic(void)
 {
     // An off-center-COM body (its shape sits well off the body origin, so
-    // the centroid inertia of slice 121 is what governs its spin) driven
-    // on a stressed prismatic (the fresh per-substep mass of slice 122):
+    // the centroid inertia is what governs its spin) driven
+    // on a stressed prismatic (with the per-substep mass refresh):
     // finite, rollback bit-exact, and worker-count deterministic.
     uint64_t hashes[2];
     for (int32_t wc = 0; wc < 2; ++wc)

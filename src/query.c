@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// World queries (topic-09 API surface): closest ray cast and AABB
+// World queries: closest ray cast and AABB
 // overlap over the broadphase trees. Read-only by construction - no
 // world state is touched, so a query storm between steps cannot move
 // the simulation hash. Results are canonical: the ray tie-breaks equal
@@ -631,7 +631,7 @@ int32_t m2World_OverlapAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2Sha
 }
 
 // ---------------------------------------------------------------
-// Convex sweeps and overlaps (parity sprint, slice 63). One generic
+// Convex sweeps and overlaps. One generic
 // walk serves circle, capsule and polygon: the cast geometry becomes
 // a m2DistanceProxy in its own local frame, and per candidate shape
 // both proxies meet in the TARGET's body-local frame (the same single

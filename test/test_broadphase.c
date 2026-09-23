@@ -3,7 +3,7 @@
 //
 // Broadphase gate: tree structural invariants vs a brute-force oracle
 // (own PRNG, registry M22), the pair pipeline (eager creation pairing,
-// kinematic-sweep pairing - the RT1-STAB-1 mechanism - and destroy
+// kinematic-sweep pairing (how a moving platform wakes a stack) and destroy
 // pruning), rollback identity over broadphase state, and the pair
 // evolution hash compared across CI cells.
 

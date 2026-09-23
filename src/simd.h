@@ -10,8 +10,8 @@
 //
 // Rules that keep the law:
 // - min/max are compare+select, NEVER the native instructions: SSE
-//   and NEON disagree about NaN propagation and signed zero (the
-//   MSVC-arm64 ternary lesson, slice 24).
+//   and NEON disagree about NaN propagation and signed zero, and
+//   MSVC on arm64 lowers the ternary differently.
 // - fused multiply-add is EXPLICIT and used identically everywhere:
 //   _mm256_fmadd_ps, vfmaq_f32 and fmaf are all correctly rounded, so
 //   they agree bit for bit. Implicit contraction stays forbidden by

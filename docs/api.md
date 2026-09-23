@@ -211,7 +211,7 @@ Deterministic state hash (alive bodies in index order + globals). Present in all
 ```c
 int64_t m2World_MemoryBytes(m2WorldId worldId);
 ```
-Per-world persistent memory footprint in bytes (integration audit D1): everything create allocated for this world, including the world struct itself. Fixed for the world's lifetime (pools never grow; the journal buffer is the host's). Thread class: reader.
+Per-world persistent memory footprint in bytes: everything create allocated for this world, including the world struct itself. Fixed for the world's lifetime (pools never grow; the journal buffer is the host's). Thread class: reader.
 
 ```c
 m2WorldHashParts m2World_HashParts(m2WorldId worldId);
@@ -333,7 +333,7 @@ void m2Body_SetUserData(m2BodyId bodyId, uint64_t userData);
 ```c
 void m2Body_SetDominance(m2BodyId bodyId, int8_t dominance);
 ```
-Contact dominance (a rival lesson worth keeping): in a pair, the higher-dominance body acts as unmovable toward the lower one. Statics outrank everything. Enemies stop pushing the player. Contacts only; joints are unaffected. Journaled.
+Contact dominance: in a pair, the higher-dominance body acts as unmovable toward the lower one. Statics outrank everything. Enemies stop pushing the player. Contacts only; joints are unaffected. Journaled.
 
 ```c
 int8_t m2Body_GetDominance(m2BodyId bodyId);
@@ -946,7 +946,7 @@ float m2Particle_GetLifetime(m2ParticleId particleId);
 ```c
 void m2Particle_SetUserData(m2ParticleId particleId, uint64_t userData);
 ```
-Opaque per-particle game data, copied verbatim through snapshots and journals. Journaled. Thread class: writer/reader.
+Opaque per-particle game data, copied unchanged through snapshots and journals. Journaled. Thread class: writer/reader.
 
 ```c
 uint64_t m2Particle_GetUserData(m2ParticleId particleId);
@@ -1013,7 +1013,7 @@ m2ShapeDef m2DefaultShapeDef(void);
 ```c
 m2Polygon m2MakePolygon(const m2Vec2* points, int32_t count, float radius);
 ```
-Validated constructors (topic-03 D4: relative thresholds, reject loudly). A returned polygon with count == 0 is invalid input.
+Validated constructors. Thresholds are relative to the shape's size; a returned polygon with count == 0 means the input was refused.
 
 ```c
 m2Polygon m2ComputeHull(const m2Vec2* points, int32_t count, float radius);
