@@ -15,6 +15,8 @@ Work toward 0.0.1, the first release of the reworked library.
 - `m2Counters.pairOverflow`: body pairs dropped by the last pair
   update because the pair table was full. Dropping pairs used to be a
   debug-only assert.
+- `bench/`: benchmark scenes that time Maul2D and pin their final
+  world hashes in `bench/pins.txt`. CI fails when a pin moves.
 
 ### Changed
 
@@ -28,6 +30,8 @@ Work toward 0.0.1, the first release of the reworked library.
 ### Removed
 
 - `m2SetLastResult` from the public header. It was internal.
+- The dual-backend harness and the `MAUL2D_BENCHMARKS` option, along
+  with the performance comparison in the README that relied on them.
 
 ### Fixed
 

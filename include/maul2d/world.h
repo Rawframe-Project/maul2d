@@ -210,13 +210,9 @@ extern "C"
         int32_t graphColors;         // colors used last step
         int32_t overflowConstraints; // serial bucket last step
         uint64_t stepCount;
-        // Diagnostics for integrators: quiet runtime facts and loud
-        // misuse, countable in Release where asserts are silent.
-        // THE POLL PATTERN (integration audit B4): sample this
-        // counter once per frame and alarm on growth; per-call
-        // notification is deliberately absent because a hook in the
-        // hot path would tax every healthy call for the sick ones,
-        // and in Debug the assert hook already fires per misuse.
+        // Diagnostics, counted in every build. Poll them once per
+        // frame and alarm on growth; there is no per-call callback,
+        // so healthy calls pay nothing for the diagnosis.
         int32_t pairOverflow;         // body pairs dropped last step (pair table full)
         int32_t particlePairOverflow; // pairs dropped last step (budget)
         int32_t particleBodyOverflow; // body contacts dropped last step
@@ -329,9 +325,11 @@ extern "C"
     /// mutating call and step marker with raw IEEE-754 bit encoding.
     /// StopJournal returns the byte size (0 = overflow or not recording:
     /// loud, never truncated-silent). ReplayJournal restores the
-    /// embedded snapshot and re-applies the stream; deterministic id
-    /// re-minting is asserted along the way. Restore during recording
-    /// stops the journal (recorded limitation). Thread class: writer.
+    /// embedded snapshot and re-applies the stream. It is atomic: a
+    /// tape that is malformed, truncated or recreates an object under a
+    /// different id than the recording saw is refused and the world is
+    /// left as it was. A restore during recording is recorded too.
+    /// Thread class: writer.
     /// The journal's fixed cost: header plus the embedded snapshot.
     /// Size tapes as this plus room for your ops. Thread class: reader.
     int32_t m2World_JournalBaseSize(m2WorldId worldId);

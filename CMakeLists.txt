@@ -173,14 +173,16 @@ if(MAUL2D_SAMPLES)
     add_subdirectory(samples)
 endif()
 
-option(MAUL2D_BENCHMARKS "Build the dual-backend harness (fetches Box2D)" OFF)
+# The benchmarks: built always so they cannot rot, never a CTest gate
+# (wall time is not deterministic). CI compares their hashes against
+# bench/pins.txt.
+add_executable(maul2d_bench bench/bench_main.c)
+target_link_libraries(maul2d_bench PRIVATE maul2d)
+maul2d_apply_flags(maul2d_bench)
+
 option(MAUL2D_TESTBED "Build the interactive testbed (fetches raylib)" OFF)
 if(MAUL2D_TESTBED)
     add_subdirectory(testbed)
-endif()
-
-if(MAUL2D_BENCHMARKS)
-    add_subdirectory(benchmark)
 endif()
 
 # ---- install and package rules -------------------------------------------------

@@ -151,9 +151,9 @@ extern "C"
     /// self-intersections, no holes) into convex pieces of at most 8
     /// vertices each: the road from a sprite outline to destructible
     /// bodies. Fills up to capacity pieces and returns the truthful
-    /// total (the enumeration contract). Returns 0 and asserts on
-    /// invalid input (too few or too many points, clockwise winding,
-    /// self-intersection, non-finite coordinates). Near-zero-area
+    /// total (the enumeration contract). Refuses invalid input (too
+    /// few or too many points, clockwise winding, self-intersection,
+    /// non-finite coordinates) by returning 0. Near-zero-area
     /// sliver pieces are welded away by validation and skipped; clean
     /// outlines lose nothing. Pure math, no world required.
     /// Thread class: reader (pure).

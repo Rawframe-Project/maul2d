@@ -228,30 +228,32 @@ jobs:
         run: |
           pip install clang-format==22.1.5 >/dev/null
           clang-format --version
-          clang-format --dry-run -Werror include/maul2d/*.h src/*.c test/*.c benchmark/*.c
+          clang-format --dry-run -Werror include/maul2d/*.h src/*.c test/*.c bench/*.c
       - name: API reference is in sync with the headers
         run: |
           python3 tools/gen_api.py
           git diff --exit-code docs/api.md || (echo 'docs/api.md is stale: run tools/gen_api.py and commit' && exit 1)
 
-  harness:
-    name: dual-backend harness (reference)
+  bench-pins:
+    name: bench pins (must not move)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Configure
-        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DMAUL2D_BENCHMARKS=ON
-      - name: Build
-        run: cmake --build build
-      - name: Run
-        shell: bash
+      - name: Build release
         run: |
-          set -o pipefail
-          ./build/benchmark/harness | tee harness-metrics.txt
-      - uses: actions/upload-artifact@v4
-        with:
-          name: harness-metrics
-          path: harness-metrics.txt
+          cmake -B build -DCMAKE_BUILD_TYPE=Release
+          cmake --build build -j --target maul2d_bench
+      - name: Compare against the pinned hashes
+        run: |
+          ./build/maul2d_bench | tee bench.out
+          fail=0
+          while read -r scene pin; do
+            if ! grep -q "M2_BENCH $scene .*hash=$pin" bench.out; then
+              echo "PIN MOVED: $scene expected $pin"
+              fail=1
+            fi
+          done < bench/pins.txt
+          exit $fail
 
   soak:
     name: weekly soak

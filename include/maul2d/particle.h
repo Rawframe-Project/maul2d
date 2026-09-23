@@ -50,11 +50,11 @@ extern "C"
         m2_elasticParticle = 1u << 4, // shape-restoring triads captured at fill
     } m2ParticleFlags;
 
-    /// Emit one particle at a world position. Returns the null id
-    /// when the world has no particle system (asserts in Debug: that
-    /// is misuse) or when the system is full (silent: a full pool is
-    /// a runtime fact, pace emitters off GetParticleCount). Journaled.
-    /// Thread class: writer.
+    /// Emit one particle at a world position. Refuses with the null id
+    /// when the world has no particle system (invalid) or when the
+    /// system is full (capacity; also counted in
+    /// m2Counters.particlePoolFull, so pace emitters off
+    /// m2World_GetParticleCount). Journaled. Thread class: writer.
     m2ParticleId m2World_EmitParticle(m2WorldId worldId, m2Pos2 position, m2Vec2 velocity,
                                       uint32_t flags);
 

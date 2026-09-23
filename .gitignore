@@ -1,3 +1,13 @@
-build*/
+# Build trees
+build/
+build-*/
+out/
+
+# Tool output
+.cache/
+compile_commands.json
+_site/
+*.m2j
+*.m3j
 out.txt
 harness-metrics.txt

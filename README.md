@@ -117,11 +117,10 @@ twin), an API mirror test guards the readback surface, eight
 red-team rounds attack the engine as code, and a weekly scheduled
 CI run plus a 300k-step soak watch for toolchain drift.
 
-That contract costs less than folklore says: a dual-backend harness
-runs the same scenes through Maul2D and Box2D v3 side by side, and
-Maul2D holds joint parity, sleeps for free, and stays within
-roughly 1.1 to 1.2 times Box2D's AVX solve times on dense active
-stacks while carrying guarantees no engine in its class ships.
+The benchmarks in `bench/` (pyramids, hanging chains up to 2000
+links, a joint farm and a water tank) print their timings and their
+final world hashes; the hashes are pinned in `bench/pins.txt` and CI
+fails when one moves.
 
 ## Status and stability
 
