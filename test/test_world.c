@@ -2104,6 +2104,11 @@ static void TestShatterBody(void)
     m2CreatePolygonShape(lone, &ss, &box);
     uint64_t before = m2World_Hash(small);
     CHECK(m2World_ShatterBody(lone, shards, 4, NULL, 0) == 0, "a full world refuses");
+    CHECK(m2LastResult() == m2_errorCapacity, "and says the world is full");
+    m2Polygon bent = shards[0];
+    bent.count = M2_MAX_POLYGON_VERTICES + 1;
+    CHECK(m2World_ShatterBody(lone, &bent, 1, NULL, 0) == 0, "a malformed piece refuses");
+    CHECK(m2LastResult() == m2_errorInvalid, "as invalid input");
     CHECK(m2Body_IsValid(lone), "the refused parent is untouched");
     CHECK(m2World_Hash(small) == before, "a refusal moves no bits");
     m2DestroyWorld(small);

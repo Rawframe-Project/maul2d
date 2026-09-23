@@ -335,6 +335,90 @@ static bool JointParamValid(uint8_t type, uint8_t param, float value)
     }
 }
 
+// Writes one validated parameter; distance and pulley retargets drop
+// the joint's accumulated impulses.
+static void ApplyJointParam(m2World* world, int32_t index, uint8_t param, float value)
+{
+    m2Joints* j = &world->joints;
+    switch (param)
+    {
+    case m2_jointParamMotorSpeed:
+        j->jointMotorSpeed[index] = value;
+        break;
+    case m2_jointParamMaxMotor:
+        j->jointMaxMotor[index] = value;
+        break;
+    case m2_jointParamEnableMotor:
+        j->jointFlags[index] = value != 0.0f ? (j->jointFlags[index] | M2_JOINT_MOTOR)
+                                             : (j->jointFlags[index] & ~M2_JOINT_MOTOR);
+        break;
+    case m2_jointParamEnableLimit:
+        j->jointFlags[index] = value != 0.0f ? (j->jointFlags[index] | M2_JOINT_LIMIT)
+                                             : (j->jointFlags[index] & ~M2_JOINT_LIMIT);
+        break;
+    case m2_jointParamLower:
+        j->jointLower[index] = value;
+        break;
+    case m2_jointParamBreakForce:
+        j->jointBreakForce[index] = value;
+        break;
+    case m2_jointParamBreakTorque:
+        j->jointBreakTorque[index] = value;
+        break;
+    case m2_jointParamHertz:
+        j->jointHertz[index] = value;
+        break;
+    case m2_jointParamDamping:
+        j->jointDamping[index] = value;
+        break;
+    case m2_jointParamAngularHertz:
+        j->jointHertz2[index] = value;
+        if (value == 0.0f)
+        {
+            j->jointSpringImpulse[index] = 0.0f; // disable drops memory
+        }
+        break;
+    case m2_jointParamAngularDamping:
+        j->jointDamping2[index] = value;
+        break;
+    case m2_jointParamLength:
+        j->jointLength[index] = value;
+        j->jointImpulse[index] = (m2Vec2){0.0f, 0.0f};
+        j->jointLowerImpulse[index] = 0.0f;
+        j->jointUpperImpulse[index] = 0.0f;
+        break;
+    case m2_jointParamMinLength:
+        j->jointLower[index] = value;
+        j->jointImpulse[index] = (m2Vec2){0.0f, 0.0f};
+        j->jointLowerImpulse[index] = 0.0f;
+        j->jointUpperImpulse[index] = 0.0f;
+        break;
+    case m2_jointParamMaxLength:
+        j->jointUpper[index] = value;
+        j->jointImpulse[index] = (m2Vec2){0.0f, 0.0f};
+        j->jointLowerImpulse[index] = 0.0f;
+        j->jointUpperImpulse[index] = 0.0f;
+        break;
+    case m2_jointParamGearRatio:
+        j->jointLength[index] = value; // phase carries over on purpose
+        break;
+    case m2_jointParamPulleyRatio:
+        // Recapture the rope total from current geometry so the
+        // machine does not snap; drop memory like a distance retarget.
+        j->jointRefAngle[index] =
+            m2PulleyLiveLength(world, index, 0) + value * m2PulleyLiveLength(world, index, 1);
+        j->jointLength[index] = value;
+        j->jointImpulse[index] = (m2Vec2){0.0f, 0.0f};
+        break;
+    case m2_jointParamUpper:
+        j->jointUpper[index] = value;
+        break;
+    default:
+        M2_ASSERT(false); // JointParamValid admits no other channel
+        break;
+    }
+}
+
 // One journaled channel for every joint parameter. Refuses a stale id
 // (world may be NULL) or a parameter outside the channel's contract.
 bool m2SetJointParamInternal(m2World* world, m2JointId jointId, uint8_t param, float value)
@@ -354,99 +438,12 @@ bool m2SetJointParamInternal(m2World* world, m2JointId jointId, uint8_t param, f
         record.param = param;
         m2JournalRecord(world, m2_opSetJointParam, &record, (int32_t)sizeof(record));
     }
-    switch (param)
-    {
-    case m2_jointParamMotorSpeed:
-        world->joints.jointMotorSpeed[index] = value;
-        break;
-    case m2_jointParamMaxMotor:
-        world->joints.jointMaxMotor[index] = value;
-        break;
-    case m2_jointParamEnableMotor:
-        world->joints.jointFlags[index] = value != 0.0f
-                                              ? (world->joints.jointFlags[index] | M2_JOINT_MOTOR)
-                                              : (world->joints.jointFlags[index] & ~M2_JOINT_MOTOR);
-        break;
-    case m2_jointParamEnableLimit:
-        world->joints.jointFlags[index] = value != 0.0f
-                                              ? (world->joints.jointFlags[index] | M2_JOINT_LIMIT)
-                                              : (world->joints.jointFlags[index] & ~M2_JOINT_LIMIT);
-        break;
-    case m2_jointParamLower:
-        world->joints.jointLower[index] = value;
-        break;
-    case m2_jointParamBreakForce:
-        world->joints.jointBreakForce[index] = value;
-        break;
-    case m2_jointParamBreakTorque:
-        world->joints.jointBreakTorque[index] = value;
-        break;
-    case m2_jointParamHertz:
-        world->joints.jointHertz[index] = value;
-        break;
-    case m2_jointParamDamping:
-        world->joints.jointDamping[index] = value;
-        break;
-    case m2_jointParamAngularHertz:
-        world->joints.jointHertz2[index] = value;
-        if (value == 0.0f)
-        {
-            world->joints.jointSpringImpulse[index] = 0.0f; // disable drops memory
-        }
-        break;
-    case m2_jointParamAngularDamping:
-        world->joints.jointDamping2[index] = value;
-        break;
-    case m2_jointParamLength:
-        // Reference semantics: retargeting the rod drops its memory.
-        world->joints.jointLength[index] = value;
-        world->joints.jointImpulse[index] = (m2Vec2){0.0f, 0.0f};
-        world->joints.jointLowerImpulse[index] = 0.0f;
-        world->joints.jointUpperImpulse[index] = 0.0f;
-        break;
-    case m2_jointParamMinLength:
-        world->joints.jointLower[index] = value;
-        world->joints.jointImpulse[index] = (m2Vec2){0.0f, 0.0f};
-        world->joints.jointLowerImpulse[index] = 0.0f;
-        world->joints.jointUpperImpulse[index] = 0.0f;
-        break;
-    case m2_jointParamMaxLength:
-        world->joints.jointUpper[index] = value;
-        world->joints.jointImpulse[index] = (m2Vec2){0.0f, 0.0f};
-        world->joints.jointLowerImpulse[index] = 0.0f;
-        world->joints.jointUpperImpulse[index] = 0.0f;
-        break;
-    case m2_jointParamGearRatio:
-        world->joints.jointLength[index] = value; // phase carries over on purpose
-        break;
-    case m2_jointParamPulleyRatio:
-        // Recapture the rope total from current geometry so the
-        // machine does not snap; drop memory like a distance retarget.
-        world->joints.jointRefAngle[index] =
-            m2PulleyLiveLength(world, index, 0) + value * m2PulleyLiveLength(world, index, 1);
-        world->joints.jointLength[index] = value;
-        world->joints.jointImpulse[index] = (m2Vec2){0.0f, 0.0f};
-        break;
-    case m2_jointParamUpper:
-        world->joints.jointUpper[index] = value;
-        break;
-    default:
-        M2_ASSERT(false); // JointParamValid admits no other channel
-        break;
-    }
+    ApplyJointParam(world, index, param, value);
     // Any parameter change wakes both ends.
     int32_t bodyA = world->joints.jointBodyA[index];
     int32_t bodyB = world->joints.jointBodyB[index];
-    if (world->bodies.types[bodyA] == (uint8_t)m2_dynamicBody)
-    {
-        world->bodies.asleep[bodyA] = 0;
-        world->bodies.sleepTimes[bodyA] = 0.0f;
-    }
-    if (world->bodies.types[bodyB] == (uint8_t)m2_dynamicBody)
-    {
-        world->bodies.asleep[bodyB] = 0;
-        world->bodies.sleepTimes[bodyB] = 0.0f;
-    }
+    m2WakeIfDynamic(world, bodyA);
+    m2WakeIfDynamic(world, bodyB);
     return true;
 }
 
@@ -545,16 +542,8 @@ void m2DestroyJointInternal(m2World* world, int32_t index)
     // Both ends wake: a constraint vanished.
     int32_t bodyA = world->joints.jointBodyA[index];
     int32_t bodyB = world->joints.jointBodyB[index];
-    if (world->bodies.types[bodyA] == (uint8_t)m2_dynamicBody)
-    {
-        world->bodies.asleep[bodyA] = 0;
-        world->bodies.sleepTimes[bodyA] = 0.0f;
-    }
-    if (world->bodies.types[bodyB] == (uint8_t)m2_dynamicBody)
-    {
-        world->bodies.asleep[bodyB] = 0;
-        world->bodies.sleepTimes[bodyB] = 0.0f;
-    }
+    m2WakeIfDynamic(world, bodyA);
+    m2WakeIfDynamic(world, bodyB);
     world->joints.jointAlive[index] = 0;
     m2UnlinkJoint(world, index);
     if (world->joints.jointCollide[index] == 0)

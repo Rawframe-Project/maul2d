@@ -6,11 +6,9 @@
 // world state is touched, so a query storm between steps cannot move
 // the simulation hash. Results are canonical: the ray tie-breaks equal
 // fractions on the lower shape index, overlap lists sort ascending.
-//
-// Shape kernels are adapted from Box2D v3.1.1 geometry.c (MIT,
-// Copyright Erin Catto), reworked for Maul's frames: the ray drops
-// into each body's local frame through one f64->f32 crossing, exactly
-// like the narrowphase, so casts stay exact far from the origin.
+// The ray drops into each body's local frame through one f64->f32
+// crossing, exactly like the narrowphase, so casts stay exact far from
+// the origin.
 
 #include "query.h"
 #include "distance.h"
@@ -29,336 +27,6 @@ m2QueryFilter m2DefaultQueryFilter(void)
     return filter;
 }
 
-static bool QueryShouldSee(const m2World* world, int32_t shapeIndex, m2QueryFilter filter)
-{
-    return (filter.categoryBits & world->shapes.shapeMask[shapeIndex]) != 0 &&
-           (world->shapes.shapeCategory[shapeIndex] & filter.maskBits) != 0;
-}
-
-typedef struct m2CastHit
-{
-    m2Vec2 point; // body-local
-    m2Vec2 normal;
-    float fraction; // of the local ray length parameter (0..maxFraction)
-    bool hit;
-} m2CastHit;
-
-static float LengthAndNormalize(m2Vec2* out, m2Vec2 v)
-{
-    float length = sqrtf(v.x * v.x + v.y * v.y);
-    if (length < 1.19209290e-7f)
-    {
-        *out = (m2Vec2){0.0f, 0.0f};
-        return 0.0f;
-    }
-    out->x = v.x / length;
-    out->y = v.y / length;
-    return length;
-}
-
-// Circle kernel (reference structure).
-static m2CastHit RayCastCircle(m2Vec2 p1, m2Vec2 d, float maxFraction, m2Vec2 center, float radius)
-{
-    m2CastHit output = {{0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f, false};
-    m2Vec2 s = {p1.x - center.x, p1.y - center.y};
-    float rr = radius * radius;
-
-    m2Vec2 unit;
-    float length = LengthAndNormalize(&unit, d);
-    if (length == 0.0f)
-    {
-        if (s.x * s.x + s.y * s.y < rr)
-        {
-            output.point = p1;
-            output.hit = true;
-        }
-        return output;
-    }
-
-    float t = -(s.x * unit.x + s.y * unit.y);
-    m2Vec2 c = {s.x + t * unit.x, s.y + t * unit.y};
-    float cc = c.x * c.x + c.y * c.y;
-    if (cc > rr)
-    {
-        return output;
-    }
-
-    float h = sqrtf(rr - cc);
-    float fraction = t - h;
-    if (fraction < 0.0f || maxFraction * length < fraction)
-    {
-        if (s.x * s.x + s.y * s.y < rr)
-        {
-            output.point = p1;
-            output.hit = true;
-        }
-        return output;
-    }
-
-    m2Vec2 hitPoint = {s.x + fraction * unit.x, s.y + fraction * unit.y};
-    float invRadius = radius > 0.0f ? 1.0f / radius : 0.0f;
-    output.fraction = fraction / length;
-    output.normal = (m2Vec2){hitPoint.x * invRadius, hitPoint.y * invRadius};
-    output.point =
-        (m2Vec2){center.x + radius * output.normal.x, center.y + radius * output.normal.y};
-    output.hit = true;
-    return output;
-}
-
-// Two-sided segment kernel (reference structure).
-static m2CastHit RayCastSegment(m2Vec2 p1, m2Vec2 d, float maxFraction, m2Vec2 v1, m2Vec2 v2)
-{
-    m2CastHit output = {{0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f, false};
-    m2Vec2 e = {v2.x - v1.x, v2.y - v1.y};
-    m2Vec2 eUnit;
-    float length = LengthAndNormalize(&eUnit, e);
-    if (length == 0.0f)
-    {
-        return output;
-    }
-
-    m2Vec2 normal = {eUnit.y, -eUnit.x}; // right perp
-    float numerator = normal.x * (v1.x - p1.x) + normal.y * (v1.y - p1.y);
-    float denominator = normal.x * d.x + normal.y * d.y;
-    if (denominator == 0.0f)
-    {
-        return output;
-    }
-
-    float t = numerator / denominator;
-    if (t < 0.0f || maxFraction < t)
-    {
-        return output;
-    }
-
-    m2Vec2 p = {p1.x + t * d.x, p1.y + t * d.y};
-    float s = (p.x - v1.x) * eUnit.x + (p.y - v1.y) * eUnit.y;
-    if (s < 0.0f || length < s)
-    {
-        return output;
-    }
-    if (numerator > 0.0f)
-    {
-        normal = (m2Vec2){-normal.x, -normal.y};
-    }
-    output.fraction = t;
-    output.point = p;
-    output.normal = normal;
-    output.hit = true;
-    return output;
-}
-
-// Capsule kernel (reference structure).
-static m2CastHit RayCastCapsule(m2Vec2 p1, m2Vec2 d, float maxFraction, m2Vec2 v1, m2Vec2 v2,
-                                float radius)
-{
-    m2CastHit output = {{0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f, false};
-    m2Vec2 a;
-    float capsuleLength = LengthAndNormalize(&a, (m2Vec2){v2.x - v1.x, v2.y - v1.y});
-    if (capsuleLength == 0.0f)
-    {
-        return RayCastCircle(p1, d, maxFraction, v1, radius);
-    }
-
-    m2Vec2 q = {p1.x - v1.x, p1.y - v1.y};
-    float qa = q.x * a.x + q.y * a.y;
-    m2Vec2 qp = {q.x - qa * a.x, q.y - qa * a.y};
-
-    if (qp.x * qp.x + qp.y * qp.y < radius * radius)
-    {
-        if (qa < 0.0f)
-        {
-            return RayCastCircle(p1, d, maxFraction, v1, radius);
-        }
-        if (qa > capsuleLength)
-        {
-            return RayCastCircle(p1, d, maxFraction, v2, radius);
-        }
-        output.point = p1;
-        output.hit = true;
-        return output;
-    }
-
-    m2Vec2 n = {a.y, -a.x};
-    m2Vec2 u;
-    float rayLength = LengthAndNormalize(&u, d);
-    if (rayLength == 0.0f)
-    {
-        return output;
-    }
-
-    float den = -a.x * u.y + u.x * a.y;
-    if (den > -1.19209290e-7f && den < 1.19209290e-7f)
-    {
-        return output; // parallel and outside
-    }
-
-    m2Vec2 b1 = {q.x - radius * n.x, q.y - radius * n.y};
-    m2Vec2 b2 = {q.x + radius * n.x, q.y + radius * n.y};
-    float invDen = 1.0f / den;
-    float s21 = (a.x * b1.y - b1.x * a.y) * invDen;
-    float s22 = (a.x * b2.y - b2.x * a.y) * invDen;
-
-    float s2;
-    m2Vec2 b;
-    if (s21 < s22)
-    {
-        s2 = s21;
-        b = b1;
-    }
-    else
-    {
-        s2 = s22;
-        b = b2;
-        n = (m2Vec2){-n.x, -n.y};
-    }
-
-    if (s2 < 0.0f || maxFraction * rayLength < s2)
-    {
-        return output;
-    }
-
-    float s1 = (-b.x * u.y + u.x * b.y) * invDen;
-    if (s1 < 0.0f)
-    {
-        return RayCastCircle(p1, d, maxFraction, v1, radius);
-    }
-    if (capsuleLength < s1)
-    {
-        return RayCastCircle(p1, d, maxFraction, v2, radius);
-    }
-
-    float lerp = s1 / capsuleLength;
-    output.fraction = s2 / rayLength;
-    output.point = (m2Vec2){v1.x + lerp * (v2.x - v1.x) + radius * n.x,
-                            v1.y + lerp * (v2.y - v1.y) + radius * n.y};
-    output.normal = n;
-    output.hit = true;
-    return output;
-}
-
-// Sharp polygon kernel (reference structure, radius == 0 path).
-static m2CastHit RayCastSharpPolygon(m2Vec2 p1In, m2Vec2 d, float maxFraction,
-                                     const m2Polygon* shape)
-{
-    m2CastHit output = {{0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f, false};
-    // Shift the math to the first vertex (the polygon may sit far from
-    // the body origin).
-    m2Vec2 base = shape->vertices[0];
-    m2Vec2 p1 = {p1In.x - base.x, p1In.y - base.y};
-
-    float lower = 0.0f;
-    float upper = maxFraction;
-    int32_t index = -1;
-
-    for (int32_t i = 0; i < shape->count; ++i)
-    {
-        m2Vec2 vertex = {shape->vertices[i].x - base.x, shape->vertices[i].y - base.y};
-        float numerator =
-            shape->normals[i].x * (vertex.x - p1.x) + shape->normals[i].y * (vertex.y - p1.y);
-        float denominator = shape->normals[i].x * d.x + shape->normals[i].y * d.y;
-
-        if (denominator == 0.0f)
-        {
-            if (numerator < 0.0f)
-            {
-                return output;
-            }
-        }
-        else
-        {
-            if (denominator < 0.0f && numerator < lower * denominator)
-            {
-                lower = numerator / denominator;
-                index = i;
-            }
-            else if (denominator > 0.0f && numerator < upper * denominator)
-            {
-                upper = numerator / denominator;
-            }
-        }
-
-        if (upper < lower)
-        {
-            return output;
-        }
-    }
-
-    if (index >= 0)
-    {
-        output.fraction = lower;
-        output.normal = shape->normals[index];
-        output.point = (m2Vec2){p1In.x + lower * d.x, p1In.y + lower * d.y};
-        output.hit = true;
-    }
-    else
-    {
-        output.point = p1In;
-        output.hit = true;
-    }
-    return output;
-}
-
-static void TakeBetter(m2CastHit* best, m2CastHit candidate)
-{
-    if (candidate.hit && (!best->hit || candidate.fraction < best->fraction))
-    {
-        *best = candidate;
-    }
-}
-
-// Rounded polygons cast as the union of offset edges and vertex
-// circles: exact, and built from kernels that are already exact.
-static m2CastHit RayCastPolygon(m2Vec2 p1, m2Vec2 d, float maxFraction, const m2Polygon* shape)
-{
-    if (shape->radius == 0.0f)
-    {
-        return RayCastSharpPolygon(p1, d, maxFraction, shape);
-    }
-    m2CastHit best = {{0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f, false};
-    for (int32_t i = 0; i < shape->count; ++i)
-    {
-        int32_t j = i + 1 < shape->count ? i + 1 : 0;
-        m2Vec2 offset = {shape->normals[i].x * shape->radius, shape->normals[i].y * shape->radius};
-        m2Vec2 e1 = {shape->vertices[i].x + offset.x, shape->vertices[i].y + offset.y};
-        m2Vec2 e2 = {shape->vertices[j].x + offset.x, shape->vertices[j].y + offset.y};
-        TakeBetter(&best, RayCastSegment(p1, d, maxFraction, e1, e2));
-        TakeBetter(&best, RayCastCircle(p1, d, maxFraction, shape->vertices[i], shape->radius));
-    }
-    return best;
-}
-
-static m2CastHit RayCastGeometry(const m2ShapeGeometry* geometry, m2Vec2 p1, m2Vec2 d,
-                                 float maxFraction)
-{
-    switch (geometry->type)
-    {
-    case m2_circleShape:
-        return RayCastCircle(p1, d, maxFraction, geometry->circle.center, geometry->circle.radius);
-    case m2_capsuleShape:
-        return RayCastCapsule(p1, d, maxFraction, geometry->capsule.point1,
-                              geometry->capsule.point2, geometry->capsule.radius);
-    case m2_segmentShape:
-        return RayCastSegment(p1, d, maxFraction, geometry->segment.point1,
-                              geometry->segment.point2);
-    case m2_chainSegmentShape:
-    {
-        // One-sided, like the collision: rays from the ghost side miss.
-        const m2Segment* seg = &geometry->chainSegment.segment;
-        m2Vec2 e = {seg->point2.x - seg->point1.x, seg->point2.y - seg->point1.y};
-        float offset = (p1.x - seg->point1.x) * e.y - (p1.y - seg->point1.y) * e.x;
-        if (offset < 0.0f) // reference sign: skip rays from the ghost side
-        {
-            m2CastHit missHit = {{0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f, false};
-            return missHit;
-        }
-        return RayCastSegment(p1, d, maxFraction, seg->point1, seg->point2);
-    }
-    default:
-        return RayCastPolygon(p1, d, maxFraction, &geometry->polygon);
-    }
-}
-
 // Ray vs one shape in the body frame: one f64 subtraction per body is
 // the only precision crossing, same law as the narrowphase.
 static m2CastHit RayCastShape(const m2World* world, int32_t shapeIndex, m2Pos2 origin, m2Vec2 d,
@@ -371,7 +39,7 @@ static m2CastHit RayCastShape(const m2World* world, int32_t shapeIndex, m2Pos2 o
     m2Vec2 pLocal = {xf.q.c * rel.x + xf.q.s * rel.y, -xf.q.s * rel.x + xf.q.c * rel.y};
     m2Vec2 dLocal = {xf.q.c * d.x + xf.q.s * d.y, -xf.q.s * d.x + xf.q.c * d.y};
     m2CastHit hit =
-        RayCastGeometry(&world->shapes.shapeGeometry[shapeIndex], pLocal, dLocal, maxFraction);
+        m2RayCastGeometry(&world->shapes.shapeGeometry[shapeIndex], pLocal, dLocal, maxFraction);
     if (hit.hit)
     {
         // Rotate the normal back out; the point is rebuilt in f64 by
@@ -449,7 +117,7 @@ static void RayCastTree(const m2World* world, int32_t treeIndex, m2RayState* ray
         }
         int32_t shapeIndex = nodes[index].userData;
         if (world->shapes.shapeAlive[shapeIndex] == 0 ||
-            !QueryShouldSee(world, shapeIndex, ray->filter))
+            !m2QueryShouldSee(world, shapeIndex, ray->filter))
         {
             continue;
         }
@@ -621,7 +289,7 @@ int32_t m2World_OverlapAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2Sha
         while (m2TreeNextQuery(&cursor, &shapeIndex))
         {
             if (world->shapes.shapeAlive[shapeIndex] == 0 ||
-                !QueryShouldSee(world, shapeIndex, filter))
+                !m2QueryShouldSee(world, shapeIndex, filter))
             {
                 continue;
             }
@@ -646,177 +314,6 @@ int32_t m2World_OverlapAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2Sha
 // both proxies meet in the TARGET's body-local frame (the same single
 // f64 crossing as rays).
 
-m2DistanceProxy m2GeometryProxy(const m2ShapeGeometry* g)
-{
-    m2DistanceProxy p;
-    p.count = 1;
-    p.radius = 0.0f;
-    p.points[0] = (m2Vec2){0.0f, 0.0f};
-    switch (g->type)
-    {
-    case m2_circleShape:
-        p.points[0] = g->circle.center;
-        p.radius = g->circle.radius;
-        break;
-    case m2_capsuleShape:
-        p.points[0] = g->capsule.point1;
-        p.points[1] = g->capsule.point2;
-        p.count = 2;
-        p.radius = g->capsule.radius;
-        break;
-    case m2_polygonShape:
-        for (int32_t i = 0; i < g->polygon.count; ++i)
-        {
-            p.points[i] = g->polygon.vertices[i];
-        }
-        p.count = g->polygon.count;
-        p.radius = g->polygon.radius;
-        break;
-    case m2_segmentShape:
-        p.points[0] = g->segment.point1;
-        p.points[1] = g->segment.point2;
-        p.count = 2;
-        break;
-    default: // chain segment
-        p.points[0] = g->chainSegment.segment.point1;
-        p.points[1] = g->chainSegment.segment.point2;
-        p.count = 2;
-        break;
-    }
-    return p;
-}
-
-typedef struct m2ProxyQuery
-{
-    m2DistanceProxy castLocal; // cast geometry in its own frame
-    m2Transform pose;          // world pose of that frame (f64 p)
-    m2Vec2 translation;        // world sweep, zero for overlaps
-    float boundRadius;         // bounding circle of the cast geometry
-} m2ProxyQuery;
-
-// Caller shapes become distance proxies here, once, with the checks
-// every cast and overlap shares: a real pointer, a vertex count the
-// proxy can hold, finite coordinates, a finite non-negative radius. A
-// refused shape comes back with count 0, which the query entry points
-// turn into a refusal.
-static m2DistanceProxy CheckedProxy(const m2Vec2* points, int32_t count, float radius)
-{
-    m2DistanceProxy p;
-    memset(&p, 0, sizeof(p));
-    if (points == NULL || count < 1 || count > M2_MAX_POLYGON_VERTICES || !m2FiniteF(radius) ||
-        radius < 0.0f)
-    {
-        return p;
-    }
-    for (int32_t i = 0; i < count; ++i)
-    {
-        if (!m2FiniteVec2(points[i]))
-        {
-            return p;
-        }
-        p.points[i] = points[i];
-    }
-    p.count = count;
-    p.radius = radius;
-    return p;
-}
-
-static m2DistanceProxy CircleProxy(const m2Circle* circle)
-{
-    m2DistanceProxy none;
-    memset(&none, 0, sizeof(none));
-    return circle != NULL ? CheckedProxy(&circle->center, 1, circle->radius) : none;
-}
-
-static m2DistanceProxy CapsuleProxy(const m2Capsule* capsule)
-{
-    m2DistanceProxy none;
-    memset(&none, 0, sizeof(none));
-    if (capsule == NULL)
-    {
-        return none;
-    }
-    m2Vec2 points[2] = {capsule->point1, capsule->point2};
-    return CheckedProxy(points, 2, capsule->radius);
-}
-
-static m2DistanceProxy PolygonProxy(const m2Polygon* polygon)
-{
-    m2DistanceProxy none;
-    memset(&none, 0, sizeof(none));
-    return polygon != NULL ? CheckedProxy(polygon->vertices, polygon->count, polygon->radius)
-                           : none;
-}
-
-// A query pose and sweep: finite, with a unit rotation.
-static bool QueryMotionValid(m2Transform pose, m2Vec2 translation)
-{
-    return m2FinitePos2(pose.p) && m2UnitRot(pose.q) && m2FiniteVec2(translation);
-}
-
-static m2ProxyQuery MakeProxyQuery(const m2DistanceProxy* castLocal, m2Transform pose,
-                                   m2Vec2 translation)
-{
-    m2ProxyQuery q;
-    q.castLocal = *castLocal;
-    q.pose = pose;
-    q.translation = translation;
-    float ext = 0.0f;
-    for (int32_t i = 0; i < castLocal->count; ++i)
-    {
-        float d2 = castLocal->points[i].x * castLocal->points[i].x +
-                   castLocal->points[i].y * castLocal->points[i].y;
-        float d = sqrtf(d2);
-        ext = d > ext ? d : ext;
-    }
-    q.boundRadius = ext + castLocal->radius;
-    return q;
-}
-
-// Both proxies in the target's body frame; also reports the pose
-// origin there (the chain one-sided reference point).
-static void ProxiesInBodyFrame(const m2World* world, int32_t shapeIndex, const m2ProxyQuery* q,
-                               m2DistanceProxy* target, m2DistanceProxy* cast,
-                               m2Vec2* translationLocal, m2Vec2* poseOriginLocal)
-{
-    int32_t body = world->shapes.shapeBody[shapeIndex];
-    m2Transform xf = world->bodies.transforms[body];
-    *target = m2GeometryProxy(&world->shapes.shapeGeometry[shapeIndex]);
-
-    m2Vec2 rel = {(float)(q->pose.p.x - xf.p.x), (float)(q->pose.p.y - xf.p.y)};
-    m2Vec2 relLocal = {xf.q.c * rel.x + xf.q.s * rel.y, -xf.q.s * rel.x + xf.q.c * rel.y};
-    *poseOriginLocal = relLocal;
-
-    // Combined rotation: cast local -> world (pose.q), world -> body
-    // local (inverse xf.q).
-    float rc = xf.q.c * q->pose.q.c + xf.q.s * q->pose.q.s;
-    float rs = xf.q.c * q->pose.q.s - xf.q.s * q->pose.q.c;
-    cast->count = q->castLocal.count;
-    cast->radius = q->castLocal.radius;
-    for (int32_t i = 0; i < q->castLocal.count; ++i)
-    {
-        m2Vec2 pt = q->castLocal.points[i];
-        cast->points[i] =
-            (m2Vec2){rc * pt.x - rs * pt.y + relLocal.x, rs * pt.x + rc * pt.y + relLocal.y};
-    }
-    translationLocal->x = xf.q.c * q->translation.x + xf.q.s * q->translation.y;
-    translationLocal->y = -xf.q.s * q->translation.x + xf.q.c * q->translation.y;
-}
-
-// Sweeps from the ghost side pass through, same sign law as rays.
-static bool ChainGhostSide(const m2World* world, int32_t shapeIndex, m2Vec2 startLocal)
-{
-    const m2ShapeGeometry* g = &world->shapes.shapeGeometry[shapeIndex];
-    if (g->type != m2_chainSegmentShape)
-    {
-        return false;
-    }
-    const m2Segment* seg = &g->chainSegment.segment;
-    m2Vec2 e = {seg->point2.x - seg->point1.x, seg->point2.y - seg->point1.y};
-    float offset = (startLocal.x - seg->point1.x) * e.y - (startLocal.y - seg->point1.y) * e.x;
-    return offset < 0.0f;
-}
-
 static m2RayCastResult CastProxyClosest(m2WorldId worldId, const m2DistanceProxy* castLocal,
                                         m2Transform pose, m2Vec2 translation, m2QueryFilter filter)
 {
@@ -828,12 +325,12 @@ static m2RayCastResult CastProxyClosest(m2WorldId worldId, const m2DistanceProxy
     result.hit = false;
 
     m2World* world = m2WorldFromId(worldId);
-    if (world == NULL || castLocal->count == 0 || !QueryMotionValid(pose, translation))
+    if (world == NULL || castLocal->count == 0 || !m2QueryMotionValid(pose, translation))
     {
         m2Refuse(world, m2_errorInvalid);
         return result;
     }
-    m2ProxyQuery q = MakeProxyQuery(castLocal, pose, translation);
+    m2ProxyQuery q = m2MakeProxyQuery(castLocal, pose, translation);
 
     // Swept bounding circle in f64: exact culling far from the origin.
     double lox = q.pose.p.x - (double)q.boundRadius;
@@ -863,7 +360,7 @@ static m2RayCastResult CastProxyClosest(m2WorldId worldId, const m2DistanceProxy
         while (m2TreeNextQuery(&cursor, &shapeIndex))
         {
             if (world->shapes.shapeAlive[shapeIndex] == 0 ||
-                !QueryShouldSee(world, shapeIndex, filter))
+                !m2QueryShouldSee(world, shapeIndex, filter))
             {
                 continue;
             }
@@ -871,9 +368,9 @@ static m2RayCastResult CastProxyClosest(m2WorldId worldId, const m2DistanceProxy
             m2DistanceProxy cast;
             m2Vec2 translationLocal;
             m2Vec2 startLocal;
-            ProxiesInBodyFrame(world, shapeIndex, &q, &target, &cast, &translationLocal,
-                               &startLocal);
-            if (ChainGhostSide(world, shapeIndex, startLocal))
+            m2ProxiesInBodyFrame(world, shapeIndex, &q, &target, &cast, &translationLocal,
+                                 &startLocal);
+            if (m2ChainGhostSide(world, shapeIndex, startLocal))
             {
                 continue;
             }
@@ -921,12 +418,12 @@ static int32_t OverlapProxy(m2WorldId worldId, const m2DistanceProxy* castLocal,
                             m2ShapeId* ids, int32_t capacity, m2QueryFilter filter)
 {
     m2World* world = m2WorldFromId(worldId);
-    if (world == NULL || castLocal->count == 0 || !QueryMotionValid(pose, (m2Vec2){0.0f, 0.0f}))
+    if (world == NULL || castLocal->count == 0 || !m2QueryMotionValid(pose, (m2Vec2){0.0f, 0.0f}))
     {
         m2Refuse(world, m2_errorInvalid);
         return 0;
     }
-    m2ProxyQuery q = MakeProxyQuery(castLocal, pose, (m2Vec2){0.0f, 0.0f});
+    m2ProxyQuery q = m2MakeProxyQuery(castLocal, pose, (m2Vec2){0.0f, 0.0f});
     m2AABB aabb;
     aabb.lowerBound.x = q.pose.p.x - (double)q.boundRadius;
     aabb.lowerBound.y = q.pose.p.y - (double)q.boundRadius;
@@ -943,7 +440,7 @@ static int32_t OverlapProxy(m2WorldId worldId, const m2DistanceProxy* castLocal,
         while (m2TreeNextQuery(&cursor, &shapeIndex))
         {
             if (world->shapes.shapeAlive[shapeIndex] == 0 ||
-                !QueryShouldSee(world, shapeIndex, filter))
+                !m2QueryShouldSee(world, shapeIndex, filter))
             {
                 continue;
             }
@@ -951,9 +448,9 @@ static int32_t OverlapProxy(m2WorldId worldId, const m2DistanceProxy* castLocal,
             m2DistanceProxy cast;
             m2Vec2 translationLocal;
             m2Vec2 startLocal;
-            ProxiesInBodyFrame(world, shapeIndex, &q, &target, &cast, &translationLocal,
-                               &startLocal);
-            if (ChainGhostSide(world, shapeIndex, startLocal))
+            m2ProxiesInBodyFrame(world, shapeIndex, &q, &target, &cast, &translationLocal,
+                                 &startLocal);
+            if (m2ChainGhostSide(world, shapeIndex, startLocal))
             {
                 continue;
             }
@@ -976,7 +473,7 @@ m2RayCastResult m2World_CastCircleClosest(m2WorldId worldId, const m2Circle* cir
                                           m2Transform origin, m2Vec2 translation,
                                           m2QueryFilter filter)
 {
-    m2DistanceProxy p = CircleProxy(circle);
+    m2DistanceProxy p = m2CircleProxy(circle);
     return CastProxyClosest(worldId, &p, origin, translation, filter);
 }
 
@@ -984,7 +481,7 @@ m2RayCastResult m2World_CastCapsuleClosest(m2WorldId worldId, const m2Capsule* c
                                            m2Transform origin, m2Vec2 translation,
                                            m2QueryFilter filter)
 {
-    m2DistanceProxy p = CapsuleProxy(capsule);
+    m2DistanceProxy p = m2CapsuleProxy(capsule);
     return CastProxyClosest(worldId, &p, origin, translation, filter);
 }
 
@@ -992,28 +489,28 @@ m2RayCastResult m2World_CastPolygonClosest(m2WorldId worldId, const m2Polygon* p
                                            m2Transform origin, m2Vec2 translation,
                                            m2QueryFilter filter)
 {
-    m2DistanceProxy p = PolygonProxy(polygon);
+    m2DistanceProxy p = m2PolygonProxy(polygon);
     return CastProxyClosest(worldId, &p, origin, translation, filter);
 }
 
 int32_t m2World_OverlapCircle(m2WorldId worldId, const m2Circle* circle, m2Transform origin,
                               m2ShapeId* ids, int32_t capacity, m2QueryFilter filter)
 {
-    m2DistanceProxy p = CircleProxy(circle);
+    m2DistanceProxy p = m2CircleProxy(circle);
     return OverlapProxy(worldId, &p, origin, ids, capacity, filter);
 }
 
 int32_t m2World_OverlapCapsule(m2WorldId worldId, const m2Capsule* capsule, m2Transform origin,
                                m2ShapeId* ids, int32_t capacity, m2QueryFilter filter)
 {
-    m2DistanceProxy p = CapsuleProxy(capsule);
+    m2DistanceProxy p = m2CapsuleProxy(capsule);
     return OverlapProxy(worldId, &p, origin, ids, capacity, filter);
 }
 
 int32_t m2World_OverlapPolygon(m2WorldId worldId, const m2Polygon* polygon, m2Transform origin,
                                m2ShapeId* ids, int32_t capacity, m2QueryFilter filter)
 {
-    m2DistanceProxy p = PolygonProxy(polygon);
+    m2DistanceProxy p = m2PolygonProxy(polygon);
     return OverlapProxy(worldId, &p, origin, ids, capacity, filter);
 }
 
@@ -1152,7 +649,7 @@ int32_t m2World_CastRayAll(m2WorldId worldId, m2Pos2 origin, m2Vec2 translation,
             }
             int32_t shapeIndex = nodes[index].userData;
             if (world->shapes.shapeAlive[shapeIndex] == 0 ||
-                !QueryShouldSee(world, shapeIndex, filter))
+                !m2QueryShouldSee(world, shapeIndex, filter))
             {
                 continue;
             }
@@ -1185,12 +682,12 @@ static int32_t CastProxyAll(m2WorldId worldId, const m2DistanceProxy* castLocal,
                             m2QueryFilter filter)
 {
     m2World* world = m2WorldFromId(worldId);
-    if (world == NULL || castLocal->count == 0 || !QueryMotionValid(pose, translation))
+    if (world == NULL || castLocal->count == 0 || !m2QueryMotionValid(pose, translation))
     {
         m2Refuse(world, m2_errorInvalid);
         return 0;
     }
-    m2ProxyQuery q = MakeProxyQuery(castLocal, pose, translation);
+    m2ProxyQuery q = m2MakeProxyQuery(castLocal, pose, translation);
 
     double lox = q.pose.p.x - (double)q.boundRadius;
     double loy = q.pose.p.y - (double)q.boundRadius;
@@ -1217,7 +714,7 @@ static int32_t CastProxyAll(m2WorldId worldId, const m2DistanceProxy* castLocal,
         while (m2TreeNextQuery(&cursor, &shapeIndex))
         {
             if (world->shapes.shapeAlive[shapeIndex] == 0 ||
-                !QueryShouldSee(world, shapeIndex, filter))
+                !m2QueryShouldSee(world, shapeIndex, filter))
             {
                 continue;
             }
@@ -1225,9 +722,9 @@ static int32_t CastProxyAll(m2WorldId worldId, const m2DistanceProxy* castLocal,
             m2DistanceProxy cast;
             m2Vec2 translationLocal;
             m2Vec2 startLocal;
-            ProxiesInBodyFrame(world, shapeIndex, &q, &target, &cast, &translationLocal,
-                               &startLocal);
-            if (ChainGhostSide(world, shapeIndex, startLocal))
+            m2ProxiesInBodyFrame(world, shapeIndex, &q, &target, &cast, &translationLocal,
+                                 &startLocal);
+            if (m2ChainGhostSide(world, shapeIndex, startLocal))
             {
                 continue;
             }
@@ -1271,7 +768,7 @@ int32_t m2World_CastCircleAll(m2WorldId worldId, const m2Circle* circle, m2Trans
                               m2Vec2 translation, m2RayHit* hits, int32_t capacity,
                               m2QueryFilter filter)
 {
-    m2DistanceProxy p = CircleProxy(circle);
+    m2DistanceProxy p = m2CircleProxy(circle);
     return CastProxyAll(worldId, &p, origin, translation, hits, capacity, filter);
 }
 
@@ -1279,7 +776,7 @@ int32_t m2World_CastCapsuleAll(m2WorldId worldId, const m2Capsule* capsule, m2Tr
                                m2Vec2 translation, m2RayHit* hits, int32_t capacity,
                                m2QueryFilter filter)
 {
-    m2DistanceProxy p = CapsuleProxy(capsule);
+    m2DistanceProxy p = m2CapsuleProxy(capsule);
     return CastProxyAll(worldId, &p, origin, translation, hits, capacity, filter);
 }
 
@@ -1287,171 +784,6 @@ int32_t m2World_CastPolygonAll(m2WorldId worldId, const m2Polygon* polygon, m2Tr
                                m2Vec2 translation, m2RayHit* hits, int32_t capacity,
                                m2QueryFilter filter)
 {
-    m2DistanceProxy p = PolygonProxy(polygon);
+    m2DistanceProxy p = m2PolygonProxy(polygon);
     return CastProxyAll(worldId, &p, origin, translation, hits, capacity, filter);
-}
-
-// ------------------------------------------------- the mover kit
-// Collision planes for a posed capsule mover: one GJK query per
-// nearby shape, plane normal from the shape toward the mover,
-// separation measured along it (negative = penetration), the
-// speculative collar included so a controller sees walls before it
-// clips them. Reference architecture (mover.c), Maul frames.
-int32_t m2World_CollideMover(m2WorldId worldId, const m2Capsule* mover, m2Transform origin,
-                             m2PlaneResult* results, int32_t capacity, m2QueryFilter filter)
-{
-    m2World* world = m2WorldFromId(worldId);
-    m2DistanceProxy moverLocal = CapsuleProxy(mover);
-    if (world == NULL || moverLocal.count == 0 || !QueryMotionValid(origin, (m2Vec2){0.0f, 0.0f}))
-    {
-        m2Refuse(world, m2_errorInvalid);
-        return 0;
-    }
-    m2ProxyQuery q = MakeProxyQuery(&moverLocal, origin, (m2Vec2){0.0f, 0.0f});
-
-    float collar = 0.02f; // 4x linear slop, the speculative margin
-    m2AABB aabb;
-    aabb.lowerBound.x = q.pose.p.x - (double)(q.boundRadius + collar);
-    aabb.lowerBound.y = q.pose.p.y - (double)(q.boundRadius + collar);
-    aabb.upperBound.x = q.pose.p.x + (double)(q.boundRadius + collar);
-    aabb.upperBound.y = q.pose.p.y + (double)(q.boundRadius + collar);
-
-    int32_t total = 0;
-    for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
-    {
-        m2TreeCursor cursor;
-        m2TreeBeginQuery(&cursor, &world->broadphase.trees[t], world->broadphase.treeNodes[t],
-                         aabb);
-        int32_t shapeIndex;
-        while (m2TreeNextQuery(&cursor, &shapeIndex))
-        {
-            if (world->shapes.shapeAlive[shapeIndex] == 0 ||
-                !QueryShouldSee(world, shapeIndex, filter))
-            {
-                continue;
-            }
-            m2DistanceProxy target;
-            m2DistanceProxy cast;
-            m2Vec2 translationLocal;
-            m2Vec2 startLocal;
-            ProxiesInBodyFrame(world, shapeIndex, &q, &target, &cast, &translationLocal,
-                               &startLocal);
-            if (ChainGhostSide(world, shapeIndex, startLocal))
-            {
-                continue;
-            }
-            m2DistanceResult d = m2ShapeDistance(&target, &cast);
-            float separation = d.distance - target.radius - cast.radius;
-            if (separation > collar)
-            {
-                continue;
-            }
-            // Deep overlap loses the normal; fall back to pushing the
-            // mover toward its own pose origin side, or skip if even
-            // that is degenerate (dead-centered).
-            m2Vec2 normalLocal = d.normal;
-            if (d.distance <= 0.0f && normalLocal.x == 0.0f && normalLocal.y == 0.0f)
-            {
-                float len = sqrtf(startLocal.x * startLocal.x + startLocal.y * startLocal.y);
-                if (!(len > 0.0f))
-                {
-                    continue;
-                }
-                normalLocal = (m2Vec2){startLocal.x / len, startLocal.y / len};
-            }
-            int32_t body = world->shapes.shapeBody[shapeIndex];
-            m2Transform xf = world->bodies.transforms[body];
-            m2Vec2 surf = {d.pointA.x + target.radius * normalLocal.x,
-                           d.pointA.y + target.radius * normalLocal.y};
-            if (results != NULL && total < capacity)
-            {
-                m2PlaneResult* out = results + total;
-                out->shapeId.index1 = shapeIndex + 1;
-                out->shapeId.world0 = worldId.index1;
-                out->shapeId.generation = world->shapes.shapeGenerations[shapeIndex];
-                out->normal = (m2Vec2){xf.q.c * normalLocal.x - xf.q.s * normalLocal.y,
-                                       xf.q.s * normalLocal.x + xf.q.c * normalLocal.y};
-                out->separation = separation;
-                out->point = (m2Pos2){xf.p.x + (double)(xf.q.c * surf.x - xf.q.s * surf.y),
-                                      xf.p.y + (double)(xf.q.s * surf.x + xf.q.c * surf.y)};
-            }
-            total += 1;
-        }
-    }
-    // Ascending shape order for the filled portion (canonical).
-    int32_t filled = results != NULL ? (total < capacity ? total : capacity) : 0;
-    for (int32_t i = 1; i < filled; ++i)
-    {
-        m2PlaneResult key = results[i];
-        int32_t j = i - 1;
-        while (j >= 0 && results[j].shapeId.index1 > key.shapeId.index1)
-        {
-            results[j + 1] = results[j];
-            j -= 1;
-        }
-        results[j + 1] = key;
-    }
-    return total;
-}
-
-// The plane solver: iterate the planes,
-// push the delta out along each normal with a clamped accumulator,
-// stop when the total push falls under the slop tolerance.
-m2PlaneSolverResult m2SolvePlanes(m2Vec2 targetDelta, m2CollisionPlane* planes, int32_t count)
-{
-    for (int32_t i = 0; i < count; ++i)
-    {
-        planes[i].push = 0.0f;
-    }
-    m2Vec2 delta = targetDelta;
-    float tolerance = 0.005f; // linear slop
-
-    int32_t iteration = 0;
-    for (; iteration < 20; ++iteration)
-    {
-        float totalPush = 0.0f;
-        for (int32_t i = 0; i < count; ++i)
-        {
-            m2CollisionPlane* plane = planes + i;
-            // Separation of the moved mover from this plane, slopped
-            // to prevent jitter.
-            float separation =
-                plane->separation + delta.x * plane->normal.x + delta.y * plane->normal.y + 0.005f;
-            float push = -separation;
-            float accumulated = plane->push;
-            float next = accumulated + push;
-            next = next < 0.0f ? 0.0f : (next > plane->pushLimit ? plane->pushLimit : next);
-            plane->push = next;
-            push = next - accumulated;
-            delta.x += push * plane->normal.x;
-            delta.y += push * plane->normal.y;
-            totalPush += push < 0.0f ? -push : push;
-        }
-        if (totalPush < tolerance)
-        {
-            break;
-        }
-    }
-    m2PlaneSolverResult result = {delta, iteration};
-    return result;
-}
-
-m2Vec2 m2ClipVector(m2Vec2 vector, const m2CollisionPlane* planes, int32_t count)
-{
-    m2Vec2 v = vector;
-    for (int32_t i = 0; i < count; ++i)
-    {
-        const m2CollisionPlane* plane = planes + i;
-        if (plane->push == 0.0f || plane->clipVelocity == false)
-        {
-            continue;
-        }
-        float vn = v.x * plane->normal.x + v.y * plane->normal.y;
-        if (vn < 0.0f)
-        {
-            v.x -= vn * plane->normal.x;
-            v.y -= vn * plane->normal.y;
-        }
-    }
-    return v;
 }

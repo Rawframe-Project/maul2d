@@ -58,11 +58,7 @@ void m2RetireShapeFromBroadphase(m2World* world, int32_t shapeIndex)
         // resting on this shape must notice it vanish, or sleepers
         // float on a memory. (Caught by the floor-yank probe.)
         int32_t partner = world->shapes.shapeBody[a == shapeIndex ? b : a];
-        if (world->bodies.types[partner] == (uint8_t)m2_dynamicBody)
-        {
-            world->bodies.asleep[partner] = 0;
-            world->bodies.sleepTimes[partner] = 0.0f;
-        }
+        m2WakeIfDynamic(world, partner);
         bool sensor = world->shapes.shapeSensor[a] != 0 || world->shapes.shapeSensor[b] != 0;
         m2ContactEndEvent* queue =
             sensor ? world->events.pendingSensorEnd : world->events.pendingEndEvents;
@@ -140,11 +136,7 @@ void m2DestroyShape(m2ShapeId shapeId)
 
     m2DestroyShapeInternal(world, index);
     m2RecomputeMass(world, bodyIndex);
-    if (world->bodies.types[bodyIndex] == (uint8_t)m2_dynamicBody)
-    {
-        world->bodies.asleep[bodyIndex] = 0;
-        world->bodies.sleepTimes[bodyIndex] = 0.0f;
-    }
+    m2WakeIfDynamic(world, bodyIndex);
 }
 
 // --- Shapes ---------------------------------------------------------------------
@@ -381,17 +373,9 @@ bool m2SetShapeParamInternal(m2World* world, m2ShapeId shapeId, uint8_t param, f
                 continue;
             }
             int32_t otherBody = world->shapes.shapeBody[a == index ? b : a];
-            if (world->bodies.types[otherBody] == (uint8_t)m2_dynamicBody)
-            {
-                world->bodies.asleep[otherBody] = 0;
-                world->bodies.sleepTimes[otherBody] = 0.0f;
-            }
+            m2WakeIfDynamic(world, otherBody);
         }
-        if (world->bodies.types[body] == (uint8_t)m2_dynamicBody)
-        {
-            world->bodies.asleep[body] = 0;
-            world->bodies.sleepTimes[body] = 0.0f;
-        }
+        m2WakeIfDynamic(world, body);
     }
     else if (param == m2_shapeParamRestitution)
     {
@@ -486,17 +470,9 @@ void m2Shape_SetFilter(m2ShapeId shapeId, uint32_t categoryBits, uint32_t maskBi
             continue;
         }
         int32_t other = world->shapes.shapeBody[sa == index ? sb : sa];
-        if (world->bodies.types[other] == (uint8_t)m2_dynamicBody)
-        {
-            world->bodies.asleep[other] = 0;
-            world->bodies.sleepTimes[other] = 0.0f;
-        }
+        m2WakeIfDynamic(world, other);
     }
-    if (world->bodies.types[body] == (uint8_t)m2_dynamicBody)
-    {
-        world->bodies.asleep[body] = 0;
-        world->bodies.sleepTimes[body] = 0.0f;
-    }
+    m2WakeIfDynamic(world, body);
 
     world->shapes.shapeCategory[index] = categoryBits;
     world->shapes.shapeMask[index] = maskBits;
@@ -532,20 +508,12 @@ static void SetGeometryInternal(m2World* world, m2ShapeId shapeId, int32_t index
             continue;
         }
         int32_t other = world->shapes.shapeBody[sa == index ? sb : sa];
-        if (world->bodies.types[other] == (uint8_t)m2_dynamicBody)
-        {
-            world->bodies.asleep[other] = 0;
-            world->bodies.sleepTimes[other] = 0.0f;
-        }
+        m2WakeIfDynamic(world, other);
     }
     memset(&world->shapes.shapeGeometry[index], 0, sizeof(m2ShapeGeometry));
     world->shapes.shapeGeometry[index] = *geometry;
     m2RecomputeMass(world, body);
-    if (world->bodies.types[body] == (uint8_t)m2_dynamicBody)
-    {
-        world->bodies.asleep[body] = 0;
-        world->bodies.sleepTimes[body] = 0.0f;
-    }
+    m2WakeIfDynamic(world, body);
     if (world->broadphase.proxyIds[index] != M2_NULL_NODE)
     {
         m2PushMoved(world, index);
@@ -744,11 +712,7 @@ void m2Shape_SetDensity(m2ShapeId shapeId, float density)
     world->shapes.shapeDensity[index] = density;
     int32_t body = world->shapes.shapeBody[index];
     m2RecomputeMass(world, body);
-    if (world->bodies.types[body] == (uint8_t)m2_dynamicBody)
-    {
-        world->bodies.asleep[body] = 0;
-        world->bodies.sleepTimes[body] = 0.0f;
-    }
+    m2WakeIfDynamic(world, body);
 }
 
 void m2Shape_SetUserData(m2ShapeId shapeId, uint64_t userData)

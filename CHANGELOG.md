@@ -208,3 +208,7 @@ Work toward 0.0.1, the first release of the reworked library.
   or world shape, m2_errorInvalid otherwise) and leaves the world
   untouched. m2UnwindAngle no longer asserts on angles beyond 1e6
   radians; it returns the documented clamped boundary.
+- `m2World_ShatterBody` reports `m2_errorCapacity` when the world
+  cannot seat every piece, and refuses a malformed piece polygon up
+  front. Before, a full world returned 0 silently and a bad polygon
+  left a shapeless piece body behind.

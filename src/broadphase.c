@@ -6,6 +6,7 @@
 
 #include "broadphase.h"
 
+#include "body.h"
 #include "contact.h"
 #include "joint.h"
 #include "world_internal.h"
@@ -56,16 +57,8 @@ void m2PushMoved(m2World* world, int32_t shapeIndex)
 // ends and push their shapes, and the pair diff emits the end events.
 void m2RefilterJointedBodies(m2World* world, int32_t bodyA, int32_t bodyB)
 {
-    if (world->bodies.types[bodyA] == (uint8_t)m2_dynamicBody)
-    {
-        world->bodies.asleep[bodyA] = 0;
-        world->bodies.sleepTimes[bodyA] = 0.0f;
-    }
-    if (world->bodies.types[bodyB] == (uint8_t)m2_dynamicBody)
-    {
-        world->bodies.asleep[bodyB] = 0;
-        world->bodies.sleepTimes[bodyB] = 0.0f;
-    }
+    m2WakeIfDynamic(world, bodyA);
+    m2WakeIfDynamic(world, bodyB);
     for (int32_t s = world->bodies.bodyShapeHead[bodyA]; s != -1; s = world->shapes.shapeNext[s])
     {
         m2PushMoved(world, s);

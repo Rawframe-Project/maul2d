@@ -4,24 +4,17 @@
 # shrinks: nothing may grow past its ceiling, and an entry that is back
 # under its limit must go.
 
-query.c * 1457 every world query in one module, sharing the filter and proxy helpers
-body.c * 1378 the whole body API: lifecycle, motion, forces, mass and readback
-particle_solver.c * 1092 the particle step: neighbor pairs, the solver passes and fills
 particle_solver.c m2SolveParticles 476 numeric kernel: one pass in a fixed operation order
 broadphase.c m2UpdatePairs 215 numeric kernel: one pass in a fixed operation order
 geometry.c m2DecomposeOutline 213 numeric kernel: one pass in a fixed operation order
-particle_solver.c m2World_FillPolygonWithParticles 168 creation or teardown: validation and every slot field in one pass
-draw.c m2World_Draw 156 debug draw: one walk emitting every primitive in canonical order
 joint_prismatic.c SolvePrismatic 156 numeric kernel: solver rows in one fixed operation order
 contact_solver_wide.c SolveBlock 154 numeric kernel: solver rows in one fixed operation order
-world.c m2CreateWorld 154 world creation: def validation, allocation and seeding in one pass
 geometry.c m2ComputeHull 153 numeric kernel: one pass in a fixed operation order
 ccd.c SweepBullet 134 numeric kernel: one pass in a fixed operation order
 contact_solver.c m2PrepareContacts 124 numeric kernel: solver rows in one fixed operation order
 joint_wheel.c SolveWheel 124 numeric kernel: solver rows in one fixed operation order
 particle_solver.c StageBodyContactsRange 120 numeric kernel: one pass in a fixed operation order
 dynamic_tree.c Balance 111 tree kernel: one rotation or insertion in a fixed order
-joint.c m2SetJointParamInternal 109 numeric kernel: one pass in a fixed operation order
 contact.c UpdateContactsRange 102 numeric kernel: one pass in a fixed operation order
 contact_solver.c m2SolveContactOne 102 numeric kernel: solver rows in one fixed operation order
 manifold.c FinishPolygons 96 numeric kernel: one pass in a fixed operation order
@@ -29,16 +22,11 @@ query.c CastProxyClosest 95 numeric kernel: one pass in a fixed operation order
 island.c m2UpdateIslandsAndWake 94 numeric kernel: one pass in a fixed operation order
 joint_distance.c SolveDistance 94 numeric kernel: solver rows in one fixed operation order
 dynamic_tree.c m2TreeInsert 92 tree kernel: one rotation or insertion in a fixed order
-query.c m2World_CollideMover 92 numeric kernel: one pass in a fixed operation order
+mover.c m2World_CollideMover 92 numeric kernel: one pass in a fixed operation order
 joint_motor.c SolveMotor 91 numeric kernel: solver rows in one fixed operation order
 manifold.c m2CollidePolygonAndCircle 91 numeric kernel: one pass in a fixed operation order
-snapshot.c m2World_HashParts 91 one canonical walk over the world state, in hash or byte order
-world.c m2World_Validate 89 one canonical walk over the world state, in hash or byte order
 buoyancy.c m2ApplyFluidVolumes 87 numeric kernel: one pass in a fixed operation order
-snapshot.c m2World_Hash 86 one canonical walk over the world state, in hash or byte order
-destruction.c m2World_ShatterBody 85 creation or teardown: validation and every slot field in one pass
 manifold.c ClipPolygons 83 numeric kernel: one pass in a fixed operation order
-query.c RayCastCapsule 83 numeric kernel: one pass in a fixed operation order
-destruction.c m2World_Explode 82 creation or teardown: validation and every slot field in one pass
+ray_cast.c RayCastCapsule 83 numeric kernel: one pass in a fixed operation order
 distance.c m2ShapeDistance 81 numeric kernel: one pass in a fixed operation order
 query.c CastProxyAll 81 numeric kernel: one pass in a fixed operation order

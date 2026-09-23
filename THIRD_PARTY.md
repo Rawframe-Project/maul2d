@@ -33,7 +33,7 @@ SOFTWARE.
 ## LiquidFun
 
 The buoyancy volume physics (src/buoyancy.c) follows LiquidFun's
-b2BuoyancyController. The fluid module's neighbor pass (src/particle.c) adapts the contact
+b2BuoyancyController. The fluid module's neighbor pass (src/particle_solver.c) adapts the contact
 generation scheme of LiquidFun's b2ParticleSystem (Google's fork of
 Box2D v2.3, https://github.com/google/liquidfun), with deviations
 recorded in the source. LiquidFun is licensed under the zlib-style

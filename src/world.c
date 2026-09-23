@@ -97,108 +97,71 @@ m2WorldDef m2DefaultWorldDef(void)
     return def;
 }
 
-m2WorldId m2CreateWorld(const m2WorldDef* def)
+// Checks a world def. The fluids radius floor is 4x linear slop so the
+// skin laws keep meaning.
+static bool ValidWorldDef(const m2WorldDef* def)
 {
-    // Before any solver kernel runs, make sure this CPU can execute the
-    // backend the binary was built for: a clear abort beats a bare
-    // illegal-instruction trap on pre-Haswell hardware.
-    if (m2VerifyCpuBackend() == 0)
-    {
-        m2Refuse(NULL, m2_errorConfig);
-        return m2_nullWorldId; // a typed refusal, never an abort
-    }
     if (def == NULL || def->internalValue != M2_WORLD_COOKIE || def->bodyCapacity < 1 ||
-        def->shapeCapacity < 1 || def->jointCapacity < 1)
+        def->shapeCapacity < 1 || def->jointCapacity < 1 || def->fluidVolumeCapacity < 0 ||
+        def->particleCapacity < 0)
     {
-        m2Refuse(NULL, m2_errorInvalid);
-        return m2_nullWorldId;
+        return false;
     }
-    if (def->fluidVolumeCapacity < 0)
+    if (def->particleCapacity == 0)
     {
-        m2Refuse(NULL, m2_errorInvalid);
-        return m2_nullWorldId;
+        return true;
     }
-    if (def->particleCapacity < 0 ||
-        (def->particleCapacity > 0 &&
-         (!(def->particleRadius >= 0.02f) || !(def->particleDensity > 0.0f) ||
-          !m2FiniteF(def->particleGravityScale) || !(def->particlePressureStrength >= 0.0f) ||
-          !(def->particleDampingStrength >= 0.0f) || !(def->particleViscousStrength >= 0.0f) ||
-          !(def->particleTensilePressureStrength >= 0.0f) ||
-          !(def->particleTensileNormalStrength >= 0.0f) || !(def->particlePowderStrength >= 0.0f) ||
-          !(def->particleSpringStrength >= 0.0f) || !(def->particleElasticStrength >= 0.0f))))
-    {
-        // Fluids config is validated loudly: the radius floor is 4x
-        // linear slop so the skin laws keep meaning.
-        m2Refuse(NULL, m2_errorInvalid);
-        return m2_nullWorldId;
-    }
+    return def->particleRadius >= 0.02f && def->particleDensity > 0.0f &&
+           m2FiniteF(def->particleGravityScale) && def->particlePressureStrength >= 0.0f &&
+           def->particleDampingStrength >= 0.0f && def->particleViscousStrength >= 0.0f &&
+           def->particleTensilePressureStrength >= 0.0f &&
+           def->particleTensileNormalStrength >= 0.0f && def->particlePowderStrength >= 0.0f &&
+           def->particleSpringStrength >= 0.0f && def->particleElasticStrength >= 0.0f;
+}
 
-    int32_t slot = -1;
-    for (int32_t i = 0; i < M2_MAX_WORLDS; ++i)
-    {
-        if (s_worlds[i] == NULL)
-        {
-            slot = i;
-            break;
-        }
-    }
-    if (slot < 0)
-    {
-        m2Refuse(NULL, m2_errorCapacity);
-        return m2_nullWorldId;
-    }
-
-    m2World* world = m2AllocZeroed(sizeof(m2World));
-    if (world == NULL)
-    {
-        m2Refuse(NULL, m2_errorCapacity);
-        return m2_nullWorldId;
-    }
-
-    int32_t cap = def->bodyCapacity;
+// Copies the def's settings and capacities into a zeroed world.
+static void ApplyWorldDef(m2World* world, const m2WorldDef* def)
+{
     int32_t shapeCap = def->shapeCapacity;
-    int32_t jointCap = def->jointCapacity;
     world->gravity = def->gravity;
     world->windVelocity = (m2Vec2){0.0f, 0.0f};
     world->windLinearDrag = 0.0f; // wind is opt-in via m2World_SetWind
-    world->bodies.bodyCapacity = cap;
+    world->bodies.bodyCapacity = def->bodyCapacity;
     world->shapes.shapeCapacity = shapeCap;
-    world->joints.jointCapacity = jointCap;
+    world->joints.jointCapacity = def->jointCapacity;
     world->broadphase.treeNodeCapacity = 2 * shapeCap;
     world->contacts.pairCapacity = 8 * shapeCap;
-    world->particles.particleCapacity = def->particleCapacity;
     world->volumes.fvCapacity = def->fluidVolumeCapacity;
-    world->particles.particleRadius = def->particleRadius;
-    world->particles.particleDensity = def->particleDensity;
-    world->particles.particleGravityScale = def->particleGravityScale;
-    world->particles.particlePressureStrength = def->particlePressureStrength;
-    world->particles.particleDampingStrength = def->particleDampingStrength;
-    world->particles.particleViscousStrength = def->particleViscousStrength;
-    world->particles.particleTensilePressure = def->particleTensilePressureStrength;
-    world->particles.particlePowderStrength = def->particlePowderStrength;
-    world->particles.particleSpringStrength = def->particleSpringStrength;
-    world->particles.particleElasticStrength = def->particleElasticStrength;
-    world->particles.particleTensileNormal = def->particleTensileNormalStrength;
-
-    int32_t particleCap = def->particleCapacity;
-    world->particles.particlePairCapacity = 12 * particleCap;
-    world->particles.particleSpringCapacity = 4 * particleCap;
-    world->particles.particleTriadCapacity = 2 * particleCap;
-    world->particles.particleBodyCapacity = 4 * particleCap;
     world->enqueueTask = def->enqueueTask;
     world->finishTask = def->finishTask;
     world->userTaskContext = def->userTaskContext;
 
-    bool ok = m2StateAllocate(world);
-    if (!ok)
-    {
-        m2Refuse(NULL, m2_errorCapacity); // out of memory
-        m2WorldId failed = {(uint16_t)(slot + 1), s_worldGenerations[slot]};
-        s_worlds[slot] = world;
-        m2DestroyWorld(failed);
-        return m2_nullWorldId;
-    }
+    m2Particles* p = &world->particles;
+    int32_t particleCap = def->particleCapacity;
+    p->particleCapacity = particleCap;
+    p->particleRadius = def->particleRadius;
+    p->particleDensity = def->particleDensity;
+    p->particleGravityScale = def->particleGravityScale;
+    p->particlePressureStrength = def->particlePressureStrength;
+    p->particleDampingStrength = def->particleDampingStrength;
+    p->particleViscousStrength = def->particleViscousStrength;
+    p->particleTensilePressure = def->particleTensilePressureStrength;
+    p->particlePowderStrength = def->particlePowderStrength;
+    p->particleSpringStrength = def->particleSpringStrength;
+    p->particleElasticStrength = def->particleElasticStrength;
+    p->particleTensileNormal = def->particleTensileNormalStrength;
+    p->particlePairCapacity = 12 * particleCap;
+    p->particleSpringCapacity = 4 * particleCap;
+    p->particleTriadCapacity = 2 * particleCap;
+    p->particleBodyCapacity = 4 * particleCap;
+}
 
+// Fills every free list and clears every link of freshly allocated state.
+static void SeedFreeLists(m2World* world)
+{
+    int32_t cap = world->bodies.bodyCapacity;
+    int32_t shapeCap = world->shapes.shapeCapacity;
+    int32_t jointCap = world->joints.jointCapacity;
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
         m2TreeInit(&world->broadphase.trees[t], world->broadphase.treeNodes[t],
@@ -226,33 +189,65 @@ m2WorldId m2CreateWorld(const m2WorldDef* def)
     {
         world->joints.jointEdgeNext[i] = -1;
     }
-    world->joints.jointFreeCount = jointCap;
     for (int32_t i = 0; i < world->particles.particleCapacity; ++i)
     {
         world->particles.particleFreeQueue[i] = i;
     }
-    world->particles.particleFreeCount = world->particles.particleCapacity;
     for (int32_t i = 0; i < world->volumes.fvCapacity; ++i)
     {
         world->volumes.fvFreeQueue[i] = i;
     }
+    world->joints.jointFreeCount = jointCap;
+    world->particles.particleFreeCount = world->particles.particleCapacity;
     world->volumes.fvFreeCount = world->volumes.fvCapacity;
-    world->bodies.freeHead = 0;
-    world->bodies.freeTail = 0;
     world->bodies.freeCount = cap;
-    world->shapes.shapeFreeHead = 0;
-    world->shapes.shapeFreeTail = 0;
     world->shapes.shapeFreeCount = shapeCap;
     world->chains.chainFreeCount = shapeCap;
+}
+
+m2WorldId m2CreateWorld(const m2WorldDef* def)
+{
+    // Before any solver kernel runs, make sure this CPU can execute the
+    // backend the binary was built for: a typed refusal beats a bare
+    // illegal-instruction trap on pre-Haswell hardware.
+    if (m2VerifyCpuBackend() == 0)
+    {
+        m2Refuse(NULL, m2_errorConfig);
+        return m2_nullWorldId;
+    }
+    if (!ValidWorldDef(def))
+    {
+        m2Refuse(NULL, m2_errorInvalid);
+        return m2_nullWorldId;
+    }
+    int32_t slot = -1;
+    for (int32_t i = 0; i < M2_MAX_WORLDS && slot < 0; ++i)
+    {
+        slot = s_worlds[i] == NULL ? i : -1;
+    }
+    m2World* world = slot < 0 ? NULL : m2AllocZeroed(sizeof(m2World));
+    if (world == NULL)
+    {
+        m2Refuse(NULL, m2_errorCapacity);
+        return m2_nullWorldId;
+    }
+    ApplyWorldDef(world, def);
+    if (!m2StateAllocate(world))
+    {
+        m2Refuse(NULL, m2_errorCapacity); // out of memory
+        m2WorldId failed = {(uint16_t)(slot + 1), s_worldGenerations[slot]};
+        s_worlds[slot] = world;
+        m2DestroyWorld(failed);
+        return m2_nullWorldId;
+    }
+    SeedFreeLists(world);
 
     s_worldGenerations[slot] += 1;
     world->worldGeneration = s_worldGenerations[slot];
     world->worldIndex0 = (uint16_t)(slot + 1);
     world->sleepEnabled = 1;
     s_worlds[slot] = world;
-
-    m2WorldId id = {(uint16_t)(slot + 1), world->worldGeneration};
-    return id;
+    return (m2WorldId){(uint16_t)(slot + 1), world->worldGeneration};
 }
 
 void m2DestroyWorld(m2WorldId worldId)
@@ -836,16 +831,7 @@ int32_t m2World_GetChains(m2WorldId worldId, m2ChainId* ids, int32_t capacity)
     return total;
 }
 
-// The invariant walk: everything a healthy world must be able to
-// say about itself, checked loudly. Pure reader.
-bool m2World_Validate(m2WorldId worldId)
-{
-    m2World* world = m2GetWorld(worldId);
-    if (world == NULL)
-    {
-        m2Refuse(world, m2_errorInvalid);
-        return false;
-    }
+// Asserts in debug builds and fails the walk in release builds.
 #define M2_CHECK_INVARIANT(cond)                                                                   \
     do                                                                                             \
     {                                                                                              \
@@ -856,6 +842,8 @@ bool m2World_Validate(m2WorldId worldId)
         }                                                                                          \
     } while (0)
 
+static bool ValidBodies(const m2World* world)
+{
     for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
         if (world->bodies.alive[i] == 0)
@@ -870,6 +858,12 @@ bool m2World_Validate(m2WorldId worldId)
         M2_CHECK_INVARIANT(m2FiniteF(world->bodies.angularVelocities[i]));
         M2_CHECK_INVARIANT(world->bodies.types[i] <= 2);
     }
+    return true;
+}
+
+// Shapes and joints point at live bodies; contact pairs stay in key order.
+static bool ValidLinks(const m2World* world)
+{
     for (int32_t i = 0; i < world->shapes.maxShapeIndex; ++i)
     {
         if (world->shapes.shapeAlive[i] == 0)
@@ -897,36 +891,56 @@ bool m2World_Validate(m2WorldId worldId)
         // The canonical ordering law, checked where it lives.
         M2_CHECK_INVARIANT(world->contacts.pairKeys[i - 1] < world->contacts.pairKeys[i]);
     }
-    if (world->particles.particleCapacity > 0)
-    {
-        int32_t alive = 0;
-        for (int32_t i = 0; i < world->particles.maxParticleIndex; ++i)
-        {
-            if (world->particles.particleAlive[i] == 0)
-            {
-                continue;
-            }
-            alive += 1;
-            m2Pos2 p = world->particles.particlePositions[i];
-            M2_CHECK_INVARIANT(m2FinitePos2(p));
-            m2Vec2 v = world->particles.particleVelocities[i];
-            M2_CHECK_INVARIANT(m2FiniteVec2(v));
-        }
-        M2_CHECK_INVARIANT(alive == world->particles.particleCount);
-        for (int32_t k = 0; k < world->particles.particleSpringCount; ++k)
-        {
-            M2_CHECK_INVARIANT(
-                world->particles.particleAlive[world->particles.particleSpringA[k]] != 0 &&
-                world->particles.particleAlive[world->particles.particleSpringB[k]] != 0);
-        }
-        for (int32_t k = 0; k < world->particles.particleTriadCount; ++k)
-        {
-            M2_CHECK_INVARIANT(
-                world->particles.particleAlive[world->particles.particleTriadA[k]] != 0 &&
-                world->particles.particleAlive[world->particles.particleTriadB[k]] != 0 &&
-                world->particles.particleAlive[world->particles.particleTriadC[k]] != 0);
-        }
-    }
-#undef M2_CHECK_INVARIANT
     return true;
+}
+
+static bool ValidParticles(const m2World* world)
+{
+    if (world->particles.particleCapacity == 0)
+    {
+        return true;
+    }
+    int32_t alive = 0;
+    for (int32_t i = 0; i < world->particles.maxParticleIndex; ++i)
+    {
+        if (world->particles.particleAlive[i] == 0)
+        {
+            continue;
+        }
+        alive += 1;
+        m2Pos2 p = world->particles.particlePositions[i];
+        M2_CHECK_INVARIANT(m2FinitePos2(p));
+        m2Vec2 v = world->particles.particleVelocities[i];
+        M2_CHECK_INVARIANT(m2FiniteVec2(v));
+    }
+    M2_CHECK_INVARIANT(alive == world->particles.particleCount);
+    for (int32_t k = 0; k < world->particles.particleSpringCount; ++k)
+    {
+        M2_CHECK_INVARIANT(
+            world->particles.particleAlive[world->particles.particleSpringA[k]] != 0 &&
+            world->particles.particleAlive[world->particles.particleSpringB[k]] != 0);
+    }
+    for (int32_t k = 0; k < world->particles.particleTriadCount; ++k)
+    {
+        M2_CHECK_INVARIANT(
+            world->particles.particleAlive[world->particles.particleTriadA[k]] != 0 &&
+            world->particles.particleAlive[world->particles.particleTriadB[k]] != 0 &&
+            world->particles.particleAlive[world->particles.particleTriadC[k]] != 0);
+    }
+    return true;
+}
+
+#undef M2_CHECK_INVARIANT
+
+// The invariant walk: everything a healthy world must be able to
+// say about itself, checked loudly. Pure reader.
+bool m2World_Validate(m2WorldId worldId)
+{
+    m2World* world = m2GetWorld(worldId);
+    if (world == NULL)
+    {
+        m2Refuse(world, m2_errorInvalid);
+        return false;
+    }
+    return ValidBodies(world) && ValidLinks(world) && ValidParticles(world);
 }

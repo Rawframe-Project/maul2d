@@ -26,6 +26,7 @@
 //      counts loudly in particlePairOverflow. LiquidFun grows
 //      buffers; Maul's fixed-capacity law does not.
 
+#include "body.h"
 #include "distance.h"
 #include "journal.h"
 #include "particle.h"
@@ -217,7 +218,6 @@ void m2UpdateParticlePairs(m2World* world)
 // for now: bodies push water, the water pushes back in the next
 // slice.
 #define M2_PARTICLE_CANDIDATES 32
-#define M2_FILL_COLUMNS        256
 
 static void StageBodyContactsRange(int32_t begin, int32_t end, void* ctx)
 {
@@ -386,11 +386,7 @@ static void UpdateParticleBodyContacts(m2World* world)
             world->particles.particleBodyMass[out] =
                 world->particles.particleBodyStageMass[i * 4 + k];
             world->particles.particleBodyCount = out + 1;
-            if (world->bodies.types[body] == (uint8_t)m2_dynamicBody)
-            {
-                world->bodies.asleep[body] = 0;
-                world->bodies.sleepTimes[body] = 0.0f;
-            }
+            m2WakeIfDynamic(world, body);
         }
     }
 }
@@ -880,213 +876,4 @@ void m2SolveParticles(m2World* world, float dt)
         world->particles.particlePositions[i].y +=
             (double)(world->particles.particleVelocities[i].y * dt);
     }
-}
-
-// Fill a convex polygon with particles at the reference stride,
-// row-major from the bottom-left of its bounds: a pool in one call.
-int32_t m2World_FillPolygonWithParticles(m2WorldId worldId, const m2Polygon* polygon,
-                                         m2Pos2 position, m2Vec2 velocity, uint32_t flags)
-{
-    m2World* world = m2WorldFromId(worldId);
-    bool valid = world != NULL && polygon != NULL && polygon->count >= 3 &&
-                 polygon->count <= M2_MAX_POLYGON_VERTICES &&
-                 world->particles.particleCapacity > 0 && m2FinitePos2(position) &&
-                 m2FiniteVec2(velocity);
-    for (int32_t i = 0; valid && i < polygon->count; ++i)
-    {
-        valid = m2FiniteVec2(polygon->vertices[i]) && m2FiniteVec2(polygon->normals[i]);
-    }
-    if (!valid)
-    {
-        m2Refuse(world, m2_errorInvalid);
-        return 0;
-    }
-    float stride = 0.75f * 2.0f * world->particles.particleRadius;
-    float minX = polygon->vertices[0].x;
-    float minY = polygon->vertices[0].y;
-    float maxX = minX;
-    float maxY = minY;
-    for (int32_t i = 1; i < polygon->count; ++i)
-    {
-        minX = m2MinF(minX, polygon->vertices[i].x);
-        minY = m2MinF(minY, polygon->vertices[i].y);
-        maxX = m2MaxF(maxX, polygon->vertices[i].x);
-        maxY = m2MaxF(maxY, polygon->vertices[i].y);
-    }
-    if ((maxX - minX) / stride >= (float)M2_FILL_COLUMNS)
-    {
-        m2Refuse(world, m2_errorInvalid); // wider than the fill lattice allows
-        return 0;
-    }
-
-    // The whole fill is ONE journal op (inner emits suppressed, the
-    // chain-create precedent): replay must rebuild the springs and
-    // triads too, and those are captured here, not in the emits.
-    uint8_t journalWas = world->recorder.journalActive;
-    world->recorder.journalActive = 0;
-
-    int32_t* emitted = (int32_t*)world->particles.particleProxies; // borrowed scratch
-    int32_t prevRow[M2_FILL_COLUMNS];
-    int32_t currRow[M2_FILL_COLUMNS];
-    for (int32_t i = 0; i < M2_FILL_COLUMNS; ++i)
-    {
-        prevRow[i] = -1;
-        currRow[i] = -1;
-    }
-    bool wantSprings = (flags & m2_springParticle) != 0;
-    bool wantTriads = (flags & m2_elasticParticle) != 0;
-    int32_t count = 0;
-    bool full = false;
-    // NOLINTNEXTLINE(bugprone-float-loop-counter): the accumulated rows are part of the fill result
-    for (float y = minY + 0.5f * stride; y < maxY && !full; y += stride)
-    {
-        for (int32_t i = 0; i < M2_FILL_COLUMNS; ++i)
-        {
-            currRow[i] = -1;
-        }
-        int32_t col = 0;
-        // NOLINTNEXTLINE(bugprone-float-loop-counter): as above, for columns
-        for (float x = minX + 0.5f * stride; x < maxX && !full; x += stride, ++col)
-        {
-            bool inside = true;
-            for (int32_t i = 0; i < polygon->count && inside; ++i)
-            {
-                m2Vec2 v = polygon->vertices[i];
-                m2Vec2 n = polygon->normals[i];
-                inside = n.x * (x - v.x) + n.y * (y - v.y) <= 0.0f;
-            }
-            if (!inside)
-            {
-                continue;
-            }
-            m2ParticleId id = m2World_EmitParticle(
-                worldId, (m2Pos2){position.x + (double)x, position.y + (double)y}, velocity, flags);
-            if (id.index1 == 0)
-            {
-                full = true; // pool full: a quiet runtime fact
-                break;
-            }
-            int32_t slot = id.index1 - 1;
-            emitted[count] = slot;
-            count += 1;
-            currRow[col] = slot;
-            if (wantTriads)
-            {
-                // Two triangles per complete lattice cell, rest shape
-                // centered on each triad's spawn centroid.
-                int32_t left = col > 0 ? currRow[col - 1] : -1;
-                int32_t below = prevRow[col];
-                int32_t belowLeft = col > 0 ? prevRow[col - 1] : -1;
-                if (left >= 0 && below >= 0 && belowLeft >= 0 &&
-                    world->particles.particleTriadCount + 2 <=
-                        world->particles.particleTriadCapacity)
-                {
-                    int32_t t = world->particles.particleTriadCount;
-                    world->particles.particleTriadA[t] = belowLeft;
-                    world->particles.particleTriadB[t] = below;
-                    world->particles.particleTriadC[t] = left;
-                    world->particles.particleTriadPA[t] = (m2Vec2){-stride / 3.0f, -stride / 3.0f};
-                    world->particles.particleTriadPB[t] =
-                        (m2Vec2){2.0f * stride / 3.0f, -stride / 3.0f};
-                    world->particles.particleTriadPC[t] =
-                        (m2Vec2){-stride / 3.0f, 2.0f * stride / 3.0f};
-                    world->particles.particleTriadA[t + 1] = below;
-                    world->particles.particleTriadB[t + 1] = slot;
-                    world->particles.particleTriadC[t + 1] = left;
-                    world->particles.particleTriadPA[t + 1] =
-                        (m2Vec2){stride / 3.0f, -2.0f * stride / 3.0f};
-                    world->particles.particleTriadPB[t + 1] =
-                        (m2Vec2){stride / 3.0f, stride / 3.0f};
-                    world->particles.particleTriadPC[t + 1] =
-                        (m2Vec2){-2.0f * stride / 3.0f, stride / 3.0f};
-                    world->particles.particleTriadCount = t + 2;
-                }
-            }
-        }
-        for (int32_t i = 0; i < M2_FILL_COLUMNS; ++i)
-        {
-            prevRow[i] = currRow[i];
-        }
-    }
-
-    if (wantSprings)
-    {
-        // Every batch pair inside one diameter becomes a spring that
-        // remembers its spawn length; ascending order, canonical.
-        float diameter = 2.0f * world->particles.particleRadius;
-        for (int32_t i = 0; i < count; ++i)
-        {
-            for (int32_t j = i + 1; j < count; ++j)
-            {
-                int32_t a = emitted[i];
-                int32_t b = emitted[j];
-                float dx = (float)(world->particles.particlePositions[b].x -
-                                   world->particles.particlePositions[a].x);
-                float dy = (float)(world->particles.particlePositions[b].y -
-                                   world->particles.particlePositions[a].y);
-                float distSq = dx * dx + dy * dy;
-                if (distSq >= diameter * diameter || distSq <= 0.0f)
-                {
-                    continue;
-                }
-                if (world->particles.particleSpringCount >= world->particles.particleSpringCapacity)
-                {
-                    continue; // deterministic truncation, documented
-                }
-                int32_t k = world->particles.particleSpringCount;
-                world->particles.particleSpringA[k] = a;
-                world->particles.particleSpringB[k] = b;
-                world->particles.particleSpringRest[k] = sqrtf(distSq);
-                world->particles.particleSpringCount = k + 1;
-            }
-        }
-    }
-
-    world->recorder.journalActive = journalWas;
-    if (world->recorder.journalActive != 0)
-    {
-        m2OpFillParticles record;
-        memset(&record, 0, sizeof(record));
-        record.polygon = *polygon;
-        record.position = position;
-        record.velocity = velocity;
-        record.flags = flags;
-        record.expected = count;
-        m2JournalRecord(world, m2_opFillParticles, &record, (int32_t)sizeof(record));
-    }
-    return count;
-}
-
-// Region query over the pool: a plain ascending scan. Particles
-// carry no tree (their grid is step-transient); a linear
-// walk over a fixed-capacity pool is deterministic and cheap.
-int32_t m2World_OverlapParticlesAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper,
-                                     m2ParticleId* ids, int32_t capacity)
-{
-    m2World* world = m2WorldFromId(worldId);
-    if (world == NULL || !m2FinitePos2(lower) || !m2FinitePos2(upper))
-    {
-        m2Refuse(world, m2_errorInvalid);
-        return 0;
-    }
-    int32_t total = 0;
-    for (int32_t i = 0; i < world->particles.maxParticleIndex; ++i)
-    {
-        if (world->particles.particleAlive[i] == 0)
-        {
-            continue;
-        }
-        m2Pos2 p = world->particles.particlePositions[i];
-        if (p.x < lower.x || p.x > upper.x || p.y < lower.y || p.y > upper.y)
-        {
-            continue;
-        }
-        if (ids != NULL && total < capacity)
-        {
-            ids[total] =
-                (m2ParticleId){i + 1, worldId.index1, world->particles.particleGenerations[i]};
-        }
-        total += 1;
-    }
-    return total;
 }

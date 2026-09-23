@@ -198,16 +198,16 @@ bool m2World_Restore(m2WorldId worldId, const void* buffer, int32_t size)
     return true;
 }
 
-uint64_t m2World_Hash(m2WorldId worldId)
+// The hashed slices of the world, each folded into a running hash.
+static uint64_t HashHeader(const m2World* world, uint64_t h)
 {
-    m2World* world = m2GetWorld(worldId);
-    if (world == NULL)
-    {
-        return 0;
-    }
-    uint64_t h = M2_HASH_INIT;
     h = m2Hash64(h, &world->stepCount, (int32_t)sizeof(world->stepCount));
     h = m2Hash64(h, &world->gravity, (int32_t)sizeof(world->gravity));
+    return h;
+}
+
+static uint64_t HashBodies(const m2World* world, uint64_t h)
+{
     for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
         if (world->bodies.alive[i] == 0)
@@ -226,10 +226,20 @@ uint64_t m2World_Hash(m2WorldId worldId)
         h = m2Hash64(h, &world->bodies.sleepStreak[i], 1);
         h = m2Hash64(h, &world->bodies.bullets[i], (int32_t)sizeof(uint8_t));
     }
+    return h;
+}
+
+static uint64_t HashContacts(const m2World* world, uint64_t h)
+{
     h = m2Hash64(h, world->contacts.pairKeys,
                  world->contacts.pairCount * (int32_t)sizeof(uint64_t));
     h = m2Hash64(h, world->contacts.manifolds,
                  world->contacts.pairCount * (int32_t)sizeof(m2Manifold));
+    return h;
+}
+
+static uint64_t HashJoints(const m2World* world, uint64_t h)
+{
     for (int32_t i = 0; i < world->joints.maxJointIndex; ++i)
     {
         if (world->joints.jointAlive[i] == 0)
@@ -242,6 +252,11 @@ uint64_t m2World_Hash(m2WorldId worldId)
         h = m2Hash64(h, &world->joints.jointUpperImpulse[i], (int32_t)sizeof(float));
         h = m2Hash64(h, &world->joints.jointSpringImpulse[i], (int32_t)sizeof(float));
     }
+    return h;
+}
+
+static uint64_t HashVolumes(const m2World* world, uint64_t h)
+{
     if (world->volumes.fvCapacity > 0)
     {
         for (int32_t i = 0; i < world->volumes.maxFvIndex; ++i)
@@ -254,6 +269,11 @@ uint64_t m2World_Hash(m2WorldId worldId)
             h = m2Hash64(h, &world->volumes.fvSurface[i], (int32_t)sizeof(double));
         }
     }
+    return h;
+}
+
+static uint64_t HashParticles(const m2World* world, uint64_t h)
+{
     if (world->particles.particleCapacity > 0)
     {
         h = m2Hash64(h, &world->particles.particleCount, (int32_t)sizeof(int32_t));
@@ -288,9 +308,23 @@ uint64_t m2World_Hash(m2WorldId worldId)
     return h;
 }
 
+uint64_t m2World_Hash(m2WorldId worldId)
+{
+    m2World* world = m2GetWorld(worldId);
+    if (world == NULL)
+    {
+        return 0;
+    }
+    uint64_t h = HashHeader(world, M2_HASH_INIT);
+    h = HashBodies(world, h);
+    h = HashContacts(world, h);
+    h = HashJoints(world, h);
+    h = HashVolumes(world, h);
+    return HashParticles(world, h);
+}
+
 // Subsystem hashes: independent seeds on purpose (the total is not
-// a function of the parts), each loop mirroring the gated hash's
-// coverage for its slice of the world.
+// a function of the parts).
 m2WorldHashParts m2World_HashParts(m2WorldId worldId)
 {
     m2WorldHashParts parts;
@@ -300,88 +334,10 @@ m2WorldHashParts m2World_HashParts(m2WorldId worldId)
     {
         return parts;
     }
-
-    uint64_t h = M2_HASH_INIT;
-    h = m2Hash64(h, &world->stepCount, (int32_t)sizeof(world->stepCount));
-    h = m2Hash64(h, &world->gravity, (int32_t)sizeof(world->gravity));
-    parts.world = h;
-
-    h = M2_HASH_INIT;
-    for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
-    {
-        if (world->bodies.alive[i] == 0)
-        {
-            continue;
-        }
-        h = m2Hash64(h, &world->bodies.transforms[i], (int32_t)sizeof(m2Transform));
-        h = m2Hash64(h, &world->bodies.linearVelocities[i], (int32_t)sizeof(m2Vec2));
-        h = m2Hash64(h, &world->bodies.angularVelocities[i], (int32_t)sizeof(float));
-        h = m2Hash64(h, &world->bodies.invMass[i], (int32_t)sizeof(float));
-        h = m2Hash64(h, &world->bodies.invInertia[i], (int32_t)sizeof(float));
-        h = m2Hash64(h, &world->bodies.localCenters[i], (int32_t)sizeof(m2Vec2));
-        h = m2Hash64(h, &world->bodies.types[i], (int32_t)sizeof(uint8_t));
-        h = m2Hash64(h, &world->bodies.asleep[i], (int32_t)sizeof(uint8_t));
-        h = m2Hash64(h, &world->bodies.sleepTimes[i], (int32_t)sizeof(float));
-        h = m2Hash64(h, &world->bodies.sleepStreak[i], 1);
-        h = m2Hash64(h, &world->bodies.bullets[i], (int32_t)sizeof(uint8_t));
-    }
-    parts.bodies = h;
-
-    h = M2_HASH_INIT;
-    h = m2Hash64(h, world->contacts.pairKeys,
-                 world->contacts.pairCount * (int32_t)sizeof(uint64_t));
-    h = m2Hash64(h, world->contacts.manifolds,
-                 world->contacts.pairCount * (int32_t)sizeof(m2Manifold));
-    parts.contacts = h;
-
-    h = M2_HASH_INIT;
-    for (int32_t i = 0; i < world->joints.maxJointIndex; ++i)
-    {
-        if (world->joints.jointAlive[i] == 0)
-        {
-            continue;
-        }
-        h = m2Hash64(h, &world->joints.jointImpulse[i], (int32_t)sizeof(m2Vec2));
-        h = m2Hash64(h, &world->joints.jointMotorImpulse[i], (int32_t)sizeof(float));
-        h = m2Hash64(h, &world->joints.jointLowerImpulse[i], (int32_t)sizeof(float));
-        h = m2Hash64(h, &world->joints.jointUpperImpulse[i], (int32_t)sizeof(float));
-        h = m2Hash64(h, &world->joints.jointSpringImpulse[i], (int32_t)sizeof(float));
-    }
-    parts.joints = h;
-
-    h = M2_HASH_INIT;
-    if (world->particles.particleCapacity > 0)
-    {
-        h = m2Hash64(h, &world->particles.particleCount, (int32_t)sizeof(int32_t));
-        for (int32_t i = 0; i < world->particles.maxParticleIndex; ++i)
-        {
-            h = m2Hash64(h, &world->particles.particleAlive[i], 1);
-            if (world->particles.particleAlive[i] == 0)
-            {
-                continue;
-            }
-            h = m2Hash64(h, &world->particles.particlePositions[i], (int32_t)sizeof(m2Pos2));
-            h = m2Hash64(h, &world->particles.particleVelocities[i], (int32_t)sizeof(m2Vec2));
-            h = m2Hash64(h, &world->particles.particleFlags[i], (int32_t)sizeof(uint32_t));
-            h = m2Hash64(h, &world->particles.particleLifetime[i], (int32_t)sizeof(float));
-            h = m2Hash64(h, &world->particles.particleUserData[i], (int32_t)sizeof(uint64_t));
-        }
-        h = m2Hash64(h, &world->particles.particleSpringCount, (int32_t)sizeof(int32_t));
-        h = m2Hash64(h, world->particles.particleSpringA,
-                     world->particles.particleSpringCount * (int32_t)sizeof(int32_t));
-        h = m2Hash64(h, world->particles.particleSpringB,
-                     world->particles.particleSpringCount * (int32_t)sizeof(int32_t));
-        h = m2Hash64(h, world->particles.particleSpringRest,
-                     world->particles.particleSpringCount * (int32_t)sizeof(float));
-        h = m2Hash64(h, &world->particles.particleTriadCount, (int32_t)sizeof(int32_t));
-        h = m2Hash64(h, world->particles.particleTriadA,
-                     world->particles.particleTriadCount * (int32_t)sizeof(int32_t));
-        h = m2Hash64(h, world->particles.particleTriadB,
-                     world->particles.particleTriadCount * (int32_t)sizeof(int32_t));
-        h = m2Hash64(h, world->particles.particleTriadC,
-                     world->particles.particleTriadCount * (int32_t)sizeof(int32_t));
-    }
-    parts.particles = h;
-
+    parts.world = HashHeader(world, M2_HASH_INIT);
+    parts.bodies = HashBodies(world, M2_HASH_INIT);
+    parts.contacts = HashContacts(world, M2_HASH_INIT);
+    parts.joints = HashJoints(world, M2_HASH_INIT);
+    parts.particles = HashParticles(world, M2_HASH_INIT);
     return parts;
 }

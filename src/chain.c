@@ -175,11 +175,7 @@ void m2DestroyChain(m2ChainId chainId)
     }
     m2RetireChainSlot(world, index);
     m2RecomputeMass(world, bodyIndex);
-    if (world->bodies.types[bodyIndex] == (uint8_t)m2_dynamicBody)
-    {
-        world->bodies.asleep[bodyIndex] = 0;
-        world->bodies.sleepTimes[bodyIndex] = 0.0f;
-    }
+    m2WakeIfDynamic(world, bodyIndex);
 }
 
 bool m2Chain_IsValid(m2ChainId chainId)

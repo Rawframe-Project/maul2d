@@ -61,6 +61,8 @@ else()
 endif()
 add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/body.c
+    src/body_motion.c
+    src/body_read.c
     src/broadphase.c
     src/buoyancy.c
     src/ccd.c
@@ -93,10 +95,13 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/journal_replay.c
     src/manifold.c
     src/math_functions.c
+    src/mover.c
     src/particle.c
     src/particle_solver.c
     src/platform_time.c
     src/query.c
+    src/query_proxy.c
+    src/ray_cast.c
     src/shape.c
     src/snapshot.c
     src/solver.c

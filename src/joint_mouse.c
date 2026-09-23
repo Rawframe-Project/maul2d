@@ -109,11 +109,7 @@ void m2MouseJoint_SetTarget(m2JointId jointId, m2Pos2 target)
     }
     world->joints.jointTargets[index] = target;
     int32_t bodyB = world->joints.jointBodyB[index];
-    if (world->bodies.types[bodyB] == (uint8_t)m2_dynamicBody)
-    {
-        world->bodies.asleep[bodyB] = 0;
-        world->bodies.sleepTimes[bodyB] = 0.0f;
-    }
+    m2WakeIfDynamic(world, bodyB);
 }
 
 m2Pos2 m2MouseJoint_GetTarget(m2JointId jointId)

@@ -123,16 +123,8 @@ void m2MotorJoint_SetOffsets(m2JointId jointId, m2Vec2 linearOffset, float angul
     // Retargeting wakes both ends: the platform starts moving.
     int32_t bodyA = world->joints.jointBodyA[index];
     int32_t bodyB = world->joints.jointBodyB[index];
-    if (world->bodies.types[bodyA] == (uint8_t)m2_dynamicBody)
-    {
-        world->bodies.asleep[bodyA] = 0;
-        world->bodies.sleepTimes[bodyA] = 0.0f;
-    }
-    if (world->bodies.types[bodyB] == (uint8_t)m2_dynamicBody)
-    {
-        world->bodies.asleep[bodyB] = 0;
-        world->bodies.sleepTimes[bodyB] = 0.0f;
-    }
+    m2WakeIfDynamic(world, bodyA);
+    m2WakeIfDynamic(world, bodyB);
 }
 
 m2Vec2 m2MotorJoint_GetLinearOffset(m2JointId jointId)
