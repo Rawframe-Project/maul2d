@@ -863,7 +863,14 @@ int32_t m2World_FillPolygonWithParticles(m2WorldId worldId, const m2Polygon* pol
                                          m2Pos2 position, m2Vec2 velocity, uint32_t flags)
 {
     m2World* world = m2WorldFromId(worldId);
-    if (world == NULL || polygon == NULL || polygon->count < 3 || world->particleCapacity == 0)
+    bool valid = world != NULL && polygon != NULL && polygon->count >= 3 &&
+                 polygon->count <= M2_MAX_POLYGON_VERTICES && world->particleCapacity > 0 &&
+                 m2FinitePos2(position) && m2FiniteVec2(velocity);
+    for (int32_t i = 0; valid && i < polygon->count; ++i)
+    {
+        valid = m2FiniteVec2(polygon->vertices[i]) && m2FiniteVec2(polygon->normals[i]);
+    }
+    if (!valid)
     {
         m2Refuse(world, m2_errorInvalid);
         return 0;
@@ -1023,8 +1030,9 @@ int32_t m2World_OverlapParticlesAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upp
                                      m2ParticleId* ids, int32_t capacity)
 {
     m2World* world = m2WorldFromId(worldId);
-    if (world == NULL || world->particleCapacity == 0)
+    if (world == NULL || !m2FinitePos2(lower) || !m2FinitePos2(upper))
     {
+        m2Refuse(world, m2_errorInvalid);
         return 0;
     }
     int32_t total = 0;

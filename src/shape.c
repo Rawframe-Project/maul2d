@@ -718,7 +718,7 @@ void m2Shape_SetDensity(m2ShapeId shapeId, float density)
 {
     m2World* world = NULL;
     int32_t index = ShapeSlotChecked(shapeId, &world);
-    if (index < 0 || !(density >= 0.0f))
+    if (index < 0 || !m2FiniteF(density) || density < 0.0f)
     {
         m2Refuse(world, m2_errorInvalid);
         return;

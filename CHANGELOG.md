@@ -150,3 +150,15 @@ Work toward 0.0.1, the first release of the reworked library.
   shape setter now refuses; journal start, stop and replay record a
   reason when they fail (m2_errorConfig for a tape from another world
   shape); a failed shatter replay no longer leaks its pieces.
+- The shape casts, overlaps, sweeps and
+  m2World_FillPolygonWithParticles copied or read a caller polygon's
+  vertices up to its count without a bound, so a count above
+  M2_MAX_POLYGON_VERTICES overran a stack buffer; a NULL circle,
+  capsule or polygon crashed. Every query now builds its proxy through
+  one checked path and refuses bad shapes, non-finite poses, rays and
+  boxes, and non-unit rotations.
+- Body velocity, force, impulse, torque and teleport setters, gravity,
+  wind drag, density, chain materials, motor offsets, mouse targets
+  and particle lifetimes refuse non-finite values, which could poison
+  the whole world; m2Body_SetTransform also refuses a non-unit
+  rotation, which it stored as given and which sheared the body.

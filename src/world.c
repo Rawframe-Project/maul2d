@@ -593,7 +593,7 @@ double m2World_GetKineticEnergy(m2WorldId worldId)
 void m2World_SetGravity(m2WorldId worldId, m2Vec2 gravity)
 {
     m2World* world = m2GetWorld(worldId);
-    if (world == NULL)
+    if (world == NULL || !m2FiniteVec2(gravity))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -632,7 +632,7 @@ m2Vec2 m2World_GetGravity(m2WorldId worldId)
 void m2World_SetWind(m2WorldId worldId, m2Vec2 velocity, float linearDrag)
 {
     m2World* world = m2GetWorld(worldId);
-    if (world == NULL || !(linearDrag >= 0.0f) || !m2FiniteVec2(velocity))
+    if (world == NULL || !m2FiniteF(linearDrag) || linearDrag < 0.0f || !m2FiniteVec2(velocity))
     {
         m2Refuse(world, m2_errorInvalid);
         return;

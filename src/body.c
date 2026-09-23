@@ -306,7 +306,7 @@ void m2Body_SetLinearVelocity(m2BodyId bodyId, m2Vec2 velocity)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0)
+    if (index < 0 || !m2FiniteVec2(velocity))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -328,7 +328,7 @@ void m2Body_SetAngularVelocity(m2BodyId bodyId, float velocity)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0)
+    if (index < 0 || !m2FiniteF(velocity))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -350,7 +350,8 @@ void m2Body_ApplyLinearImpulse(m2BodyId bodyId, m2Vec2 impulse, m2Pos2 worldPoin
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || world->types[index] != (uint8_t)m2_dynamicBody)
+    if (index < 0 || world->types[index] != (uint8_t)m2_dynamicBody || !m2FiniteVec2(impulse) ||
+        !m2FinitePos2(worldPoint))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -381,7 +382,8 @@ void m2Body_ApplyForce(m2BodyId bodyId, m2Vec2 force, m2Pos2 worldPoint)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || world->types[index] != (uint8_t)m2_dynamicBody)
+    if (index < 0 || world->types[index] != (uint8_t)m2_dynamicBody || !m2FiniteVec2(force) ||
+        !m2FinitePos2(worldPoint))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -411,7 +413,7 @@ void m2Body_ApplyForceToCenter(m2BodyId bodyId, m2Vec2 force)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || world->types[index] != (uint8_t)m2_dynamicBody)
+    if (index < 0 || world->types[index] != (uint8_t)m2_dynamicBody || !m2FiniteVec2(force))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -434,7 +436,7 @@ void m2Body_ApplyTorque(m2BodyId bodyId, float torque)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || world->types[index] != (uint8_t)m2_dynamicBody)
+    if (index < 0 || world->types[index] != (uint8_t)m2_dynamicBody || !m2FiniteF(torque))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -648,7 +650,7 @@ void m2Body_ApplyAngularImpulse(m2BodyId bodyId, float impulse)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || world->types[index] != (uint8_t)m2_dynamicBody)
+    if (index < 0 || world->types[index] != (uint8_t)m2_dynamicBody || !m2FiniteF(impulse))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -670,7 +672,7 @@ void m2Body_SetTransform(m2BodyId bodyId, m2Pos2 position, m2Rot rotation)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0)
+    if (index < 0 || !m2FinitePos2(position) || !m2UnitRot(rotation))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -922,7 +924,7 @@ void m2Body_ApplyLinearImpulseToCenter(m2BodyId bodyId, m2Vec2 impulse)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || world->types[index] != (uint8_t)m2_dynamicBody)
+    if (index < 0 || world->types[index] != (uint8_t)m2_dynamicBody || !m2FiniteVec2(impulse))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -1023,7 +1025,8 @@ void m2Body_SetTargetTransform(m2BodyId bodyId, m2Pos2 position, m2Rot rotation,
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || !(dt > 0.0f))
+    if (index < 0 || !(dt > 0.0f) || !m2FinitePos2(position) || !m2UnitRot(rotation) ||
+        !m2FiniteF(dt))
     {
         m2Refuse(world, m2_errorInvalid);
         return;

@@ -647,6 +647,60 @@ static void TestParameterChannels(void)
     m2DestroyWorld(world);
 }
 
+// Query inputs are caller data: an oversized polygon count, a NULL
+// shape, a NaN pose or a sheared rotation is refused before anything
+// is read, never copied past the proxy or walked through the tree.
+static void TestHostileQueries(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 8;
+    def.shapeCapacity = 8;
+    def.particleCapacity = 8;
+    m2WorldId world = m2CreateWorld(&def);
+    m2BodyId box = AddBox(world, 0.0, 0.0);
+    m2QueryFilter filter = m2DefaultQueryFilter();
+    m2Transform pose = {{0.0, 3.0}, {1.0f, 0.0f}};
+    m2Vec2 down = {0.0f, -6.0f};
+    m2ShapeId ids[4];
+    m2RayHit hits[4];
+
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    m2Polygon huge = m2MakeBox(0.5f, 0.5f);
+    huge.count = 1000;
+    CHECK(!m2World_CastPolygonClosest(world, &huge, pose, down, filter).hit,
+          "an oversized polygon count casts nothing");
+    CHECK(m2World_OverlapPolygon(world, &huge, pose, ids, 4, filter) == 0, "and overlaps nothing");
+    CHECK(m2World_CastPolygonAll(world, &huge, pose, down, hits, 4, filter) == 0,
+          "and sweeps nothing");
+    CHECK(m2World_FillPolygonWithParticles(world, &huge, (m2Pos2){0.0, 5.0}, (m2Vec2){0.0f, 0.0f},
+                                           0) == 0,
+          "and fills nothing");
+    CHECK(!m2World_CastCircleClosest(world, NULL, pose, down, filter).hit,
+          "a NULL circle casts nothing");
+    m2Circle ball = {{0.0f, 0.0f}, 0.25f};
+    m2Transform nanPose = {{NAN, 3.0}, {1.0f, 0.0f}};
+    CHECK(m2World_OverlapCircle(world, &ball, nanPose, ids, 4, filter) == 0,
+          "a NaN pose overlaps nothing");
+    m2Transform sheared = {{0.0, 3.0}, {2.0f, 0.0f}};
+    CHECK(!m2World_CastCircleClosest(world, &ball, sheared, down, filter).hit,
+          "a non-unit rotation casts nothing");
+    CHECK(!m2World_CastRayClosest(world, (m2Pos2){0.0, 3.0}, (m2Vec2){NAN, -6.0f}, filter).hit,
+          "a NaN ray hits nothing");
+    CHECK(m2World_OverlapAABB(world, (m2Pos2){NAN, 0.0}, (m2Pos2){1.0, 1.0}, ids, 4, filter) == 0,
+          "a NaN box overlaps nothing");
+    CHECK(m2World_GetCounters(world).misuse == misuse + 9, "every hostile query refuses once");
+
+    CHECK(m2World_CastCircleClosest(world, &ball, pose, down, filter).hit,
+          "an honest cast still hits");
+    m2Body_SetTransform(box, (m2Pos2){1.0, 0.0}, (m2Rot){2.0f, 0.0f});
+    CHECK(m2LastResult() == m2_errorInvalid, "a teleport with a sheared rotation is refused");
+    m2Body_SetLinearVelocity(box, (m2Vec2){INFINITY, 0.0f});
+    CHECK(m2Body_GetLinearVelocity(box).x == 0.0f, "an infinite velocity never lands");
+    m2World_SetGravity(world, (m2Vec2){0.0f, NAN});
+    CHECK(m2World_GetGravity(world).y == def.gravity.y, "a NaN gravity never lands");
+    m2DestroyWorld(world);
+}
+
 static void TestJournalSlotReuse(void)
 {
     // The nasty replay path: a session whose ids die and whose slots
@@ -2036,6 +2090,7 @@ int main(void)
     TestCapacityExhaustion();
     TestJournalDefenses();
     TestParameterChannels();
+    TestHostileQueries();
     TestJournalSlotReuse();
     TestQueryEdges();
     TestMultiWorldIsolation();

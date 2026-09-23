@@ -239,7 +239,7 @@ void m2Chain_SetFriction(m2ChainId chainId, float friction)
 {
     m2World* world = m2WorldFromIndex(chainId.world0);
     int32_t index = world != NULL ? ChainSlot(world, chainId) : -1;
-    if (index < 0 || !(friction >= 0.0f))
+    if (index < 0 || !m2FiniteF(friction) || friction < 0.0f)
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -251,7 +251,7 @@ void m2Chain_SetRestitution(m2ChainId chainId, float restitution)
 {
     m2World* world = m2WorldFromIndex(chainId.world0);
     int32_t index = world != NULL ? ChainSlot(world, chainId) : -1;
-    if (index < 0 || !(restitution >= 0.0f))
+    if (index < 0 || !(restitution >= 0.0f && restitution <= 1.0f))
     {
         m2Refuse(world, m2_errorInvalid);
         return;

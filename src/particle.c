@@ -189,7 +189,7 @@ void m2Particle_SetLifetime(m2ParticleId particleId, float seconds)
 {
     m2World* world = m2WorldFromIndex(particleId.world0);
     int32_t index = ParticleSlot(world, particleId);
-    if (index < 0 || !(seconds >= 0.0f))
+    if (index < 0 || !m2FiniteF(seconds) || seconds < 0.0f)
     {
         m2Refuse(world, m2_errorInvalid);
         return;

@@ -1022,7 +1022,7 @@ void m2GearJoint_SetRatio(m2JointId jointId, float ratio)
 float m2GearJoint_GetRatio(m2JointId jointId)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? TypedJointSlot(world, jointId, 8) : -1;
+    int32_t index = TypedJointSlot(world, jointId, (uint8_t)m2_gearJoint);
     return index >= 0 ? world->jointLength[index] : 0.0f;
 }
 
@@ -1110,21 +1110,21 @@ void m2PulleyJoint_SetRatio(m2JointId jointId, float ratio)
 float m2PulleyJoint_GetRatio(m2JointId jointId)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? TypedJointSlot(world, jointId, 9) : -1;
+    int32_t index = TypedJointSlot(world, jointId, (uint8_t)m2_pulleyJoint);
     return index >= 0 ? world->jointLength[index] : 0.0f;
 }
 
 float m2PulleyJoint_GetLengthA(m2JointId jointId)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? TypedJointSlot(world, jointId, 9) : -1;
+    int32_t index = TypedJointSlot(world, jointId, (uint8_t)m2_pulleyJoint);
     return index >= 0 ? PulleyLiveLength(world, index, 0) : 0.0f;
 }
 
 float m2PulleyJoint_GetLengthB(m2JointId jointId)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? TypedJointSlot(world, jointId, 9) : -1;
+    int32_t index = TypedJointSlot(world, jointId, (uint8_t)m2_pulleyJoint);
     return index >= 0 ? PulleyLiveLength(world, index, 1) : 0.0f;
 }
 
@@ -1132,7 +1132,7 @@ m2Pos2 m2PulleyJoint_GetGroundAnchorA(m2JointId jointId)
 {
     m2Pos2 zero = {0.0, 0.0};
     m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? TypedJointSlot(world, jointId, 9) : -1;
+    int32_t index = TypedJointSlot(world, jointId, (uint8_t)m2_pulleyJoint);
     return index >= 0 ? world->jointTargets[index] : zero;
 }
 
@@ -1140,7 +1140,7 @@ m2Pos2 m2PulleyJoint_GetGroundAnchorB(m2JointId jointId)
 {
     m2Pos2 zero = {0.0, 0.0};
     m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? TypedJointSlot(world, jointId, 9) : -1;
+    int32_t index = TypedJointSlot(world, jointId, (uint8_t)m2_pulleyJoint);
     return index >= 0 ? world->jointTargetsB[index] : zero;
 }
 
@@ -1213,14 +1213,14 @@ m2JointId m2CreateRatchetJoint(m2WorldId worldId, const m2RatchetJointDef* def)
 float m2RatchetJoint_GetRatchet(m2JointId jointId)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? TypedJointSlot(world, jointId, 10) : -1;
+    int32_t index = TypedJointSlot(world, jointId, (uint8_t)m2_ratchetJoint);
     return index >= 0 ? world->jointLength[index] : 0.0f;
 }
 
 float m2RatchetJoint_GetPhase(m2JointId jointId)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? TypedJointSlot(world, jointId, 10) : -1;
+    int32_t index = TypedJointSlot(world, jointId, (uint8_t)m2_ratchetJoint);
     return index >= 0 ? world->jointRefAngle[index] : 0.0f;
 }
 
@@ -1353,8 +1353,9 @@ m2JointId m2CreateMouseJoint(m2WorldId worldId, const m2MouseJointDef* def)
 static int32_t TypedJointSlot(m2World* world, m2JointId jointId, uint8_t type)
 {
     int32_t index = jointId.index1 - 1;
-    if (index < 0 || index >= world->jointCapacity || world->jointAlive[index] == 0 ||
-        world->jointGenerations[index] != jointId.generation || world->jointType[index] != type)
+    if (world == NULL || index < 0 || index >= world->jointCapacity ||
+        world->jointAlive[index] == 0 || world->jointGenerations[index] != jointId.generation ||
+        world->jointType[index] != type)
     {
         m2Refuse(world, m2_errorInvalid); // stale id or wrong type on a typed path
         return -1;
@@ -1365,8 +1366,12 @@ static int32_t TypedJointSlot(m2World* world, m2JointId jointId, uint8_t type)
 void m2MotorJoint_SetOffsets(m2JointId jointId, m2Vec2 linearOffset, float angularOffset)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? TypedJointSlot(world, jointId, 6) : -1;
+    int32_t index = TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
     if (index < 0)
+    {
+        return; // TypedJointSlot refused
+    }
+    if (!m2FiniteVec2(linearOffset) || !m2FiniteF(angularOffset))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -1400,7 +1405,7 @@ void m2MotorJoint_SetOffsets(m2JointId jointId, m2Vec2 linearOffset, float angul
 m2Vec2 m2MotorJoint_GetLinearOffset(m2JointId jointId)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? TypedJointSlot(world, jointId, 6) : -1;
+    int32_t index = TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
     m2Vec2 zero = {0.0f, 0.0f};
     return index >= 0 ? world->jointLocalAxisA[index] : zero;
 }
@@ -1408,29 +1413,33 @@ m2Vec2 m2MotorJoint_GetLinearOffset(m2JointId jointId)
 float m2MotorJoint_GetAngularOffset(m2JointId jointId)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? TypedJointSlot(world, jointId, 6) : -1;
+    int32_t index = TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
     return index >= 0 ? world->jointRefAngle[index] : 0.0f;
 }
 
 float m2MotorJoint_GetMaxForce(m2JointId jointId)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? TypedJointSlot(world, jointId, 6) : -1;
+    int32_t index = TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
     return index >= 0 ? world->jointLength[index] : 0.0f;
 }
 
 float m2MotorJoint_GetCorrectionFactor(m2JointId jointId)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? TypedJointSlot(world, jointId, 6) : -1;
+    int32_t index = TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
     return index >= 0 ? world->jointDamping[index] : 0.0f;
 }
 
 void m2MouseJoint_SetTarget(m2JointId jointId, m2Pos2 target)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? TypedJointSlot(world, jointId, 7) : -1;
+    int32_t index = TypedJointSlot(world, jointId, (uint8_t)m2_mouseJoint);
     if (index < 0)
+    {
+        return; // TypedJointSlot refused
+    }
+    if (!m2FinitePos2(target))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -1455,7 +1464,7 @@ void m2MouseJoint_SetTarget(m2JointId jointId, m2Pos2 target)
 m2Pos2 m2MouseJoint_GetTarget(m2JointId jointId)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? TypedJointSlot(world, jointId, 7) : -1;
+    int32_t index = TypedJointSlot(world, jointId, (uint8_t)m2_mouseJoint);
     m2Pos2 zero = {0.0, 0.0};
     return index >= 0 ? world->jointTargets[index] : zero;
 }
@@ -1463,7 +1472,7 @@ m2Pos2 m2MouseJoint_GetTarget(m2JointId jointId)
 float m2MouseJoint_GetMaxForce(m2JointId jointId)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
-    int32_t index = world != NULL ? TypedJointSlot(world, jointId, 7) : -1;
+    int32_t index = TypedJointSlot(world, jointId, (uint8_t)m2_mouseJoint);
     return index >= 0 ? world->jointLength[index] : 0.0f;
 }
 

@@ -419,6 +419,13 @@ static inline bool m2FinitePos2(m2Pos2 p)
 {
     return m2FiniteD(p.x) && m2FiniteD(p.y);
 }
+// A caller rotation that is stored or used as given must already be a
+// unit rotation (m2MakeRot builds one); anything else would shear.
+static inline bool m2UnitRot(m2Rot q)
+{
+    float length2 = q.c * q.c + q.s * q.s;
+    return m2FiniteF(q.c) && m2FiniteF(q.s) && length2 > 0.999f && length2 < 1.001f;
+}
 
 void m2UpdateParticlePairs(m2World* world);
 void m2SolveParticles(m2World* world, float dt);

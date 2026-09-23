@@ -18,6 +18,7 @@
 
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 m2QueryFilter m2DefaultQueryFilter(void)
 {
@@ -478,7 +479,7 @@ m2RayCastResult m2World_CastRayClosest(m2WorldId worldId, m2Pos2 origin, m2Vec2 
     result.hit = false;
 
     m2World* world = m2WorldFromId(worldId);
-    if (world == NULL)
+    if (world == NULL || !m2FinitePos2(origin) || !m2FiniteVec2(translation))
     {
         m2Refuse(world, m2_errorInvalid);
         return result;
@@ -597,7 +598,8 @@ int32_t m2World_OverlapAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2Sha
                             int32_t capacity, m2QueryFilter filter)
 {
     m2World* world = m2WorldFromId(worldId);
-    if (world == NULL || upper.x < lower.x || upper.y < lower.y)
+    if (world == NULL || !m2FinitePos2(lower) || !m2FinitePos2(upper) || upper.x < lower.x ||
+        upper.y < lower.y)
     {
         m2Refuse(world, m2_errorInvalid);
         return 0;
@@ -685,6 +687,66 @@ typedef struct m2ProxyQuery
     float boundRadius;         // bounding circle of the cast geometry
 } m2ProxyQuery;
 
+// Caller shapes become distance proxies here, once, with the checks
+// every cast and overlap shares: a real pointer, a vertex count the
+// proxy can hold, finite coordinates, a finite non-negative radius. A
+// refused shape comes back with count 0, which the query entry points
+// turn into a refusal.
+static m2DistanceProxy CheckedProxy(const m2Vec2* points, int32_t count, float radius)
+{
+    m2DistanceProxy p;
+    memset(&p, 0, sizeof(p));
+    if (points == NULL || count < 1 || count > M2_MAX_POLYGON_VERTICES || !m2FiniteF(radius) ||
+        radius < 0.0f)
+    {
+        return p;
+    }
+    for (int32_t i = 0; i < count; ++i)
+    {
+        if (!m2FiniteVec2(points[i]))
+        {
+            return p;
+        }
+        p.points[i] = points[i];
+    }
+    p.count = count;
+    p.radius = radius;
+    return p;
+}
+
+static m2DistanceProxy CircleProxy(const m2Circle* circle)
+{
+    m2DistanceProxy none;
+    memset(&none, 0, sizeof(none));
+    return circle != NULL ? CheckedProxy(&circle->center, 1, circle->radius) : none;
+}
+
+static m2DistanceProxy CapsuleProxy(const m2Capsule* capsule)
+{
+    m2DistanceProxy none;
+    memset(&none, 0, sizeof(none));
+    if (capsule == NULL)
+    {
+        return none;
+    }
+    m2Vec2 points[2] = {capsule->point1, capsule->point2};
+    return CheckedProxy(points, 2, capsule->radius);
+}
+
+static m2DistanceProxy PolygonProxy(const m2Polygon* polygon)
+{
+    m2DistanceProxy none;
+    memset(&none, 0, sizeof(none));
+    return polygon != NULL ? CheckedProxy(polygon->vertices, polygon->count, polygon->radius)
+                           : none;
+}
+
+// A query pose and sweep: finite, with a unit rotation.
+static bool QueryMotionValid(m2Transform pose, m2Vec2 translation)
+{
+    return m2FinitePos2(pose.p) && m2UnitRot(pose.q) && m2FiniteVec2(translation);
+}
+
 static m2ProxyQuery MakeProxyQuery(const m2DistanceProxy* castLocal, m2Transform pose,
                                    m2Vec2 translation)
 {
@@ -759,7 +821,7 @@ static m2RayCastResult CastProxyClosest(m2WorldId worldId, const m2DistanceProxy
     result.hit = false;
 
     m2World* world = m2WorldFromId(worldId);
-    if (world == NULL)
+    if (world == NULL || castLocal->count == 0 || !QueryMotionValid(pose, translation))
     {
         m2Refuse(world, m2_errorInvalid);
         return result;
@@ -850,7 +912,7 @@ static int32_t OverlapProxy(m2WorldId worldId, const m2DistanceProxy* castLocal,
                             m2ShapeId* ids, int32_t capacity, m2QueryFilter filter)
 {
     m2World* world = m2WorldFromId(worldId);
-    if (world == NULL)
+    if (world == NULL || castLocal->count == 0 || !QueryMotionValid(pose, (m2Vec2){0.0f, 0.0f}))
     {
         m2Refuse(world, m2_errorInvalid);
         return 0;
@@ -903,10 +965,7 @@ m2RayCastResult m2World_CastCircleClosest(m2WorldId worldId, const m2Circle* cir
                                           m2Transform origin, m2Vec2 translation,
                                           m2QueryFilter filter)
 {
-    m2DistanceProxy p;
-    p.points[0] = circle->center;
-    p.count = 1;
-    p.radius = circle->radius;
+    m2DistanceProxy p = CircleProxy(circle);
     return CastProxyClosest(worldId, &p, origin, translation, filter);
 }
 
@@ -914,11 +973,7 @@ m2RayCastResult m2World_CastCapsuleClosest(m2WorldId worldId, const m2Capsule* c
                                            m2Transform origin, m2Vec2 translation,
                                            m2QueryFilter filter)
 {
-    m2DistanceProxy p;
-    p.points[0] = capsule->point1;
-    p.points[1] = capsule->point2;
-    p.count = 2;
-    p.radius = capsule->radius;
+    m2DistanceProxy p = CapsuleProxy(capsule);
     return CastProxyClosest(worldId, &p, origin, translation, filter);
 }
 
@@ -926,47 +981,28 @@ m2RayCastResult m2World_CastPolygonClosest(m2WorldId worldId, const m2Polygon* p
                                            m2Transform origin, m2Vec2 translation,
                                            m2QueryFilter filter)
 {
-    m2DistanceProxy p;
-    for (int32_t i = 0; i < polygon->count; ++i)
-    {
-        p.points[i] = polygon->vertices[i];
-    }
-    p.count = polygon->count;
-    p.radius = polygon->radius;
+    m2DistanceProxy p = PolygonProxy(polygon);
     return CastProxyClosest(worldId, &p, origin, translation, filter);
 }
 
 int32_t m2World_OverlapCircle(m2WorldId worldId, const m2Circle* circle, m2Transform origin,
                               m2ShapeId* ids, int32_t capacity, m2QueryFilter filter)
 {
-    m2DistanceProxy p;
-    p.points[0] = circle->center;
-    p.count = 1;
-    p.radius = circle->radius;
+    m2DistanceProxy p = CircleProxy(circle);
     return OverlapProxy(worldId, &p, origin, ids, capacity, filter);
 }
 
 int32_t m2World_OverlapCapsule(m2WorldId worldId, const m2Capsule* capsule, m2Transform origin,
                                m2ShapeId* ids, int32_t capacity, m2QueryFilter filter)
 {
-    m2DistanceProxy p;
-    p.points[0] = capsule->point1;
-    p.points[1] = capsule->point2;
-    p.count = 2;
-    p.radius = capsule->radius;
+    m2DistanceProxy p = CapsuleProxy(capsule);
     return OverlapProxy(worldId, &p, origin, ids, capacity, filter);
 }
 
 int32_t m2World_OverlapPolygon(m2WorldId worldId, const m2Polygon* polygon, m2Transform origin,
                                m2ShapeId* ids, int32_t capacity, m2QueryFilter filter)
 {
-    m2DistanceProxy p;
-    for (int32_t i = 0; i < polygon->count; ++i)
-    {
-        p.points[i] = polygon->vertices[i];
-    }
-    p.count = polygon->count;
-    p.radius = polygon->radius;
+    m2DistanceProxy p = PolygonProxy(polygon);
     return OverlapProxy(worldId, &p, origin, ids, capacity, filter);
 }
 
@@ -1003,7 +1039,8 @@ m2RayCastResult m2Shape_RayCast(m2ShapeId shapeId, m2Pos2 origin, m2Vec2 transla
     }
     int32_t index = shapeId.index1 - 1;
     if (index < 0 || index >= world->shapeCapacity || world->shapeAlive[index] == 0 ||
-        world->shapeGenerations[index] != shapeId.generation)
+        world->shapeGenerations[index] != shapeId.generation || !m2FinitePos2(origin) ||
+        !m2FiniteVec2(translation))
     {
         m2Refuse(world, m2_errorInvalid);
         return result;
@@ -1059,7 +1096,7 @@ int32_t m2World_CastRayAll(m2WorldId worldId, m2Pos2 origin, m2Vec2 translation,
                            int32_t capacity, m2QueryFilter filter)
 {
     m2World* world = m2WorldFromId(worldId);
-    if (world == NULL)
+    if (world == NULL || !m2FinitePos2(origin) || !m2FiniteVec2(translation))
     {
         m2Refuse(world, m2_errorInvalid);
         return 0;
@@ -1136,7 +1173,7 @@ static int32_t CastProxyAll(m2WorldId worldId, const m2DistanceProxy* castLocal,
                             m2QueryFilter filter)
 {
     m2World* world = m2WorldFromId(worldId);
-    if (world == NULL)
+    if (world == NULL || castLocal->count == 0 || !QueryMotionValid(pose, translation))
     {
         m2Refuse(world, m2_errorInvalid);
         return 0;
@@ -1220,10 +1257,7 @@ int32_t m2World_CastCircleAll(m2WorldId worldId, const m2Circle* circle, m2Trans
                               m2Vec2 translation, m2RayHit* hits, int32_t capacity,
                               m2QueryFilter filter)
 {
-    m2DistanceProxy p;
-    p.points[0] = circle->center;
-    p.count = 1;
-    p.radius = circle->radius;
+    m2DistanceProxy p = CircleProxy(circle);
     return CastProxyAll(worldId, &p, origin, translation, hits, capacity, filter);
 }
 
@@ -1231,11 +1265,7 @@ int32_t m2World_CastCapsuleAll(m2WorldId worldId, const m2Capsule* capsule, m2Tr
                                m2Vec2 translation, m2RayHit* hits, int32_t capacity,
                                m2QueryFilter filter)
 {
-    m2DistanceProxy p;
-    p.points[0] = capsule->point1;
-    p.points[1] = capsule->point2;
-    p.count = 2;
-    p.radius = capsule->radius;
+    m2DistanceProxy p = CapsuleProxy(capsule);
     return CastProxyAll(worldId, &p, origin, translation, hits, capacity, filter);
 }
 
@@ -1243,13 +1273,7 @@ int32_t m2World_CastPolygonAll(m2WorldId worldId, const m2Polygon* polygon, m2Tr
                                m2Vec2 translation, m2RayHit* hits, int32_t capacity,
                                m2QueryFilter filter)
 {
-    m2DistanceProxy p;
-    for (int32_t i = 0; i < polygon->count; ++i)
-    {
-        p.points[i] = polygon->vertices[i];
-    }
-    p.count = polygon->count;
-    p.radius = polygon->radius;
+    m2DistanceProxy p = PolygonProxy(polygon);
     return CastProxyAll(worldId, &p, origin, translation, hits, capacity, filter);
 }
 
@@ -1263,17 +1287,12 @@ int32_t m2World_CollideMover(m2WorldId worldId, const m2Capsule* mover, m2Transf
                              m2PlaneResult* results, int32_t capacity, m2QueryFilter filter)
 {
     m2World* world = m2WorldFromId(worldId);
-    if (world == NULL || mover == NULL)
+    m2DistanceProxy moverLocal = CapsuleProxy(mover);
+    if (world == NULL || moverLocal.count == 0 || !QueryMotionValid(origin, (m2Vec2){0.0f, 0.0f}))
     {
         m2Refuse(world, m2_errorInvalid);
         return 0;
     }
-    m2DistanceProxy moverLocal;
-    memset(&moverLocal, 0, sizeof(moverLocal));
-    moverLocal.points[0] = mover->point1;
-    moverLocal.points[1] = mover->point2;
-    moverLocal.count = 2;
-    moverLocal.radius = mover->radius;
     m2ProxyQuery q = MakeProxyQuery(&moverLocal, origin, (m2Vec2){0.0f, 0.0f});
 
     float collar = 0.02f; // 4x linear slop, the speculative margin
