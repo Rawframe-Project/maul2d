@@ -9,6 +9,8 @@ function(maul_configure_library target)
         PUBLIC $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/include> $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
         PRIVATE ${PROJECT_SOURCE_DIR}/src)
     set_target_properties(${target} PROPERTIES C_VISIBILITY_PRESET hidden)
+    # The public headers need C11; consumers inherit the requirement.
+    target_compile_features(${target} PUBLIC c_std_11)
     if(${MAUL_PREFIX}_BUILD_SHARED)
         # Before 1.0 every minor release may break the ABI, so the
         # SOVERSION carries major.minor; from 1.0 on the major alone.

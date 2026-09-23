@@ -31,3 +31,24 @@ function(maul_add_test name)
         add_test(NAME ${name} COMMAND ${target})
     endif()
 endfunction()
+
+# maul_add_cxx_header_test()
+#
+# Compiles the umbrella header as C++ and runs it, when a C++ compiler is
+# available, so the public API stays usable from C++. A macro, because
+# enable_language must run at directory scope.
+macro(maul_add_cxx_header_test)
+    include(CheckLanguage)
+    check_language(CXX)
+    if(CMAKE_CXX_COMPILER)
+        enable_language(CXX)
+        string(SUBSTRING ${PROJECT_NAME} 4 1 maul_dimension)
+        set(maul_cxx_source ${PROJECT_BINARY_DIR}/cxx_headers.cpp)
+        file(WRITE ${maul_cxx_source}
+            "#include \"${PROJECT_NAME}/${PROJECT_NAME}.h\"\n"
+            "int main() { return m${maul_dimension}GetVersion() > 0 ? 0 : 1; }\n")
+        add_executable(test_cxx_headers ${maul_cxx_source})
+        target_link_libraries(test_cxx_headers PRIVATE ${PROJECT_NAME})
+        add_test(NAME cxx_headers COMMAND test_cxx_headers)
+    endif()
+endmacro()

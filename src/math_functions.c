@@ -14,6 +14,15 @@
 
 #include <math.h> // floorf, sqrtf only: both are IEEE-exact operations
 
+// The math types enter snapshots and hashes as raw bytes, so their
+// layout is part of the determinism contract.
+_Static_assert(sizeof(m2Vec2) == 8, "m2Vec2 must be 8 bytes");
+_Static_assert(sizeof(m2Pos2) == 16, "m2Pos2 must be 16 bytes");
+_Static_assert(sizeof(m2Rot) == 8, "m2Rot must be 8 bytes");
+_Static_assert(sizeof(m2Transform) == 24, "m2Transform must be 24 bytes, no padding");
+_Static_assert(_Alignof(m2Vec2) == 4 && _Alignof(m2Rot) == 4, "float pair alignment");
+_Static_assert(_Alignof(m2Pos2) == 8 && _Alignof(m2Transform) == 8, "double alignment");
+
 float m2UnwindAngle(float radians)
 {
     M2_ASSERT(radians >= -1.0e6f && radians <= 1.0e6f);

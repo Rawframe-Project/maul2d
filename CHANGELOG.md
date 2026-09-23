@@ -22,6 +22,9 @@ Work toward 0.0.1, the first release of the reworked library.
 - `test/hashes.txt` holds the expected determinism hashes, and
   `tools/check_hashes.py` compares a test run with them, so a change
   that moves a hash the same way on every platform is caught too.
+- The library target requires C11 of its consumers through CMake, and
+  a test compiles the umbrella header as C++ so the API stays usable
+  from C++.
 
 ### Changed
 
@@ -110,3 +113,7 @@ Work toward 0.0.1, the first release of the reworked library.
 - Input checks that tested `x == x` let infinities through. They now
   use finite checks, so infinite positions, velocities and parameters
   are refused like NaN.
+- The public headers used `_Static_assert`, which C++ and MSVC's
+  default C mode reject, so a consumer that did not ask for C11 could
+  not include them. The layout checks moved into the library's own
+  sources.

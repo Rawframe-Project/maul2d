@@ -50,15 +50,6 @@ extern "C"
         m2Rot q;
     } m2Transform;
 
-    // Snapshot-visible structs must have no hidden padding: byte-exact
-    // snapshots depend on it. sizeof must equal the sum of the members.
-    _Static_assert(sizeof(m2Vec2) == 8, "m2Vec2 must be 8 bytes");
-    _Static_assert(sizeof(m2Pos2) == 16, "m2Pos2 must be 16 bytes");
-    _Static_assert(sizeof(m2Rot) == 8, "m2Rot must be 8 bytes");
-    _Static_assert(sizeof(m2Transform) == 24, "m2Transform must be 24 bytes, no padding");
-    _Static_assert(_Alignof(m2Vec2) == 4 && _Alignof(m2Rot) == 4, "float pair alignment");
-    _Static_assert(_Alignof(m2Pos2) == 8 && _Alignof(m2Transform) == 8, "double alignment");
-
 #if defined(_MSC_VER) && defined(_M_X64)
 #include <xmmintrin.h>
 #elif defined(_MSC_VER) && defined(_M_ARM64)
