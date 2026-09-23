@@ -1700,6 +1700,73 @@ static void TestValidateAndCounters(void)
     m2DestroyWorld(world);
 }
 
+// A host allocator that refuses once a budget of successful calls is
+// spent, and counts live blocks so a leak shows up as a nonzero total.
+static int32_t s_allocBudget = 0;
+static int32_t s_allocLive = 0;
+
+static void* FailingAlloc(size_t bytes)
+{
+    if (s_allocBudget <= 0)
+    {
+        return NULL;
+    }
+    s_allocBudget -= 1;
+    void* memory = calloc(1, bytes);
+    s_allocLive += memory != NULL ? 1 : 0;
+    return memory;
+}
+
+static void FailingFree(void* memory)
+{
+    if (memory != NULL)
+    {
+        s_allocLive -= 1;
+        free(memory);
+    }
+}
+
+static void TestCreateWorldOutOfMemory(void)
+{
+    // Refuse each allocation of world creation in turn, with fluids on so
+    // every array kind is allocated. Every attempt must refuse cleanly
+    // with nothing left allocated, or succeed and destroy cleanly.
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 16;
+    def.shapeCapacity = 16;
+    def.particleCapacity = 32;
+    def.fluidVolumeCapacity = 2;
+    int32_t refusals = 0;
+    bool created = false;
+    for (int32_t budget = 0; budget < 1024 && !created; ++budget)
+    {
+        s_allocBudget = budget;
+        s_allocLive = 0;
+        m2SetAllocator(FailingAlloc, FailingFree);
+        m2WorldId world = m2CreateWorld(&def);
+        if (m2World_IsValid(world))
+        {
+            created = true;
+            m2DestroyWorld(world);
+        }
+        else
+        {
+            refusals += 1;
+            CHECK(m2LastResult() == m2_errorCapacity, "a refused allocation reports capacity");
+        }
+        m2SetAllocator(NULL, NULL);
+        if (s_allocLive != 0)
+        {
+            printf("FAIL: %d block(s) leaked with an allocation budget of %d\n", s_allocLive,
+                   budget);
+            s_failures += 1;
+            break;
+        }
+    }
+    CHECK(created, "world creation succeeds once the allocator stops refusing");
+    CHECK(refusals > 100, "every allocation of world creation was refused once");
+}
+
 static void TestInfiniteInputIsRefused(void)
 {
     // NaN was refused before; infinity slipped through the x == x
@@ -2289,6 +2356,7 @@ static void TestWind(void)
 
 int main(void)
 {
+    TestCreateWorldOutOfMemory();
     TestInfiniteInputIsRefused();
     TestEveryRefusalHasAReason();
     TestRuntimeGravity();

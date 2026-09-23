@@ -88,7 +88,8 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/shape.c
     src/snapshot.c
     src/solver.c
-    src/world.c)
+    src/world.c
+    src/world_state.c)
 maul_configure_library(maul2d)
 
 # The CPU check must run on CPUs the backend does not support, so it is

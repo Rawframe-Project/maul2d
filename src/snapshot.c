@@ -6,6 +6,8 @@
 
 #include "snapshot.h"
 
+#include "world_state.h"
+
 #include "joint.h"
 #include "world.h"
 #include "world_internal.h"
@@ -47,8 +49,6 @@ typedef struct m2SnapshotHeader
 
 _Static_assert(sizeof(m2SnapshotHeader) == 96, "snapshot header must be padding-free");
 
-static int32_t WalkBlocks(m2World* world, uint8_t* out, const uint8_t* in, int direction);
-
 static bool InRange(int32_t value, int32_t lo, int32_t hi)
 {
     return value >= lo && value <= hi;
@@ -74,7 +74,7 @@ static bool HeaderCountsInRange(const m2SnapshotHeader* h)
 // every time; root cause now removed).
 static int32_t BlockBytes(const m2World* world)
 {
-    return WalkBlocks((m2World*)world, NULL, NULL, 2);
+    return m2StateWalk((m2World*)world, NULL, NULL, 2);
 }
 
 int32_t m2World_SnapshotSize(m2WorldId worldId)
@@ -89,172 +89,6 @@ int32_t m2World_SnapshotSize(m2WorldId worldId)
 
 // The block walk is shared by Snapshot and Restore so the layouts can
 // never drift apart (direction 0 = write, 1 = read).
-static int32_t WalkBlocks(m2World* world, uint8_t* out, const uint8_t* in, int direction)
-{
-    int32_t cursor = 0;
-    size_t cap = (size_t)world->bodyCapacity;
-    size_t shapeCap = (size_t)world->shapeCapacity;
-#define M2_BLOCK(ptr, bytes)                                                                       \
-    do                                                                                             \
-    {                                                                                              \
-        if (direction == 0)                                                                        \
-        {                                                                                          \
-            memcpy(out + cursor, ptr, (size_t)(bytes));                                            \
-        }                                                                                          \
-        else if (direction == 1)                                                                   \
-        {                                                                                          \
-            memcpy(ptr, in + cursor, (size_t)(bytes));                                             \
-        }                                                                                          \
-        cursor += (int32_t)(bytes);                                                                \
-    } while (0)
-    M2_BLOCK(world->transforms, cap * sizeof(m2Transform));
-    M2_BLOCK(world->linearVelocities, cap * sizeof(m2Vec2));
-    M2_BLOCK(world->angularVelocities, cap * sizeof(float));
-    M2_BLOCK(world->gravityScales, cap * sizeof(float));
-    M2_BLOCK(world->invMass, cap * sizeof(float));
-    M2_BLOCK(world->invInertia, cap * sizeof(float));
-    M2_BLOCK(world->localCenters, cap * sizeof(m2Vec2));
-    M2_BLOCK(world->asleep, cap * sizeof(uint8_t));
-    M2_BLOCK(world->sleepTimes, cap * sizeof(float));
-    M2_BLOCK(world->sleepStreak, cap * sizeof(uint8_t));
-    M2_BLOCK(world->bullets, cap * sizeof(uint8_t));
-    M2_BLOCK(world->userData, cap * sizeof(uint64_t));
-    M2_BLOCK(world->types, cap * sizeof(uint8_t));
-    M2_BLOCK(world->alive, cap * sizeof(uint8_t));
-    M2_BLOCK(world->bodyShapeHead, cap * sizeof(int32_t));
-    M2_BLOCK(world->generations, cap * sizeof(uint16_t));
-    M2_BLOCK(world->freeQueue, cap * sizeof(int32_t));
-    M2_BLOCK(world->shapeGeometry, shapeCap * sizeof(m2ShapeGeometry));
-    M2_BLOCK(world->shapeDensity, shapeCap * sizeof(float));
-    M2_BLOCK(world->shapeFriction, shapeCap * sizeof(float));
-    M2_BLOCK(world->shapeRestitution, shapeCap * sizeof(float));
-    M2_BLOCK(world->shapeTangentSpeed, shapeCap * sizeof(float));
-    M2_BLOCK(world->shapeUserData, shapeCap * sizeof(uint64_t));
-    M2_BLOCK(world->shapeBody, shapeCap * sizeof(int32_t));
-    M2_BLOCK(world->shapeNext, shapeCap * sizeof(int32_t));
-    M2_BLOCK(world->shapeAlive, shapeCap * sizeof(uint8_t));
-    M2_BLOCK(world->shapeGenerations, shapeCap * sizeof(uint16_t));
-    M2_BLOCK(world->shapeCategory, (size_t)world->shapeCapacity * sizeof(uint32_t));
-    M2_BLOCK(world->shapeMask, (size_t)world->shapeCapacity * sizeof(uint32_t));
-    M2_BLOCK(world->shapeGroup, (size_t)world->shapeCapacity * sizeof(int32_t));
-    M2_BLOCK(world->shapeSensor, (size_t)world->shapeCapacity * sizeof(uint8_t));
-    M2_BLOCK(world->shapeFreeQueue, shapeCap * sizeof(int32_t));
-    M2_BLOCK(world->proxyIds, shapeCap * sizeof(int32_t));
-    M2_BLOCK(world->inMoved, shapeCap * sizeof(uint8_t));
-    M2_BLOCK(world->moved, shapeCap * sizeof(int32_t));
-    M2_BLOCK(&world->maxJointIndex, sizeof(int32_t));
-    M2_BLOCK(&world->jointFreeHead, sizeof(int32_t));
-    M2_BLOCK(&world->jointFreeTail, sizeof(int32_t));
-    M2_BLOCK(&world->jointFreeCount, sizeof(int32_t));
-    M2_BLOCK(&world->jointRetiredCount, sizeof(int32_t));
-    M2_BLOCK(world->jointType, (size_t)world->jointCapacity * sizeof(uint8_t));
-    M2_BLOCK(world->jointAlive, (size_t)world->jointCapacity * sizeof(uint8_t));
-    M2_BLOCK(world->jointBodyA, (size_t)world->jointCapacity * sizeof(int32_t));
-    M2_BLOCK(world->jointBodyB, (size_t)world->jointCapacity * sizeof(int32_t));
-    M2_BLOCK(world->jointLocalAnchorA, (size_t)world->jointCapacity * sizeof(m2Vec2));
-    M2_BLOCK(world->jointLocalAnchorB, (size_t)world->jointCapacity * sizeof(m2Vec2));
-    M2_BLOCK(world->jointLength, (size_t)world->jointCapacity * sizeof(float));
-    M2_BLOCK(world->jointHertz, (size_t)world->jointCapacity * sizeof(float));
-    M2_BLOCK(world->jointDamping, (size_t)world->jointCapacity * sizeof(float));
-    M2_BLOCK(world->jointHertz2, (size_t)world->jointCapacity * sizeof(float));
-    M2_BLOCK(world->jointDamping2, (size_t)world->jointCapacity * sizeof(float));
-    M2_BLOCK(world->jointImpulse, (size_t)world->jointCapacity * sizeof(m2Vec2));
-    M2_BLOCK(world->jointFlags, (size_t)world->jointCapacity * sizeof(uint8_t));
-    M2_BLOCK(world->jointMotorSpeed, (size_t)world->jointCapacity * sizeof(float));
-    M2_BLOCK(world->jointMaxMotor, (size_t)world->jointCapacity * sizeof(float));
-    M2_BLOCK(world->jointLower, (size_t)world->jointCapacity * sizeof(float));
-    M2_BLOCK(world->jointUpper, (size_t)world->jointCapacity * sizeof(float));
-    M2_BLOCK(world->jointLocalAxisA, (size_t)world->jointCapacity * sizeof(m2Vec2));
-    M2_BLOCK(world->jointRefAngle, (size_t)world->jointCapacity * sizeof(float));
-    M2_BLOCK(world->jointMotorImpulse, (size_t)world->jointCapacity * sizeof(float));
-    M2_BLOCK(world->jointLowerImpulse, (size_t)world->jointCapacity * sizeof(float));
-    M2_BLOCK(world->jointUpperImpulse, (size_t)world->jointCapacity * sizeof(float));
-    M2_BLOCK(world->jointSpringImpulse, (size_t)world->jointCapacity * sizeof(float));
-    M2_BLOCK(world->jointBreakForce, (size_t)world->jointCapacity * sizeof(float));
-    M2_BLOCK(world->jointCollide, (size_t)world->jointCapacity * sizeof(uint8_t));
-    M2_BLOCK(world->jointTargets, (size_t)world->jointCapacity * sizeof(m2Pos2));
-    M2_BLOCK(world->jointTargetsB, (size_t)world->jointCapacity * sizeof(m2Pos2));
-    M2_BLOCK(world->jointUserData, (size_t)world->jointCapacity * sizeof(uint64_t));
-    M2_BLOCK(world->jointBreakTorque, (size_t)world->jointCapacity * sizeof(float));
-    M2_BLOCK(world->jointGenerations, (size_t)world->jointCapacity * sizeof(uint16_t));
-    M2_BLOCK(world->jointFreeQueue, (size_t)world->jointCapacity * sizeof(int32_t));
-    M2_BLOCK(&world->maxChainIndex, sizeof(int32_t));
-    M2_BLOCK(&world->chainFreeHead, sizeof(int32_t));
-    M2_BLOCK(&world->chainFreeTail, sizeof(int32_t));
-    M2_BLOCK(&world->chainFreeCount, sizeof(int32_t));
-    M2_BLOCK(&world->chainRetiredCount, sizeof(int32_t));
-    M2_BLOCK(&world->lastInvH, sizeof(float));
-    M2_BLOCK(&world->sleepEnabled, sizeof(uint8_t));
-    M2_BLOCK(world->linearDampings, (size_t)world->bodyCapacity * sizeof(float));
-    M2_BLOCK(world->angularDampings, (size_t)world->bodyCapacity * sizeof(float));
-    M2_BLOCK(world->fixedRotations, (size_t)world->bodyCapacity * sizeof(uint8_t));
-    M2_BLOCK(world->motionLocks, (size_t)world->bodyCapacity * sizeof(uint8_t));
-    M2_BLOCK(world->sleepEnables, (size_t)world->bodyCapacity * sizeof(uint8_t));
-    M2_BLOCK(world->forces, (size_t)world->bodyCapacity * sizeof(m2Vec2));
-    M2_BLOCK(world->torques, (size_t)world->bodyCapacity * sizeof(float));
-    M2_BLOCK(world->disabled, (size_t)world->bodyCapacity * sizeof(uint8_t));
-    M2_BLOCK(world->dominances, (size_t)world->bodyCapacity * sizeof(int8_t));
-    M2_BLOCK(world->shapeChain, (size_t)world->shapeCapacity * sizeof(int32_t));
-    M2_BLOCK(world->chainAlive, (size_t)world->shapeCapacity * sizeof(uint8_t));
-    M2_BLOCK(world->chainBody, (size_t)world->shapeCapacity * sizeof(int32_t));
-    M2_BLOCK(world->chainGenerations, (size_t)world->shapeCapacity * sizeof(uint16_t));
-    M2_BLOCK(world->chainFreeQueue, (size_t)world->shapeCapacity * sizeof(int32_t));
-    M2_BLOCK(world->trees, M2_TREE_COUNT * sizeof(m2DynamicTree));
-    for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
-    {
-        M2_BLOCK(world->treeNodes[t], (size_t)world->treeNodeCapacity * sizeof(m2TreeNode));
-    }
-    M2_BLOCK(world->pairKeys, (size_t)world->pairCapacity * sizeof(uint64_t));
-    M2_BLOCK(world->pairTouching, (size_t)world->pairCapacity * sizeof(uint8_t));
-    M2_BLOCK(world->manifolds, (size_t)world->pairCapacity * sizeof(m2Manifold));
-    if (world->particleCapacity > 0)
-    {
-        size_t particleCap = (size_t)world->particleCapacity;
-        M2_BLOCK(world->particlePositions, particleCap * sizeof(m2Pos2));
-        M2_BLOCK(world->particleVelocities, particleCap * sizeof(m2Vec2));
-        M2_BLOCK(world->particleAlive, particleCap * sizeof(uint8_t));
-        M2_BLOCK(world->particleGenerations, particleCap * sizeof(uint16_t));
-        M2_BLOCK(world->particleFlags, particleCap * sizeof(uint32_t));
-        M2_BLOCK(world->particleLifetime, particleCap * sizeof(float));
-        M2_BLOCK(world->particleUserData, particleCap * sizeof(uint64_t));
-        M2_BLOCK(world->particleFreeQueue, particleCap * sizeof(int32_t));
-        M2_BLOCK(&world->particleFreeHead, sizeof(int32_t));
-        M2_BLOCK(&world->particleFreeCount, sizeof(int32_t));
-        M2_BLOCK(&world->particleCount, sizeof(int32_t));
-        M2_BLOCK(&world->maxParticleIndex, sizeof(int32_t));
-        M2_BLOCK(world->particleSpringA, (size_t)world->particleSpringCapacity * sizeof(int32_t));
-        M2_BLOCK(world->particleSpringB, (size_t)world->particleSpringCapacity * sizeof(int32_t));
-        M2_BLOCK(world->particleSpringRest, (size_t)world->particleSpringCapacity * sizeof(float));
-        M2_BLOCK(&world->particleSpringCount, sizeof(int32_t));
-        M2_BLOCK(world->particleTriadA, (size_t)world->particleTriadCapacity * sizeof(int32_t));
-        M2_BLOCK(world->particleTriadB, (size_t)world->particleTriadCapacity * sizeof(int32_t));
-        M2_BLOCK(world->particleTriadC, (size_t)world->particleTriadCapacity * sizeof(int32_t));
-        M2_BLOCK(world->particleTriadPA, (size_t)world->particleTriadCapacity * sizeof(m2Vec2));
-        M2_BLOCK(world->particleTriadPB, (size_t)world->particleTriadCapacity * sizeof(m2Vec2));
-        M2_BLOCK(world->particleTriadPC, (size_t)world->particleTriadCapacity * sizeof(m2Vec2));
-        M2_BLOCK(&world->particleTriadCount, sizeof(int32_t));
-    }
-    if (world->fvCapacity > 0)
-    {
-        size_t fvCap = (size_t)world->fvCapacity;
-        M2_BLOCK(world->fvLower, fvCap * sizeof(m2Pos2));
-        M2_BLOCK(world->fvUpper, fvCap * sizeof(m2Pos2));
-        M2_BLOCK(world->fvSurface, fvCap * sizeof(double));
-        M2_BLOCK(world->fvDensity, fvCap * sizeof(float));
-        M2_BLOCK(world->fvLinearDrag, fvCap * sizeof(float));
-        M2_BLOCK(world->fvAngularDrag, fvCap * sizeof(float));
-        M2_BLOCK(world->fvFlow, fvCap * sizeof(m2Vec2));
-        M2_BLOCK(world->fvUserData, fvCap * sizeof(uint64_t));
-        M2_BLOCK(world->fvAlive, fvCap * sizeof(uint8_t));
-        M2_BLOCK(world->fvGenerations, fvCap * sizeof(uint16_t));
-        M2_BLOCK(world->fvFreeQueue, fvCap * sizeof(int32_t));
-        M2_BLOCK(&world->fvFreeHead, sizeof(int32_t));
-        M2_BLOCK(&world->fvFreeCount, sizeof(int32_t));
-        M2_BLOCK(&world->maxFvIndex, sizeof(int32_t));
-    }
-#undef M2_BLOCK
-    return cursor;
-}
 
 int32_t m2World_Snapshot(m2WorldId worldId, void* buffer, int32_t capacity)
 {
@@ -291,7 +125,7 @@ int32_t m2World_Snapshot(m2WorldId worldId, void* buffer, int32_t capacity)
 
     uint8_t* out = buffer;
     memcpy(out, &header, sizeof(header));
-    int32_t cursor = (int32_t)sizeof(header) + WalkBlocks(world, out + sizeof(header), NULL, 0);
+    int32_t cursor = (int32_t)sizeof(header) + m2StateWalk(world, out + sizeof(header), NULL, 0);
     M2_ASSERT(cursor == size);
     return cursor;
 }
@@ -331,7 +165,7 @@ bool m2World_Restore(m2WorldId worldId, const void* buffer, int32_t size)
     world->shapeRetiredCount = header.shapeRetiredCount;
 
     const uint8_t* in = buffer;
-    int32_t cursor = (int32_t)sizeof(header) + WalkBlocks(world, NULL, in + sizeof(header), 1);
+    int32_t cursor = (int32_t)sizeof(header) + m2StateWalk(world, NULL, in + sizeof(header), 1);
     M2_ASSERT(cursor == size);
     (void)cursor;
     m2RebuildJointEdges(world);

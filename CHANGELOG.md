@@ -59,6 +59,12 @@ Work toward 0.0.1, the first release of the reworked library.
 - The public `maul2d/math.h` header is now `maul2d/core_math.h`, so it
   can never shadow the C library's `math.h` when `include/maul2d`
   lands on an include path.
+- The world's arrays are described once, in a table in
+  `src/world_state.c`. Allocation, release, the snapshot walk and the
+  memory footprint all read that table, so adding an array touches the
+  struct and one table row instead of seven places.
+  `m2World_MemoryBytes` now also counts the broadphase trees and the
+  solver scratch.
 
 ### Removed
 
