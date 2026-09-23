@@ -678,7 +678,7 @@ static void TestHostileQueries(void)
     CHECK(!m2World_CastCircleClosest(world, NULL, pose, down, filter).hit,
           "a NULL circle casts nothing");
     m2Circle ball = {{0.0f, 0.0f}, 0.25f};
-    m2Transform nanPose = {{NAN, 3.0}, {1.0f, 0.0f}};
+    m2Transform nanPose = {{(double)NAN, 3.0}, {1.0f, 0.0f}};
     CHECK(m2World_OverlapCircle(world, &ball, nanPose, ids, 4, filter) == 0,
           "a NaN pose overlaps nothing");
     m2Transform sheared = {{0.0, 3.0}, {2.0f, 0.0f}};
@@ -686,7 +686,8 @@ static void TestHostileQueries(void)
           "a non-unit rotation casts nothing");
     CHECK(!m2World_CastRayClosest(world, (m2Pos2){0.0, 3.0}, (m2Vec2){NAN, -6.0f}, filter).hit,
           "a NaN ray hits nothing");
-    CHECK(m2World_OverlapAABB(world, (m2Pos2){NAN, 0.0}, (m2Pos2){1.0, 1.0}, ids, 4, filter) == 0,
+    CHECK(m2World_OverlapAABB(world, (m2Pos2){(double)NAN, 0.0}, (m2Pos2){1.0, 1.0}, ids, 4,
+                              filter) == 0,
           "a NaN box overlaps nothing");
     CHECK(m2World_GetCounters(world).misuse == misuse + 9, "every hostile query refuses once");
 

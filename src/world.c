@@ -274,7 +274,7 @@ bool m2World_IsValid(m2WorldId worldId)
 void m2World_Step(m2WorldId worldId, float dt, int32_t substepCount)
 {
     m2World* world = m2GetWorld(worldId);
-    if (world == NULL || !(dt > 0.0f) || substepCount < 1)
+    if (world == NULL || !m2FiniteF(dt) || !(dt > 0.0f) || substepCount < 1)
     {
         m2Refuse(world, m2_errorInvalid);
         return;

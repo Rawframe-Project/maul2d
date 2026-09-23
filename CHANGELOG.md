@@ -162,3 +162,4 @@ Work toward 0.0.1, the first release of the reworked library.
   and particle lifetimes refuse non-finite values, which could poison
   the whole world; m2Body_SetTransform also refuses a non-unit
   rotation, which it stored as given and which sheared the body.
+- m2World_Step refuses an infinite dt.
