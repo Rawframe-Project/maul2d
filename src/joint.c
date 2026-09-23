@@ -1656,19 +1656,35 @@ m2BodyId m2Joint_GetBodyB(m2JointId jointId)
 // reconstructible from public getters alone; the mirror test in
 // test_world.c holds that promise to hash equality.
 
-static int32_t JointSlotLoud(m2JointId jointId, m2World** outWorld)
+static int32_t JointSlotRefusing(m2JointId jointId, m2World** outWorld)
 {
     m2World* world = m2WorldFromIndex(jointId.world0);
     int32_t index = world != NULL ? JointSlotChecked(world, jointId) : -1;
     *outWorld = world;
-    M2_ASSERT(index >= 0);
+    if (index < 0)
+    {
+        m2Refuse(world, m2_errorInvalid);
+    }
+    return index;
+}
+
+// Like JointSlotRefusing, but the joint must also be one of the
+// kinds in the mask (bit n = m2JointType n). Refuses exactly once.
+static int32_t JointSlotOfKind(m2JointId jointId, m2World** outWorld, uint32_t kindMask)
+{
+    int32_t index = JointSlotRefusing(jointId, outWorld);
+    if (index >= 0 && (kindMask & (1u << (*outWorld)->jointType[index])) == 0)
+    {
+        m2Refuse(*outWorld, m2_errorInvalid);
+        return -1;
+    }
     return index;
 }
 
 m2Vec2 m2Joint_GetLocalAnchorA(m2JointId jointId)
 {
     m2World* world = NULL;
-    int32_t index = JointSlotLoud(jointId, &world);
+    int32_t index = JointSlotRefusing(jointId, &world);
     m2Vec2 zero = {0.0f, 0.0f};
     return index >= 0 ? world->jointLocalAnchorA[index] : zero;
 }
@@ -1676,7 +1692,7 @@ m2Vec2 m2Joint_GetLocalAnchorA(m2JointId jointId)
 m2Vec2 m2Joint_GetLocalAnchorB(m2JointId jointId)
 {
     m2World* world = NULL;
-    int32_t index = JointSlotLoud(jointId, &world);
+    int32_t index = JointSlotRefusing(jointId, &world);
     m2Vec2 zero = {0.0f, 0.0f};
     return index >= 0 ? world->jointLocalAnchorB[index] : zero;
 }
@@ -1684,11 +1700,11 @@ m2Vec2 m2Joint_GetLocalAnchorB(m2JointId jointId)
 m2Vec2 m2Joint_GetLocalAxisA(m2JointId jointId)
 {
     m2World* world = NULL;
-    int32_t index = JointSlotLoud(jointId, &world);
+    int32_t index =
+        JointSlotOfKind(jointId, &world, (1u << m2_prismaticJoint) | (1u << m2_wheelJoint));
     m2Vec2 zero = {0.0f, 0.0f};
-    if (index < 0 || (world->jointType[index] != 2 && world->jointType[index] != 4))
+    if (index < 0)
     {
-        m2Refuse(world, m2_errorInvalid);
         return zero;
     }
     return world->jointLocalAxisA[index];
@@ -1697,10 +1713,9 @@ m2Vec2 m2Joint_GetLocalAxisA(m2JointId jointId)
 float m2Joint_GetLength(m2JointId jointId)
 {
     m2World* world = NULL;
-    int32_t index = JointSlotLoud(jointId, &world);
-    if (index < 0 || world->jointType[index] != 0)
+    int32_t index = JointSlotOfKind(jointId, &world, 1u << m2_distanceJoint);
+    if (index < 0)
     {
-        m2Refuse(world, m2_errorInvalid);
         return 0.0f;
     }
     return world->jointLength[index];
@@ -1709,24 +1724,24 @@ float m2Joint_GetLength(m2JointId jointId)
 float m2Joint_GetHertz(m2JointId jointId)
 {
     m2World* world = NULL;
-    int32_t index = JointSlotLoud(jointId, &world);
+    int32_t index = JointSlotRefusing(jointId, &world);
     return index >= 0 ? world->jointHertz[index] : 0.0f;
 }
 
 float m2Joint_GetDampingRatio(m2JointId jointId)
 {
     m2World* world = NULL;
-    int32_t index = JointSlotLoud(jointId, &world);
+    int32_t index = JointSlotRefusing(jointId, &world);
     return index >= 0 ? world->jointDamping[index] : 0.0f;
 }
 
 float m2Joint_GetAngularHertz(m2JointId jointId)
 {
     m2World* world = NULL;
-    int32_t index = JointSlotLoud(jointId, &world);
-    if (index < 0 || (world->jointType[index] != 3 && world->jointType[index] != 1))
+    int32_t index =
+        JointSlotOfKind(jointId, &world, (1u << m2_weldJoint) | (1u << m2_revoluteJoint));
+    if (index < 0)
     {
-        m2Refuse(world, m2_errorInvalid);
         return 0.0f;
     }
     return world->jointHertz2[index];
@@ -1735,10 +1750,10 @@ float m2Joint_GetAngularHertz(m2JointId jointId)
 float m2Joint_GetAngularDampingRatio(m2JointId jointId)
 {
     m2World* world = NULL;
-    int32_t index = JointSlotLoud(jointId, &world);
-    if (index < 0 || (world->jointType[index] != 3 && world->jointType[index] != 1))
+    int32_t index =
+        JointSlotOfKind(jointId, &world, (1u << m2_weldJoint) | (1u << m2_revoluteJoint));
+    if (index < 0)
     {
-        m2Refuse(world, m2_errorInvalid);
         return 0.0f;
     }
     return world->jointDamping2[index];
@@ -1747,42 +1762,42 @@ float m2Joint_GetAngularDampingRatio(m2JointId jointId)
 float m2Joint_GetMotorSpeed(m2JointId jointId)
 {
     m2World* world = NULL;
-    int32_t index = JointSlotLoud(jointId, &world);
+    int32_t index = JointSlotRefusing(jointId, &world);
     return index >= 0 ? world->jointMotorSpeed[index] : 0.0f;
 }
 
 float m2Joint_GetMaxMotor(m2JointId jointId)
 {
     m2World* world = NULL;
-    int32_t index = JointSlotLoud(jointId, &world);
+    int32_t index = JointSlotRefusing(jointId, &world);
     return index >= 0 ? world->jointMaxMotor[index] : 0.0f;
 }
 
 bool m2Joint_IsMotorEnabled(m2JointId jointId)
 {
     m2World* world = NULL;
-    int32_t index = JointSlotLoud(jointId, &world);
+    int32_t index = JointSlotRefusing(jointId, &world);
     return index >= 0 && (world->jointFlags[index] & 1u) != 0;
 }
 
 bool m2Joint_IsLimitEnabled(m2JointId jointId)
 {
     m2World* world = NULL;
-    int32_t index = JointSlotLoud(jointId, &world);
+    int32_t index = JointSlotRefusing(jointId, &world);
     return index >= 0 && (world->jointFlags[index] & 2u) != 0;
 }
 
 bool m2Joint_IsSpringEnabled(m2JointId jointId)
 {
     m2World* world = NULL;
-    int32_t index = JointSlotLoud(jointId, &world);
+    int32_t index = JointSlotRefusing(jointId, &world);
     return index >= 0 && (world->jointFlags[index] & 4u) != 0;
 }
 
 void m2Joint_GetLimits(m2JointId jointId, float* lower, float* upper)
 {
     m2World* world = NULL;
-    int32_t index = JointSlotLoud(jointId, &world);
+    int32_t index = JointSlotRefusing(jointId, &world);
     if (lower != NULL)
     {
         *lower = index >= 0 ? world->jointLower[index] : 0.0f;
@@ -1796,7 +1811,7 @@ void m2Joint_GetLimits(m2JointId jointId, float* lower, float* upper)
 void m2Joint_GetBreakLimits(m2JointId jointId, float* maxForce, float* maxTorque)
 {
     m2World* world = NULL;
-    int32_t index = JointSlotLoud(jointId, &world);
+    int32_t index = JointSlotRefusing(jointId, &world);
     if (maxForce != NULL)
     {
         *maxForce = index >= 0 ? world->jointBreakForce[index] : 0.0f;

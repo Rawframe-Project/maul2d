@@ -275,7 +275,7 @@ void m2World_Step(m2WorldId worldId, float dt, int32_t substepCount)
     m2World* world = m2GetWorld(worldId);
     if (world == NULL || !(dt > 0.0f) || substepCount < 1)
     {
-        M2_ASSERT(world != NULL && dt > 0.0f && substepCount >= 1);
+        m2Refuse(world, m2_errorInvalid);
         return;
     }
     if (world->journalActive != 0)

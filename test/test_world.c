@@ -1812,6 +1812,17 @@ static void TestEveryRefusalHasAReason(void)
     badDef.internalValue = 0;
     CHECK(m2CreateBody(world, &badDef).index1 == 0, "an uninitialized def is refused");
     CHECK(m2LastResult() == m2_errorInvalid, "as invalid");
+
+    // Bad step arguments and stale joint reads refuse in every build;
+    // they are caller input, not internal invariants.
+    misuseBefore = m2World_GetCounters(world).misuse;
+    m2World_Step(world, 0.0f, 4);
+    CHECK(m2LastResult() == m2_errorInvalid, "a zero dt is refused");
+    m2World_Step(world, 1.0f / 60.0f, 0);
+    CHECK(m2LastResult() == m2_errorInvalid, "zero substeps are refused");
+    m2JointId staleJoint = {1, a.world0, 1};
+    CHECK(m2Joint_GetLength(staleJoint) == 0.0f, "a stale joint read returns zero");
+    CHECK(m2World_GetCounters(world).misuse == misuseBefore + 3, "and each refusal counts once");
     m2DestroyWorld(world);
 }
 

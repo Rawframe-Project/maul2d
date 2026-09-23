@@ -65,6 +65,11 @@ Work toward 0.0.1, the first release of the reworked library.
   struct and one table row instead of seven places.
   `m2World_MemoryBytes` now also counts the broadphase trees and the
   solver scratch.
+- m2World_Step with a non-positive dt or fewer than one substep, and
+  the joint parameter getters on a stale id, now refuse with
+  m2_errorInvalid in every build instead of asserting in debug builds.
+  A getter asked for a parameter its joint kind lacks refuses exactly
+  once.
 
 ### Removed
 
