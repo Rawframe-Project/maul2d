@@ -7,6 +7,7 @@
 // isolation - and a chaos scene that churns creation, destruction,
 // joints, rollback and journal replay into the 13th gated hash line.
 
+#include "test_harness.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -14,18 +15,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-static int s_failures = 0;
-
-#define CHECK(cond, msg)                                                                           \
-    do                                                                                             \
-    {                                                                                              \
-        if (!(cond))                                                                               \
-        {                                                                                          \
-            printf("FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__);                                 \
-            s_failures += 1;                                                                       \
-        }                                                                                          \
-    } while (0)
 
 static m2BodyId AddBox(m2WorldId world, double x, double y)
 {

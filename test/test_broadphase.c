@@ -7,6 +7,7 @@
 // pruning), rollback identity over broadphase state, and the pair
 // evolution hash compared across CI cells.
 
+#include "test_harness.h"
 #include "world_internal.h"
 
 static m2ShapeId AttachUnitBox(m2BodyId body)
@@ -21,18 +22,6 @@ static m2ShapeId AttachUnitBox(m2BodyId body)
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-static int s_failures = 0;
-
-#define CHECK(cond, msg)                                                                           \
-    do                                                                                             \
-    {                                                                                              \
-        if (!(cond))                                                                               \
-        {                                                                                          \
-            printf("FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__);                                 \
-            s_failures += 1;                                                                       \
-        }                                                                                          \
-    } while (0)
 
 // Deterministic test PRNG (splitmix64): platform rand() is banned (M22).
 static uint64_t s_rngState = 0x9E3779B97F4A7C15ULL;

@@ -7,23 +7,12 @@
 // create/destroy stay host-serialized. POSIX-only referee; the
 // contract holds everywhere.
 #include "maul2d/maul2d.h"
+#include "test_harness.h"
 
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-
-static int s_failures = 0;
-
-#define CHECK(cond, msg)                                                                           \
-    do                                                                                             \
-    {                                                                                              \
-        if (!(cond))                                                                               \
-        {                                                                                          \
-            printf("FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__);                                 \
-            s_failures += 1;                                                                       \
-        }                                                                                          \
-    } while (0)
 
 static m2WorldId BuildWorld(int32_t seed)
 {

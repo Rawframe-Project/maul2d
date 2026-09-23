@@ -13,22 +13,11 @@
 // so it is a pure pass/fail suite.
 
 #include "maul2d/maul2d.h"
+#include "test_harness.h"
 
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-static int s_failures = 0;
-
-#define CHECK(cond, msg)                                                                           \
-    do                                                                                             \
-    {                                                                                              \
-        if (!(cond))                                                                               \
-        {                                                                                          \
-            printf("FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__);                                 \
-            s_failures += 1;                                                                       \
-        }                                                                                          \
-    } while (0)
 
 // A finite check without libm: NaN fails x == x, and the magnitude
 // bound rejects both infinities.

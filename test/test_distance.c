@@ -12,6 +12,7 @@
 // overlapping inputs must stay finite, and the shape cast is exercised
 // both ways. White-box (the proxy kernel is internal); no gated hash.
 
+#include "test_harness.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -19,18 +20,6 @@
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-static int s_failures = 0;
-
-#define CHECK(cond, msg)                                                                           \
-    do                                                                                             \
-    {                                                                                              \
-        if (!(cond))                                                                               \
-        {                                                                                          \
-            printf("FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__);                                 \
-            s_failures += 1;                                                                       \
-        }                                                                                          \
-    } while (0)
 
 static m2DistanceProxy Proxy(const m2Vec2* pts, int32_t n, float radius)
 {

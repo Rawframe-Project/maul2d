@@ -19,6 +19,9 @@ Work toward 0.0.1, the first release of the reworked library.
   world hashes in `bench/pins.txt`. CI fails when a pin moves.
 - `MAUL2D_BUILD_SHARED` builds a shared library. Public functions
   carry the `M2_API` export macro and everything else is hidden.
+- `test/hashes.txt` holds the expected determinism hashes, and
+  `tools/check_hashes.py` compares a test run with them, so a change
+  that moves a hash the same way on every platform is caught too.
 
 ### Changed
 
@@ -40,6 +43,8 @@ Work toward 0.0.1, the first release of the reworked library.
   pkg-config template are shared with the sibling engine. The pkg-
   config file is relocatable and no longer lists a thread library the
   engine does not use.
+- Every test suite uses the shared `test/test_harness.h` instead of
+  its own copy of the check macro.
 
 ### Removed
 

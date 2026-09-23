@@ -7,6 +7,7 @@
 // hold under a parallel solver. The 4-worker trajectory is the 14th
 // gated line, so the law also holds across compilers and platforms.
 
+#include "test_harness.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -14,18 +15,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-static int s_failures = 0;
-
-#define CHECK(cond, msg)                                                                           \
-    do                                                                                             \
-    {                                                                                              \
-        if (!(cond))                                                                               \
-        {                                                                                          \
-            printf("FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__);                                 \
-            s_failures += 1;                                                                       \
-        }                                                                                          \
-    } while (0)
 
 static m2WorldId BuildBusyScene(int32_t workerCount)
 {

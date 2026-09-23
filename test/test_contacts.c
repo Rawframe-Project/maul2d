@@ -6,6 +6,7 @@
 // before touch, feature-id persistence with warm-start impulse carry,
 // rollback over the contact block, and the manifold evolution hash.
 
+#include "test_harness.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -13,18 +14,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-static int s_failures = 0;
-
-#define CHECK(cond, msg)                                                                           \
-    do                                                                                             \
-    {                                                                                              \
-        if (!(cond))                                                                               \
-        {                                                                                          \
-            printf("FAIL: %s (%s:%d)\n", msg, __FILE__, __LINE__);                                 \
-            s_failures += 1;                                                                       \
-        }                                                                                          \
-    } while (0)
 
 #define CHECK_NEAR(value, expected, tolerance, msg)                                                \
     CHECK((value) > (expected) - (tolerance) && (value) < (expected) + (tolerance), msg)
