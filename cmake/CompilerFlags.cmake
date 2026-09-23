@@ -26,7 +26,14 @@ function(maul_apply_flags target)
         if(MSVC_VERSION LESS 1930)
             message(FATAL_ERROR "MSVC 19.30 (Visual Studio 2022) or newer is required to turn off floating-point contraction")
         endif()
-        target_compile_options(${target} PRIVATE /W4 /fp:precise /fp:contract-)
+        # C4127 (conditional expression is constant) fires on sizeof
+        # checks and the do-while(0) idiom; it is noise here.
+        target_compile_options(${target} PRIVATE /W4 /wd4127 /fp:precise)
+        # arm64 MSVC does not know /fp:contract-; there the pragma in
+        # src/core.h turns contraction off instead.
+        if(NOT CMAKE_C_COMPILER_ARCHITECTURE_ID MATCHES "ARM64")
+            target_compile_options(${target} PRIVATE /fp:contract-)
+        endif()
         if(${MAUL_PREFIX}_WERROR)
             target_compile_options(${target} PRIVATE /WX)
         endif()

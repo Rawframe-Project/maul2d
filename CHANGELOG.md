@@ -121,3 +121,7 @@ Work toward 0.0.1, the first release of the reworked library.
   was compiled with the AVX2 flags itself, so the compiler was free to
   use AVX2 instructions before the check ran. It now lives in
   `src/cpu.c`, compiled without the backend's architecture flags.
+- MSVC on arm64 ignores the `/fp:contract-` switch, so floating-point
+  contraction was not reliably off there. Every source now turns it
+  off with `#pragma fp_contract(off)` under MSVC, and the switch is
+  only passed where the compiler knows it.
