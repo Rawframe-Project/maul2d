@@ -10,6 +10,7 @@
 //      hashed; CI compares the printed hash across every platform cell.
 //      Different bits anywhere = red build.
 
+#include "core.h"
 #include "maul2d/maul2d.h"
 #include "test_harness.h"
 
