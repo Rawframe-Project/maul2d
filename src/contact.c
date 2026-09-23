@@ -29,7 +29,7 @@ void m2EmitEnd(m2World* world, int32_t shapeA, int32_t shapeB)
 // Shared begin-event geometry: the manifold's world normal, the world
 // hit points, and the first-point closing speed, all in body A's frame.
 // Used by the solid-contact and the sensor begin streams alike, so a
-// sensor overlap reports WHERE it was entered and how fast (b2 #945).
+// sensor overlap reports where it was entered and how fast.
 static void FillBeginGeometry(m2World* world, m2ContactBeginEvent* e, int32_t pairIndex,
                               int32_t shapeA, int32_t shapeB)
 {
@@ -107,7 +107,7 @@ void m2EmitSensorBegin(m2World* world, int32_t shapeA, int32_t shapeB, int32_t p
         e->shapeIdA = m2MakeShapeId(world, shapeA);
         e->shapeIdB = m2MakeShapeId(world, shapeB);
         e->step = world->stepCount;
-        // The overlap manifold carries the hit point and normal (b2 #945).
+        // The overlap manifold carries the hit point and normal.
         FillBeginGeometry(world, e, pairIndex, shapeA, shapeB);
     }
 }

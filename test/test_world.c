@@ -1203,7 +1203,7 @@ static void TestMirrorRebuild(void)
 
 // The body dynamics pack: forces with one-step lifetime,
 // Pade damping, fixed rotation as a mass property, and sleep control
-// at both scopes. Reference forms, journaled channels, snapshot v20.
+// at both scopes, through the journaled channels and the snapshot.
 static void TestBodyDynamicsPack(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
@@ -2240,7 +2240,7 @@ static void TestMotionLocks(void)
     m2DestroyWorld(world);
 
     // Runtime setter through the journal, plus a snapshot round-trip on the
-    // v34 format and a worker-count twin: bit-exact.
+    // Snapshot round trip and a worker-count twin: bit-exact.
     uint64_t hashes[2];
     for (int32_t wc = 0; wc < 2; ++wc)
     {
@@ -2325,7 +2325,8 @@ static void TestWind(void)
     CHECK(m2Body_GetPosition(calm).x == 3.0, "no wind, no drift");
     m2DestroyWorld(world);
 
-    // Snapshot v35 round-trip carries the wind, worker-count twin bit-exact.
+    // The snapshot round trip carries the wind; the worker-count twin is
+    // bit-exact.
     uint64_t hashes[2];
     for (int32_t wc = 0; wc < 2; ++wc)
     {

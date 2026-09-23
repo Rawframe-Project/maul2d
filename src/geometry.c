@@ -440,9 +440,9 @@ m2MassData m2ComputeShapeMass(const m2ShapeGeometry* geometry, float density)
         data.mass = density * M2_PI * r * r;
         data.center = geometry->circle.center;
         // Inertia about the shape centroid; the caller shifts to the body
-        // center of mass. Leaving the origin-shift out here (reference b2
-        // #955) keeps that shift free of a big-minus-big when the shape
-        // sits far off the body origin.
+        // center of mass. Leaving the origin shift out here keeps that
+        // shift free of a big-minus-big when the shape sits far off the
+        // body origin.
         data.rotationalInertia = data.mass * 0.5f * r * r;
         return data;
     }
@@ -491,7 +491,7 @@ m2MassData m2ComputeShapeMass(const m2ShapeGeometry* geometry, float density)
         center.y *= invArea;
         data.center = center;
         // The integral is about the origin; shift it to the centroid so the
-        // caller's shift to the body COM stays cancellation-free (b2 #955).
+        // caller's shift to the body COM stays cancellation-free.
         // A centered polygon (centroid at origin) is unchanged.
         data.rotationalInertia =
             density * inertia - data.mass * (center.x * center.x + center.y * center.y);

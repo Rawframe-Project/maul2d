@@ -213,8 +213,8 @@ static void SweepBullet(m2World* world, int32_t body, m2Pos2 p0)
     }
 }
 
-// Called after each substep's position integration (the last
-// transform-mutating pass ordering, registry M13).
+// Called after each substep's position integration: the last pass of the
+// substep that moves transforms.
 void m2SolveContinuous(m2World* world)
 {
     for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)

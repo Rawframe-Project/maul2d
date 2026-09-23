@@ -26,7 +26,7 @@ static const m2JointKind* const s_kinds[] = {
 
 int32_t m2PrepareJoints(m2World* world, m2JointConstraint* joints, float h)
 {
-    // Stiff default softness for hertz==0 (F-T5-4 surface pending).
+    // A joint with zero hertz gets the stiff default softness.
     int32_t count = 0;
     for (int32_t j = 0; j < world->joints.maxJointIndex; ++j)
     {

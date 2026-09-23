@@ -1951,7 +1951,7 @@ static void TestPrismaticStressStability(void)
     // pull a dynamic body along fighting axes while the kinematic base
     // rotates. With the effective mass frozen at prepare the slider builds
     // up speed (peaked near 20 in this scene); the fresh per-substep mass
-    // (reference b2 #981) keeps it far lower. The peak stays well below the
+    // keeps it far lower. The peak stays well below the
     // velocity cap, so this is the solver's own stability, not the cap. It
     // must stay bounded, finite, and bit-identical across worker counts and
     // a rollback.

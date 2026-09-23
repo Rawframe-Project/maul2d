@@ -156,7 +156,7 @@ static void SolvePrismatic(m2World* world, m2JointConstraint* c, const m2JointSo
     float iB = world->bodies.invInertia[c->bodyB];
     float translation = c->baseC + c->axis.x * ds.x + c->axis.y * ds.y;
 
-    // Fresh effective mass per substep (reference b2 #981): the axial
+    // Fresh effective mass per substep: the axial
     // and perpendicular torque arms a1/s1 track the current
     // separation, so recompute them and the effective masses here
     // instead of leaving them frozen at prepare. A stressed slider
@@ -199,9 +199,9 @@ static void SolvePrismatic(m2World* world, m2JointConstraint* c, const m2JointSo
             float impulseScale = 0.0f;
             if (C > 0.0f)
             {
-                // Clamp the speculative distance to a safe span (b2
-                // #981): a slider far inside its range cannot inject
-                // a huge corrective velocity toward the limit.
+                // Clamp the speculative distance to a safe span: a slider
+                // far inside its range cannot inject a huge corrective
+                // velocity toward the limit.
                 bias = m2MinF(C, 1.0f) * invH;
             }
             else if (useBias)
@@ -228,7 +228,7 @@ static void SolvePrismatic(m2World* world, m2JointConstraint* c, const m2JointSo
             float impulseScale = 0.0f;
             if (C > 0.0f)
             {
-                // Speculative distance clamped to a safe span (b2 #981).
+                // Speculative distance clamped to a safe span.
                 bias = m2MinF(C, 1.0f) * invH;
             }
             else if (useBias)

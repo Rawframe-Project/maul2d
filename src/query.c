@@ -1394,7 +1394,7 @@ int32_t m2World_CollideMover(m2WorldId worldId, const m2Capsule* mover, m2Transf
     return total;
 }
 
-// The reference plane solver, verbatim algorithm: iterate the planes,
+// The plane solver: iterate the planes,
 // push the delta out along each normal with a clamped accumulator,
 // stop when the total push falls under the slop tolerance.
 m2PlaneSolverResult m2SolvePlanes(m2Vec2 targetDelta, m2CollisionPlane* planes, int32_t count)

@@ -38,7 +38,7 @@ _Static_assert(sizeof(m2AABB) == 32, "m2AABB must be padding-free");
 _Static_assert(sizeof(m2TreeNode) == 56, "m2TreeNode must be padding-free");
 
 // POD scalars + caller-owned node array: the world snapshots this struct
-// and the node block verbatim.
+// and the node block byte for byte.
 typedef struct m2DynamicTree
 {
     int32_t root;

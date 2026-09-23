@@ -78,7 +78,7 @@ static void TestLifecycleSymmetry(void)
 
 static void TestDestroyBookending(void)
 {
-    // M19: destroying a touching body must emit the end event, with the
+    // Destroying a touching body must emit the end event, with the
     // ids as they were - and a between-step destroy must surface in the
     // next drained window, never vanish.
     m2WorldDef def = m2DefaultWorldDef();
@@ -228,7 +228,7 @@ static uint64_t EventSweepHash(void)
 
 static void TestDestroyShapeBookends(void)
 {
-    // M19 for the newest killing path: destroying one shape of a
+    // Destroying one shape of a
     // two-shape body must end its touching contact and lighten the
     // body, while the body itself lives on.
     m2WorldDef def = m2DefaultWorldDef();
@@ -280,7 +280,7 @@ static void TestDestroyShapeBookends(void)
 static void TestTypeChangeBookends(void)
 {
     // Two touching dynamics; turn BOTH static and the pair stops
-    // making sense - M19 says its end must be witnessed.
+    // making sense, and its end must be witnessed.
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
@@ -375,7 +375,7 @@ static void TestSensors(void)
             sawEnter = sawEnter || isZone;
             if (isZone && enterPointCount < 0)
             {
-                // The overlap hit point rides the begin event (b2 #945).
+                // The overlap hit point rides the begin event.
                 enterPointCount = sensor.beginEvents[k].pointCount;
                 enterPointY = sensor.beginEvents[k].points[0].y;
             }
@@ -422,7 +422,7 @@ static void TestSensors(void)
     }
     CHECK(slept, "a body parked inside a sensor still sleeps");
 
-    // M19 for sensors: destroy the park zone while overlapped - the
+    // For sensors: destroy the park zone while overlapped - the
     // sensor end must be witnessed in the next window.
     m2DestroyBody(parkZoneBody);
     m2World_Step(world, 1.0f / 60.0f, 4);

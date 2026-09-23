@@ -15,7 +15,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-// Fat margin in meters (topic-02 §3; harness-tuned later, F-T2-1).
+// Fat margin in meters: how far a shape may move before its proxy refits.
 #define M2_AABB_MARGIN 0.1
 
 // --- Broadphase helpers ------------------------------------------------------
@@ -53,7 +53,7 @@ void m2PushMoved(m2World* world, int32_t shapeIndex)
 }
 
 // The filter takes effect through the normal rebuild road: wake both
-// ends and push their shapes, and the pair diff emits the M19 ends.
+// ends and push their shapes, and the pair diff emits the end events.
 void m2RefilterJointedBodies(m2World* world, int32_t bodyA, int32_t bodyB)
 {
     if (world->bodies.types[bodyA] == (uint8_t)m2_dynamicBody)
@@ -287,7 +287,7 @@ void m2UpdatePairs(m2World* world)
 #endif
 
     // Diff old vs new (both sorted): vanished-and-touching pairs emit
-    // their end events here (M19: pair loss is a contact-killing path);
+    // their end events here (losing a pair kills its contact);
     // surviving pairs carry their touching flag to the new slot.
     {
         int32_t oi = 0;

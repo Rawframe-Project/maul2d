@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // Broadphase gate: tree structural invariants vs a brute-force oracle
-// (own PRNG, registry M22), the pair pipeline (eager creation pairing,
+// (with its own PRNG), the pair pipeline (eager creation pairing,
 // kinematic-sweep pairing (how a moving platform wakes a stack) and destroy
 // pruning), rollback identity over broadphase state, and the pair
 // evolution hash compared across CI cells.
@@ -24,7 +24,7 @@ static m2ShapeId AttachUnitBox(m2BodyId body)
 #include <stdlib.h>
 #include <string.h>
 
-// Deterministic test PRNG (splitmix64): platform rand() is banned (M22).
+// Deterministic test PRNG (splitmix64): platform rand() differs per libc.
 static uint64_t s_rngState = 0x9E3779B97F4A7C15ULL;
 static uint64_t NextRandom(void)
 {

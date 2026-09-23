@@ -109,7 +109,7 @@ static void TestAabbAndMass(void)
     // the COM is exactly m*0.5*r^2, independent of the offset. The old
     // origin-then-subtract math lost ~1000^2 * epsilon to cancellation here
     // (measured error ~7e-2, and it hits zero entirely by an offset of
-    // 5000); the centroid-based accumulation (reference b2 #955) holds it
+    // 5000); the centroid-based accumulation holds it
     // at float epsilon. The tight tolerance is the test: it passes with the
     // centroid math and fails with the cancellation.
     m2BodyDef bd4 = m2DefaultBodyDef();

@@ -38,7 +38,7 @@ m2ShapeId m2MakeShapeId(const m2World* world, int32_t shapeIndex)
     return id;
 }
 
-// M19 bookending shared by destroy and disable: end every touching
+// Shared by destroy and disable: end every touching
 // contact of this shape, wake its riders, drop the proxy, prune pairs.
 void m2RetireShapeFromBroadphase(m2World* world, int32_t shapeIndex)
 {
@@ -501,7 +501,7 @@ void m2Shape_SetFilter(m2ShapeId shapeId, uint32_t categoryBits, uint32_t maskBi
     world->shapes.shapeCategory[index] = categoryBits;
     world->shapes.shapeMask[index] = maskBits;
     world->shapes.shapeGroup[index] = groupIndex;
-    m2PushMoved(world, index); // pair rebuild purges and re-collects (M19)
+    m2PushMoved(world, index); // the pair rebuild purges and re-collects
 }
 
 // One shared road for runtime geometry: validate outside, then swap

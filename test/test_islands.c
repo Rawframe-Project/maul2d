@@ -237,8 +237,8 @@ static uint64_t IslandSweepHash(void)
 static void TestTowerSleeps(void)
 {
     // Regression tripwire for solver-schedule changes: a plain 8-box
-    // tower must fall asleep promptly. The F-T8 hunts showed schedule
-    // combinations that leave exactly this scene grinding forever.
+    // tower must fall asleep promptly. Some solver schedules leave
+    // exactly this scene grinding forever.
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;

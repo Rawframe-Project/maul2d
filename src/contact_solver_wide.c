@@ -14,7 +14,7 @@
 
 #include "maul2d/base.h"
 
-// --- Wide-lane contact solving (topic-08 phase 2) --------------------------
+// --- Wide-lane contact solving ----------------------------------------------
 //
 // Blocks are SoA bundles of M2_LANES constraints from one graph color,
 // homogeneous in point count. Every lane executes the same scalar IEEE

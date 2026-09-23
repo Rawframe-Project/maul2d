@@ -135,7 +135,8 @@ Root files are `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`,
 - No development history in the source: no ticket or task numbers,
   review round names, phase or slice labels, dates, version stamps,
   "was/used to" stories or changelogs. History lives in git and in
-  `CHANGELOG.md`; design reasoning lives in `docs/adr/`.
+  `CHANGELOG.md`; design reasoning lives in `docs/adr/`. CI runs
+  `tools/check_comments.py` for the markers it can recognize.
 - No `TODO` or `FIXME` comments on `main`. Open an issue instead.
 - No comparisons with other engines in code comments.
 

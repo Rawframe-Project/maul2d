@@ -117,7 +117,7 @@ void m2AssertFail(const char* condition, const char* file, int line)
 {
     if (s_assertHandler != NULL && s_assertHandler(condition, file, line, s_assertContext) != 0)
     {
-        return; // handled by the host (A2)
+        return; // the host handled it
     }
     fprintf(stderr, "maul2d assertion failed: %s (%s:%d)\n", condition, file, line);
     abort();

@@ -134,8 +134,8 @@ static void RunSession(m2WorldId world, uint8_t* journal, int32_t capacity, int3
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    // Ops 13-16: shape destruction, impulses and joint tuning all ride
-    // the journal too.
+    // Shape destruction, impulses and joint tuning all ride the journal
+    // too.
     m2Body_ApplyLinearImpulse(ram, (m2Vec2){0.4f, 0.9f}, (m2Pos2){9.1, 2.0});
     m2Body_ApplyAngularImpulse(ram, 0.3f);
     m2Joint_SetMotorSpeed(pressJoint, 0.7f);
@@ -235,7 +235,7 @@ static void RunSession(m2WorldId world, uint8_t* journal, int32_t capacity, int3
     m2RevoluteJointDef swingDef = m2DefaultRevoluteJointDef();
     swingDef.bodyIdA = anchor;
     swingDef.bodyIdB = cylinder;
-    swingDef.springHertz = 3.0f; // def echo carries the spring pair (wire v24)
+    swingDef.springHertz = 3.0f; // the def echo carries the spring pair
     swingDef.springDampingRatio = 0.5f;
     m2JointId swing = m2CreateRevoluteJoint(world, &swingDef);
     m2Joint_SetAngularSpringHertz(swing, 1.5f);         // param 10 on a revolute

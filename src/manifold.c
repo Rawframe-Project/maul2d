@@ -389,8 +389,8 @@ static void PreparePolygons(const m2Polygon* a, const m2Polygon* b, m2RelativePo
 // Stage 3 of the polygon collide: given the prepared polygons and the
 // SAT result (max separations and winning edges), reject on the margin,
 // pick the incident edge, clip or fall back to vertex-vertex, and undo
-// the origin shift. This is the second half of the old m2CollidePolygons
-// verbatim, so both callers (scalar and batch) share identical bits.
+// the origin shift. Both callers (scalar and batch) finish through this,
+// so they share identical bits.
 static m2Manifold FinishPolygons(const m2Polygon* localA, const m2Polygon* localB, int32_t edgeA,
                                  int32_t edgeB, float separationA, float separationB,
                                  m2RelativePose pose, m2Vec2 origin)

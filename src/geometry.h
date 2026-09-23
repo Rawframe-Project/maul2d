@@ -33,8 +33,7 @@ _Static_assert(sizeof(m2ShapeGeometry) == 140, "geometry union must be padding-f
 bool m2ValidateCircle(const m2Circle* circle);
 bool m2ValidateCapsule(const m2Capsule* capsule);
 bool m2ValidateSegment(const m2Segment* segment);
-// m2ValidatePolygon is declared here (not public yet: F-T10 pre-freeze
-// review decides whether the validator family joins the ABI).
+// m2ValidatePolygon is internal; the validator family is not public API.
 bool m2ValidatePolygon(const m2Polygon* polygon);
 
 m2AABB m2ComputeShapeAABB(const m2ShapeGeometry* geometry, m2Transform xf);

@@ -337,7 +337,7 @@ typedef struct m2World
 {
     // Global mutable state (snapshot state).
     m2Vec2 gravity;
-    m2Vec2 windVelocity;  // ambient wind (b2 #980); snapshot state
+    m2Vec2 windVelocity;  // ambient wind; snapshot state
     float windLinearDrag; // 0 = wind off (opt-in); snapshot state
     uint64_t stepCount;
     uint8_t sleepEnabled; // world-wide sleep master switch (snapshot state)
@@ -356,13 +356,13 @@ typedef struct m2World
     m2Recorder recorder;
 
     // Host hooks and diagnostics (never snapshot state).
-    m2EnqueueTaskFn* enqueueTask; // host executor (A1); both NULL =
+    m2EnqueueTaskFn* enqueueTask; // host executor; both NULL =
     m2FinishTaskFn* finishTask;   // serial; never snapshot state
     void* userTaskContext;
     m2Profile profile; // diagnostics only (never walked/hashed)
     volatile long long
         misuseCount;     // cumulative refusals; atomic access only (m2Refuse, m2MisuseCount)
-    int64_t memoryBytes; // D1: persistent footprint, from create
+    int64_t memoryBytes; // persistent footprint, from create
     uint16_t worldGeneration;
     uint16_t worldIndex0; // registry slot + 1, for building public ids
 } m2World;

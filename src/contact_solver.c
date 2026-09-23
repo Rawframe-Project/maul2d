@@ -248,8 +248,8 @@ void m2SolveContactOne(m2World* world, m2ContactConstraint* c, float invH, float
             // was unstable for twenty slices - because the scrambled
             // pair order was silently dropping warm-start carries and
             // amplifying bias contamination in the accumulators. With
-            // the sort fixed, the reference schedule is strictly best
-            // (F-T8 closed: pyramid settles 74 vs the reference's 69).
+            // the sort fixed, this schedule settles the pyramid benchmark
+            // fastest of the orders tried.
             for (int32_t k = 0; k < c->pointCount; ++k)
             {
                 m2ConstraintPoint* cp = &c->points[k];

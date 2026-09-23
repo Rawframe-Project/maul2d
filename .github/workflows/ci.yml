@@ -206,13 +206,15 @@ jobs:
           clang-format --dry-run -Werror $(find include src test bench samples tools testbed \
             \( -name '*.c' -o -name '*.h' \) 2>/dev/null)
 
-  lengths:
-    name: length rules
+  rules:
+    name: source rules
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - name: Functions and files within their limits or listed with a reason
         run: python3 tools/check_lengths.py
+      - name: No development-history markers in comments
+        run: python3 tools/check_comments.py
 
   tidy:
     name: clang-tidy

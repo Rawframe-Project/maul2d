@@ -62,7 +62,7 @@ static void IntegrateVelocities(m2World* world, float h)
         world->bodies.angularVelocities[i] =
             h * world->bodies.invInertia[i] * world->bodies.torques[i] +
             angDamp * world->bodies.angularVelocities[i];
-        // Motion locks (reference b2 #950): a locked axis holds still,
+        // Motion locks: a locked axis holds still,
         // so its velocity is zeroed here, before the constraint solve,
         // and again at integrate-positions below (angular is locked via
         // the mass, invInertia = 0). Off the locked axes are untouched.
@@ -132,7 +132,7 @@ static void IntegratePositions(m2World* world, float h, float invH)
             }
         }
         // Motion locks again at the point the position consumes the
-        // velocity (reference b2 #950): whatever the solve pushed along
+        // velocity: whatever the solve pushed along
         // a locked axis, the body does not move along it.
         uint8_t plocks = world->bodies.motionLocks[i];
         if (plocks & M2_LOCK_LINEAR_X)

@@ -41,8 +41,7 @@ int32_t m2BodySlot(const m2World* world, m2BodyId id)
 
 // Deterministic: walks the body's shape list in stored (insertion) order,
 // which the snapshot preserves. Dynamic bodies get the minimum-mass floor
-// (RT1-NUM-2: a zero-density dynamic body must not mint an infinite
-// inverse mass).
+// (a zero-density dynamic body must not get an infinite inverse mass).
 void m2RecomputeMass(m2World* world, int32_t bodyIndex)
 {
     if (world->bodies.types[bodyIndex] != (uint8_t)m2_dynamicBody)
@@ -56,7 +55,7 @@ void m2RecomputeMass(m2World* world, int32_t bodyIndex)
     // First pass: total mass and the mass-weighted center. Shape mass now
     // reports inertia about the SHAPE centroid, so the shift to the body
     // COM below is a sum of non-negative parallel-axis terms with no
-    // big-minus-big cancellation (reference b2 #955).
+    // big-minus-big cancellation.
     float mass = 0.0f;
     m2Vec2 center = {0.0f, 0.0f};
     for (int32_t s = world->bodies.bodyShapeHead[bodyIndex]; s != -1;
@@ -242,8 +241,8 @@ void m2DestroyBody(m2BodyId bodyId)
         }
     }
 
-    // Cascade: destroy the shape list (the contact-killing path that event
-    // bookending will hang end-touch emission on, registry M19).
+    // Cascade: destroy the shape list; every path that kills a touching
+    // contact emits its end event.
     int32_t s = world->bodies.bodyShapeHead[index];
     while (s != -1)
     {
@@ -799,7 +798,7 @@ void m2Body_SetType(m2BodyId bodyId, m2BodyType type)
 
     // Proxies move between the per-type trees; marking them moved also
     // purges stale pairs and re-forms the valid ones, which is exactly
-    // the M19 path for pairs that stop making sense.
+    // the end-event path for pairs that stop making sense.
     int32_t oldTree = world->bodies.types[index];
     world->bodies.types[index] = (uint8_t)type;
     for (int32_t shape = world->bodies.bodyShapeHead[index]; shape != -1;
@@ -824,7 +823,7 @@ void m2Body_SetType(m2BodyId bodyId, m2BodyType type)
         world->bodies.linearVelocities[index] = (m2Vec2){0.0f, 0.0f};
         world->bodies.angularVelocities[index] = 0.0f;
     }
-    // Fresh start for the sleep ledger under the new identity.
+    // Fresh sleep state under the new identity.
     world->bodies.asleep[index] = 0;
     world->bodies.sleepTimes[index] = 0.0f;
     world->bodies.sleepStreak[index] = 0;

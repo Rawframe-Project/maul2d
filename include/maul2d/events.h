@@ -64,7 +64,7 @@ extern "C"
     /// bookending guarantees (a destroyed or filtered overlap always
     /// emits its end). Each begin now carries the overlap hit point,
     /// normal and closing speed, filled from the overlap manifold just
-    /// like a solid contact begin (b2 #945); an end carries shapes and
+    /// like a solid contact begin; an end carries shapes and
     /// step only. Thread class: reader.
     typedef struct m2SensorEvents
     {

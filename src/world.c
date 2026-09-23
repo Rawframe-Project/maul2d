@@ -105,7 +105,7 @@ m2WorldId m2CreateWorld(const m2WorldDef* def)
     if (m2VerifyCpuBackend() == 0)
     {
         m2Refuse(NULL, m2_errorConfig);
-        return m2_nullWorldId; // B1: typed refusal, never an abort
+        return m2_nullWorldId; // a typed refusal, never an abort
     }
     if (def == NULL || def->internalValue != M2_WORLD_COOKIE || def->bodyCapacity < 1 ||
         def->shapeCapacity < 1 || def->jointCapacity < 1)

@@ -19,6 +19,7 @@ docs/conventions.md
 .gitignore
 test/test_harness.h
 tools/build_docs.py
+tools/check_comments.py
 tools/check_hashes.py
 tools/check_lengths.py
 tools/family-files.txt

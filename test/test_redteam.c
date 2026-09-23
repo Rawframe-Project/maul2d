@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Red-team round 3, executable form: id-discipline attacks (stale ids
+// Adversarial tests: id-discipline attacks (stale ids
 // across slot reuse), capacity exhaustion, journal header defenses and
 // double replay, slot-reuse replay, query edge rays, multi-world
 // isolation - and a chaos scene that churns creation, destruction,
@@ -33,7 +33,7 @@ static m2BodyId AddBox(m2WorldId world, double x, double y)
     return body;
 }
 
-// ---- Round 8: fluids, machinery, jelly, decompose -----------------------
+// ---- Fluids, machinery, jelly, decompose -----------------------------------
 
 // Stale particle ids across slot rebirth: the generation discipline
 // holds for water exactly as it does for bodies.
@@ -1900,10 +1900,9 @@ static void TestReactionAllTypes(void)
     m2DestroyWorld(world);
 }
 
-// ---- Round 9: the newest surfaces. The velocity cap and belt-wake fix
-//, the SIMD guard (119), the centroid inertia (121) and the
-// fresh prismatic mass (122) each get an adversary. Pass/fail attacks;
-// they do not feed the gated chaos hash. ----
+// ---- The velocity cap, the belt wake, the SIMD guard, the centroid
+// inertia and the fresh prismatic mass each get an adversary. Pass/fail
+// attacks; they do not feed the gated chaos hash. ----
 
 static void TestVelocityCapUnderRollback(void)
 {
@@ -2173,7 +2172,7 @@ int main(void)
     TestRatchetMotorWar();
     TestDecomposeAdversaries();
 
-    // Round 9: the newest surfaces.
+    // Velocity cap, belt wake, SIMD guard, centroid inertia, prismatic mass.
     TestVelocityCapUnderRollback();
     TestBeltWakeReplayStorm();
     TestNewFeatureStorm();
