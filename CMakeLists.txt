@@ -1,5 +1,8 @@
 cmake_minimum_required(VERSION 3.22)
-project(maul2d VERSION 1.9.0 LANGUAGES C)
+
+include(cmake/ReadVersion.cmake)
+maul_read_version(${CMAKE_CURRENT_SOURCE_DIR}/include/maul2d/base.h M2 M2_VERSION)
+project(maul2d VERSION ${M2_VERSION} LANGUAGES C)
 
 option(MAUL2D_SANITIZE "Build with ASAN/UBSAN" OFF)
 option(MAUL2D_INSTALL "Generate install and package rules" ON)
@@ -202,7 +205,7 @@ if(MAUL2D_INSTALL)
     write_basic_package_version_file(
         ${CMAKE_CURRENT_BINARY_DIR}/maul2dConfigVersion.cmake
         VERSION ${PROJECT_VERSION}
-        COMPATIBILITY SameMajorVersion)
+        COMPATIBILITY SameMinorVersion)
     install(FILES
         ${CMAKE_CURRENT_BINARY_DIR}/maul2dConfig.cmake
         ${CMAKE_CURRENT_BINARY_DIR}/maul2dConfigVersion.cmake

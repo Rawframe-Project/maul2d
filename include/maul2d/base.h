@@ -12,9 +12,9 @@ extern "C"
 {
 #endif
 
-#define M2_VERSION_MAJOR 1
-#define M2_VERSION_MINOR 10
-#define M2_VERSION_PATCH 0
+#define M2_VERSION_MAJOR 0
+#define M2_VERSION_MINOR 0
+#define M2_VERSION_PATCH 1
 
     /// Library version, encoded as major * 10000 + minor * 100 + patch.
     /// Thread class: reader (callable from any thread, no world required).

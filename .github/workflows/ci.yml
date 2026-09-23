@@ -362,4 +362,4 @@ jobs:
           COUNT=$(python3 tools/gen_api.py | grep -oE '\([0-9]+ functions\)' | grep -oE '[0-9]+')
           echo "generated count: $COUNT"
           git diff --exit-code docs/api.md || { echo "docs/api.md is stale: regenerate with tools/gen_api.py"; exit 1; }
-          grep -q "$COUNT frozen 1.x functions" README.md || { echo "README function count ($COUNT expected) is stale"; exit 1; }
+          grep -q "$COUNT public functions" README.md || { echo "README function count ($COUNT expected) is stale"; exit 1; }

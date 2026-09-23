@@ -59,7 +59,7 @@ m2World_Restore(world, buffer, size); // bit-exact resimulation from here
 - **Geometry tools**: convex hull from a point cloud and convex
   decomposition from a concave outline, the road from a sprite
   silhouette to a destructible body.
-- **Integration surface**: 277 frozen 1.x functions, full readback
+- **Integration surface**: 277 public functions, full readback
   (a mirror test rebuilds a world from getters alone and matches
   its hash), debug draw, deterministic counters and profile,
   allocator hooks.
@@ -125,9 +125,9 @@ stacks while carrying guarantees no engine in its class ships.
 
 ## Status and stability
 
-Current release: 1.9. The 1.x API surface is frozen: functions and
-defs may be added in minor releases, but existing signatures,
-semantics and id layouts do not change until a 2.0. Defs are
+Current version: 0.0.1. Until 1.0.0 the API, the ABI and the
+snapshot and journal formats may change in any minor release; the
+[changelog](CHANGELOG.md) records every change. Defs are
 cookie-guarded, so a stale compiled caller fails loudly instead of
 subtly. Snapshots and journal tapes are versioned artifacts of a
 single library version: see "Versions and formats" in the guide.
