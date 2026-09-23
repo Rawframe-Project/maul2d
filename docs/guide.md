@@ -126,7 +126,7 @@ event stream with the force and torque that killed them.
 The motor joint drives one body's transform toward offsets from
 another under force and torque budgets: moving platforms retarget
 with `m2MotorJoint_SetOffsets` every frame and the physics stays
-honest. The mouse joint is a soft spring pulling a grab point toward
+correct. The mouse joint is a soft spring pulling a grab point toward
 a world target (`m2MouseJoint_SetTarget`): dragging, done
 deterministically and journaled like everything else. The filter
 joint carries no constraint at all: it switches collision off
