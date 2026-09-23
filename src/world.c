@@ -375,8 +375,17 @@ static void EmitSensorBegin(m2World* world, int32_t shapeA, int32_t shapeB, int3
 
 // Re-derive pairs touched by the moved set, then batch-merge with the
 // untouched remainder (topic-02 §4.2, RT1-PERF-3).
+// Which trees a moved shape queries: dynamic and kinematic movers sweep
+// every tree, static movers (teleports) only the dynamic one.
+static bool MoverSeesTree(const m2World* world, int32_t shapeIndex, int32_t tree)
+{
+    return world->types[world->shapeBody[shapeIndex]] != (uint8_t)m2_staticBody ||
+           tree == (int32_t)m2_dynamicBody;
+}
+
 static void UpdatePairs(m2World* world)
 {
+    world->pairOverflow = 0;
     if (world->movedCount == 0)
     {
         return;
@@ -385,7 +394,6 @@ static void UpdatePairs(m2World* world)
     qsort(world->moved, (size_t)world->movedCount, sizeof(int32_t), CompareI32);
 
     int32_t collected = 0;
-    int32_t queryResults[256];
     for (int32_t m = 0; m < world->movedCount; ++m)
     {
         int32_t shapeIndex = world->moved[m];
@@ -407,16 +415,19 @@ static void UpdatePairs(m2World* world)
         int32_t lastTree = moverDynamic || moverKinematic ? M2_TREE_COUNT - 1 : m2_dynamicBody;
         for (int32_t t = firstTree; t <= lastTree; ++t)
         {
-            int32_t hits =
-                m2Tree_Query(&world->trees[t], world->treeNodes[t], fat, queryResults, 256);
-            M2_ASSERT(hits <= 256);
-            hits = hits <= 256 ? hits : 256;
-            for (int32_t h = 0; h < hits; ++h)
+            m2TreeCursor cursor;
+            m2Tree_BeginQuery(&cursor, &world->trees[t], world->treeNodes[t], fat);
+            int32_t other;
+            while (m2Tree_NextQuery(&cursor, &other))
             {
-                int32_t other = queryResults[h];
                 if (other == shapeIndex || world->shapeAlive[other] == 0)
                 {
                     continue;
+                }
+                if (world->inMoved[other] != 0 && other < shapeIndex &&
+                    MoverSeesTree(world, other, ShapeTreeIndex(world, shapeIndex)))
+                {
+                    continue; // both moved and both see each other: the lower slot recorded it
                 }
                 if (world->shapeBody[other] == world->shapeBody[shapeIndex])
                 {
@@ -456,8 +467,13 @@ static void UpdatePairs(m2World* world)
             }
         }
     }
-    M2_ASSERT(collected <= world->pairCapacity);
-    collected = collected <= world->pairCapacity ? collected : world->pairCapacity;
+    // A full pair table drops the excess candidates, counted loudly in
+    // m2Counters.pairOverflow rather than asserted away.
+    if (collected > world->pairCapacity)
+    {
+        world->pairOverflow += collected - world->pairCapacity;
+        collected = world->pairCapacity;
+    }
 
     qsort(world->pairScratch, (size_t)collected, sizeof(uint64_t), CompareU64);
 
@@ -479,12 +495,15 @@ static void UpdatePairs(m2World* world)
         }
     }
 
+    // Merge the surviving pairs and the new candidates (both sorted)
+    // into a separate buffer, keeping the smallest keys when the table
+    // is full and counting the rest.
     int32_t i = 0;
     int32_t j = 0;
     int32_t outCount = 0;
     uint64_t previous = 0;
     bool hasPrevious = false;
-    while ((i < kept || j < collected) && outCount < world->pairCapacity)
+    while (i < kept || j < collected)
     {
         uint64_t next;
         if (i < kept && (j >= collected || world->pairKeys[i] <= world->pairScratch[j]))
@@ -501,20 +520,19 @@ static void UpdatePairs(m2World* world)
         {
             continue;
         }
-        world->pairScratch[world->pairCapacity - 1 - outCount] = next;
         previous = next;
         hasPrevious = true;
-        outCount += 1;
+        if (outCount < world->pairCapacity)
+        {
+            world->pairMergeScratch[outCount] = next;
+            outCount += 1;
+        }
+        else
+        {
+            world->pairOverflow += 1;
+        }
     }
-    // The merge writes the m-th smallest key to scratch[cap-1-m]; the
-    // read-back must mirror that, or the whole list comes back
-    // reversed and every downstream both-sorted walk (warm-start
-    // carry, end-event diff) silently degrades. It did, for twenty
-    // slices - deterministically, so no hash gate ever saw it.
-    for (int32_t k = 0; k < outCount; ++k)
-    {
-        world->pairKeys[k] = world->pairScratch[world->pairCapacity - 1 - k];
-    }
+    memcpy(world->pairKeys, world->pairMergeScratch, (size_t)outCount * sizeof(uint64_t));
     world->pairCount = outCount;
 
 #ifndef NDEBUG
@@ -1286,6 +1304,7 @@ m2WorldId m2CreateWorld(const m2WorldDef* def)
     M2_ALLOC(pairScratch, world->pairCapacity, uint64_t);
     M2_ALLOC(manifolds, world->pairCapacity, m2Manifold);
     M2_ALLOC(oldPairScratch, world->pairCapacity, uint64_t);
+    M2_ALLOC(pairMergeScratch, world->pairCapacity, uint64_t);
     M2_ALLOC(manifoldScratch, world->pairCapacity, m2Manifold);
     M2_ALLOC(deltaPositions, cap + 1, m2Vec2); // +1: wide-lane dummy slot
     M2_ALLOC(deltaRotations, cap + 1, m2Rot);  // +1: wide-lane dummy slot
@@ -1524,6 +1543,7 @@ void m2DestroyWorld(m2WorldId worldId)
     m2Free(world->pairScratch);
     m2Free(world->manifolds);
     m2Free(world->oldPairScratch);
+    m2Free(world->pairMergeScratch);
     m2Free(world->manifoldScratch);
     m2Free(world->deltaPositions);
     m2Free(world->deltaRotations);
@@ -4745,6 +4765,7 @@ m2Counters m2World_GetCounters(m2WorldId worldId)
     counters.graphColors = world->lastGraphColors;
     counters.overflowConstraints = world->lastOverflow;
     counters.stepCount = world->stepCount;
+    counters.pairOverflow = world->pairOverflow;
     counters.particlePairOverflow = world->particlePairOverflow;
     counters.particleBodyOverflow = world->particleBodyOverflow;
     counters.particlePoolFull = world->particlePoolFullCount;

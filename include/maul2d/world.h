@@ -217,6 +217,7 @@ extern "C"
         // notification is deliberately absent because a hook in the
         // hot path would tax every healthy call for the sick ones,
         // and in Debug the assert hook already fires per misuse.
+        int32_t pairOverflow;         // body pairs dropped last step (pair table full)
         int32_t particlePairOverflow; // pairs dropped last step (budget)
         int32_t particleBodyOverflow; // body contacts dropped last step
         uint64_t particlePoolFull;    // emits refused by a full pool, cumulative

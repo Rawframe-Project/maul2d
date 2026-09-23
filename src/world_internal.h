@@ -252,6 +252,8 @@ typedef struct m2World
     m2Manifold* manifolds;
     int32_t oldPairCount;        // step-transient
     uint64_t* oldPairScratch;    // step-transient
+    uint64_t* pairMergeScratch;  // step-transient: the merged pair list before it lands
+    int32_t pairOverflow;        // candidate pairs dropped by the last update (table full)
     m2Manifold* manifoldScratch; // step-transient
 
     // Solver scratch (slice 4): all step-transient, zeroed at prepare.
