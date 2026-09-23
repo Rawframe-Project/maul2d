@@ -245,7 +245,7 @@ uint64_t m2FluidVolume_GetUserData(m2FluidVolumeId volumeId);
 ```c
 int32_t m2World_JournalBaseSize(m2WorldId worldId);
 ```
-Command journal (the replay primitive). StartJournal embeds a full snapshot into the caller's buffer, then records every mutating call and step marker with raw IEEE-754 bit encoding. StopJournal returns the byte size (0 = overflow or not recording: loud, never truncated-silent). ReplayJournal restores the embedded snapshot and re-applies the stream; deterministic id re-minting is asserted along the way. Restore during recording stops the journal (recorded limitation). Thread class: writer. The journal's fixed cost: header plus the embedded snapshot. Size tapes as this plus room for your ops. Thread class: reader.
+Command journal (the replay primitive). StartJournal embeds a full snapshot into the caller's buffer, then records every mutating call and step marker with raw IEEE-754 bit encoding. StopJournal returns the byte size (0 = overflow or not recording: loud, never truncated-silent). ReplayJournal restores the embedded snapshot and re-applies the stream. It is atomic: a tape that is malformed, truncated or recreates an object under a different id than the recording saw is refused and the world is left as it was. A restore during recording is recorded too. Thread class: writer. The journal's fixed cost: header plus the embedded snapshot. Size tapes as this plus room for your ops. Thread class: reader.
 
 ```c
 bool m2World_StartJournal(m2WorldId worldId, void* buffer, int32_t capacity);
@@ -547,7 +547,7 @@ Convex hull of a loose point cloud (welding, collinear merging, deterministic qu
 ```c
 int32_t m2DecomposeOutline(const m2Vec2* points, int32_t count, m2Polygon* pieces, int32_t capacity);
 ```
-Split a simple counter-clockwise outline (up to 64 points, no self-intersections, no holes) into convex pieces of at most 8 vertices each: the road from a sprite outline to destructible bodies. Fills up to capacity pieces and returns the truthful total (the enumeration contract). Returns 0 and asserts on invalid input (too few or too many points, clockwise winding, self-intersection, non-finite coordinates). Near-zero-area sliver pieces are welded away by validation and skipped; clean outlines lose nothing. Pure math, no world required. Thread class: reader (pure).
+Split a simple counter-clockwise outline (up to 64 points, no self-intersections, no holes) into convex pieces of at most 8 vertices each: the road from a sprite outline to destructible bodies. Fills up to capacity pieces and returns the truthful total (the enumeration contract). Refuses invalid input (too few or too many points, clockwise winding, self-intersection, non-finite coordinates) by returning 0. Near-zero-area sliver pieces are welded away by validation and skipped; clean outlines lose nothing. Pure math, no world required. Thread class: reader (pure).
 
 ```c
 int32_t m2World_ShatterBody(m2BodyId bodyId, const m2Polygon* pieces, int32_t pieceCount, m2BodyId* outBodies, int32_t capacity);
@@ -1150,7 +1150,7 @@ int32_t m2World_GetContactData(m2WorldId worldId, m2ContactData* data, int32_t c
 ```c
 m2ParticleId m2World_EmitParticle(m2WorldId worldId, m2Pos2 position, m2Vec2 velocity, uint32_t flags);
 ```
-Emit one particle at a world position. Returns the null id when the world has no particle system (asserts in Debug: that is misuse) or when the system is full (silent: a full pool is a runtime fact, pace emitters off GetParticleCount). Journaled. Thread class: writer.
+Emit one particle at a world position. Refuses with the null id when the world has no particle system (invalid) or when the system is full (capacity; also counted in m2Counters.particlePoolFull, so pace emitters off m2World_GetParticleCount). Journaled. Thread class: writer.
 
 ```c
 void m2World_DestroyParticle(m2ParticleId particleId);
