@@ -2,13 +2,17 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Sirac Ozmen
 #
-# The comment rule: comments describe the code as it is, not how it got
-# there. Development-history markers (slice, task, round and issue
-# numbers, bug-report codes, format and revision versions, "pre-N"
-# behavior) belong in the changelog and the commit messages, not in the
-# source. This script finds them in comments and fails if any remain.
+# Source rules that a compiler does not check (docs/conventions.md):
 #
-# usage: check_comments.py
+# - Comments describe the code as it is, not how it got there.
+#   Development-history markers (slice, task, round and issue numbers,
+#   bug-report codes, format and revision versions, "pre-N" behavior)
+#   belong in the changelog and the commit messages.
+# - Engine code (src/) never calls the platform's transcendental
+#   functions, whose rounding may differ between platforms, nor sources
+#   of nondeterminism such as rand() or time().
+#
+# usage: check_source.py
 
 import os
 import re
@@ -28,6 +32,20 @@ MARKERS = re.compile(
 )
 
 
+BANNED = re.compile(
+    r"(?<![\w.])(?:sin|cos|tan|asin|acos|atan|atan2|sinh|cosh|tanh|exp|exp2|expm1|log|log2|log10"
+    r"|log1p|pow|cbrt|hypot|fmod|erf|erfc|tgamma|lgamma)f?\s*\("
+    r"|(?<![\w.])(?:rand|srand|random|time|clock|getenv)\s*\("
+)
+
+
+def code_text(line):
+    """A C line without its // comment and string literals."""
+    line = re.sub(r'"(?:[^"\\]|\\.)*"', '""', line)
+    at = line.find("//")
+    return line if at < 0 else line[:at]
+
+
 def comment_text(line):
     """The comment part of a C line, or None."""
     at = line.find("//")
@@ -41,6 +59,16 @@ def comment_text(line):
 
 def main():
     findings = []
+    for name in sorted(os.listdir(os.path.join(ROOT, "src"))):
+        if not name.endswith((".c", ".h")):
+            continue
+        path = os.path.join(ROOT, "src", name)
+        for number, line in enumerate(open(path, encoding="utf-8", errors="replace"), 1):
+            stripped = line.lstrip()
+            if stripped.startswith(("*", "/*")):
+                continue
+            if BANNED.search(code_text(line)):
+                findings.append(f"src/{name}:{number}: nondeterministic call: {line.strip()}")
     for top in DIRS:
         for folder, _, files in os.walk(os.path.join(ROOT, top)):
             for name in sorted(files):
@@ -55,10 +83,9 @@ def main():
     for finding in findings:
         print(finding)
     if findings:
-        print(f"{len(findings)} comment(s) carry development-history markers; "
-              "describe the code instead (docs/conventions.md)")
+        print(f"{len(findings)} finding(s); see docs/conventions.md, sections 6 and 8")
         return 1
-    print("comments: no development-history markers")
+    print("source rules: no development-history markers, no nondeterministic calls")
     return 0
 
 

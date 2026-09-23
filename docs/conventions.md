@@ -136,7 +136,7 @@ Root files are `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`,
   review round names, phase or slice labels, dates, version stamps,
   "was/used to" stories or changelogs. History lives in git and in
   `CHANGELOG.md`; design reasoning lives in `docs/adr/`. CI runs
-  `tools/check_comments.py` for the markers it can recognize.
+  `tools/check_source.py` for the markers it can recognize.
 - No `TODO` or `FIXME` comments on `main`. Open an issue instead.
 - No comparisons with other engines in code comments.
 
@@ -166,7 +166,9 @@ Root files are `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`,
 - No fast math and no floating-point contraction; the compiler flags
   in `cmake/` enforce this and refuse to configure otherwise.
 - Only `sqrt` and the operations IEEE 754 rounds exactly come from the
-  platform. Transcendentals are the engine's own.
+  platform. Transcendentals are the engine's own. Engine code reads no
+  random source or environment, and a clock only for the profile,
+  which never feeds simulation state. CI runs `tools/check_source.py`.
 - Every loop whose order can reach state runs in a canonical order,
   normally ascending slot index. Results handed to the caller are in
   ascending slot order unless the function documents another order.

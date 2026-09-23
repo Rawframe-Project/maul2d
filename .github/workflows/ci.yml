@@ -213,8 +213,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Functions and files within their limits or listed with a reason
         run: python3 tools/check_lengths.py
-      - name: No development-history markers in comments
-        run: python3 tools/check_comments.py
+      - name: No development-history markers, no nondeterministic calls
+        run: python3 tools/check_source.py
 
   tidy:
     name: clang-tidy
