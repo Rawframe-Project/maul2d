@@ -1,11 +1,11 @@
 # Maul2D
 
-[![ci](https://github.com/siracozmen01/Maul2D/actions/workflows/ci.yml/badge.svg)](https://github.com/siracozmen01/Maul2D/actions/workflows/ci.yml)
+[![ci](https://github.com/Rawframe-Project/maul2d/actions/workflows/ci.yml/badge.svg)](https://github.com/Rawframe-Project/maul2d/actions/workflows/ci.yml)
 
 A deterministic 2D physics engine for games. Written in C17 with a
 pure C API, zero dependencies, MIT licensed.
 
-**[Play the testbed in your browser](https://siracozmen01.github.io/Maul2D/)**:
+**[Play the testbed in your browser](https://rawframe-project.github.io/maul2d/)**:
 the same engine, compiled to WebAssembly, producing the same bits
 it produces everywhere else (the wasm cell in CI proves that on
 every push). Hold R and time runs backward.
@@ -67,7 +67,7 @@ m2World_Restore(world, buffer, size); // bit-exact resimulation from here
 ## Quick start
 
 Prebuilt static libraries for Linux, Windows and macOS are attached
-to every [release](https://github.com/siracozmen01/Maul2D/releases),
+to every [release](https://github.com/Rawframe-Project/maul2d/releases),
 alongside a playable Windows testbed. From source:
 
 ```
@@ -99,7 +99,7 @@ both work from any prefix. Three samples show the shape of the API:
   into a fresh world, and compares end hashes.
 
 The interactive testbed (raylib, viewer only, outside the engine's
-dependency surface) runs [in the browser](https://siracozmen01.github.io/Maul2D/)
+dependency surface) runs [in the browser](https://rawframe-project.github.io/maul2d/)
 or builds natively with `-DMAUL2D_TESTBED=ON`: twelve
 scenes including a playable platformer on the character mover, a
 machinery hall, particle goo, and a rewind ring; hold R and time
@@ -141,7 +141,7 @@ single library version: see "Versions and formats" in the guide.
   doc comment, generated from the headers.
 - [CONTRIBUTING.md](CONTRIBUTING.md) for contributions.
 - [THIRD_PARTY.md](THIRD_PARTY.md) for adapted-code licenses.
-- [Maul3D](https://github.com/siracozmen01/Maul3D): the 3D sibling,
+- [Maul3D](https://github.com/Rawframe-Project/maul3d): the 3D sibling,
   same constitution, with voxel destruction inside the rollback
   contract.
 
