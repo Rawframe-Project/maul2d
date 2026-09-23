@@ -2,24 +2,16 @@
 
 [![ci](https://github.com/Rawframe-Project/maul2d/actions/workflows/ci.yml/badge.svg)](https://github.com/Rawframe-Project/maul2d/actions/workflows/ci.yml)
 
-A deterministic 2D physics engine for games. Written in C17 with a
-pure C API, zero dependencies, MIT licensed.
+A deterministic 2D physics engine for games, written in C17 with a
+plain C API, no dependencies and an MIT license. Maul2D is the 2D
+member of the Maul family; [Maul3D](https://github.com/Rawframe-Project/maul3d)
+is its 3D sibling and follows the same rules.
 
-**[Play the testbed in your browser](https://rawframe-project.github.io/maul2d/)**:
-the same engine, compiled to WebAssembly, producing the same bits
-it produces everywhere else (the wasm cell in CI proves that on
-every push). Hold R and time runs backward.
-
-Maul2D's difference is a contract, not a feature flag: the same
-inputs produce the same bits on every supported platform, and the
-engine is built around that promise end to end. Snapshots restore
-worlds bit-exactly, a command journal records sessions and replays
-them byte for byte, and CI fails on a single differing bit across
-sixteen gated hash lines and ten platform cells spanning x64 AVX2,
-arm64 NEON, portable scalar and WebAssembly. Rollback netcode,
-deterministic lockstep, kill-cam replays and server-verified
-simulation stop being research projects and become four lines of
-code.
+The same inputs produce the same bits on every supported platform.
+Snapshots restore a world exactly, and a command journal records a
+session and replays it byte for byte. That makes rollback netcode,
+lockstep multiplayer, replays and server-side verification a few
+calls away:
 
 ```c
 int32_t size = m2World_SnapshotSize(world);
@@ -28,132 +20,125 @@ m2World_Snapshot(world, buffer, size);
 m2World_Restore(world, buffer, size); // bit-exact resimulation from here
 ```
 
-## What is in the box
+**[Try the testbed in your browser](https://rawframe-project.github.io/maul2d/)**.
+It is the same engine compiled to WebAssembly; hold R and time runs
+backward.
+
+## Features
 
 - **Rigid bodies**: circles, capsules, polygons (rounded too),
   segments and one-way chain terrain with ghost corners; static,
-  kinematic, dynamic; forces, damping, dominance groups, conveyor
-  surfaces, explosions.
-- **A soft-step solver** with speculative contacts, warm starting
-  and graph-colored SIMD solving. Parallelism rides the HOST's
-  task executor (the same enqueue/finish contract as Box2D v3 and
-  Maul3D); the engine opens no threads of its own. Scheduling is
-  non-semantic: serial or 8 workers produce bit-identical
-  trajectories and a CI gate proves it every commit.
-- **Eleven joint types**: distance (with hard range), revolute
-  (with angular spring), prismatic, weld, wheel, motor, mouse,
-  filter, gear, pulley and ratchet; motors, limits, runtime tuning,
-  and built-in breaking with events.
-- **Particle fluids**: an opt-in, deterministic particle system
-  with water, viscosity, surface tension, powder and jelly (spring
-  and elastic nets), two-way coupled with rigid bodies, living
-  inside the same snapshot, journal and hash contract as everything
-  else.
-- **Continuous collision** for bullets, island-coupled sleeping
-  with a hibernation short-circuit, contact and sensor events with
-  strict begin/end bookending.
-- **Queries**: rays, shape sweeps, overlaps and all-hits variants,
-  a character mover kit (collide, solve planes, clip), and particle
-  region queries; all canonically ordered and exact hundreds of
-  kilometers from the origin (positions are f64).
-- **Geometry tools**: convex hull from a point cloud and convex
-  decomposition from a concave outline, the road from a sprite
-  silhouette to a destructible body.
-- **Integration surface**: 276 public functions, full readback
-  (a mirror test rebuilds a world from getters alone and matches
-  its hash), debug draw, deterministic counters and profile,
-  allocator hooks.
+  kinematic and dynamic bodies; forces, damping, dominance groups,
+  conveyor surfaces and explosions.
+- **Solver**: soft-step contacts with speculative margins, warm
+  starting and graph-colored SIMD solving. Parallel work runs on the
+  host's task system; the engine starts no threads, and serial and
+  threaded runs produce identical trajectories.
+- **Eleven joint types**: distance (with a hard range), revolute
+  (with an angular spring), prismatic, weld, wheel, motor, mouse,
+  filter, gear, pulley and ratchet, with motors, limits, runtime
+  tuning and breaking with events.
+- **Particle fluids**: an optional deterministic particle system with
+  water, viscosity, surface tension, powder and jelly, coupled both
+  ways with rigid bodies and covered by snapshots, the journal and
+  the hash like everything else.
+- **Continuous collision** for fast bodies, island sleeping, and
+  contact and sensor events with strict begin and end pairing.
+- **Queries**: rays, shape casts, overlaps and all-hits variants, a
+  character mover kit (collide, solve planes, clip) and particle
+  region queries, all in canonical order and exact far from the
+  origin (positions are 64-bit).
+- **Geometry tools**: convex hulls from point clouds and convex
+  decomposition of concave outlines.
+- **Integration**: 276 public functions, full state readback, debug
+  draw, counters and profiling, allocator and assert hooks.
 
-## Quick start
+## Getting started
 
-Prebuilt static libraries for Linux, Windows and macOS are attached
-to every [release](https://github.com/Rawframe-Project/maul2d/releases),
-alongside a playable Windows testbed. From source:
-
-```
+```sh
 cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 ctest --test-dir build
 ```
 
-No dependencies. A C17 compiler is required (MSVC needs VS2022 or
-newer: older versions cannot disable FP contraction, which the
-determinism contract requires). x64 builds target AVX2+FMA (Haswell
-2013+); configure with `-DMAUL2D_SIMD=scalar` for a portable
-fallback that produces bit-identical results, and CI enforces that
-equality. An AVX2 build run on a CPU that lacks it aborts with a
-clear message instead of trapping on an illegal instruction, and the
-prebuilt releases ship a portable scalar package for older x64.
+A C17 compiler is required; with MSVC that means Visual Studio 2022 or
+newer, the first version that can turn off floating-point
+contraction. x64 builds use AVX2 and FMA (Haswell, 2013, and later);
+configure with `-DMAUL2D_SIMD=scalar` for a portable build that
+produces identical results. An AVX2 build started on a CPU without
+AVX2 refuses to create worlds instead of crashing.
 
-`cmake --install` ships the library, headers, a CMake package and a
-pkg-config file; `find_package(maul2d)` and `pkg-config maul2d`
-both work from any prefix. Three samples show the shape of the API:
+`cmake --install` installs the library, the headers, a CMake package
+and a pkg-config file, so `find_package(maul2d)` and
+`pkg-config maul2d` both work. Tagged releases carry prebuilt
+libraries for Linux, Windows and macOS.
 
-- `samples/minimal`: a standalone `find_package` consumer that
-  stacks a tower, snapshots it, wrecks it and rolls the wreck back
-  out of existence, hashes on screen as proof.
-- `sample_car`: a motorized, sprung two-wheeler drives itself and
-  prints telemetry; it ends on the same world hash on every
-  supported platform.
-- `sample_replay`: records a session into the journal, replays it
-  into a fresh world, and compares end hashes.
+The samples show the API at work:
 
-The interactive testbed (raylib, viewer only, outside the engine's
-dependency surface) runs [in the browser](https://rawframe-project.github.io/maul2d/)
-or builds natively with `-DMAUL2D_TESTBED=ON`: twelve
-scenes including a playable platformer on the character mover, a
-machinery hall, particle goo, and a rewind ring; hold R and time
-runs backward, bit for bit.
+- `samples/minimal`: a standalone project that finds the installed
+  package, stacks a tower, snapshots it, knocks it over and rolls
+  the wreck back.
+- `sample_car`: a motorized, sprung two-wheeler that drives itself
+  and prints telemetry.
+- `sample_replay`: records a session, replays it into a fresh world
+  and compares the final hashes.
 
-## Determinism and performance
+The interactive testbed (built on raylib, which the library itself
+does not use) runs in the browser or natively with
+`-DMAUL2D_TESTBED=ON`. Its twelve scenes include a platformer on the
+character mover, a machinery hall, particle goo and a rewind ring.
 
-Determinism here means: pinned IEEE arithmetic (no fast math, no FP
-contraction), explicit compare-and-select min/max, one bit law
-across AVX2, NEON and scalar kernels, canonical ordering on every
-path, and scheduling-independent threading. A hostile-integrator
-fuzzer drives random sessions through four promises on every seed
-(journal replay, rollback identity, unjournaled twin, threaded
-twin), an API mirror test guards the readback surface, eight
-red-team rounds attack the engine as code, and a weekly scheduled
-CI run plus a 300k-step soak watch for toolchain drift.
+## Determinism
 
-The benchmarks in `bench/` (pyramids, hanging chains up to 2000
+- IEEE arithmetic only: no fast math and no floating-point
+  contraction, enforced at configure time.
+- One set of results across the AVX2, NEON and scalar kernels.
+- Canonical ordering on every path, and scheduling that never changes
+  results.
+- CI compares the determinism hashes printed by the tests across ten
+  platform cells: x64 and arm64, GCC, Clang and MSVC, scalar and
+  WebAssembly.
+- A fuzzer drives random sessions through journal replay, rollback,
+  unjournaled and threaded twins on every seed, and a weekly
+  scheduled run adds a long soak.
+
+## Benchmarks
+
+The scenes in `bench/` (two pyramids, hanging chains of 30 and 2000
 links, a joint farm and a water tank) print their timings and their
-final world hashes; the hashes are pinned in `bench/pins.txt` and CI
+final world hashes. The hashes are pinned in `bench/pins.txt`, and CI
 fails when one moves.
 
-## Status and stability
+## Status
 
-Current version: 0.0.1. Until 1.0.0 the API, the ABI and the
-snapshot and journal formats may change in any minor release; the
-[changelog](CHANGELOG.md) records every change. Defs are
-cookie-guarded, so a stale compiled caller fails loudly instead of
-subtly. Snapshots and journal tapes are versioned artifacts of a
-single library version: see "Versions and formats" in the guide.
+Current version: 0.0.1. Until 1.0.0 the API, the ABI and the snapshot
+and journal formats may change in any minor release; the
+[changelog](CHANGELOG.md) records every change. Defs carry a cookie,
+so a def that was not initialized with its `m2Default...Def`
+function is refused. Snapshots and journal tapes belong to one
+library version.
 
-## Learn more
+## Documentation
 
-- [The guide](docs/guide.md): the contract, rollback netcode,
-  joints, water, queries, the character mover, recipes, and what
-  Maul2D leaves out on purpose.
+- [The guide](docs/guide.md): the contract, rollback netcode, joints,
+  water, queries, the character mover and recipes.
 - [The API reference](docs/api.md): every public function with its
-  doc comment, generated from the headers.
+  documentation, generated from the headers.
 - [The conventions](docs/conventions.md): the rules both engines
   follow, from naming to commits.
-- [CONTRIBUTING.md](CONTRIBUTING.md) for contributions.
-- [THIRD_PARTY.md](THIRD_PARTY.md) for adapted-code licenses.
-- [Maul3D](https://github.com/Rawframe-Project/maul3d): the 3D sibling,
-  same constitution, with voxel destruction inside the rollback
-  contract.
+- [The changelog](CHANGELOG.md): every release and what changed.
+- [CONTRIBUTING.md](CONTRIBUTING.md): how to contribute.
 
 ## Acknowledgments
 
-Maul2D stands on the shoulders of [Box2D](https://github.com/erincatto/box2d)
-by Erin Catto (MIT): several kernels (the polygon clipper, the
-soft-step stage structure, joint formulations, ray casts, the
-trigonometric approximations) are adapted from Box2D v3 sources,
-with the adaptation noted in each file. The particle fluid recipe
-descends from LiquidFun, and the ratchet joint from Chipmunk2D;
-their licenses live in [THIRD_PARTY.md](THIRD_PARTY.md). The
-determinism architecture (hybrid f64 positions, snapshot rollback,
-the command journal, cross-platform hash gating) is Maul's own.
+Several kernels were adapted from [Box2D](https://github.com/erincatto/box2d)
+v3 by Erin Catto (the polygon clipper, the solver stage structure,
+joint formulations, ray casts and the trigonometric approximations),
+the particle neighbor pass and buoyancy from LiquidFun, and the
+ratchet joint from Chipmunk2D. Each adaptation is noted in its source
+file, and the licenses are reproduced in
+[THIRD_PARTY.md](THIRD_PARTY.md).
+
+## License
+
+MIT. See [LICENSE](LICENSE).
