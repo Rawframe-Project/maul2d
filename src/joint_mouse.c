@@ -128,93 +128,64 @@ float m2MouseJoint_GetMaxForce(m2JointId jointId)
 }
 
 // --- Solver ---------------------------------------------------------------
+//
+// Only body B has rows: a soft spin damper (motorImpulse), then two rows
+// pulling B's anchor to the target (impulse) within the force budget.
+// The gap is B's anchor minus the target.
 
 static void PrepareMouse(m2World* world, m2JointConstraint* c, const m2JointFrame* f)
 {
     int32_t j = f->joint;
-    float h = f->h;
-    m2Rot qB = f->qB;
-    m2Vec2 lcB = f->lcB;
-    float mB = f->mB;
-    float iB = f->iB;
-    int32_t bodyB = c->bodyB;
-    // Mouse: only body B has rows. Grab arm rB comes from the
-    // generic anchors; the target separation base is the f64
-    // crossing between B's center and the stored target.
-    c->k11 = mB + iB * c->rB.y * c->rB.y;
-    c->k12 = -iB * c->rB.x * c->rB.y;
-    c->k22 = mB + iB * c->rB.x * c->rB.x;
-    m2Vec2 comB2 = m2RotateVec2(qB, lcB);
-    float cbx = (float)(world->bodies.transforms[bodyB].p.x - world->joints.jointTargets[j].x);
-    float cby = (float)(world->bodies.transforms[bodyB].p.y - world->joints.jointTargets[j].y);
-    c->baseCVec = (m2Vec2){cbx + comB2.x, cby + comB2.y};
-    c->softness2 = m2MakeSoft(0.5f, 0.1f, h);    // reference spin damper
-    c->lower = h * world->joints.jointLength[j]; // force budget
+    m2Vec2 center = m2RotateVec2(f->qB, world->bodies.localCenters[c->bodyB]);
+    m2Pos2 origin = world->bodies.transforms[c->bodyB].p;
+    c->gap = (m2Vec2){(float)(origin.x - world->joints.jointTargets[j].x) + center.x + c->armB.x,
+                      (float)(origin.y - world->joints.jointTargets[j].y) + center.y + c->armB.y};
+    c->spring = m2MakeSoft(0.5f, 0.1f, f->h);
+    c->maxPullImpulse = f->h * world->joints.jointLength[j];
 }
 
-static void WarmStartMouse(m2World* world, const m2JointConstraint* c)
+// Body B alone: A drops out of the rows with its motion and its mass.
+static m2JointBodies BodyBOnly(const m2JointBodies* b)
 {
-    // Mouse: body B only.
-    int32_t bodyB = c->bodyB;
-    float mB = world->bodies.invMass[bodyB];
-    float iB = world->bodies.invInertia[bodyB];
-    world->bodies.linearVelocities[bodyB].x += mB * c->impulse.x;
-    world->bodies.linearVelocities[bodyB].y += mB * c->impulse.y;
-    world->bodies.angularVelocities[bodyB] += iB * (m2Cross2(c->rB, c->impulse) + c->motorImpulse);
+    m2JointBodies only = *b;
+    only.vA = (m2Vec2){0.0f, 0.0f};
+    only.wA = 0.0f;
+    only.mA = 0.0f;
+    only.iA = 0.0f;
+    return only;
 }
 
-static void SolveMouse(m2World* world, m2JointConstraint* c, const m2JointSolveContext* ctx)
+static const m2JointRow s_spin = {{0.0f, 0.0f}, 0.0f, {0.0f, 0.0f}, 1.0f};
+
+static void WarmStartMouse(const m2JointConstraint* c, const m2JointPose* pose, m2JointBodies* b)
 {
-    m2Vec2 vB = ctx->vB;
-    float wB = ctx->wB;
-    m2Vec2 drB = ctx->drB;
-    // Mouse joint (reference solve, always biased): a soft spin
-    // damper, then the soft pull toward the target, clamped to
-    // the force budget in lower.
-    float mB = world->bodies.invMass[c->bodyB];
-    float iB = world->bodies.invInertia[c->bodyB];
-    {
-        float impulse = iB > 0.0f ? -wB / iB : 0.0f;
-        impulse = c->softness2.massScale * impulse - c->softness2.impulseScale * c->motorImpulse;
-        c->motorImpulse += impulse;
-        wB += iB * impulse;
-    }
-    {
-        m2Vec2 sep = {c->baseCVec.x + world->solver.deltaPositions[c->bodyB].x + drB.x,
-                      c->baseCVec.y + world->solver.deltaPositions[c->bodyB].y + drB.y};
-        m2Vec2 bias = {c->softness.biasRate * sep.x, c->softness.biasRate * sep.y};
-        m2Vec2 cdot = {vB.x - wB * drB.y + bias.x, vB.y + wB * drB.x + bias.y};
-        float det = c->k11 * c->k22 - c->k12 * c->k12;
-        float invDet = det != 0.0f ? 1.0f / det : 0.0f;
-        m2Vec2 raw = {invDet * (c->k22 * cdot.x - c->k12 * cdot.y),
-                      invDet * (c->k11 * cdot.y - c->k12 * cdot.x)};
-        m2Vec2 impulse = {-c->softness.massScale * raw.x - c->softness.impulseScale * c->impulse.x,
-                          -c->softness.massScale * raw.y - c->softness.impulseScale * c->impulse.y};
-        m2Vec2 old = c->impulse;
-        c->impulse.x += impulse.x;
-        c->impulse.y += impulse.y;
-        float budget = c->lower;
-        float mag2 = c->impulse.x * c->impulse.x + c->impulse.y * c->impulse.y;
-        if (mag2 > budget * budget)
-        {
-            float mag = sqrtf(mag2);
-            float scale = mag > 0.0f ? budget / mag : 0.0f;
-            c->impulse.x *= scale;
-            c->impulse.y *= scale;
-        }
-        impulse.x = c->impulse.x - old.x;
-        impulse.y = c->impulse.y - old.y;
-        vB.x += mB * impulse.x;
-        vB.y += mB * impulse.y;
-        wB += iB * m2Cross2(drB, impulse);
-    }
-    world->bodies.linearVelocities[c->bodyB] = vB;
-    world->bodies.angularVelocities[c->bodyB] = wB;
+    m2JointBodies only = BodyBOnly(b);
+    m2PushRow(&s_spin, &only, c->motorImpulse);
+    m2PushPointPair((m2Vec2){0.0f, 0.0f}, pose->armB, &only, c->impulse);
+    b->vB = only.vB;
+    b->wB = only.wB;
+}
+
+static void SolveMouse(m2JointConstraint* c, const m2JointPose* pose, m2JointBodies* b,
+                       const m2JointPass* pass)
+{
+    (void)pass; // always pulling: the target is a spring by definition
+    m2JointBodies only = BodyBOnly(b);
+    m2SolveRow(&s_spin, &only, m2SpringDrive(c->spring, 0.0f), &c->motorImpulse, -M2_ROW_FREE,
+               M2_ROW_FREE);
+    m2Vec2 gap = {c->gap.x + pose->moveB.x + (pose->armB.x - c->armB.x),
+                  c->gap.y + pose->moveB.y + (pose->armB.y - c->armB.y)};
+    m2RowDrive x = m2SpringDrive(c->soft, gap.x);
+    m2RowDrive y = m2SpringDrive(c->soft, gap.y);
+    m2SolvePointPair((m2Vec2){0.0f, 0.0f}, pose->armB, &only, (m2Vec2){x.bias, y.bias}, x,
+                     &c->impulse, c->maxPullImpulse);
+    b->vB = only.vB;
+    b->wB = only.wB;
 }
 
 static void MouseReaction(const m2World* world, int32_t j, float invH, float* force, float* torque)
 {
-    // The linear pull, and the spin damper's torque in the motor slot.
+    // The pull, and the spin damper's torque.
     m2Vec2 impulse = world->joints.jointImpulse[j];
     *force = sqrtf(impulse.x * impulse.x + impulse.y * impulse.y) * invH;
     *torque = m2AbsF(world->joints.jointMotorImpulse[j]) * invH;

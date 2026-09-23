@@ -71,7 +71,7 @@ m2JointId m2CreateRatchetJoint(m2WorldId worldId, const m2RatchetJointDef* def)
     world->joints.jointLocalAnchorA[index] = (m2Vec2){qA.c, qA.s};
     world->joints.jointLocalAnchorB[index] = (m2Vec2){qB.c, qB.s};
     world->joints.jointUpper[index] = 0.0f; // accumulated relative angle
-    // Engage the tooth at or behind the spawn angle (reference click).
+    // Engage the tooth at or behind the angle at creation.
     world->joints.jointLower[index] =
         floorf((0.0f - def->phase) / def->ratchet) * def->ratchet + def->phase;
     world->joints.jointUserData[index] = def->userData;
@@ -106,86 +106,55 @@ float m2RatchetJoint_GetPhase(m2JointId jointId)
 }
 
 // --- Solver ---------------------------------------------------------------
+//
+// The relative angle is tracked across turns through the last step's
+// rotations. Turning the free way (the sign of the pitch) moves the
+// engaged tooth along to the one at or behind the angle; turning back
+// meets a one-sided angle row at that tooth (impulse.x).
 
 static void PrepareRatchet(m2World* world, m2JointConstraint* c, const m2JointFrame* f)
 {
     int32_t j = f->joint;
-    m2Rot qA = f->qA;
-    m2Rot qB = f->qB;
-    float iA = f->iA;
-    float iB = f->iB;
-    // Ratchet (Chipmunk cpRatchetJoint reconciliation): track
-    // the relative angle multi-turn exact via previous-rotation
-    // slots, click the engaged tooth forward when the angle
-    // passes it, and hold a one-sided row against back-spin.
-    float ratchet = world->joints.jointLength[j];
+    float pitch = world->joints.jointLength[j];
     float phase = world->joints.jointRefAngle[j];
-    m2Rot prevA = {world->joints.jointLocalAnchorA[j].x, world->joints.jointLocalAnchorA[j].y};
-    m2Rot prevB = {world->joints.jointLocalAnchorB[j].x, world->joints.jointLocalAnchorB[j].y};
+    m2Rot lastA = {world->joints.jointLocalAnchorA[j].x, world->joints.jointLocalAnchorA[j].y};
+    m2Rot lastB = {world->joints.jointLocalAnchorB[j].x, world->joints.jointLocalAnchorB[j].y};
     float angle = world->joints.jointUpper[j];
-    angle += m2RelativeJointAngle(prevB, qB) - m2RelativeJointAngle(prevA, qA);
+    angle += m2RelativeJointAngle(lastB, f->qB) - m2RelativeJointAngle(lastA, f->qA);
     world->joints.jointUpper[j] = angle;
-    world->joints.jointLocalAnchorA[j] = (m2Vec2){qA.c, qA.s};
-    world->joints.jointLocalAnchorB[j] = (m2Vec2){qB.c, qB.s};
-    float engaged = world->joints.jointLower[j];
-    float diff = engaged - angle;
-    if (!(diff * ratchet > 0.0f))
+    world->joints.jointLocalAnchorA[j] = (m2Vec2){f->qA.c, f->qA.s};
+    world->joints.jointLocalAnchorB[j] = (m2Vec2){f->qB.c, f->qB.s};
+    float tooth = world->joints.jointLower[j];
+    if (!((tooth - angle) * pitch > 0.0f))
     {
-        // Free direction: click to the tooth at or behind us.
-        engaged = floorf((angle - phase) / ratchet) * ratchet + phase;
-        world->joints.jointLower[j] = engaged;
+        tooth = floorf((angle - phase) / pitch) * pitch + phase;
+        world->joints.jointLower[j] = tooth;
     }
-    c->baseAngle = angle - engaged; // C0, sign-adjusted in solve
-    c->motorSpeed = ratchet;        // carries the free direction
-    float k = iA + iB;
-    c->axialMass = k > 0.0f ? 1.0f / k : 0.0f;
+    c->angle = angle - tooth;
+    c->ratio = pitch;
 }
 
-static void WarmStartRatchet(m2World* world, const m2JointConstraint* c)
+// The angle row turned so the held direction is positive.
+static m2JointRow HoldRow(const m2JointConstraint* c)
 {
-    // Ratchet: one-sided angular impulse in the hold direction.
-    float s = c->motorSpeed > 0.0f ? 1.0f : -1.0f;
-    float L = s * c->impulse.x;
-    world->bodies.angularVelocities[c->bodyA] -= world->bodies.invInertia[c->bodyA] * L;
-    world->bodies.angularVelocities[c->bodyB] += world->bodies.invInertia[c->bodyB] * L;
+    return m2ScaleRow(m2TurnRow(), c->ratio > 0.0f ? 1.0f : -1.0f);
 }
 
-static void SolveRatchet(m2World* world, m2JointConstraint* c, const m2JointSolveContext* ctx)
+static void WarmStartRatchet(const m2JointConstraint* c, const m2JointPose* pose, m2JointBodies* b)
 {
-    float wA = ctx->wA;
-    float wB = ctx->wB;
-    bool useBias = ctx->useBias;
-    float invH = ctx->invH;
-    // Ratchet: the revolute limit row, sign-folded so the free
-    // direction never feels it: C' = s*(angle - engaged) >= 0,
-    // speculative when open, stiff-soft when violated.
-    float s = c->motorSpeed > 0.0f ? 1.0f : -1.0f;
-    float iA = world->bodies.invInertia[c->bodyA];
-    float iB = world->bodies.invInertia[c->bodyB];
-    float angleNow = c->baseAngle + m2RelativeJointAngle(world->solver.deltaRotations[c->bodyA],
-                                                         world->solver.deltaRotations[c->bodyB]);
-    float C = s * angleNow;
-    float bias = 0.0f;
-    float massScale = 1.0f;
-    float impulseScale = 0.0f;
-    if (C > 0.0f)
-    {
-        bias = C * invH; // speculative: stop exactly at the tooth
-    }
-    else if (useBias)
-    {
-        bias = c->softness.biasRate * C;
-        massScale = c->softness.massScale;
-        impulseScale = c->softness.impulseScale;
-    }
-    float cdot = s * (wB - wA);
-    float impulse = -massScale * c->axialMass * (cdot + bias) - impulseScale * c->impulse.x;
-    float next = c->impulse.x + impulse;
-    next = next > 0.0f ? next : 0.0f;
-    impulse = next - c->impulse.x;
-    c->impulse.x = next;
-    world->bodies.angularVelocities[c->bodyA] = wA - iA * (s * impulse);
-    world->bodies.angularVelocities[c->bodyB] = wB + iB * (s * impulse);
+    (void)pose;
+    m2JointRow row = HoldRow(c);
+    m2PushRow(&row, b, c->impulse.x);
+}
+
+static void SolveRatchet(m2JointConstraint* c, const m2JointPose* pose, m2JointBodies* b,
+                         const m2JointPass* pass)
+{
+    float sign = c->ratio > 0.0f ? 1.0f : -1.0f;
+    float past = c->angle + m2RelativeJointAngle(pose->turnA, pose->turnB);
+    m2JointRow row = HoldRow(c);
+    m2RowDrive drive = m2LimitDrive(c->soft, sign * past, pass->invH, pass->biased);
+    m2SolveRow(&row, b, drive, &c->impulse.x, 0.0f, M2_ROW_FREE);
 }
 
 static void RatchetReaction(const m2World* world, int32_t j, float invH, float* force,

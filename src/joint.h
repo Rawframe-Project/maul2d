@@ -16,10 +16,9 @@
 #define M2_JOINT_LIMIT  2u // limit (or wheel travel stops) enabled
 #define M2_JOINT_SPRING 4u // wheel suspension spring enabled
 
-#define M2_JOINT_HARD_RANGE   8u  // distance: a finite length range is active
-#define M2_JOINT_ROPE         16u // distance: spring enabled (stored with the joint)
-#define M2_JOINT_FREE_LENGTH  32u // distance: zero-stiffness spring, skip the rest row
-#define M2_JOINT_SPRING_DRIVE 32u // motor: soft spring drive replaces the hard bias
+#define M2_JOINT_HARD_RANGE  8u  // distance: a finite length range is active
+#define M2_JOINT_ROPE        16u // distance: spring enabled (stored with the joint)
+#define M2_JOINT_FREE_LENGTH 32u // distance: zero-stiffness spring, skip the rest row
 
 void m2UnlinkJoint(m2World* world, int32_t joint);
 void m2RebuildJointEdges(m2World* world);

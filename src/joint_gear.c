@@ -99,71 +99,52 @@ float m2GearJoint_GetRatio(m2JointId jointId)
 }
 
 // --- Solver ---------------------------------------------------------------
+//
+// One row holds ratio * angle A + angle B at its phase (impulse.x). The
+// phase accumulates each step by how far each body actually turned since
+// the last one, so many full turns stay exact.
 
 static void PrepareGear(m2World* world, m2JointConstraint* c, const m2JointFrame* f)
 {
     int32_t j = f->joint;
-    m2Rot qA = f->qA;
-    m2Rot qB = f->qB;
-    float iA = f->iA;
-    float iB = f->iB;
-    // Gear: accumulate the phase by how far each body actually
-    // rotated since last prepare (per-step deltas stay far from
-    // the wrap, so many full turns remain exact), then couple
-    // the spins. ratio rides jointLength -> loaded fields.
     float ratio = world->joints.jointLength[j];
-    m2Rot prevA = {world->joints.jointLocalAnchorA[j].x, world->joints.jointLocalAnchorA[j].y};
-    m2Rot prevB = {world->joints.jointLocalAnchorB[j].x, world->joints.jointLocalAnchorB[j].y};
+    m2Rot lastA = {world->joints.jointLocalAnchorA[j].x, world->joints.jointLocalAnchorA[j].y};
+    m2Rot lastB = {world->joints.jointLocalAnchorB[j].x, world->joints.jointLocalAnchorB[j].y};
     float phase = world->joints.jointRefAngle[j];
-    phase += ratio * m2RelativeJointAngle(prevA, qA) + m2RelativeJointAngle(prevB, qB);
+    phase += ratio * m2RelativeJointAngle(lastA, f->qA) + m2RelativeJointAngle(lastB, f->qB);
     world->joints.jointRefAngle[j] = phase;
-    world->joints.jointLocalAnchorA[j] = (m2Vec2){qA.c, qA.s};
-    world->joints.jointLocalAnchorB[j] = (m2Vec2){qB.c, qB.s};
-    c->baseAngle = phase;
-    c->motorSpeed = ratio; // carried into the solve
-    float k = ratio * ratio * iA + iB;
-    c->axialMass = k > 0.0f ? 1.0f / k : 0.0f;
+    world->joints.jointLocalAnchorA[j] = (m2Vec2){f->qA.c, f->qA.s};
+    world->joints.jointLocalAnchorB[j] = (m2Vec2){f->qB.c, f->qB.s};
+    c->angle = phase;
+    c->ratio = ratio;
 }
 
-static void WarmStartGear(m2World* world, const m2JointConstraint* c)
+static m2JointRow GearRow(const m2JointConstraint* c)
 {
-    // Gear: one angular impulse, ratio-weighted on side A.
-    float L = c->impulse.x;
-    world->bodies.angularVelocities[c->bodyA] +=
-        world->bodies.invInertia[c->bodyA] * (c->motorSpeed * L);
-    world->bodies.angularVelocities[c->bodyB] += world->bodies.invInertia[c->bodyB] * L;
+    m2JointRow row = {{0.0f, 0.0f}, c->ratio, {0.0f, 0.0f}, 1.0f};
+    return row;
 }
 
-static void SolveGear(m2World* world, m2JointConstraint* c, const m2JointSolveContext* ctx)
+static void WarmStartGear(const m2JointConstraint* c, const m2JointPose* pose, m2JointBodies* b)
 {
-    float wA = ctx->wA;
-    float wB = ctx->wB;
-    bool useBias = ctx->useBias;
-    // Gear: C = ratio*angleA + angleB - phase0, tracked through
-    // the substep delta rotations; stiff-biased like the weld
-    // angle row.
-    float ratio = c->motorSpeed;
-    float iA = world->bodies.invInertia[c->bodyA];
-    float iB = world->bodies.invInertia[c->bodyB];
-    float bias = 0.0f;
-    float massScale = 1.0f;
-    float impulseScale = 0.0f;
-    if (useBias)
+    (void)pose;
+    m2JointRow row = GearRow(c);
+    m2PushRow(&row, b, c->impulse.x);
+}
+
+static void SolveGear(m2JointConstraint* c, const m2JointPose* pose, m2JointBodies* b,
+                      const m2JointPass* pass)
+{
+    float C = 0.0f;
+    if (pass->biased)
     {
-        float dA = m2Atan2(world->solver.deltaRotations[c->bodyA].s,
-                           world->solver.deltaRotations[c->bodyA].c);
-        float dB = m2Atan2(world->solver.deltaRotations[c->bodyB].s,
-                           world->solver.deltaRotations[c->bodyB].c);
-        float C = c->baseAngle + ratio * dA + dB;
-        bias = c->softness.biasRate * C;
-        massScale = c->softness.massScale;
-        impulseScale = c->softness.impulseScale;
+        float turnA = m2Atan2(pose->turnA.s, pose->turnA.c);
+        float turnB = m2Atan2(pose->turnB.s, pose->turnB.c);
+        C = c->angle + c->ratio * turnA + turnB;
     }
-    float cdot = ratio * wA + wB;
-    float impulse = -c->axialMass * (massScale * cdot + bias) - impulseScale * c->impulse.x;
-    c->impulse.x += impulse;
-    world->bodies.angularVelocities[c->bodyA] = wA + iA * (ratio * impulse);
-    world->bodies.angularVelocities[c->bodyB] = wB + iB * impulse;
+    m2JointRow row = GearRow(c);
+    m2SolveRow(&row, b, m2HeldDrive(c->soft, C, pass->biased), &c->impulse.x, -M2_ROW_FREE,
+               M2_ROW_FREE);
 }
 
 static void GearReaction(const m2World* world, int32_t j, float invH, float* force, float* torque)

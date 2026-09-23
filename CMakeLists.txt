@@ -79,6 +79,7 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/graph_color.c
     src/island.c
     src/joint.c
+    src/joint_row.c
     src/joint_solver.c
     src/joint_distance.c
     src/joint_filter.c

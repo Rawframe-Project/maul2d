@@ -13,6 +13,11 @@
 #define M2_CONTACT_DAMPING_RATIO  10.0f
 #define M2_CONTACT_PUSH_MAX_SPEED 3.0f
 
+// Joint rows without a user softness: stiff, and damped well past
+// critical so they settle without ringing.
+#define M2_JOINT_HERTZ         60.0f
+#define M2_JOINT_DAMPING_RATIO 2.0f
+
 // A safety bound on linear speed, not a gameplay knob: a degenerate or
 // over-constrained setup is held here instead of pumping speed without
 // limit into a NaN. It stays off the world def, like the quarter-turn
@@ -60,40 +65,6 @@ static inline float m2Cross2(m2Vec2 a, m2Vec2 b)
 {
     return a.x * b.y - a.y * b.x;
 }
-
-typedef struct m2JointConstraint
-{
-    int32_t jointIndex;
-    int32_t bodyA;
-    int32_t bodyB;
-    uint8_t type;  // m2JointType, the index into the kind table
-    uint8_t flags; // M2_JOINT_* (joint.h)
-    m2Vec2 rA;     // world-rotated anchors at prepare
-    m2Vec2 rB;
-    m2Vec2 axis;         // distance/prismatic: unit axis at prepare
-    m2Vec2 perp;         // prismatic: left-perp of axis
-    float baseC;         // distance: C0; prismatic: translation0
-    m2Vec2 baseCVec;     // revolute: C0; prismatic: (perpC0, unused)
-    float baseAngle;     // relative angle at prepare minus reference
-    float a1, a2;        // prismatic axial torque arms
-    float s1, s2;        // prismatic perpendicular torque arms
-    float axialMass;     // distance/prismatic axial; revolute 1/(iA+iB)
-    float k11, k12, k22; // revolute/prismatic 2x2 effective mass
-    float motorSpeed;
-    float maxMotorImpulse; // h * maxMotorTorque(Force), clamp budget
-    float lower;
-    float upper;
-    m2Softness softness;       // constraint rows (stiff for wheel); weld linear
-    m2Softness springSoftness; // wheel suspension (real spring)
-    m2Softness softness2;      // weld angular row
-    bool linearSpring;         // weld: nonzero hertz = biased even in relax
-    bool angularSpring;
-    m2Vec2 impulse;     // point/axial; prismatic (perp, angle); wheel (perp, spring)
-    float motorImpulse; // motor accumulator; weld reuses it for the angle lock
-    float lowerImpulse;
-    float upperImpulse;
-    float springImpulse; // revolute angular spring
-} m2JointConstraint;
 
 // Contacts in one graph color share no dynamic body, so a color solves
 // in parallel. Colors are assigned greedily in canonical pair order and

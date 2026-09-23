@@ -11,6 +11,7 @@
 
 #include "contact_kernel.h"
 #include "graph_color.h"
+#include "joint_solver.h"
 #include "world.h"
 #include "world_internal.h"
 

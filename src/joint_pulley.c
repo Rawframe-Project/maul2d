@@ -46,9 +46,9 @@ float m2PulleyLiveLength(m2World* world, int32_t index, int32_t side)
 
 // Pulley registry mapping: ratio rides jointLength, the rope total
 // (constant) rides jointRefAngle, ground anchors ride jointTargets
-// (A side, shared with mouse) and jointTargetsB. The total is
-// CAPTURED from spawn geometry, the reference-angle convention: defs
-// carry no length knobs. All snapshot state.
+// (A side, shared with mouse) and jointTargetsB. The total is taken
+// from the geometry at creation, the way a revolute joint takes its
+// reference angle: defs carry no length. All snapshot state.
 // The def contract: finite values, non-negative gains and budgets,
 // ordered ranges.
 static bool DefValid(const m2PulleyJointDef* def)
@@ -147,109 +147,63 @@ m2Pos2 m2PulleyJoint_GetGroundAnchorB(m2JointId jointId)
 }
 
 // --- Solver ---------------------------------------------------------------
+//
+// One row holds the rope: length A + ratio * length B stays at the total
+// (impulse.x). Each rope runs from its ground point to its anchor; a side
+// shorter than 5 cm goes limp.
 
 static void PreparePulley(m2World* world, m2JointConstraint* c, const m2JointFrame* f)
 {
     int32_t j = f->joint;
-    m2Rot qA = f->qA;
-    m2Rot qB = f->qB;
-    float mA = f->mA;
-    float iA = f->iA;
-    float mB = f->mB;
-    float iB = f->iB;
-    int32_t bodyA = c->bodyA;
-    int32_t bodyB = c->bodyB;
-    // Pulley (b2 v2.4 reconciliation): equality constraint
-    // C = total - lengthA - ratio * lengthB with unit rope
-    // directions frozen at prepare. uA rides the axis slot,
-    // uB the perp slot, ratio the motorSpeed slot. A side
-    // shorter than 10 slop goes limp (zero direction), the
-    // reference's slack guard.
-    float ratio = world->joints.jointLength[j];
-    m2Vec2 armA = m2RotateVec2(qA, world->joints.jointLocalAnchorA[j]);
-    m2Vec2 armB = m2RotateVec2(qB, world->joints.jointLocalAnchorB[j]);
-    m2Vec2 uA = {
-        (float)(world->bodies.transforms[bodyA].p.x - world->joints.jointTargets[j].x) + armA.x,
-        (float)(world->bodies.transforms[bodyA].p.y - world->joints.jointTargets[j].y) + armA.y};
-    m2Vec2 uB = {
-        (float)(world->bodies.transforms[bodyB].p.x - world->joints.jointTargetsB[j].x) + armB.x,
-        (float)(world->bodies.transforms[bodyB].p.y - world->joints.jointTargetsB[j].y) + armB.y};
-    float lengthA = sqrtf(uA.x * uA.x + uA.y * uA.y);
-    float lengthB = sqrtf(uB.x * uB.x + uB.y * uB.y);
-    c->axis = lengthA > 0.05f ? (m2Vec2){uA.x / lengthA, uA.y / lengthA} : (m2Vec2){0.0f, 0.0f};
-    c->perp = lengthB > 0.05f ? (m2Vec2){uB.x / lengthB, uB.y / lengthB} : (m2Vec2){0.0f, 0.0f};
-    c->baseC = world->joints.jointRefAngle[j] - lengthA - ratio * lengthB;
-    c->motorSpeed = ratio; // carried into the solve
-    float ruA = m2Cross2(c->rA, c->axis);
-    float ruB = m2Cross2(c->rB, c->perp);
-    float k = mA + iA * ruA * ruA + ratio * ratio * (mB + iB * ruB * ruB);
-    c->axialMass = k > 0.0f ? 1.0f / k : 0.0f;
+    m2Pos2 originA = world->bodies.transforms[c->bodyA].p;
+    m2Pos2 originB = world->bodies.transforms[c->bodyB].p;
+    m2Vec2 anchorA = m2RotateVec2(f->qA, world->joints.jointLocalAnchorA[j]);
+    m2Vec2 anchorB = m2RotateVec2(f->qB, world->joints.jointLocalAnchorB[j]);
+    c->ropeA = (m2Vec2){(float)(originA.x - world->joints.jointTargets[j].x) + anchorA.x,
+                        (float)(originA.y - world->joints.jointTargets[j].y) + anchorA.y};
+    c->ropeB = (m2Vec2){(float)(originB.x - world->joints.jointTargetsB[j].x) + anchorB.x,
+                        (float)(originB.y - world->joints.jointTargetsB[j].y) + anchorB.y};
+    c->ratio = world->joints.jointLength[j];
+    c->length = world->joints.jointRefAngle[j];
 }
 
-static void WarmStartPulley(m2World* world, const m2JointConstraint* c)
+// A rope now, and its unit direction (zero when limp).
+static m2Vec2 Rope(m2Vec2 rope0, m2Vec2 move, m2Vec2 arm, m2Vec2 arm0, float* length)
 {
-    // Pulley: PA = -L*uA on A, PB = -ratio*L*uB on B.
-    float L = c->impulse.x;
-    m2Vec2 PA = {-L * c->axis.x, -L * c->axis.y};
-    m2Vec2 PB = {-c->motorSpeed * L * c->perp.x, -c->motorSpeed * L * c->perp.y};
-    float mA = world->bodies.invMass[c->bodyA];
-    float iA = world->bodies.invInertia[c->bodyA];
-    float mB = world->bodies.invMass[c->bodyB];
-    float iB = world->bodies.invInertia[c->bodyB];
-    world->bodies.linearVelocities[c->bodyA].x += mA * PA.x;
-    world->bodies.linearVelocities[c->bodyA].y += mA * PA.y;
-    world->bodies.angularVelocities[c->bodyA] += iA * m2Cross2(c->rA, PA);
-    world->bodies.linearVelocities[c->bodyB].x += mB * PB.x;
-    world->bodies.linearVelocities[c->bodyB].y += mB * PB.y;
-    world->bodies.angularVelocities[c->bodyB] += iB * m2Cross2(c->rB, PB);
+    m2Vec2 rope = {rope0.x + move.x + (arm.x - arm0.x), rope0.y + move.y + (arm.y - arm0.y)};
+    *length = sqrtf(rope.x * rope.x + rope.y * rope.y);
+    return *length > 0.05f ? (m2Vec2){rope.x / *length, rope.y / *length} : (m2Vec2){0.0f, 0.0f};
 }
 
-static void SolvePulley(m2World* world, m2JointConstraint* c, const m2JointSolveContext* ctx)
+// The rope row and its error.
+static m2JointRow PulleyRow(const m2JointConstraint* c, const m2JointPose* pose, float* C)
 {
-    m2Vec2 vA = ctx->vA;
-    float wA = ctx->wA;
-    m2Vec2 vB = ctx->vB;
-    float wB = ctx->wB;
-    m2Vec2 drA = ctx->drA;
-    m2Vec2 drB = ctx->drB;
-    bool useBias = ctx->useBias;
-    // Pulley: Cdot = -dot(uA, vpA) - ratio * dot(uB, vpB),
-    // stiff-biased with C tracked through per-body position
-    // deltas against the frozen rope directions.
-    float ratio = c->motorSpeed;
-    float mA = world->bodies.invMass[c->bodyA];
-    float iA = world->bodies.invInertia[c->bodyA];
-    float mB = world->bodies.invMass[c->bodyB];
-    float iB = world->bodies.invInertia[c->bodyB];
-    float bias = 0.0f;
-    float massScale = 1.0f;
-    float impulseScale = 0.0f;
-    if (useBias)
-    {
-        m2Vec2 dsA = {world->solver.deltaPositions[c->bodyA].x + (drA.x - c->rA.x),
-                      world->solver.deltaPositions[c->bodyA].y + (drA.y - c->rA.y)};
-        m2Vec2 dsB = {world->solver.deltaPositions[c->bodyB].x + (drB.x - c->rB.x),
-                      world->solver.deltaPositions[c->bodyB].y + (drB.y - c->rB.y)};
-        float C = c->baseC - (dsA.x * c->axis.x + dsA.y * c->axis.y) -
-                  ratio * (dsB.x * c->perp.x + dsB.y * c->perp.y);
-        bias = c->softness.massScale * c->softness.biasRate * C;
-        massScale = c->softness.massScale;
-        impulseScale = c->softness.impulseScale;
-    }
-    m2Vec2 vpA = {vA.x - wA * c->rA.y, vA.y + wA * c->rA.x};
-    m2Vec2 vpB = {vB.x - wB * c->rB.y, vB.y + wB * c->rB.x};
-    float cdot =
-        -(vpA.x * c->axis.x + vpA.y * c->axis.y) - ratio * (vpB.x * c->perp.x + vpB.y * c->perp.y);
-    float impulse = -c->axialMass * (massScale * cdot + bias) - impulseScale * c->impulse.x;
-    c->impulse.x += impulse;
-    m2Vec2 PA = {-impulse * c->axis.x, -impulse * c->axis.y};
-    m2Vec2 PB = {-ratio * impulse * c->perp.x, -ratio * impulse * c->perp.y};
-    world->bodies.linearVelocities[c->bodyA].x = vA.x + mA * PA.x;
-    world->bodies.linearVelocities[c->bodyA].y = vA.y + mA * PA.y;
-    world->bodies.angularVelocities[c->bodyA] = wA + iA * m2Cross2(c->rA, PA);
-    world->bodies.linearVelocities[c->bodyB].x = vB.x + mB * PB.x;
-    world->bodies.linearVelocities[c->bodyB].y = vB.y + mB * PB.y;
-    world->bodies.angularVelocities[c->bodyB] = wB + iB * m2Cross2(c->rB, PB);
+    float lengthA;
+    float lengthB;
+    m2Vec2 uA = Rope(c->ropeA, pose->moveA, pose->armA, c->armA, &lengthA);
+    m2Vec2 uB = Rope(c->ropeB, pose->moveB, pose->armB, c->armB, &lengthB);
+    *C = c->length - lengthA - c->ratio * lengthB;
+    m2JointRow row = {{-uA.x, -uA.y},
+                      -m2Cross2(pose->armA, uA),
+                      {-c->ratio * uB.x, -c->ratio * uB.y},
+                      -c->ratio * m2Cross2(pose->armB, uB)};
+    return row;
+}
+
+static void WarmStartPulley(const m2JointConstraint* c, const m2JointPose* pose, m2JointBodies* b)
+{
+    float C;
+    m2JointRow row = PulleyRow(c, pose, &C);
+    m2PushRow(&row, b, c->impulse.x);
+}
+
+static void SolvePulley(m2JointConstraint* c, const m2JointPose* pose, m2JointBodies* b,
+                        const m2JointPass* pass)
+{
+    float C;
+    m2JointRow row = PulleyRow(c, pose, &C);
+    m2SolveRow(&row, b, m2HeldDrive(c->soft, C, pass->biased), &c->impulse.x, -M2_ROW_FREE,
+               M2_ROW_FREE);
 }
 
 static void PulleyReaction(const m2World* world, int32_t j, float invH, float* force, float* torque)

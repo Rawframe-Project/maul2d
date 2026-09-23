@@ -121,6 +121,15 @@ Work toward 0.0.1, the first release of the reworked library.
   m/s. Contact points alternate their solve order each substep, which
   removes most of the sideways drift of dropped stacks (the 30-row
   pyramid top drifted 8.6 cm, now 0.1 cm).
+- Joint solver rewritten on scalar rows: each joint kind builds its
+  rows (a Jacobian and a drive: rigid, held, spring or limit) from the
+  pose the substep reached, and one row solver, a coupled-pair solver
+  and a closed-form point pair serve all eleven kinds. Joint rows now
+  follow the bodies' rotation within a step (arms, slide axes, rope
+  directions and lengths), the distance and pulley ropes use their
+  exact current length, and a singular coupled pair falls back to its
+  rows one at a time instead of being skipped. Joint-heavy scenes run
+  about 10% slower for now.
 
 ### Removed
 

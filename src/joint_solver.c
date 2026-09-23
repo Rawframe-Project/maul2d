@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The joint solver's stages: the setup every joint shares, dispatch to
-// the kind table (one joint_<kind>.c per type), impulse storage, and the
-// helpers the kinds share.
+// The joint solver's stages. Prepare fills what every joint shares and
+// hands the rest to its kind. Each pass then loads the two bodies,
+// works out where the substep has taken the joint, lets the kind solve
+// its rows against that pose, and stores the dynamic bodies back.
+// Joints run serially in slot order.
 
 #include "joint_solver.h"
 
@@ -12,8 +14,6 @@
 #include "world_internal.h"
 
 #include "maul2d/base.h"
-
-#include <math.h>
 
 static const m2JointKind* const s_kinds[] = {
     [m2_distanceJoint] = &m2_distanceJointKind,   [m2_revoluteJoint] = &m2_revoluteJointKind,
@@ -24,86 +24,139 @@ static const m2JointKind* const s_kinds[] = {
     [m2_ratchetJoint] = &m2_ratchetJointKind,
 };
 
+m2Softness m2StiffJointSoftness(float h)
+{
+    return m2MakeSoft(M2_JOINT_HERTZ, M2_JOINT_DAMPING_RATIO, h);
+}
+
+static bool Awake(const m2World* world, int32_t body)
+{
+    return world->bodies.types[body] == (uint8_t)m2_dynamicBody && world->bodies.asleep[body] == 0;
+}
+
+// True when the joint has rows to solve this step.
+static bool JointSolves(const m2World* world, int32_t j)
+{
+    int32_t bodyA = world->joints.jointBodyA[j];
+    int32_t bodyB = world->joints.jointBodyB[j];
+    if (world->joints.jointAlive[j] == 0 || s_kinds[world->joints.jointType[j]]->prepare == NULL)
+    {
+        return false; // gone, or a kind without rows (the filter joint)
+    }
+    if (world->bodies.disabled[bodyA] != 0 || world->bodies.disabled[bodyB] != 0)
+    {
+        return false; // a dormant end pauses the whole joint
+    }
+    if (world->joints.jointType[j] == (uint8_t)m2_mouseJoint)
+    {
+        return Awake(world, bodyB); // a mouse joint only ever moves body B
+    }
+    return Awake(world, bodyA) || Awake(world, bodyB);
+}
+
+static m2Vec2 WorldArm(const m2World* world, int32_t body, m2Vec2 localAnchor)
+{
+    m2Vec2 center = world->bodies.localCenters[body];
+    m2Vec2 arm = {localAnchor.x - center.x, localAnchor.y - center.y};
+    return m2RotateVec2(world->bodies.transforms[body].q, arm);
+}
+
+// Anchor B minus anchor A, the body origins subtracted in double first.
+static m2Vec2 AnchorGap(const m2World* world, const m2JointConstraint* c)
+{
+    m2Transform tA = world->bodies.transforms[c->bodyA];
+    m2Transform tB = world->bodies.transforms[c->bodyB];
+    m2Vec2 centerA = m2RotateVec2(tA.q, world->bodies.localCenters[c->bodyA]);
+    m2Vec2 centerB = m2RotateVec2(tB.q, world->bodies.localCenters[c->bodyB]);
+    return (m2Vec2){(float)(tB.p.x - tA.p.x) + (centerB.x - centerA.x) + (c->armB.x - c->armA.x),
+                    (float)(tB.p.y - tA.p.y) + (centerB.y - centerA.y) + (c->armB.y - c->armA.y)};
+}
+
+static void PrepareCommon(const m2World* world, m2JointConstraint* c, int32_t j, float h)
+{
+    const m2Joints* joints = &world->joints;
+    c->jointIndex = j;
+    c->bodyA = joints->jointBodyA[j];
+    c->bodyB = joints->jointBodyB[j];
+    c->type = joints->jointType[j];
+    c->flags = joints->jointFlags[j];
+    c->soft = joints->jointHertz[j] > 0.0f
+                  ? m2MakeSoft(joints->jointHertz[j], joints->jointDamping[j], h)
+                  : m2StiffJointSoftness(h);
+    c->spring = c->soft;
+    c->linearSpring = false;
+    c->angularSpring = false;
+    c->motorSpeed = joints->jointMotorSpeed[j];
+    c->maxMotorImpulse = h * joints->jointMaxMotor[j];
+    c->lower = joints->jointLower[j];
+    c->upper = joints->jointUpper[j];
+    c->impulse = joints->jointImpulse[j];
+    c->motorImpulse = joints->jointMotorImpulse[j];
+    c->lowerImpulse = joints->jointLowerImpulse[j];
+    c->upperImpulse = joints->jointUpperImpulse[j];
+    c->springImpulse = joints->jointSpringImpulse[j];
+    c->armA = WorldArm(world, c->bodyA, joints->jointLocalAnchorA[j]);
+    c->armB = WorldArm(world, c->bodyB, joints->jointLocalAnchorB[j]);
+    c->gap = AnchorGap(world, c);
+    m2Rot qA = world->bodies.transforms[c->bodyA].q;
+    m2Rot qB = world->bodies.transforms[c->bodyB].q;
+    c->angle = m2UnwindAngle(m2RelativeJointAngle(qA, qB) - joints->jointRefAngle[j]);
+}
+
 int32_t m2PrepareJoints(m2World* world, m2JointConstraint* joints, float h)
 {
-    // A joint with zero hertz gets the stiff default softness.
     int32_t count = 0;
     for (int32_t j = 0; j < world->joints.maxJointIndex; ++j)
     {
-        if (world->joints.jointAlive[j] == 0)
+        if (!JointSolves(world, j))
         {
             continue;
         }
-        const m2JointKind* kind = s_kinds[world->joints.jointType[j]];
-        if (kind->prepare == NULL)
-        {
-            continue; // filter joints have no rows at all
-        }
-        if (world->joints.jointType[j] == (uint8_t)m2_mouseJoint &&
-            (world->bodies.types[world->joints.jointBodyB[j]] != (uint8_t)m2_dynamicBody ||
-             world->bodies.asleep[world->joints.jointBodyB[j]] != 0))
-        {
-            continue; // a mouse joint only ever moves body B
-        }
-        if (world->bodies.disabled[world->joints.jointBodyA[j]] != 0 ||
-            world->bodies.disabled[world->joints.jointBodyB[j]] != 0)
-        {
-            continue; // a dormant end pauses the whole joint
-        }
-        int32_t bodyA = world->joints.jointBodyA[j];
-        int32_t bodyB = world->joints.jointBodyB[j];
-        if ((world->bodies.types[bodyA] != (uint8_t)m2_dynamicBody ||
-             world->bodies.asleep[bodyA] != 0) &&
-            (world->bodies.types[bodyB] != (uint8_t)m2_dynamicBody ||
-             world->bodies.asleep[bodyB] != 0))
-        {
-            continue; // both ends inert this step
-        }
         m2JointConstraint* c = joints + count;
         count += 1;
-        c->jointIndex = j;
-        c->bodyA = bodyA;
-        c->bodyB = bodyB;
-        c->type = world->joints.jointType[j];
-        c->flags = world->joints.jointFlags[j];
-        float hertz = world->joints.jointHertz[j] > 0.0f ? world->joints.jointHertz[j] : 60.0f;
-        float damping = world->joints.jointHertz[j] > 0.0f ? world->joints.jointDamping[j] : 2.0f;
-        c->softness = m2MakeSoft(hertz, damping, h);
-        c->impulse = world->joints.jointImpulse[j];
-        c->motorSpeed = world->joints.jointMotorSpeed[j];
-        c->maxMotorImpulse = h * world->joints.jointMaxMotor[j];
-        c->lower = world->joints.jointLower[j];
-        c->upper = world->joints.jointUpper[j];
-        c->motorImpulse = world->joints.jointMotorImpulse[j];
-        c->lowerImpulse = world->joints.jointLowerImpulse[j];
-        c->upperImpulse = world->joints.jointUpperImpulse[j];
-        c->springImpulse = world->joints.jointSpringImpulse[j];
-
-        m2Rot qA = world->bodies.transforms[bodyA].q;
-        m2Rot qB = world->bodies.transforms[bodyB].q;
-        m2Vec2 lcA = world->bodies.localCenters[bodyA];
-        m2Vec2 lcB = world->bodies.localCenters[bodyB];
-        c->rA = m2RotateVec2(qA, (m2Vec2){world->joints.jointLocalAnchorA[j].x - lcA.x,
-                                          world->joints.jointLocalAnchorA[j].y - lcA.y});
-        c->rB = m2RotateVec2(qB, (m2Vec2){world->joints.jointLocalAnchorB[j].x - lcB.x,
-                                          world->joints.jointLocalAnchorB[j].y - lcB.y});
-        m2Vec2 comA = m2RotateVec2(qA, lcA);
-        m2Vec2 comB = m2RotateVec2(qB, lcB);
-        float dx =
-            (float)(world->bodies.transforms[bodyB].p.x - world->bodies.transforms[bodyA].p.x) +
-            (comB.x - comA.x) + c->rB.x - c->rA.x;
-        float dy =
-            (float)(world->bodies.transforms[bodyB].p.y - world->bodies.transforms[bodyA].p.y) +
-            (comB.y - comA.y) + c->rB.y - c->rA.y;
-        float mA = world->bodies.invMass[bodyA];
-        float iA = world->bodies.invInertia[bodyA];
-        float mB = world->bodies.invMass[bodyB];
-        float iB = world->bodies.invInertia[bodyB];
-
-        m2JointFrame frame = {j, h, qA, qB, lcA, lcB, dx, dy, mA, iA, mB, iB};
-        kind->prepare(world, c, &frame);
+        PrepareCommon(world, c, j, h);
+        m2JointFrame frame = {j, h, world->bodies.transforms[c->bodyA].q,
+                              world->bodies.transforms[c->bodyB].q};
+        s_kinds[c->type]->prepare(world, c, &frame);
     }
     return count;
+}
+
+static m2JointBodies LoadBodies(const m2World* world, const m2JointConstraint* c)
+{
+    m2JointBodies b = {
+        world->bodies.linearVelocities[c->bodyA], world->bodies.angularVelocities[c->bodyA],
+        world->bodies.linearVelocities[c->bodyB], world->bodies.angularVelocities[c->bodyB],
+        world->bodies.invMass[c->bodyA],          world->bodies.invInertia[c->bodyA],
+        world->bodies.invMass[c->bodyB],          world->bodies.invInertia[c->bodyB],
+    };
+    return b;
+}
+
+static void StoreBodies(m2World* world, const m2JointConstraint* c, const m2JointBodies* b)
+{
+    if (world->bodies.types[c->bodyA] == (uint8_t)m2_dynamicBody)
+    {
+        world->bodies.linearVelocities[c->bodyA] = b->vA;
+        world->bodies.angularVelocities[c->bodyA] = b->wA;
+    }
+    if (world->bodies.types[c->bodyB] == (uint8_t)m2_dynamicBody)
+    {
+        world->bodies.linearVelocities[c->bodyB] = b->vB;
+        world->bodies.angularVelocities[c->bodyB] = b->wB;
+    }
+}
+
+static m2JointPose CurrentPose(const m2World* world, const m2JointConstraint* c)
+{
+    m2JointPose pose;
+    pose.moveA = world->solver.deltaPositions[c->bodyA];
+    pose.moveB = world->solver.deltaPositions[c->bodyB];
+    pose.turnA = world->solver.deltaRotations[c->bodyA];
+    pose.turnB = world->solver.deltaRotations[c->bodyB];
+    pose.armA = m2RotateVec2(pose.turnA, c->armA);
+    pose.armB = m2RotateVec2(pose.turnB, c->armB);
+    return pose;
 }
 
 void m2WarmStartJoints(m2World* world, m2JointConstraint* joints, int32_t count)
@@ -111,31 +164,24 @@ void m2WarmStartJoints(m2World* world, m2JointConstraint* joints, int32_t count)
     for (int32_t i = 0; i < count; ++i)
     {
         m2JointConstraint* c = joints + i;
-        s_kinds[c->type]->warmStart(world, c);
+        m2JointPose pose = CurrentPose(world, c);
+        m2JointBodies b = LoadBodies(world, c);
+        s_kinds[c->type]->warmStart(c, &pose, &b);
+        StoreBodies(world, c, &b);
     }
 }
 
-void m2SolveJoints(m2World* world, m2JointConstraint* joints, int32_t count, bool useBias,
+void m2SolveJoints(m2World* world, m2JointConstraint* joints, int32_t count, bool biased,
                    float invH)
 {
+    m2JointPass pass = {biased, invH};
     for (int32_t i = 0; i < count; ++i)
     {
         m2JointConstraint* c = joints + i;
-        m2JointSolveContext ctx;
-        ctx.vA = world->bodies.linearVelocities[c->bodyA];
-        ctx.wA = world->bodies.angularVelocities[c->bodyA];
-        ctx.vB = world->bodies.linearVelocities[c->bodyB];
-        ctx.wB = world->bodies.angularVelocities[c->bodyB];
-        m2Vec2 dp = {
-            world->solver.deltaPositions[c->bodyB].x - world->solver.deltaPositions[c->bodyA].x,
-            world->solver.deltaPositions[c->bodyB].y - world->solver.deltaPositions[c->bodyA].y};
-        ctx.drB = m2RotateVec2(world->solver.deltaRotations[c->bodyB], c->rB);
-        ctx.drA = m2RotateVec2(world->solver.deltaRotations[c->bodyA], c->rA);
-        ctx.ds = (m2Vec2){dp.x + (ctx.drB.x - c->rB.x) - (ctx.drA.x - c->rA.x),
-                          dp.y + (ctx.drB.y - c->rB.y) - (ctx.drA.y - c->rA.y)};
-        ctx.useBias = useBias;
-        ctx.invH = invH;
-        s_kinds[c->type]->solve(world, c, &ctx);
+        m2JointPose pose = CurrentPose(world, c);
+        m2JointBodies b = LoadBodies(world, c);
+        s_kinds[c->type]->solve(c, &pose, &b, &pass);
+        StoreBodies(world, c, &b);
     }
 }
 
@@ -164,119 +210,36 @@ void m2JointReactionMagnitudes(const m2World* world, int32_t j, float invH, floa
     }
 }
 
-// --- Shared by the kinds -----------------------------------------------------
-
-void m2ApplyJointImpulse(m2World* world, const m2JointConstraint* c, m2Vec2 P)
+m2Vec2 m2PoseGap(const m2JointConstraint* c, const m2JointPose* pose)
 {
-    float mA = world->bodies.invMass[c->bodyA];
-    float iA = world->bodies.invInertia[c->bodyA];
-    float mB = world->bodies.invMass[c->bodyB];
-    float iB = world->bodies.invInertia[c->bodyB];
-    world->bodies.linearVelocities[c->bodyA].x -= mA * P.x;
-    world->bodies.linearVelocities[c->bodyA].y -= mA * P.y;
-    world->bodies.angularVelocities[c->bodyA] -= iA * m2Cross2(c->rA, P);
-    world->bodies.linearVelocities[c->bodyB].x += mB * P.x;
-    world->bodies.linearVelocities[c->bodyB].y += mB * P.y;
-    world->bodies.angularVelocities[c->bodyB] += iB * m2Cross2(c->rB, P);
+    return (m2Vec2){c->gap.x + (pose->moveB.x - pose->moveA.x) + (pose->armB.x - c->armB.x) -
+                        (pose->armA.x - c->armA.x),
+                    c->gap.y + (pose->moveB.y - pose->moveA.y) + (pose->armB.y - c->armB.y) -
+                        (pose->armA.y - c->armA.y)};
 }
 
-// Slider impulses act along Jacobians frozen at prepare, not through rA
-// and rB: LA and LB are the angular parts.
-void m2ApplyJointArmImpulse(m2World* world, const m2JointConstraint* c, m2Vec2 P, float LA,
-                            float LB)
+m2JointRow m2AxisRow(const m2JointPose* pose, m2Vec2 gap, m2Vec2 axis)
 {
-    float mA = world->bodies.invMass[c->bodyA];
-    float iA = world->bodies.invInertia[c->bodyA];
-    float mB = world->bodies.invMass[c->bodyB];
-    float iB = world->bodies.invInertia[c->bodyB];
-    world->bodies.linearVelocities[c->bodyA].x -= mA * P.x;
-    world->bodies.linearVelocities[c->bodyA].y -= mA * P.y;
-    world->bodies.angularVelocities[c->bodyA] -= iA * LA;
-    world->bodies.linearVelocities[c->bodyB].x += mB * P.x;
-    world->bodies.linearVelocities[c->bodyB].y += mB * P.y;
-    world->bodies.angularVelocities[c->bodyB] += iB * LB;
+    m2Vec2 lever = {pose->armA.x + gap.x, pose->armA.y + gap.y};
+    return m2LineRow(lever, pose->armB, axis);
 }
 
-// One axial sub-constraint (motor or limit) on the shared axial
-// Jacobian; oneSided clamps the accumulator at zero (limits), otherwise
-// it clamps symmetrically at the motor budget. Returns the delta.
-float m2SolveJointAxial(m2JointConstraint* c, float cdot, float bias, float massScale,
-                        float impulseScale, float* accumulated, bool oneSided)
+float m2PoseAngle(const m2JointConstraint* c, const m2JointPose* pose)
 {
-    float old = *accumulated;
-    float impulse = -massScale * c->axialMass * (cdot + bias) - impulseScale * old;
-    float next = old + impulse;
-    if (oneSided)
-    {
-        next = m2MaxF(next, 0.0f);
-    }
-    else
-    {
-        next = m2ClampF(next, -c->maxMotorImpulse, c->maxMotorImpulse);
-    }
-    *accumulated = next;
-    return next - old;
+    return m2UnwindAngle(c->angle + m2RelativeJointAngle(pose->turnA, pose->turnB));
 }
 
-// The pinned-point 2x2 block shared by the revolute, weld and motor
-// joints: separation at prepare and its effective mass.
-void m2PreparePointBlock(m2JointConstraint* c, const m2JointFrame* f)
+void m2SolveLimits(m2JointConstraint* c, const m2JointRow* row, float value, m2Softness soft,
+                   m2JointBodies* b, const m2JointPass* pass)
 {
-    float mA = f->mA;
-    float iA = f->iA;
-    float mB = f->mB;
-    float iB = f->iB;
-    c->baseCVec = (m2Vec2){f->dx, f->dy};
-    c->k11 = mA + mB + iA * c->rA.y * c->rA.y + iB * c->rB.y * c->rB.y;
-    c->k12 = -iA * c->rA.x * c->rA.y - iB * c->rB.x * c->rB.y;
-    c->k22 = mA + mB + iA * c->rA.x * c->rA.x + iB * c->rB.x * c->rB.x;
+    m2RowDrive lower = m2LimitDrive(soft, value - c->lower, pass->invH, pass->biased);
+    m2SolveRow(row, b, lower, &c->lowerImpulse, 0.0f, M2_ROW_FREE);
+    m2JointRow back = m2ScaleRow(*row, -1.0f);
+    m2RowDrive upper = m2LimitDrive(soft, c->upper - value, pass->invH, pass->biased);
+    m2SolveRow(&back, b, upper, &c->upperImpulse, 0.0f, M2_ROW_FREE);
 }
 
-// Warm start for the point joints: the point block through the arms,
-// and every angular accumulator (weld's angle lock and the motor
-// joint's torque ride the motor slot; unused ones are zero).
-void m2WarmStartPointJoint(m2World* world, const m2JointConstraint* c)
+void m2WarmStartLimits(const m2JointConstraint* c, const m2JointRow* row, m2JointBodies* b)
 {
-    m2ApplyJointImpulse(world, c, c->impulse);
-    float axial = c->springImpulse + c->motorImpulse + c->lowerImpulse - c->upperImpulse;
-    world->bodies.angularVelocities[c->bodyA] -= world->bodies.invInertia[c->bodyA] * axial;
-    world->bodies.angularVelocities[c->bodyB] += world->bodies.invInertia[c->bodyB] * axial;
-}
-
-// The revolute and weld point block, after their angular rows: stores
-// the angular velocities those rows produced, then solves the 2x2 with
-// a guarded determinant (a singular block skips the row).
-void m2SolvePointBlock(m2World* world, m2JointConstraint* c, const m2JointSolveContext* ctx,
-                       float wA, float wB, bool biased)
-{
-    world->bodies.angularVelocities[c->bodyA] = wA;
-    world->bodies.angularVelocities[c->bodyB] = wB;
-    m2Vec2 vA = ctx->vA;
-    m2Vec2 vB = ctx->vB;
-    m2Vec2 bias = {0.0f, 0.0f};
-    float massScale = 1.0f;
-    float impulseScale = 0.0f;
-    if (biased)
-    {
-        m2Vec2 C = {c->baseCVec.x + ctx->ds.x, c->baseCVec.y + ctx->ds.y};
-        bias.x = c->softness.massScale * c->softness.biasRate * C.x;
-        bias.y = c->softness.massScale * c->softness.biasRate * C.y;
-        massScale = c->softness.massScale;
-        impulseScale = c->softness.impulseScale;
-    }
-    m2Vec2 vrA = {vA.x - wA * c->rA.y, vA.y + wA * c->rA.x};
-    m2Vec2 vrB = {vB.x - wB * c->rB.y, vB.y + wB * c->rB.x};
-    m2Vec2 cdot = {vrB.x - vrA.x, vrB.y - vrA.y};
-    m2Vec2 b = {massScale * cdot.x + bias.x, massScale * cdot.y + bias.y};
-    float det = c->k11 * c->k22 - c->k12 * c->k12;
-    if (det <= 0.0f)
-    {
-        return;
-    }
-    float invDet = 1.0f / det;
-    m2Vec2 impulse = {-invDet * (c->k22 * b.x - c->k12 * b.y) - impulseScale * c->impulse.x,
-                      -invDet * (c->k11 * b.y - c->k12 * b.x) - impulseScale * c->impulse.y};
-    c->impulse.x += impulse.x;
-    c->impulse.y += impulse.y;
-    m2ApplyJointImpulse(world, c, impulse);
+    m2PushRow(row, b, c->lowerImpulse - c->upperImpulse);
 }

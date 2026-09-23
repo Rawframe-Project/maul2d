@@ -98,213 +98,71 @@ m2JointId m2CreatePrismaticJoint(m2WorldId worldId, const m2PrismaticJointDef* d
 }
 
 // --- Solver ---------------------------------------------------------------
+//
+// The slide axis is fixed in A and turns with it. Along the axis: the
+// motor (motorImpulse) and the limits; across it, the perpendicular row
+// and the angle row as one coupled pair (impulse).
 
 static void PreparePrismatic(m2World* world, m2JointConstraint* c, const m2JointFrame* f)
 {
-    int32_t j = f->joint;
-    m2Rot qA = f->qA;
-    m2Rot qB = f->qB;
-    float dx = f->dx;
-    float dy = f->dy;
-    float mA = f->mA;
-    float iA = f->iA;
-    float mB = f->mB;
-    float iB = f->iB;
-    // Prismatic frame at prepare: Jacobians frozen for the
-    // substep like the revolute point block (recorded
-    // adaptation of the reference's per-iteration re-rotation).
-    c->axis = m2RotateVec2(qA, world->joints.jointLocalAxisA[j]);
-    c->perp = (m2Vec2){-c->axis.y, c->axis.x};
-    c->baseC = dx * c->axis.x + dy * c->axis.y; // translation0
-    c->baseCVec = (m2Vec2){dx * c->perp.x + dy * c->perp.y, 0.0f};
-    c->baseAngle = m2UnwindAngle(m2RelativeJointAngle(qA, qB) - world->joints.jointRefAngle[j]);
-    m2Vec2 dPlusRA = {dx + c->rA.x, dy + c->rA.y};
-    c->a1 = m2Cross2(dPlusRA, c->axis);
-    c->a2 = m2Cross2(c->rB, c->axis);
-    c->s1 = m2Cross2(dPlusRA, c->perp);
-    c->s2 = m2Cross2(c->rB, c->perp);
-    float ka = mA + mB + iA * c->a1 * c->a1 + iB * c->a2 * c->a2;
-    c->axialMass = ka > 0.0f ? 1.0f / ka : 0.0f;
-    c->k11 = mA + mB + iA * c->s1 * c->s1 + iB * c->s2 * c->s2;
-    c->k12 = iA * c->s1 + iB * c->s2;
-    float k22 = iA + iB;
-    c->k22 = k22 > 0.0f ? k22 : 1.0f; // fixed-rotation guard (reference)
+    c->axis = m2RotateVec2(f->qA, world->joints.jointLocalAxisA[f->joint]);
 }
 
-static void WarmStartPrismatic(m2World* world, const m2JointConstraint* c)
+static void SlideRows(const m2JointConstraint* c, const m2JointPose* pose, m2JointRow* along,
+                      m2JointRow cross[2], float* travel, float* offAxis)
 {
-    float axial = c->motorImpulse + c->lowerImpulse - c->upperImpulse;
-    m2Vec2 P = {axial * c->axis.x + c->impulse.x * c->perp.x,
-                axial * c->axis.y + c->impulse.x * c->perp.y};
-    float LA = axial * c->a1 + c->impulse.x * c->s1 + c->impulse.y;
-    float LB = axial * c->a2 + c->impulse.x * c->s2 + c->impulse.y;
-    m2ApplyJointArmImpulse(world, c, P, LA, LB);
+    m2Vec2 axis = m2RotateVec2(pose->turnA, c->axis);
+    m2Vec2 perp = {-axis.y, axis.x};
+    m2Vec2 gap = m2PoseGap(c, pose);
+    *along = m2AxisRow(pose, gap, axis);
+    cross[0] = m2AxisRow(pose, gap, perp);
+    cross[1] = m2TurnRow();
+    *travel = gap.x * axis.x + gap.y * axis.y;
+    *offAxis = gap.x * perp.x + gap.y * perp.y;
 }
 
-static void SolvePrismatic(m2World* world, m2JointConstraint* c, const m2JointSolveContext* ctx)
+static void WarmStartPrismatic(const m2JointConstraint* c, const m2JointPose* pose,
+                               m2JointBodies* b)
 {
-    m2Vec2 vA = ctx->vA;
-    float wA = ctx->wA;
-    m2Vec2 vB = ctx->vB;
-    float wB = ctx->wB;
-    m2Vec2 ds = ctx->ds;
-    bool useBias = ctx->useBias;
-    float invH = ctx->invH;
-    float mA = world->bodies.invMass[c->bodyA];
-    float iA = world->bodies.invInertia[c->bodyA];
-    float mB = world->bodies.invMass[c->bodyB];
-    float iB = world->bodies.invInertia[c->bodyB];
-    float translation = c->baseC + c->axis.x * ds.x + c->axis.y * ds.y;
+    m2JointRow along;
+    m2JointRow cross[2];
+    float travel;
+    float offAxis;
+    SlideRows(c, pose, &along, cross, &travel, &offAxis);
+    m2PushRow(&along, b, c->motorImpulse);
+    m2WarmStartLimits(c, &along, b);
+    m2PushRow(&cross[0], b, c->impulse.x);
+    m2PushRow(&cross[1], b, c->impulse.y);
+}
 
-    // Fresh effective mass per substep: the axial
-    // and perpendicular torque arms a1/s1 track the current
-    // separation, so recompute them and the effective masses here
-    // instead of leaving them frozen at prepare. A stressed slider
-    // whose geometry rotates within the step no longer solves against
-    // a stale mass and diverges. cross is linear, so the fresh arm is
-    // a1_prepare + cross(ds, axis); a2/s2 and the angle row do not
-    // depend on the separation. The prepare-time values are swapped
-    // back in at the end so the next substep recomputes from them.
-    float a1Frozen = c->a1;
-    float s1Frozen = c->s1;
-    float axialMassFrozen = c->axialMass;
-    float k11Frozen = c->k11;
-    float k12Frozen = c->k12;
-    c->a1 = a1Frozen + m2Cross2(ds, c->axis);
-    c->s1 = s1Frozen + m2Cross2(ds, c->perp);
-    float kaFresh = mA + mB + iA * c->a1 * c->a1 + iB * c->a2 * c->a2;
-    c->axialMass = kaFresh > 0.0f ? 1.0f / kaFresh : 0.0f;
-    c->k11 = mA + mB + iA * c->s1 * c->s1 + iB * c->s2 * c->s2;
-    c->k12 = iA * c->s1 + iB * c->s2;
-
-    if ((c->flags & M2_JOINT_MOTOR) != 0 && c->axialMass > 0.0f)
+static void SolvePrismatic(m2JointConstraint* c, const m2JointPose* pose, m2JointBodies* b,
+                           const m2JointPass* pass)
+{
+    m2JointRow along;
+    m2JointRow cross[2];
+    float travel;
+    float offAxis;
+    SlideRows(c, pose, &along, cross, &travel, &offAxis);
+    if ((c->flags & M2_JOINT_MOTOR) != 0)
     {
-        float cdot =
-            c->axis.x * (vB.x - vA.x) + c->axis.y * (vB.y - vA.y) + c->a2 * wB - c->a1 * wA;
-        float delta =
-            m2SolveJointAxial(c, cdot - c->motorSpeed, 0.0f, 1.0f, 0.0f, &c->motorImpulse, false);
-        vA.x -= mA * delta * c->axis.x;
-        vA.y -= mA * delta * c->axis.y;
-        wA -= iA * delta * c->a1;
-        vB.x += mB * delta * c->axis.x;
-        vB.y += mB * delta * c->axis.y;
-        wB += iB * delta * c->a2;
+        m2SolveRow(&along, b, m2RigidDrive(-c->motorSpeed), &c->motorImpulse, -c->maxMotorImpulse,
+                   c->maxMotorImpulse);
     }
-    if ((c->flags & M2_JOINT_LIMIT) != 0 && c->axialMass > 0.0f)
+    if ((c->flags & M2_JOINT_LIMIT) != 0)
     {
-        { // lower translation limit
-            float C = translation - c->lower;
-            float bias = 0.0f;
-            float massScale = 1.0f;
-            float impulseScale = 0.0f;
-            if (C > 0.0f)
-            {
-                // Clamp the speculative distance to a safe span: a slider
-                // far inside its range cannot inject a huge corrective
-                // velocity toward the limit.
-                bias = m2MinF(C, 1.0f) * invH;
-            }
-            else if (useBias)
-            {
-                bias = c->softness.biasRate * C;
-                massScale = c->softness.massScale;
-                impulseScale = c->softness.impulseScale;
-            }
-            float cdot =
-                c->axis.x * (vB.x - vA.x) + c->axis.y * (vB.y - vA.y) + c->a2 * wB - c->a1 * wA;
-            float delta =
-                m2SolveJointAxial(c, cdot, bias, massScale, impulseScale, &c->lowerImpulse, true);
-            vA.x -= mA * delta * c->axis.x;
-            vA.y -= mA * delta * c->axis.y;
-            wA -= iA * delta * c->a1;
-            vB.x += mB * delta * c->axis.x;
-            vB.y += mB * delta * c->axis.y;
-            wB += iB * delta * c->a2;
-        }
-        { // upper limit: signs flipped, impulse stays positive
-            float C = c->upper - translation;
-            float bias = 0.0f;
-            float massScale = 1.0f;
-            float impulseScale = 0.0f;
-            if (C > 0.0f)
-            {
-                // Speculative distance clamped to a safe span.
-                bias = m2MinF(C, 1.0f) * invH;
-            }
-            else if (useBias)
-            {
-                bias = c->softness.biasRate * C;
-                massScale = c->softness.massScale;
-                impulseScale = c->softness.impulseScale;
-            }
-            float cdot =
-                c->axis.x * (vA.x - vB.x) + c->axis.y * (vA.y - vB.y) + c->a1 * wA - c->a2 * wB;
-            float delta =
-                m2SolveJointAxial(c, cdot, bias, massScale, impulseScale, &c->upperImpulse, true);
-            vA.x += mA * delta * c->axis.x;
-            vA.y += mA * delta * c->axis.y;
-            wA += iA * delta * c->a1;
-            vB.x -= mB * delta * c->axis.x;
-            vB.y -= mB * delta * c->axis.y;
-            wB -= iB * delta * c->a2;
-        }
+        m2SolveLimits(c, &along, travel, c->soft, b, pass);
     }
-    { // perpendicular + angle lock, block form (reference)
-        float cdotPerp =
-            c->perp.x * (vB.x - vA.x) + c->perp.y * (vB.y - vA.y) + c->s2 * wB - c->s1 * wA;
-        float cdotAngle = wB - wA;
-        m2Vec2 bias = {0.0f, 0.0f};
-        float massScale = 1.0f;
-        float impulseScale = 0.0f;
-        if (useBias)
-        {
-            float perpC = c->baseCVec.x + c->perp.x * ds.x + c->perp.y * ds.y;
-            float angleC = m2UnwindAngle(
-                c->baseAngle + m2RelativeJointAngle(world->solver.deltaRotations[c->bodyA],
-                                                    world->solver.deltaRotations[c->bodyB]));
-            bias.x = c->softness.biasRate * perpC;
-            bias.y = c->softness.biasRate * angleC;
-            massScale = c->softness.massScale;
-            impulseScale = c->softness.impulseScale;
-        }
-        float det = c->k11 * c->k22 - c->k12 * c->k12;
-        if (det > 0.0f)
-        {
-            float invDet = 1.0f / det;
-            m2Vec2 b = {cdotPerp + bias.x, cdotAngle + bias.y};
-            m2Vec2 impulse = {
-                -massScale * invDet * (c->k22 * b.x - c->k12 * b.y) - impulseScale * c->impulse.x,
-                -massScale * invDet * (c->k11 * b.y - c->k12 * b.x) - impulseScale * c->impulse.y};
-            c->impulse.x += impulse.x;
-            c->impulse.y += impulse.y;
-            m2Vec2 P = {impulse.x * c->perp.x, impulse.x * c->perp.y};
-            float LA = impulse.x * c->s1 + impulse.y;
-            float LB = impulse.x * c->s2 + impulse.y;
-            vA.x -= mA * P.x;
-            vA.y -= mA * P.y;
-            wA -= iA * LA;
-            vB.x += mB * P.x;
-            vB.y += mB * P.y;
-            wB += iB * LB;
-        }
-    }
-    // Swap the prepare-time arms and masses back so the next substep
-    // rebuilds the fresh values from them, not from this substep's.
-    c->a1 = a1Frozen;
-    c->s1 = s1Frozen;
-    c->axialMass = axialMassFrozen;
-    c->k11 = k11Frozen;
-    c->k12 = k12Frozen;
-    world->bodies.linearVelocities[c->bodyA] = vA;
-    world->bodies.angularVelocities[c->bodyA] = wA;
-    world->bodies.linearVelocities[c->bodyB] = vB;
-    world->bodies.angularVelocities[c->bodyB] = wB;
+    float angle = pass->biased ? m2PoseAngle(c, pose) : 0.0f;
+    m2RowDrive x = m2HeldDrive(c->soft, offAxis, pass->biased);
+    m2RowDrive y = m2HeldDrive(c->soft, angle, pass->biased);
+    m2SolveRowPair(cross, b, (m2Vec2){x.bias, y.bias}, x, &c->impulse);
 }
 
 static void PrismaticReaction(const m2World* world, int32_t j, float invH, float* force,
                               float* torque)
 {
-    // (perpendicular, angle) block plus the axial motor and limits.
+    // The perpendicular row and the axial motor and limits as force, the
+    // angle row as torque.
     m2Vec2 impulse = world->joints.jointImpulse[j];
     float axial = world->joints.jointSpringImpulse[j] + world->joints.jointMotorImpulse[j] +
                   world->joints.jointLowerImpulse[j] - world->joints.jointUpperImpulse[j];

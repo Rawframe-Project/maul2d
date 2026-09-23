@@ -157,139 +157,59 @@ float m2MotorJoint_GetCorrectionFactor(m2JointId jointId)
 }
 
 // --- Solver ---------------------------------------------------------------
+//
+// The motor joint drives B toward a pose relative to A: the angle row
+// (motorImpulse) within the torque budget, then the point rows
+// (impulse) within the force budget. Without a spring both remove the
+// correction factor's share of their error each step; with one they
+// pull as that spring.
 
 static void PrepareMotor(m2World* world, m2JointConstraint* c, const m2JointFrame* f)
 {
     int32_t j = f->joint;
-    float h = f->h;
-    m2PreparePointBlock(c, f);
-    // Separations are measured against the offsets. linearOffset lives
-    // in A's frame (the documented contract; the reference's code
-    // disagrees with its own comment and we side with the comment).
-    m2Vec2 offset = m2RotateVec2(f->qA, world->joints.jointLocalAxisA[j]);
-    c->baseCVec = (m2Vec2){f->dx - offset.x, f->dy - offset.y};
-    c->baseAngle =
-        m2UnwindAngle(m2RelativeJointAngle(f->qA, f->qB) - world->joints.jointRefAngle[j]);
-    float k = f->iA + f->iB;
-    c->axialMass = k > 0.0f ? 1.0f / k : 0.0f;
-    // correctionFactor rides the motorSpeed slot into the solve; the
-    // linear budget rides lower.
-    c->motorSpeed = world->joints.jointDamping[j];
-    c->lower = h * world->joints.jointLength[j];
-    if (world->joints.jointHertz2[j] > 0.0f)
+    // The linear offset lives in A's frame and turns with A.
+    c->axis = m2RotateVec2(f->qA, world->joints.jointLocalAxisA[j]);
+    c->correction = world->joints.jointDamping[j];
+    c->maxPullImpulse = f->h * world->joints.jointLength[j];
+    c->linearSpring = world->joints.jointHertz2[j] > 0.0f;
+    if (c->linearSpring)
     {
-        // Spring drive: a soft softness replaces the hard
-        // correctionFactor bias in both rows.
-        c->flags |= M2_JOINT_SPRING_DRIVE;
-        c->softness = m2MakeSoft(world->joints.jointHertz2[j], world->joints.jointDamping2[j], h);
+        c->spring = m2MakeSoft(world->joints.jointHertz2[j], world->joints.jointDamping2[j], f->h);
     }
-    c->linearSpring = false;
-    c->angularSpring = false;
-    c->softness2 = m2MakeSoft(60.0f, 2.0f, h);
 }
 
-static void SolveMotor(m2World* world, m2JointConstraint* c, const m2JointSolveContext* ctx)
+static void WarmStartMotor(const m2JointConstraint* c, const m2JointPose* pose, m2JointBodies* b)
 {
-    m2Vec2 vA = ctx->vA;
-    float wA = ctx->wA;
-    m2Vec2 vB = ctx->vB;
-    float wB = ctx->wB;
-    m2Vec2 ds = ctx->ds;
-    float invH = ctx->invH;
-    // Motor joint (reference solve, always biased): angular row
-    // first, then the clamped linear block. correctionFactor
-    // rides the motorSpeed slot, the force budget rides lower.
-    float mA = world->bodies.invMass[c->bodyA];
-    float iA = world->bodies.invInertia[c->bodyA];
-    float mB = world->bodies.invMass[c->bodyB];
-    float iB = world->bodies.invInertia[c->bodyB];
-    bool motorSpring = (c->flags & M2_JOINT_SPRING_DRIVE) != 0;
-    {
-        float angC = m2UnwindAngle(c->baseAngle +
-                                   m2RelativeJointAngle(world->solver.deltaRotations[c->bodyA],
-                                                        world->solver.deltaRotations[c->bodyB]));
-        float impulse;
-        if (motorSpring)
-        {
-            // Soft drive: the spring biasRate replaces the hard
-            // correctionFactor, with its mass and impulse scales.
-            float angBias = c->softness.biasRate * angC;
-            impulse = -c->softness.massScale * c->axialMass * ((wB - wA) + angBias) -
-                      c->softness.impulseScale * c->motorImpulse;
-        }
-        else
-        {
-            float angBias = invH * c->motorSpeed * angC;
-            impulse = -c->axialMass * ((wB - wA) + angBias);
-        }
-        float old = c->motorImpulse;
-        c->motorImpulse = m2ClampF(old + impulse, -c->maxMotorImpulse, c->maxMotorImpulse);
-        impulse = c->motorImpulse - old;
-        wA -= iA * impulse;
-        wB += iB * impulse;
-    }
-    {
-        m2Vec2 sep = {c->baseCVec.x + ds.x, c->baseCVec.y + ds.y};
-        float biasMul = motorSpring ? c->softness.biasRate : invH * c->motorSpeed;
-        m2Vec2 bias = {biasMul * sep.x, biasMul * sep.y};
-        m2Vec2 vrA = {vA.x - wA * c->rA.y, vA.y + wA * c->rA.x};
-        m2Vec2 vrB = {vB.x - wB * c->rB.y, vB.y + wB * c->rB.x};
-        m2Vec2 cdot = {vrB.x - vrA.x + bias.x, vrB.y - vrA.y + bias.y};
-        // Solve K impulse = -cdot with the 2x2 from prepare.
-        float det = c->k11 * c->k22 - c->k12 * c->k12;
-        float invDet = det != 0.0f ? 1.0f / det : 0.0f;
-        m2Vec2 raw = {-invDet * (c->k22 * cdot.x - c->k12 * cdot.y),
-                      -invDet * (c->k11 * cdot.y - c->k12 * cdot.x)};
-        m2Vec2 impulse;
-        if (motorSpring)
-        {
-            impulse.x = c->softness.massScale * raw.x - c->softness.impulseScale * c->impulse.x;
-            impulse.y = c->softness.massScale * raw.y - c->softness.impulseScale * c->impulse.y;
-        }
-        else
-        {
-            impulse = raw;
-        }
-        m2Vec2 old = c->impulse;
-        c->impulse.x += impulse.x;
-        c->impulse.y += impulse.y;
-        float budget = c->lower;
-        float mag2 = c->impulse.x * c->impulse.x + c->impulse.y * c->impulse.y;
-        if (mag2 > budget * budget)
-        {
-            float mag = sqrtf(mag2);
-            float scale = mag > 0.0f ? budget / mag : 0.0f;
-            c->impulse.x *= scale;
-            c->impulse.y *= scale;
-        }
-        impulse.x = c->impulse.x - old.x;
-        impulse.y = c->impulse.y - old.y;
-        vA.x -= mA * impulse.x;
-        vA.y -= mA * impulse.y;
-        wA -= iA * m2Cross2(c->rA, impulse);
-        vB.x += mB * impulse.x;
-        vB.y += mB * impulse.y;
-        wB += iB * m2Cross2(c->rB, impulse);
-    }
-    if (world->bodies.types[c->bodyA] == (uint8_t)m2_dynamicBody)
-    {
-        world->bodies.linearVelocities[c->bodyA] = vA;
-        world->bodies.angularVelocities[c->bodyA] = wA;
-    }
-    if (world->bodies.types[c->bodyB] == (uint8_t)m2_dynamicBody)
-    {
-        world->bodies.linearVelocities[c->bodyB] = vB;
-        world->bodies.angularVelocities[c->bodyB] = wB;
-    }
+    m2JointRow turn = m2TurnRow();
+    m2PushRow(&turn, b, c->motorImpulse);
+    m2PushPointPair(pose->armA, pose->armB, b, c->impulse);
+}
+
+static m2RowDrive MotorDrive(const m2JointConstraint* c, float C, float invH)
+{
+    return c->linearSpring ? m2SpringDrive(c->spring, C) : m2RigidDrive(invH * c->correction * C);
+}
+
+static void SolveMotor(m2JointConstraint* c, const m2JointPose* pose, m2JointBodies* b,
+                       const m2JointPass* pass)
+{
+    m2JointRow turn = m2TurnRow();
+    m2SolveRow(&turn, b, MotorDrive(c, m2PoseAngle(c, pose), pass->invH), &c->motorImpulse,
+               -c->maxMotorImpulse, c->maxMotorImpulse);
+    m2Vec2 offset = m2RotateVec2(pose->turnA, c->axis);
+    m2Vec2 gap = m2PoseGap(c, pose);
+    m2RowDrive x = MotorDrive(c, gap.x - offset.x, pass->invH);
+    m2RowDrive y = MotorDrive(c, gap.y - offset.y, pass->invH);
+    m2SolvePointPair(pose->armA, pose->armB, b, (m2Vec2){x.bias, y.bias}, x, &c->impulse,
+                     c->maxPullImpulse);
 }
 
 static void MotorReaction(const m2World* world, int32_t j, float invH, float* force, float* torque)
 {
-    // The linear block, and the pure torque in the motor slot.
+    // The point rows, and the angle row's pure torque.
     m2Vec2 impulse = world->joints.jointImpulse[j];
     *force = sqrtf(impulse.x * impulse.x + impulse.y * impulse.y) * invH;
     *torque = m2AbsF(world->joints.jointMotorImpulse[j]) * invH;
 }
 
-const m2JointKind m2_motorJointKind = {PrepareMotor, m2WarmStartPointJoint, SolveMotor,
-                                       MotorReaction};
+const m2JointKind m2_motorJointKind = {PrepareMotor, WarmStartMotor, SolveMotor, MotorReaction};
