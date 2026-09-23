@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
+//
+// Joints: the eleven joint types, their defs, motors, limits,
+// springs, runtime tuning and breaking.
 
 #ifndef MAUL2D_JOINT_H
 #define MAUL2D_JOINT_H

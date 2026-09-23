@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
+//
+// The world: creation, stepping, tuning, snapshots, the command
+// journal, counters and diagnostics.
 
 #ifndef MAUL2D_WORLD_H
 #define MAUL2D_WORLD_H

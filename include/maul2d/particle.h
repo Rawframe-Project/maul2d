@@ -1,18 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Fluids: a fixed-capacity particle system living inside the world.
-// The system exists for the world's whole lifetime when the world
-// def asks for it (particleCapacity > 0), so the snapshot shape
-// never changes and rollback across any point in history stays
-// byte-exact. Storage is slot-stable SoA with FIFO recycling and
-// generation-checked ids; particles are never compacted or
-// reordered. Physics parameters are pinned at world creation like
-// every other Maul knob.
-//
-// This is the storage slice of the fluids chapter: particles emit,
-// free-fall, journal and roll back. The neighbor solver and rigid
-// coupling arrive in the following slices.
+// Particle fluids: a fixed-capacity particle system that lives inside
+// the world when its def asks for one. Particles are stored in stable
+// slots with generation-checked ids and are never reordered, so
+// snapshots, the journal and rollback cover them like everything else.
 
 #ifndef MAUL2D_PARTICLE_H
 #define MAUL2D_PARTICLE_H

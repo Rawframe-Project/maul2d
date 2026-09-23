@@ -1,10 +1,11 @@
 # Maul2D API reference
 
-Generated from the public headers by tools/gen_api.py; the
-headers are the source of truth and this file mirrors them.
-For the why and how, read the [guide](guide.md).
+Generated from the public headers by `tools/gen_api.py`. The headers
+are the source of truth; this file mirrors them.
 
-## Base: versions, allocator, ids
+## `base.h`
+
+Base definitions shared by every Maul2D header: the version, the result codes, the allocator and assert hooks, and hashing.
 
 ```c
 int32_t m2GetVersion(void);
@@ -43,25 +44,27 @@ void m2AssertFail(const char* condition, const char* file, int line);
 ```
 Internal assertion failure sink (debug builds only). Prints and traps.
 
-## Math: vectors, rotations, deterministic trig
+## `math.h`
+
+Deterministic 2D math: vectors, rotations, transforms and the engine's own trigonometry. Positions are 64-bit, everything local is 32-bit, and every operation is plain IEEE arithmetic so the bits agree on every platform.
 
 ```c
-static inline float m2MinF(float a, float b) { #if defined(_MSC_VER) && defined(_M_X64) return _mm_cvtss_f32(_mm_min_ss(_mm_set_ss(a), _mm_set_ss(b)));
+static inline float m2MinF(float a, float b);
 ```
 Pinned minimum: exactly (a < b ? a : b), in this operand order - including signed zero and NaN behavior. MSVC folds the plain ternary under value numbering (+0/-0 compare equal), so on MSVC x64 this is implemented with scalar MINSS, whose ISA-defined semantics are exactly the pinned form. NEON FMIN has different semantics and must never be used here; GCC/Clang compile the ternary faithfully (CI-verified).
 
 ```c
-static inline float m2MaxF(float a, float b) { #if defined(_MSC_VER) && defined(_M_X64) return _mm_cvtss_f32(_mm_max_ss(_mm_set_ss(a), _mm_set_ss(b)));
+static inline float m2MaxF(float a, float b);
 ```
 Pinned maximum: exactly (a > b ? a : b), in this operand order. See m2MinF for the MSVC note (scalar MAXSS matches the pinned form).
 
 ```c
-static inline float m2AbsF(float a) { union { float f;
+static inline float m2AbsF(float a);
 ```
 Absolute value, pinned to IEEE |x| semantics: the sign bit is cleared, so m2AbsF(-0.0f) == +0.0f on every platform. Implemented as a bit mask because a ternary abs is compiler-foldable into divergent ±0 behavior (MSVC emits a sign-mask, GCC/Clang keep the branch - a real cross-cell hash break, caught by the gate).
 
 ```c
-static inline float m2ClampF(float a, float lo, float hi) { return m2MaxF(lo, m2MinF(a, hi));
+static inline float m2ClampF(float a, float lo, float hi);
 ```
 Clamp to [lo, hi] using the pinned min/max.
 
@@ -95,7 +98,9 @@ int m2IsNormalizedRot(m2Rot q);
 ```
 True if the rotation is unit length within tolerance.
 
-## World: lifecycle, stepping, snapshots, queries, diagnostics
+## `world.h`
+
+The world: creation, stepping, tuning, snapshots, the command journal, counters and diagnostics.
 
 ```c
 m2WorldDef m2DefaultWorldDef(void);
@@ -259,7 +264,9 @@ int32_t m2World_StopJournal(m2WorldId worldId);
 bool m2World_ReplayJournal(m2WorldId worldId, const void* data, int32_t size);
 ```
 
-## Bodies: creation, dynamics, mass, readback
+## `body.h`
+
+Rigid bodies: creation and destruction, motion, forces and impulses, mass, sleep, and state readback.
 
 ```c
 m2BodyDef m2DefaultBodyDef(void);
@@ -367,7 +374,11 @@ bool m2Body_IsEnabled(m2BodyId bodyId);
 ```
 
 ```c
-m2Vec2 m2Body_GetLocalCenter(m2BodyId bodyId); // body-frame center of mass bool m2Body_IsBullet(m2BodyId bodyId);
+m2Vec2 m2Body_GetLocalCenter(m2BodyId bodyId);
+```
+
+```c
+bool m2Body_IsBullet(m2BodyId bodyId);
 ```
 
 ```c
@@ -409,7 +420,11 @@ m2Pos2 m2Body_GetWorldCenterOfMass(m2BodyId bodyId);
 ```
 
 ```c
-float m2Body_GetRotationalInertia(m2BodyId bodyId); // about the center of mass m2WorldId m2Body_GetWorld(m2BodyId bodyId);
+float m2Body_GetRotationalInertia(m2BodyId bodyId);
+```
+
+```c
+m2WorldId m2Body_GetWorld(m2BodyId bodyId);
 ```
 
 ```c
@@ -507,7 +522,468 @@ bool m2Body_IsSleepEnabled(m2BodyId bodyId);
 void m2Body_ApplyAngularImpulse(m2BodyId bodyId, float impulse);
 ```
 
-## Shapes: geometry, filters, chains, hulls, decomposition
+## `events.h`
+
+Event streams: contact begin and end, sensor overlaps and joint breaks, collected during a step and read after it.
+
+```c
+m2ContactEvents m2World_GetContactEvents(m2WorldId worldId);
+```
+Arrays are world-owned and valid until the next m2World_Step or m2World_Restore on this world; Restore clears them. Order is canonical (deterministic across platforms and replays). Thread class: reader.
+
+```c
+m2SensorEvents m2World_GetSensorEvents(m2WorldId worldId);
+```
+
+```c
+m2JointEvents m2World_GetJointEvents(m2WorldId worldId);
+```
+
+```c
+int32_t m2Shape_GetSensorOverlaps(m2ShapeId sensorShapeId, m2ShapeId* overlaps, int32_t capacity);
+```
+Who is inside this sensor right now. Fills up to capacity shape ids in canonical pair order and returns the true total even beyond capacity. Zero for anything that is not a live sensor. Thread class: reader.
+
+```c
+int32_t m2World_GetContactData(m2WorldId worldId, m2ContactData* data, int32_t capacity);
+```
+
+## `joint.h`
+
+Joints: the eleven joint types, their defs, motors, limits, springs, runtime tuning and breaking.
+
+```c
+m2DistanceJointDef m2DefaultDistanceJointDef(void);
+```
+
+```c
+m2RevoluteJointDef m2DefaultRevoluteJointDef(void);
+```
+
+```c
+m2PrismaticJointDef m2DefaultPrismaticJointDef(void);
+```
+
+```c
+m2WeldJointDef m2DefaultWeldJointDef(void);
+```
+
+```c
+m2WheelJointDef m2DefaultWheelJointDef(void);
+```
+
+```c
+m2FilterJointDef m2DefaultFilterJointDef(void);
+```
+
+```c
+m2GearJointDef m2DefaultGearJointDef(void);
+```
+
+```c
+m2PulleyJointDef m2DefaultPulleyJointDef(void);
+```
+
+```c
+m2RatchetJointDef m2DefaultRatchetJointDef(void);
+```
+
+```c
+m2MotorJointDef m2DefaultMotorJointDef(void);
+```
+
+```c
+m2MouseJointDef m2DefaultMouseJointDef(void);
+```
+
+```c
+m2JointId m2CreateDistanceJoint(m2WorldId worldId, const m2DistanceJointDef* def);
+```
+Joints join their bodies' sleep island: connected bodies sleep and wake together. Destroying either body destroys the joint. Thread class: writer.
+
+```c
+m2JointId m2CreateRevoluteJoint(m2WorldId worldId, const m2RevoluteJointDef* def);
+```
+
+```c
+m2JointId m2CreatePrismaticJoint(m2WorldId worldId, const m2PrismaticJointDef* def);
+```
+
+```c
+m2JointId m2CreateWeldJoint(m2WorldId worldId, const m2WeldJointDef* def);
+```
+
+```c
+m2JointId m2CreateWheelJoint(m2WorldId worldId, const m2WheelJointDef* def);
+```
+
+```c
+m2JointId m2CreateFilterJoint(m2WorldId worldId, const m2FilterJointDef* def);
+```
+
+```c
+m2JointId m2CreateGearJoint(m2WorldId worldId, const m2GearJointDef* def);
+```
+
+```c
+m2JointId m2CreatePulleyJoint(m2WorldId worldId, const m2PulleyJointDef* def);
+```
+
+```c
+m2JointId m2CreateRatchetJoint(m2WorldId worldId, const m2RatchetJointDef* def);
+```
+
+```c
+m2JointId m2CreateMotorJoint(m2WorldId worldId, const m2MotorJointDef* def);
+```
+
+```c
+m2JointId m2CreateMouseJoint(m2WorldId worldId, const m2MouseJointDef* def);
+```
+
+```c
+void m2DestroyJoint(m2JointId jointId);
+```
+
+```c
+void m2Joint_SetMotorSpeed(m2JointId jointId, float speed);
+```
+Runtime joint tuning. Motor speed is rad/s on revolute and wheel joints, m/s on prismatic; max motor is a torque or force budget accordingly. Every change wakes both bodies and is journaled. Distance joints ignore motor and limit parameters.
+
+```c
+void m2Joint_SetMaxMotor(m2JointId jointId, float maxTorqueOrForce);
+```
+
+```c
+void m2Joint_EnableMotor(m2JointId jointId, bool enable);
+```
+
+```c
+void m2Joint_EnableLimit(m2JointId jointId, bool enable);
+```
+
+```c
+void m2Joint_SetLimits(m2JointId jointId, float lower, float upper);
+```
+
+```c
+void m2Joint_SetBreakLimits(m2JointId jointId, float maxForce, float maxTorque);
+```
+Break thresholds: reaction force or torque beyond these snaps the joint during the step, deterministically, and reports it in m2World_GetJointEvents. Zero (the default) means unbreakable.
+
+```c
+void m2Joint_SetSpringHertz(m2JointId jointId, float hertz);
+```
+Runtime softness: the main row's spring (weld: linear row; mouse: the drag spring). Motor and filter joints have no spring and reject loudly. Angular variants are weld-only. Distance extras: retarget the rod length or clamp it into a hard range (accumulated impulses reset, reference-style); read the range back through m2Joint_GetLimits. All journaled.
+
+```c
+void m2Joint_SetSpringDampingRatio(m2JointId jointId, float dampingRatio);
+```
+
+```c
+void m2Joint_SetAngularSpringHertz(m2JointId jointId, float hertz);
+```
+
+```c
+void m2Joint_SetAngularSpringDampingRatio(m2JointId jointId, float dampingRatio);
+```
+
+```c
+void m2DistanceJoint_SetLength(m2JointId jointId, float length);
+```
+
+```c
+void m2DistanceJoint_SetLengthRange(m2JointId jointId, float minLength, float maxLength);
+```
+
+```c
+float m2Joint_GetReactionForce(m2JointId jointId);
+```
+Reaction load the joint carried on the last step, from the stored impulses times that step's inverse substep dt. This is the SAME computation the break pass compares against the limits, bit for bit, so tuning break thresholds against these readings is exact. Newtons and newton meters; zero before the first step and for invalid ids. Thread class: reader.
+
+```c
+float m2Joint_GetReactionTorque(m2JointId jointId);
+```
+
+```c
+bool m2Joint_IsValid(m2JointId jointId);
+```
+
+```c
+m2JointType m2Joint_GetType(m2JointId jointId);
+```
+
+```c
+m2Vec2 m2Joint_GetLocalAnchorA(m2JointId jointId);
+```
+Parameter readback, completing the integrator surface: a world can be reconstructed from public getters alone (the mirror test proves it). Type-specific getters are loud on the wrong type; motor and limit reads on a distance joint return zero quietly, mirroring the setters that ignore them.
+
+```c
+m2Vec2 m2Joint_GetLocalAnchorB(m2JointId jointId);
+```
+
+```c
+m2Vec2 m2Joint_GetLocalAxisA(m2JointId jointId);
+```
+
+```c
+float m2Joint_GetLength(m2JointId jointId);
+```
+
+```c
+float m2Joint_GetSpringHertz(m2JointId jointId);
+```
+Spring-named getter aliases, symmetric with the setters; the short names remain and read the same registry slots.
+
+```c
+float m2Joint_GetSpringDampingRatio(m2JointId jointId);
+```
+
+```c
+float m2Joint_GetAngularSpringHertz(m2JointId jointId);
+```
+
+```c
+float m2Joint_GetAngularSpringDampingRatio(m2JointId jointId);
+```
+
+```c
+float m2Joint_GetHertz(m2JointId jointId);
+```
+
+```c
+float m2Joint_GetDampingRatio(m2JointId jointId);
+```
+
+```c
+float m2Joint_GetAngularHertz(m2JointId jointId);
+```
+
+```c
+float m2Joint_GetAngularDampingRatio(m2JointId jointId);
+```
+
+```c
+float m2Joint_GetMotorSpeed(m2JointId jointId);
+```
+
+```c
+float m2Joint_GetMaxMotor(m2JointId jointId);
+```
+
+```c
+bool m2Joint_IsMotorEnabled(m2JointId jointId);
+```
+
+```c
+bool m2Joint_IsLimitEnabled(m2JointId jointId);
+```
+
+```c
+bool m2Joint_IsSpringEnabled(m2JointId jointId);
+```
+
+```c
+void m2Joint_GetLimits(m2JointId jointId, float* lower, float* upper);
+```
+
+```c
+void m2Joint_GetBreakLimits(m2JointId jointId, float* maxForce, float* maxTorque);
+```
+
+```c
+m2BodyId m2Joint_GetBodyA(m2JointId jointId);
+```
+
+```c
+m2BodyId m2Joint_GetBodyB(m2JointId jointId);
+```
+
+```c
+bool m2Joint_GetCollideConnected(m2JointId jointId);
+```
+
+```c
+uint64_t m2Joint_GetUserData(m2JointId jointId);
+```
+
+```c
+void m2Joint_SetUserData(m2JointId jointId, uint64_t userData);
+```
+
+```c
+m2WorldId m2Joint_GetWorld(m2JointId jointId);
+```
+
+```c
+float m2Joint_GetLinearSeparation(m2JointId jointId);
+```
+Constraint drift right now: how far the joint currently is from what it pins. Point constraints report the anchor gap, the distance joint its length error, sliders their off-axis gap; angular drift is the unwound angle error where an angle is pinned and zero elsewhere. Thread class: reader.
+
+```c
+float m2Joint_GetAngularSeparation(m2JointId jointId);
+```
+
+```c
+void m2MotorJoint_SetOffsets(m2JointId jointId, m2Vec2 linearOffset, float angularOffset);
+```
+Motor joint runtime control (platforms retarget every frame) and readback; max torque rides m2Joint_SetMaxMotor/GetMaxMotor. Mouse joints retarget with SetTarget. All journaled.
+
+```c
+m2Vec2 m2MotorJoint_GetLinearOffset(m2JointId jointId);
+```
+
+```c
+float m2MotorJoint_GetAngularOffset(m2JointId jointId);
+```
+
+```c
+float m2MotorJoint_GetMaxForce(m2JointId jointId);
+```
+
+```c
+float m2MotorJoint_GetCorrectionFactor(m2JointId jointId);
+```
+
+```c
+void m2GearJoint_SetRatio(m2JointId jointId, float ratio);
+```
+
+```c
+float m2GearJoint_GetRatio(m2JointId jointId);
+```
+
+```c
+void m2PulleyJoint_SetRatio(m2JointId jointId, float ratio);
+```
+Retuning a pulley recaptures the rope total from the current geometry so the machine does not snap; accumulated impulse is dropped like a distance retarget. Lengths read live.
+
+```c
+float m2PulleyJoint_GetRatio(m2JointId jointId);
+```
+
+```c
+float m2PulleyJoint_GetLengthA(m2JointId jointId);
+```
+
+```c
+float m2PulleyJoint_GetLengthB(m2JointId jointId);
+```
+
+```c
+m2Pos2 m2PulleyJoint_GetGroundAnchorA(m2JointId jointId);
+```
+
+```c
+m2Pos2 m2PulleyJoint_GetGroundAnchorB(m2JointId jointId);
+```
+
+```c
+float m2RatchetJoint_GetRatchet(m2JointId jointId);
+```
+
+```c
+float m2RatchetJoint_GetPhase(m2JointId jointId);
+```
+
+```c
+void m2MouseJoint_SetTarget(m2JointId jointId, m2Pos2 target);
+```
+
+```c
+m2Pos2 m2MouseJoint_GetTarget(m2JointId jointId);
+```
+
+```c
+float m2MouseJoint_GetMaxForce(m2JointId jointId);
+```
+
+```c
+int32_t m2World_GetJoints(m2WorldId worldId, m2JointId* ids, int32_t capacity);
+```
+Editor and integration walk: ascending slot order, truthful total (same contract as m2World_GetBodies). Thread class: reader.
+
+```c
+int32_t m2Body_GetJoints(m2BodyId bodyId, m2JointId* ids, int32_t capacity);
+```
+
+## `particle.h`
+
+Particle fluids: a fixed-capacity particle system that lives inside the world when its def asks for one. Particles are stored in stable slots with generation-checked ids and are never reordered, so snapshots, the journal and rollback cover them like everything else.
+
+```c
+m2ParticleId m2World_EmitParticle(m2WorldId worldId, m2Pos2 position, m2Vec2 velocity, uint32_t flags);
+```
+Emit one particle at a world position. Refuses with the null id when the world has no particle system (invalid) or when the system is full (capacity; also counted in m2Counters.particlePoolFull, so pace emitters off m2World_GetParticleCount). Journaled. Thread class: writer.
+
+```c
+void m2World_DestroyParticle(m2ParticleId particleId);
+```
+Destroy one particle; its slot recycles FIFO under a fresh generation. Journaled. Thread class: writer.
+
+```c
+bool m2Particle_IsValid(m2ParticleId particleId);
+```
+Generation-checked liveness. Thread class: reader.
+
+```c
+m2Pos2 m2Particle_GetPosition(m2ParticleId particleId);
+```
+
+```c
+uint32_t m2Particle_GetFlags(m2ParticleId particleId);
+```
+
+```c
+void m2Particle_SetLifetime(m2ParticleId particleId, float seconds);
+```
+Give a particle a finite lifetime in seconds: it counts down by the step's dt and auto-destroys at the end of the step it reaches zero, in ascending slot order, deterministically and without a journal op (the countdown is state, so it replays and rolls back by itself). Zero, the default, means immortal. Journaled. Thread class: writer.
+
+```c
+float m2Particle_GetLifetime(m2ParticleId particleId);
+```
+
+```c
+void m2Particle_SetUserData(m2ParticleId particleId, uint64_t userData);
+```
+Opaque per-particle game data, copied verbatim through snapshots and journals. Journaled. Thread class: writer/reader.
+
+```c
+uint64_t m2Particle_GetUserData(m2ParticleId particleId);
+```
+
+```c
+m2Vec2 m2Particle_GetVelocity(m2ParticleId particleId);
+```
+
+```c
+void m2Particle_SetVelocity(m2ParticleId particleId, m2Vec2 velocity);
+```
+Journaled. Thread class: writer.
+
+```c
+int32_t m2World_GetParticleCount(m2WorldId worldId);
+```
+Live particle count. Thread class: reader.
+
+```c
+int32_t m2World_FillPolygonWithParticles(m2WorldId worldId, const m2Polygon* polygon, m2Pos2 position, m2Vec2 velocity, uint32_t flags);
+```
+Fill a convex polygon (given in world space at position) with particles on the reference stride (0.75 diameters), row-major bottom-up, left to right: deterministic by construction. Stops quietly when the pool fills; returns the number emitted. Spring and elastic flags make the batch a body: springs remember their spawn lengths, elastic triads remember their spawn shape, both captured here, journaled as one op, and carried by every snapshot. Thread class: writer.
+
+```c
+int32_t m2World_OverlapParticlesAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2ParticleId* ids, int32_t capacity);
+```
+Live particles whose centers lie inside the box: ascending slot order, truthful total, NULL ids with zero capacity is a count query (the enumeration contract). Circular regions are one distance filter away on the caller's side. Thread class: reader.
+
+```c
+int32_t m2World_GetParticles(m2WorldId worldId, m2ParticleId* ids, int32_t capacity);
+```
+Fill ids with live particles in ascending slot order; returns the truthful total even beyond capacity (the enumeration contract). NULL ids with zero capacity is a count query. Thread class: reader.
+
+## `shape.h`
+
+Shapes: geometry, materials, collision filters, chains, convex hulls, outline decomposition and the query functions.
 
 ```c
 m2ChainDef m2DefaultChainDef(void);
@@ -704,20 +1180,32 @@ m2WorldId m2Shape_GetWorld(m2ShapeId shapeId);
 ```
 
 ```c
-m2ChainId m2Shape_GetParentChain(m2ShapeId shapeId); // null if free-standing m2AABBResult m2Shape_GetAABB(m2ShapeId shapeId); // tight, world space /// Point and ray queries against ONE shape. TestPoint counts /// touching within the engine's slop skin (the overlap law);
+m2ChainId m2Shape_GetParentChain(m2ShapeId shapeId);
+```
+
+```c
+m2AABBResult m2Shape_GetAABB(m2ShapeId shapeId);
 ```
 
 ```c
 bool m2Shape_TestPoint(m2ShapeId shapeId, m2Pos2 point);
 ```
-GetClosestPoint returns the surface point nearest to the query, radius included; RayCast follows the world ray conventions including the one-sided chain law.
+Point and ray queries against ONE shape. TestPoint counts touching within the engine's slop skin (the overlap law); GetClosestPoint returns the surface point nearest to the query, radius included; RayCast follows the world ray conventions including the one-sided chain law.
 
 ```c
 m2Pos2 m2Shape_GetClosestPoint(m2ShapeId shapeId, m2Pos2 point);
 ```
 
 ```c
-void m2Shape_SetDensity(m2ShapeId shapeId, float density); // journaled, mass recomputes void m2Shape_SetUserData(m2ShapeId shapeId, uint64_t userData); // journaled uint64_t m2Shape_GetUserData(m2ShapeId shapeId);
+void m2Shape_SetDensity(m2ShapeId shapeId, float density);
+```
+
+```c
+void m2Shape_SetUserData(m2ShapeId shapeId, uint64_t userData);
+```
+
+```c
+uint64_t m2Shape_GetUserData(m2ShapeId shapeId);
 ```
 
 ```c
@@ -797,426 +1285,6 @@ int32_t m2World_OverlapAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2Sha
 ```
 Fills results with up to capacity alive shapes whose tight AABB overlaps [lower, upper], ascending shape order. Returns the total number of overlapping shapes even when it exceeds capacity. Thread class: reader.
 
-## Joints: eleven types, motors, limits, springs, breaking
-
-```c
-m2DistanceJointDef m2DefaultDistanceJointDef(void);
-```
-
-```c
-m2RevoluteJointDef m2DefaultRevoluteJointDef(void);
-```
-
-```c
-m2PrismaticJointDef m2DefaultPrismaticJointDef(void);
-```
-
-```c
-m2WeldJointDef m2DefaultWeldJointDef(void);
-```
-
-```c
-m2WheelJointDef m2DefaultWheelJointDef(void);
-```
-
-```c
-m2FilterJointDef m2DefaultFilterJointDef(void);
-```
-
-```c
-m2GearJointDef m2DefaultGearJointDef(void);
-```
-
-```c
-m2PulleyJointDef m2DefaultPulleyJointDef(void);
-```
-
-```c
-m2RatchetJointDef m2DefaultRatchetJointDef(void);
-```
-
-```c
-m2MotorJointDef m2DefaultMotorJointDef(void);
-```
-
-```c
-m2MouseJointDef m2DefaultMouseJointDef(void);
-```
-
-```c
-m2JointId m2CreateDistanceJoint(m2WorldId worldId, const m2DistanceJointDef* def);
-```
-Joints join their bodies' sleep island: connected bodies sleep and wake together. Destroying either body destroys the joint. Thread class: writer.
-
-```c
-m2JointId m2CreateRevoluteJoint(m2WorldId worldId, const m2RevoluteJointDef* def);
-```
-
-```c
-m2JointId m2CreatePrismaticJoint(m2WorldId worldId, const m2PrismaticJointDef* def);
-```
-
-```c
-m2JointId m2CreateWeldJoint(m2WorldId worldId, const m2WeldJointDef* def);
-```
-
-```c
-m2JointId m2CreateWheelJoint(m2WorldId worldId, const m2WheelJointDef* def);
-```
-
-```c
-m2JointId m2CreateFilterJoint(m2WorldId worldId, const m2FilterJointDef* def);
-```
-
-```c
-m2JointId m2CreateGearJoint(m2WorldId worldId, const m2GearJointDef* def);
-```
-
-```c
-m2JointId m2CreatePulleyJoint(m2WorldId worldId, const m2PulleyJointDef* def);
-```
-
-```c
-m2JointId m2CreateRatchetJoint(m2WorldId worldId, const m2RatchetJointDef* def);
-```
-
-```c
-m2JointId m2CreateMotorJoint(m2WorldId worldId, const m2MotorJointDef* def);
-```
-
-```c
-m2JointId m2CreateMouseJoint(m2WorldId worldId, const m2MouseJointDef* def);
-```
-
-```c
-void m2DestroyJoint(m2JointId jointId);
-```
-
-```c
-void m2Joint_SetMotorSpeed(m2JointId jointId, float speed);
-```
-Runtime joint tuning. Motor speed is rad/s on revolute and wheel joints, m/s on prismatic; max motor is a torque or force budget accordingly. Every change wakes both bodies and is journaled. Distance joints ignore motor and limit parameters.
-
-```c
-void m2Joint_SetMaxMotor(m2JointId jointId, float maxTorqueOrForce);
-```
-
-```c
-void m2Joint_EnableMotor(m2JointId jointId, bool enable);
-```
-
-```c
-void m2Joint_EnableLimit(m2JointId jointId, bool enable);
-```
-
-```c
-void m2Joint_SetLimits(m2JointId jointId, float lower, float upper);
-```
-
-```c
-void m2Joint_SetBreakLimits(m2JointId jointId, float maxForce, float maxTorque);
-```
-Break thresholds: reaction force or torque beyond these snaps the joint during the step, deterministically, and reports it in m2World_GetJointEvents. Zero (the default) means unbreakable.
-
-```c
-void m2Joint_SetSpringHertz(m2JointId jointId, float hertz);
-```
-Runtime softness: the main row's spring (weld: linear row; mouse: the drag spring). Motor and filter joints have no spring and reject loudly. Angular variants are weld-only. Distance extras: retarget the rod length or clamp it into a hard range (accumulated impulses reset, reference-style); read the range back through m2Joint_GetLimits. All journaled.
-
-```c
-void m2Joint_SetSpringDampingRatio(m2JointId jointId, float dampingRatio);
-```
-
-```c
-void m2Joint_SetAngularSpringHertz(m2JointId jointId, float hertz);
-```
-
-```c
-void m2Joint_SetAngularSpringDampingRatio(m2JointId jointId, float dampingRatio);
-```
-
-```c
-void m2DistanceJoint_SetLength(m2JointId jointId, float length);
-```
-
-```c
-void m2DistanceJoint_SetLengthRange(m2JointId jointId, float minLength, float maxLength);
-```
-
-```c
-float m2Joint_GetReactionForce(m2JointId jointId);
-```
-Reaction load the joint carried on the last step, from the stored impulses times that step's inverse substep dt. This is the SAME computation the break pass compares against the limits, bit for bit, so tuning break thresholds against these readings is exact. Newtons and newton meters; zero before the first step and for invalid ids. Thread class: reader.
-
-```c
-float m2Joint_GetReactionTorque(m2JointId jointId);
-```
-
-```c
-bool m2Joint_IsValid(m2JointId jointId);
-```
-
-```c
-m2JointType m2Joint_GetType(m2JointId jointId);
-```
-
-```c
-m2Vec2 m2Joint_GetLocalAnchorA(m2JointId jointId);
-```
-Parameter readback, completing the integrator surface: a world can be reconstructed from public getters alone (the mirror test proves it). Type-specific getters are loud on the wrong type; motor and limit reads on a distance joint return zero quietly, mirroring the setters that ignore them.
-
-```c
-m2Vec2 m2Joint_GetLocalAnchorB(m2JointId jointId);
-```
-
-```c
-m2Vec2 m2Joint_GetLocalAxisA(m2JointId jointId); // prismatic, wheel float m2Joint_GetLength(m2JointId jointId); // distance /// Spring-named getter aliases, symmetric with the setters; the /// short names remain and read the same registry slots. float m2Joint_GetSpringHertz(m2JointId jointId);
-```
-
-```c
-float m2Joint_GetSpringDampingRatio(m2JointId jointId);
-```
-
-```c
-float m2Joint_GetAngularSpringHertz(m2JointId jointId);
-```
-
-```c
-float m2Joint_GetAngularSpringDampingRatio(m2JointId jointId);
-```
-
-```c
-float m2Joint_GetHertz(m2JointId jointId); // weld: linear row float m2Joint_GetDampingRatio(m2JointId jointId);
-```
-
-```c
-float m2Joint_GetAngularHertz(m2JointId jointId); // weld, revolute spring float m2Joint_GetAngularDampingRatio(m2JointId jointId);
-```
-
-```c
-float m2Joint_GetMotorSpeed(m2JointId jointId);
-```
-
-```c
-float m2Joint_GetMaxMotor(m2JointId jointId);
-```
-
-```c
-bool m2Joint_IsMotorEnabled(m2JointId jointId);
-```
-
-```c
-bool m2Joint_IsLimitEnabled(m2JointId jointId);
-```
-
-```c
-bool m2Joint_IsSpringEnabled(m2JointId jointId); // wheel void m2Joint_GetLimits(m2JointId jointId, float* lower, float* upper);
-```
-
-```c
-void m2Joint_GetBreakLimits(m2JointId jointId, float* maxForce, float* maxTorque);
-```
-
-```c
-m2BodyId m2Joint_GetBodyA(m2JointId jointId);
-```
-
-```c
-m2BodyId m2Joint_GetBodyB(m2JointId jointId);
-```
-
-```c
-bool m2Joint_GetCollideConnected(m2JointId jointId);
-```
-
-```c
-uint64_t m2Joint_GetUserData(m2JointId jointId);
-```
-
-```c
-void m2Joint_SetUserData(m2JointId jointId, uint64_t userData); // journaled m2WorldId m2Joint_GetWorld(m2JointId jointId);
-```
-
-```c
-float m2Joint_GetLinearSeparation(m2JointId jointId);
-```
-Constraint drift right now: how far the joint currently is from what it pins. Point constraints report the anchor gap, the distance joint its length error, sliders their off-axis gap; angular drift is the unwound angle error where an angle is pinned and zero elsewhere. Thread class: reader.
-
-```c
-float m2Joint_GetAngularSeparation(m2JointId jointId);
-```
-
-```c
-void m2MotorJoint_SetOffsets(m2JointId jointId, m2Vec2 linearOffset, float angularOffset);
-```
-Motor joint runtime control (platforms retarget every frame) and readback; max torque rides m2Joint_SetMaxMotor/GetMaxMotor. Mouse joints retarget with SetTarget. All journaled.
-
-```c
-m2Vec2 m2MotorJoint_GetLinearOffset(m2JointId jointId);
-```
-
-```c
-float m2MotorJoint_GetAngularOffset(m2JointId jointId);
-```
-
-```c
-float m2MotorJoint_GetMaxForce(m2JointId jointId);
-```
-
-```c
-float m2MotorJoint_GetCorrectionFactor(m2JointId jointId);
-```
-
-```c
-void m2GearJoint_SetRatio(m2JointId jointId, float ratio); // journaled float m2GearJoint_GetRatio(m2JointId jointId);
-```
-
-```c
-void m2PulleyJoint_SetRatio(m2JointId jointId, float ratio); // journaled float m2PulleyJoint_GetRatio(m2JointId jointId);
-```
-Retuning a pulley recaptures the rope total from the current geometry so the machine does not snap; accumulated impulse is dropped like a distance retarget. Lengths read live.
-
-```c
-float m2PulleyJoint_GetLengthA(m2JointId jointId);
-```
-
-```c
-float m2PulleyJoint_GetLengthB(m2JointId jointId);
-```
-
-```c
-m2Pos2 m2PulleyJoint_GetGroundAnchorA(m2JointId jointId);
-```
-
-```c
-m2Pos2 m2PulleyJoint_GetGroundAnchorB(m2JointId jointId);
-```
-
-```c
-float m2RatchetJoint_GetRatchet(m2JointId jointId);
-```
-
-```c
-float m2RatchetJoint_GetPhase(m2JointId jointId);
-```
-
-```c
-void m2MouseJoint_SetTarget(m2JointId jointId, m2Pos2 target);
-```
-
-```c
-m2Pos2 m2MouseJoint_GetTarget(m2JointId jointId);
-```
-
-```c
-float m2MouseJoint_GetMaxForce(m2JointId jointId);
-```
-
-```c
-int32_t m2World_GetJoints(m2WorldId worldId, m2JointId* ids, int32_t capacity);
-```
-Editor and integration walk: ascending slot order, truthful total (same contract as m2World_GetBodies). Thread class: reader.
-
-```c
-int32_t m2Body_GetJoints(m2BodyId bodyId, m2JointId* ids, int32_t capacity);
-```
-
-## Events: contact, sensor and joint streams
-
-```c
-m2ContactEvents m2World_GetContactEvents(m2WorldId worldId);
-```
-Arrays are world-owned and valid until the next m2World_Step or m2World_Restore on this world; Restore clears them. Order is canonical (deterministic across platforms and replays). Thread class: reader.
-
-```c
-m2SensorEvents m2World_GetSensorEvents(m2WorldId worldId);
-```
-
-```c
-m2JointEvents m2World_GetJointEvents(m2WorldId worldId);
-```
-
-```c
-int32_t m2Shape_GetSensorOverlaps(m2ShapeId sensorShapeId, m2ShapeId* overlaps, int32_t capacity);
-```
-Who is inside this sensor right now. Fills up to capacity shape ids in canonical pair order and returns the true total even beyond capacity. Zero for anything that is not a live sensor. Thread class: reader.
-
-```c
-int32_t m2World_GetContactData(m2WorldId worldId, m2ContactData* data, int32_t capacity);
-```
-
-## Fluids: particles, behaviors, lifetime, fills, buoyancy
-
-```c
-m2ParticleId m2World_EmitParticle(m2WorldId worldId, m2Pos2 position, m2Vec2 velocity, uint32_t flags);
-```
-Emit one particle at a world position. Refuses with the null id when the world has no particle system (invalid) or when the system is full (capacity; also counted in m2Counters.particlePoolFull, so pace emitters off m2World_GetParticleCount). Journaled. Thread class: writer.
-
-```c
-void m2World_DestroyParticle(m2ParticleId particleId);
-```
-Destroy one particle; its slot recycles FIFO under a fresh generation. Journaled. Thread class: writer.
-
-```c
-bool m2Particle_IsValid(m2ParticleId particleId);
-```
-Generation-checked liveness. Thread class: reader.
-
-```c
-m2Pos2 m2Particle_GetPosition(m2ParticleId particleId);
-```
-
-```c
-uint32_t m2Particle_GetFlags(m2ParticleId particleId);
-```
-
-```c
-void m2Particle_SetLifetime(m2ParticleId particleId, float seconds);
-```
-Give a particle a finite lifetime in seconds: it counts down by the step's dt and auto-destroys at the end of the step it reaches zero, in ascending slot order, deterministically and without a journal op (the countdown is state, so it replays and rolls back by itself). Zero, the default, means immortal. Journaled. Thread class: writer.
-
-```c
-float m2Particle_GetLifetime(m2ParticleId particleId);
-```
-
-```c
-void m2Particle_SetUserData(m2ParticleId particleId, uint64_t userData);
-```
-Opaque per-particle game data, copied verbatim through snapshots and journals. Journaled. Thread class: writer/reader.
-
-```c
-uint64_t m2Particle_GetUserData(m2ParticleId particleId);
-```
-
-```c
-m2Vec2 m2Particle_GetVelocity(m2ParticleId particleId);
-```
-
-```c
-void m2Particle_SetVelocity(m2ParticleId particleId, m2Vec2 velocity);
-```
-Journaled. Thread class: writer.
-
-```c
-int32_t m2World_GetParticleCount(m2WorldId worldId);
-```
-Live particle count. Thread class: reader.
-
-```c
-int32_t m2World_FillPolygonWithParticles(m2WorldId worldId, const m2Polygon* polygon, m2Pos2 position, m2Vec2 velocity, uint32_t flags);
-```
-Fill a convex polygon (given in world space at position) with particles on the reference stride (0.75 diameters), row-major bottom-up, left to right: deterministic by construction. Stops quietly when the pool fills; returns the number emitted. Spring and elastic flags make the batch a body: springs remember their spawn lengths, elastic triads remember their spawn shape, both captured here, journaled as one op, and carried by every snapshot. Thread class: writer.
-
-```c
-int32_t m2World_OverlapParticlesAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2ParticleId* ids, int32_t capacity);
-```
-Live particles whose centers lie inside the box: ascending slot order, truthful total, NULL ids with zero capacity is a count query (the enumeration contract). Circular regions are one distance filter away on the caller's side. Thread class: reader.
-
-```c
-int32_t m2World_GetParticles(m2WorldId worldId, m2ParticleId* ids, int32_t capacity);
-```
-Fill ids with live particles in ascending slot order; returns the truthful total even beyond capacity (the enumeration contract). NULL ids with zero capacity is a count query. Thread class: reader.
-
 ---
 
-276 functions across 8 headers.
+289 functions across 8 headers.

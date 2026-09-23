@@ -71,3 +71,7 @@ Work toward 0.0.1, the first release of the reworked library.
 - The misuse counter was incremented without synchronization from
   reader-class calls, a data race when readers run in parallel. It is
   now updated atomically.
+- The generated API reference merged declarations that followed a
+  trailing comment into the previous entry, so it listed 276 functions
+  where the headers declare 289. `tools/gen_api.py` now parses each
+  declaration on its own and is shared with Maul3D.

@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
+//
+// Rigid bodies: creation and destruction, motion, forces and
+// impulses, mass, sleep, and state readback.
 
 #ifndef MAUL2D_BODY_H
 #define MAUL2D_BODY_H

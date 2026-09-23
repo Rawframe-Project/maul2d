@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
+//
+// Event streams: contact begin and end, sensor overlaps and joint
+// breaks, collected during a step and read after it.
 
 #ifndef MAUL2D_EVENTS_H
 #define MAUL2D_EVENTS_H

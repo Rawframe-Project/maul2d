@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
+//
+// The umbrella header: includes the whole Maul2D API.
 
 #ifndef MAUL2D_H
 #define MAUL2D_H

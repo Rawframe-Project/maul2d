@@ -1,65 +1,73 @@
 #!/usr/bin/env python3
-# Generate docs/api.md from the public headers: every function
-# signature with the doc comment that precedes it, grouped by header
-# and by the m2Type_ family the name announces. Pure text extraction,
-# no compiler, so it stays honest to what the headers actually say.
+# Generates docs/api.md from the public headers: every function
+# declaration with the documentation comment above it, grouped by
+# header. Plain text extraction with no compiler, so the reference
+# shows exactly what the headers say. The same script serves both
+# engines; it finds the library name from include/.
 #
-# Usage: python3 tools/gen_api.py  (run from the repo root)
+# Usage: python3 tools/gen_api.py  (from the repository root)
 
-import glob
 import os
 import re
 
-HEADERS = [
-    "base.h", "math.h", "world.h", "body.h", "shape.h",
-    "joint.h", "events.h", "particle.h",
-]
-
-HEADER_TITLES = {
-    "base.h": "Base: versions, allocator, ids",
-    "math.h": "Math: vectors, rotations, deterministic trig",
-    "world.h": "World: lifecycle, stepping, snapshots, queries, diagnostics",
-    "body.h": "Bodies: creation, dynamics, mass, readback",
-    "shape.h": "Shapes: geometry, filters, chains, hulls, decomposition",
-    "joint.h": "Joints: eleven types, motors, limits, springs, breaking",
-    "events.h": "Events: contact, sensor and joint streams",
-    "particle.h": "Fluids: particles, behaviors, lifetime, fills, buoyancy",
-}
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+LIB = next(d for d in sorted(os.listdir(os.path.join(ROOT, "include"))) if d.startswith("maul"))
+PREFIX = "m" + LIB[4]  # maul2d -> m2, maul3d -> m3
+TITLE = "Maul" + LIB[4:].upper()
+HEADER_DIR = os.path.join(ROOT, "include", LIB)
+FIRST = ["base.h", "math.h", "world.h"]
 
 
-def collect(path):
-    """Return a list of (comment_lines, signature) for the header."""
-    lines = open(path).read().split("\n")
+def header_order():
+    names = [n for n in os.listdir(HEADER_DIR) if n.endswith(".h") and n != LIB + ".h"]
+    rest = sorted(n for n in names if n not in FIRST)
+    return [n for n in FIRST if n in names] + rest
+
+
+def summary(lines):
+    """The header's opening comment, after the license lines."""
+    text = []
+    for line in lines[2:]:
+        if not line.startswith("//"):
+            break
+        text.append(line[2:].strip())
+    return " ".join(t for t in text if t)
+
+
+def collect(lines):
+    """(doc comment, declaration) pairs for every public function,
+    including static inline helpers (shown by their signature)."""
     entries = []
     comment = []
+    decl = re.compile(r"^\s*(?:" + PREFIX.upper() + r"_API\s+)?[A-Za-z_][A-Za-z0-9_ \*]*\b"
+                      + PREFIX + r"[A-Za-z0-9_]+\s*\(")
+    depth = 0  # brace depth; declarations live at the extern "C" level
     i = 0
     while i < len(lines):
-        line = lines[i]
-        stripped = line.strip()
+        stripped = lines[i].strip()
+        code = stripped.split("//")[0]
         if stripped.startswith("///"):
             comment.append(stripped[3:].strip())
             i += 1
             continue
-        # A function declaration: a return type, an m2 name, an open
-        # paren. Typedefs and macros are skipped.
-        m = re.match(r"^\s*[A-Za-z_][A-Za-z0-9_ \*]*\bm2[A-Za-z0-9_]+\s*\(", line)
-        starts_decl = (m is not None and "(" in line and
-                       not stripped.startswith("typedef") and
-                       not stripped.startswith("#") and
-                       "static const" not in stripped)
-        if starts_decl:
-            # Gather the whole signature to its terminating semicolon.
+        if (depth <= 1 and decl.match(lines[i]) and not stripped.startswith("typedef")
+                and not stripped.startswith("#")):
             sig = stripped
             j = i
-            while not sig.rstrip().endswith(";") and j < len(lines) - 1:
+            while not re.search(r"[;{]\s*$", sig.split("//")[0].rstrip()) and j < len(lines) - 1:
                 j += 1
                 sig += " " + lines[j].strip()
-            sig = re.sub(r"\s+", " ", sig).strip()
-            if sig.endswith(";") and "(" in sig and ")" in sig:
-                entries.append((comment, sig))
+            inline = sig.split("//")[0].rstrip().endswith("{")
+            sig = re.sub(r"\s+", " ", sig.split("//")[0]).strip()
+            sig = re.sub(r"^" + PREFIX.upper() + r"_API\s+", "", sig)
+            if inline:
+                sig = sig[:-1].rstrip() + ";"
+                depth += 1
+            entries.append((comment, sig))
             comment = []
             i = j + 1
             continue
+        depth += code.count("{") - code.count("}")
         if stripped and not stripped.startswith("//"):
             comment = []
         i += 1
@@ -67,46 +75,31 @@ def collect(path):
 
 
 def main():
-    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    out = []
-    out.append("# Maul2D API reference")
-    out.append("")
-    out.append("Generated from the public headers by tools/gen_api.py; the")
-    out.append("headers are the source of truth and this file mirrors them.")
-    out.append("For the why and how, read the [guide](guide.md).")
-    out.append("")
-
+    out = [
+        "# " + TITLE + " API reference",
+        "",
+        "Generated from the public headers by `tools/gen_api.py`. The headers",
+        "are the source of truth; this file mirrors them.",
+        "",
+    ]
     total = 0
-    for h in HEADERS:
-        path = os.path.join(root, "include", "maul2d", h)
-        if not os.path.exists(path):
+    headers = header_order()
+    for name in headers:
+        lines = open(os.path.join(HEADER_DIR, name)).read().split("\n")
+        entries = collect(lines)
+        if not entries:
             continue
-        entries = collect(path)
-        fns = [e for e in entries if re.search(r"\bm2[A-Za-z0-9_]+\s*\(", e[1])]
-        if not fns:
-            continue
-        out.append("## " + HEADER_TITLES.get(h, h))
-        out.append("")
-        for comment, sig in fns:
-            out.append("```c")
-            out.append(sig)
-            out.append("```")
+        out += ["## `" + name + "`", "", summary(lines), ""]
+        for comment, sig in entries:
+            out += ["```c", sig, "```"]
             if comment:
                 out.append(" ".join(comment))
             out.append("")
             total += 1
-
-    out.append("---")
-    out.append("")
-    out.append(str(total) + " functions across "
-               + str(len([h for h in HEADERS
-                          if os.path.exists(os.path.join(root, "include", "maul2d", h))]))
-               + " headers.")
-    out.append("")
-
-    dest = os.path.join(root, "docs", "api.md")
+    out += ["---", "", "%d functions across %d headers." % (total, len(headers)), ""]
+    dest = os.path.join(ROOT, "docs", "api.md")
     open(dest, "w").write("\n".join(out))
-    print("wrote " + dest + " (" + str(total) + " functions)")
+    print("wrote %s (%d functions)" % (dest, total))
 
 
 if __name__ == "__main__":

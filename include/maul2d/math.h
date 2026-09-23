@@ -1,5 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
+//
+// Deterministic 2D math: vectors, rotations, transforms and the
+// engine's own trigonometry. Positions are 64-bit, everything local is
+// 32-bit, and every operation is plain IEEE arithmetic so the bits agree
+// on every platform.
 
 #ifndef MAUL2D_MATH_H
 #define MAUL2D_MATH_H

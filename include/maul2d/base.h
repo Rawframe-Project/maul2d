@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
+//
+// Base definitions shared by every Maul2D header: the version, the
+// result codes, the allocator and assert hooks, and hashing.
 
 #ifndef MAUL2D_BASE_H
 #define MAUL2D_BASE_H

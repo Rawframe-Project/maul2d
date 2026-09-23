@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
+//
+// Shapes: geometry, materials, collision filters, chains, convex
+// hulls, outline decomposition and the query functions.
 
 #ifndef MAUL2D_SHAPE_H
 #define MAUL2D_SHAPE_H
