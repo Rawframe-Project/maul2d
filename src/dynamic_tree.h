@@ -1,11 +1,10 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Internal dynamic AABB tree. Index-based node pool, AVL
-// balancing, fat leaf AABBs. Every field is POD and snapshot-visible:
-// tree shape is insertion-history-dependent, so rollback restores these
-// arrays byte-exactly instead of rebuilding. Adapted from
-// Box2D's dynamic tree lineage (Copyright 2023 Erin Catto, MIT).
+// The broadphase tree over fat leaf boxes: an index-based node pool,
+// AVL balanced. Every field is POD and snapshot state: the tree shape
+// depends on the operation history, so rollback restores these arrays
+// byte for byte instead of rebuilding them.
 
 #ifndef MAUL2D_SRC_DYNAMIC_TREE_H
 #define MAUL2D_SRC_DYNAMIC_TREE_H
@@ -28,10 +27,10 @@ typedef struct m2TreeNode
     m2AABB aabb; // fat for leaves, union for interior nodes
     int32_t child1;
     int32_t child2;
-    int32_t parentOrNext; // parent when allocated, free-list next when not
-    int32_t height;       // leaf = 0, free = -1
-    int32_t userData;     // leaf payload: body index
-    int32_t flags;        // bit 0: allocated (keeps sizeof == sum-of-members)
+    int32_t parent;   // the next free node while the node is free
+    int32_t height;   // leaf = 0, free = -1
+    int32_t userData; // leaf payload: the shape index; -1 on interior nodes
+    int32_t pad;      // zero; keeps sizeof equal to the sum of the members
 } m2TreeNode;
 
 _Static_assert(sizeof(m2AABB) == 32, "m2AABB must be padding-free");
@@ -57,8 +56,8 @@ int32_t m2TreeInsert(m2DynamicTree* tree, m2TreeNode* nodes, m2AABB aabb, int32_
 
 void m2TreeRemove(m2DynamicTree* tree, m2TreeNode* nodes, int32_t proxy);
 
-// Remove + reinsert with a new AABB (the caller decided the tight AABB
-// escaped the fat one). Deterministic: same sequence, same shape.
+// Moves a leaf to a new box (the caller decided the tight box escaped
+// the fat one). The proxy index stays the same.
 void m2TreeMove(m2DynamicTree* tree, m2TreeNode* nodes, int32_t proxy, m2AABB aabb);
 
 // Collect userData of every leaf overlapping the query AABB, in an order
@@ -85,8 +84,8 @@ void m2TreeBeginQuery(m2TreeCursor* cursor, const m2DynamicTree* tree, const m2T
 // returns false when the query is exhausted.
 bool m2TreeNextQuery(m2TreeCursor* cursor, int32_t* userData);
 
-// Test oracle: verifies parent/child integrity, heights, containment
-// (every parent AABB contains its children). Returns false on any breach.
+// Test oracle: links both ways, heights, AVL balance, box containment
+// and the node count. Returns false on any breach.
 bool m2TreeValidate(const m2DynamicTree* tree, const m2TreeNode* nodes);
 
 static inline bool m2AABB_Overlaps(m2AABB a, m2AABB b)

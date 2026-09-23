@@ -562,7 +562,7 @@ static bool CheckTreeNodes(const uint8_t* data, size_t count, int64_t nodes, int
         m2TreeNode node;
         memcpy(&node, data + i * sizeof(node), sizeof(node));
         if (!InRange(node.child1, -1, nodes - 1) || !InRange(node.child2, -1, nodes - 1) ||
-            !InRange(node.parentOrNext, -1, nodes - 1) || !InRange(node.userData, -1, shapes - 1))
+            !InRange(node.parent, -1, nodes - 1) || !InRange(node.userData, -1, shapes - 1))
         {
             return false;
         }

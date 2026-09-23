@@ -386,8 +386,74 @@ static void TestDuplicateCandidatesDoNotCrowdTheTable(void)
     m2DestroyWorld(world);
 }
 
+// The tree stays a valid AVL tree through thousands of mixed inserts,
+// moves and removes, including boxes of very different sizes; every
+// proxy keeps its index through its moves, and queries match brute force.
+static void TestTreeChurn(void)
+{
+    enum
+    {
+        N = 300,
+        CAPACITY = 2 * N
+    };
+    m2DynamicTree tree;
+    m2TreeNode* nodes = calloc(CAPACITY, sizeof(m2TreeNode));
+    m2AABB boxes[N];
+    int32_t proxies[N];
+    m2TreeInit(&tree, nodes, CAPACITY);
+    for (int32_t i = 0; i < N; ++i)
+    {
+        proxies[i] = M2_NULL_NODE;
+    }
+    bool valid = true;
+    bool stable = true;
+    for (int32_t op = 0; op < 6000; ++op)
+    {
+        int32_t i = (int32_t)(NextRandom() % N);
+        m2AABB box = RandomAabb();
+        if (NextRandom() % 16 == 0)
+        {
+            box.upperBound.x = box.lowerBound.x + 150.0; // a wide floor-like box
+        }
+        if (proxies[i] == M2_NULL_NODE)
+        {
+            proxies[i] = m2TreeInsert(&tree, nodes, box, i);
+            boxes[i] = box;
+        }
+        else if (NextRandom() % 3 == 0)
+        {
+            m2TreeRemove(&tree, nodes, proxies[i]);
+            proxies[i] = M2_NULL_NODE;
+        }
+        else
+        {
+            int32_t before = proxies[i];
+            m2TreeMove(&tree, nodes, proxies[i], box);
+            stable = stable && nodes[before].userData == i && nodes[before].height == 0;
+            boxes[i] = box;
+        }
+        valid = valid && m2TreeValidate(&tree, nodes);
+    }
+    CHECK(valid, "the tree stays a valid AVL tree through the churn");
+    CHECK(stable, "moves keep proxy indices");
+    for (int32_t q = 0; q < 50; ++q)
+    {
+        m2AABB query = RandomAabb();
+        int32_t results[N];
+        int32_t hits = m2TreeQuery(&tree, nodes, query, results, N);
+        int32_t brute = 0;
+        for (int32_t i = 0; i < N; ++i)
+        {
+            brute += proxies[i] != M2_NULL_NODE && m2AABB_Overlaps(boxes[i], query) ? 1 : 0;
+        }
+        CHECK(hits == brute, "churned tree queries match brute force");
+    }
+    free(nodes);
+}
+
 int main(void)
 {
+    TestTreeChurn();
     TestDuplicateCandidatesDoNotCrowdTheTable();
     TestWideMoverPairsEverything();
     TestFullPairTableIsCounted();

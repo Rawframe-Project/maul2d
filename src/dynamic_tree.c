@@ -1,9 +1,21 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Adapted from Box2D's dynamic tree (Copyright 2023 Erin Catto, MIT):
-// best-sibling insertion by area heuristic, AVL rotations. All arithmetic
-// is f64 +,-,*,compare - inside the allowed op set, deterministic.
+// The broadphase tree: a bounding volume hierarchy over fat leaf boxes,
+// kept height balanced as an AVL tree so a query stack of a fixed size
+// always suffices.
+//
+// Insertion descends from the root toward the child whose box grows
+// least by the new leaf, pairs the leaf with the node on that path that
+// adds the least total box area to the tree, then walks back up refitting
+// boxes and restoring the AVL height rule with single and double
+// rotations.
+// A move detaches a leaf and reattaches it through the same descent,
+// reusing its node and its old parent node, so a proxy id never changes
+// while the shape lives.
+//
+// Every decision is a comparison of f64 sums and products, so the tree
+// shape is a pure function of the operation history.
 
 #include "dynamic_tree.h"
 
@@ -11,14 +23,7 @@
 
 #include "maul2d/base.h"
 
-static double AabbPerimeter(m2AABB aabb)
-{
-    double wx = aabb.upperBound.x - aabb.lowerBound.x;
-    double wy = aabb.upperBound.y - aabb.lowerBound.y;
-    return 2.0 * (wx + wy);
-}
-
-static m2AABB AabbUnion(m2AABB a, m2AABB b)
+static m2AABB Union(m2AABB a, m2AABB b)
 {
     m2AABB c;
     c.lowerBound.x = a.lowerBound.x < b.lowerBound.x ? a.lowerBound.x : b.lowerBound.x;
@@ -28,353 +33,285 @@ static m2AABB AabbUnion(m2AABB a, m2AABB b)
     return c;
 }
 
+// Half the perimeter: in 2D the surface area heuristic weighs a box by
+// its perimeter, and the factor two never changes a comparison.
+static double HalfPerimeter(m2AABB box)
+{
+    return (box.upperBound.x - box.lowerBound.x) + (box.upperBound.y - box.lowerBound.y);
+}
+
+static int32_t MaxHeight(const m2TreeNode* nodes, int32_t a, int32_t b)
+{
+    return nodes[a].height > nodes[b].height ? nodes[a].height : nodes[b].height;
+}
+
 void m2TreeInit(m2DynamicTree* tree, m2TreeNode* nodes, int32_t nodeCapacity)
 {
     tree->root = M2_NULL_NODE;
     tree->nodeCount = 0;
     tree->nodeCapacity = nodeCapacity;
-    tree->freeList = 0;
+    tree->freeList = nodeCapacity > 0 ? 0 : M2_NULL_NODE;
     for (int32_t i = 0; i < nodeCapacity; ++i)
     {
         nodes[i] = (m2TreeNode){0};
-        nodes[i].parentOrNext = i + 1 < nodeCapacity ? i + 1 : M2_NULL_NODE;
+        nodes[i].parent = i + 1 < nodeCapacity ? i + 1 : M2_NULL_NODE;
         nodes[i].height = -1;
     }
 }
 
-static int32_t AllocateNode(m2DynamicTree* tree, m2TreeNode* nodes)
+static int32_t TakeNode(m2DynamicTree* tree, m2TreeNode* nodes)
 {
-    if (tree->freeList == M2_NULL_NODE)
+    int32_t node = tree->freeList;
+    if (node == M2_NULL_NODE)
     {
         return M2_NULL_NODE;
     }
-    int32_t node = tree->freeList;
-    tree->freeList = nodes[node].parentOrNext;
+    tree->freeList = nodes[node].parent;
+    tree->nodeCount += 1;
     nodes[node] = (m2TreeNode){0};
-    nodes[node].parentOrNext = M2_NULL_NODE;
+    nodes[node].parent = M2_NULL_NODE;
     nodes[node].child1 = M2_NULL_NODE;
     nodes[node].child2 = M2_NULL_NODE;
-    nodes[node].flags = 1;
-    tree->nodeCount += 1;
+    nodes[node].userData = -1;
     return node;
 }
 
-static void FreeNode(m2DynamicTree* tree, m2TreeNode* nodes, int32_t node)
+static void GiveNode(m2DynamicTree* tree, m2TreeNode* nodes, int32_t node)
 {
     nodes[node] = (m2TreeNode){0};
-    nodes[node].parentOrNext = tree->freeList;
+    nodes[node].parent = tree->freeList;
     nodes[node].height = -1;
     tree->freeList = node;
     tree->nodeCount -= 1;
 }
 
-// AVL balance: returns the new subtree root (Box2D's rotation scheme).
-static int32_t Balance(m2DynamicTree* tree, m2TreeNode* n, int32_t iA)
+// Points the parent of old (or the root) at replacement.
+static void Relink(m2DynamicTree* tree, m2TreeNode* nodes, int32_t parent, int32_t old,
+                   int32_t replacement)
 {
-    m2TreeNode* A = n + iA;
-    if (A->child1 == M2_NULL_NODE || A->height < 2)
+    nodes[replacement].parent = parent;
+    if (parent == M2_NULL_NODE)
     {
-        return iA;
+        tree->root = replacement;
     }
-
-    int32_t iB = A->child1;
-    int32_t iC = A->child2;
-    m2TreeNode* B = n + iB;
-    m2TreeNode* C = n + iC;
-    int32_t balance = C->height - B->height;
-
-    if (balance > 1) // rotate C up
+    else if (nodes[parent].child1 == old)
     {
-        int32_t iF = C->child1;
-        int32_t iG = C->child2;
-        m2TreeNode* F = n + iF;
-        m2TreeNode* G = n + iG;
-
-        C->child1 = iA;
-        C->parentOrNext = A->parentOrNext;
-        A->parentOrNext = iC;
-        if (C->parentOrNext != M2_NULL_NODE)
-        {
-            if (n[C->parentOrNext].child1 == iA)
-            {
-                n[C->parentOrNext].child1 = iC;
-            }
-            else
-            {
-                n[C->parentOrNext].child2 = iC;
-            }
-        }
-        else
-        {
-            tree->root = iC;
-        }
-
-        if (F->height > G->height)
-        {
-            C->child2 = iF;
-            A->child2 = iG;
-            G->parentOrNext = iA;
-            A->aabb = AabbUnion(B->aabb, G->aabb);
-            C->aabb = AabbUnion(A->aabb, F->aabb);
-            A->height = 1 + (B->height > G->height ? B->height : G->height);
-            C->height = 1 + (A->height > F->height ? A->height : F->height);
-        }
-        else
-        {
-            C->child2 = iG;
-            A->child2 = iF;
-            F->parentOrNext = iA;
-            A->aabb = AabbUnion(B->aabb, F->aabb);
-            C->aabb = AabbUnion(A->aabb, G->aabb);
-            A->height = 1 + (B->height > F->height ? B->height : F->height);
-            C->height = 1 + (A->height > G->height ? A->height : G->height);
-        }
-        return iC;
+        nodes[parent].child1 = replacement;
     }
-
-    if (balance < -1) // rotate B up
+    else
     {
-        int32_t iD = B->child1;
-        int32_t iE = B->child2;
-        m2TreeNode* D = n + iD;
-        m2TreeNode* E = n + iE;
-
-        B->child1 = iA;
-        B->parentOrNext = A->parentOrNext;
-        A->parentOrNext = iB;
-        if (B->parentOrNext != M2_NULL_NODE)
-        {
-            if (n[B->parentOrNext].child1 == iA)
-            {
-                n[B->parentOrNext].child1 = iB;
-            }
-            else
-            {
-                n[B->parentOrNext].child2 = iB;
-            }
-        }
-        else
-        {
-            tree->root = iB;
-        }
-
-        if (D->height > E->height)
-        {
-            B->child2 = iD;
-            A->child1 = iE;
-            E->parentOrNext = iA;
-            A->aabb = AabbUnion(C->aabb, E->aabb);
-            B->aabb = AabbUnion(A->aabb, D->aabb);
-            A->height = 1 + (C->height > E->height ? C->height : E->height);
-            B->height = 1 + (A->height > D->height ? A->height : D->height);
-        }
-        else
-        {
-            B->child2 = iE;
-            A->child1 = iD;
-            D->parentOrNext = iA;
-            A->aabb = AabbUnion(C->aabb, D->aabb);
-            B->aabb = AabbUnion(A->aabb, E->aabb);
-            A->height = 1 + (C->height > D->height ? C->height : D->height);
-            B->height = 1 + (A->height > E->height ? A->height : E->height);
-        }
-        return iB;
+        nodes[parent].child2 = replacement;
     }
-
-    return iA;
 }
 
-static void FixUpward(m2DynamicTree* tree, m2TreeNode* nodes, int32_t index)
+static void Refit(m2TreeNode* nodes, int32_t node)
 {
-    while (index != M2_NULL_NODE)
+    int32_t a = nodes[node].child1;
+    int32_t b = nodes[node].child2;
+    nodes[node].aabb = Union(nodes[a].aabb, nodes[b].aabb);
+    nodes[node].height = 1 + MaxHeight(nodes, a, b);
+}
+
+// Lifts the child on the given side (1 or 2) of top into its place. The
+// lifted node keeps its own outer child and adopts top on the vacated
+// side; top adopts the lifted node's inner child. Returns the new root
+// of the subtree.
+static int32_t Rotate(m2DynamicTree* tree, m2TreeNode* nodes, int32_t top, int32_t side)
+{
+    int32_t up = side == 1 ? nodes[top].child1 : nodes[top].child2;
+    int32_t inner = side == 1 ? nodes[up].child2 : nodes[up].child1;
+    Relink(tree, nodes, nodes[top].parent, top, up);
+    if (side == 1)
     {
-        index = Balance(tree, nodes, index);
-        m2TreeNode* node = nodes + index;
-        int32_t c1 = node->child1;
-        int32_t c2 = node->child2;
-        node->aabb = AabbUnion(nodes[c1].aabb, nodes[c2].aabb);
-        node->height =
-            1 + (nodes[c1].height > nodes[c2].height ? nodes[c1].height : nodes[c2].height);
-        index = node->parentOrNext;
+        nodes[top].child1 = inner;
+        nodes[up].child2 = top;
     }
+    else
+    {
+        nodes[top].child2 = inner;
+        nodes[up].child1 = top;
+    }
+    nodes[inner].parent = top;
+    nodes[top].parent = up;
+    Refit(nodes, top);
+    Refit(nodes, up);
+    return up;
+}
+
+// Restores the AVL rule at node, whose two children are balanced subtrees
+// of any heights. The taller child rises; when its inner grandchild is
+// the taller one, that grandchild rises first so the rotation cannot
+// leave the imbalance on the other side. When the heights were more than
+// two apart the demoted node can still lean, so it is balanced in turn
+// and the new top checked again: in effect an AVL join, which lets an
+// insertion pair a leaf with a subtree of any height. Returns the root
+// of the balanced subtree.
+static int32_t Rebalance(m2DynamicTree* tree, m2TreeNode* nodes, int32_t node)
+{
+    for (;;)
+    {
+        int32_t a = nodes[node].child1;
+        int32_t b = nodes[node].child2;
+        int32_t skew = nodes[b].height - nodes[a].height;
+        if (skew >= -1 && skew <= 1)
+        {
+            return node;
+        }
+        int32_t side = skew > 0 ? 2 : 1;
+        int32_t tall = side == 1 ? a : b;
+        int32_t outer = side == 1 ? nodes[tall].child1 : nodes[tall].child2;
+        int32_t inner = side == 1 ? nodes[tall].child2 : nodes[tall].child1;
+        if (nodes[inner].height > nodes[outer].height)
+        {
+            Rotate(tree, nodes, tall, side == 1 ? 2 : 1);
+        }
+        int32_t up = Rotate(tree, nodes, node, side);
+        Rebalance(tree, nodes, node);
+        Refit(nodes, up);
+        node = up;
+    }
+}
+
+// Refits boxes and heights from node up to the root, rebalancing on the
+// way.
+static void RepairUpward(m2DynamicTree* tree, m2TreeNode* nodes, int32_t node)
+{
+    while (node != M2_NULL_NODE)
+    {
+        Refit(nodes, node);
+        node = Rebalance(tree, nodes, node);
+        node = nodes[node].parent;
+    }
+}
+
+// The node a new box becomes the sibling of. Pairing box with node X adds
+// a junction of area |X u box| and grows every ancestor A of X by
+// |A u box| - |A|, so the added area of the whole tree is
+//
+//     cost(X) = |X u box| + (growth of the ancestors of X).
+//
+// The descent follows the child that grows least (ties to the smaller
+// union, then to the first child) and keeps the cheapest node it meets.
+// It stops once the growth inherited so far plus |box|, the least any
+// deeper junction can cost, reaches the best cost found.
+static int32_t PickSibling(const m2DynamicTree* tree, const m2TreeNode* nodes, m2AABB box)
+{
+    double boxArea = HalfPerimeter(box);
+    int32_t node = tree->root;
+    int32_t best = node;
+    double bestCost = HalfPerimeter(Union(nodes[node].aabb, box));
+    double inherited = 0.0;
+    while (nodes[node].height > 0)
+    {
+        inherited += HalfPerimeter(Union(nodes[node].aabb, box)) - HalfPerimeter(nodes[node].aabb);
+        if (inherited + boxArea >= bestCost)
+        {
+            break;
+        }
+        int32_t a = nodes[node].child1;
+        int32_t b = nodes[node].child2;
+        double areaA = HalfPerimeter(Union(nodes[a].aabb, box));
+        double areaB = HalfPerimeter(Union(nodes[b].aabb, box));
+        double growA = areaA - HalfPerimeter(nodes[a].aabb);
+        double growB = areaB - HalfPerimeter(nodes[b].aabb);
+        bool takeB = growB < growA || (growB == growA && areaB < areaA);
+        node = takeB ? b : a;
+        double cost = inherited + (takeB ? areaB : areaA);
+        if (cost < bestCost)
+        {
+            best = node;
+            bestCost = cost;
+        }
+    }
+    return best;
+}
+
+// Hangs leaf in the tree under junction, a free interior node.
+static void Attach(m2DynamicTree* tree, m2TreeNode* nodes, int32_t leaf, int32_t junction)
+{
+    if (tree->root == M2_NULL_NODE)
+    {
+        tree->root = leaf;
+        nodes[leaf].parent = M2_NULL_NODE;
+        return;
+    }
+    int32_t sibling = PickSibling(tree, nodes, nodes[leaf].aabb);
+    Relink(tree, nodes, nodes[sibling].parent, sibling, junction);
+    nodes[junction].child1 = sibling;
+    nodes[junction].child2 = leaf;
+    nodes[sibling].parent = junction;
+    nodes[leaf].parent = junction;
+    RepairUpward(tree, nodes, junction);
+}
+
+// Takes leaf out of the tree and returns its old parent node, which is
+// no longer linked (M2_NULL_NODE when the leaf was the root).
+static int32_t Detach(m2DynamicTree* tree, m2TreeNode* nodes, int32_t leaf)
+{
+    int32_t parent = nodes[leaf].parent;
+    nodes[leaf].parent = M2_NULL_NODE;
+    if (parent == M2_NULL_NODE)
+    {
+        tree->root = M2_NULL_NODE;
+        return M2_NULL_NODE;
+    }
+    int32_t sibling = nodes[parent].child1 == leaf ? nodes[parent].child2 : nodes[parent].child1;
+    int32_t grandParent = nodes[parent].parent;
+    Relink(tree, nodes, grandParent, parent, sibling);
+    RepairUpward(tree, nodes, grandParent);
+    return parent;
 }
 
 int32_t m2TreeInsert(m2DynamicTree* tree, m2TreeNode* nodes, m2AABB aabb, int32_t userData)
 {
-    int32_t leaf = AllocateNode(tree, nodes);
-    if (leaf == M2_NULL_NODE)
+    // A non-empty tree needs a junction node besides the leaf; both are
+    // taken up front so a full pool refuses with the tree untouched.
+    bool empty = tree->root == M2_NULL_NODE;
+    if (tree->nodeCount + (empty ? 1 : 2) > tree->nodeCapacity)
     {
         return M2_NULL_NODE;
     }
+    int32_t leaf = TakeNode(tree, nodes);
     nodes[leaf].aabb = aabb;
     nodes[leaf].userData = userData;
     nodes[leaf].height = 0;
-
-    if (tree->root == M2_NULL_NODE)
-    {
-        tree->root = leaf;
-        nodes[leaf].parentOrNext = M2_NULL_NODE;
-        return leaf;
-    }
-
-    // Find the best sibling by the surface-area heuristic.
-    int32_t index = tree->root;
-    while (nodes[index].height > 0)
-    {
-        int32_t child1 = nodes[index].child1;
-        int32_t child2 = nodes[index].child2;
-
-        double area = AabbPerimeter(nodes[index].aabb);
-        double combinedArea = AabbPerimeter(AabbUnion(nodes[index].aabb, aabb));
-        double cost = 2.0 * combinedArea;
-        double inheritanceCost = 2.0 * (combinedArea - area);
-
-        double cost1;
-        m2AABB aabb1 = AabbUnion(aabb, nodes[child1].aabb);
-        if (nodes[child1].height == 0)
-        {
-            cost1 = AabbPerimeter(aabb1) + inheritanceCost;
-        }
-        else
-        {
-            cost1 = AabbPerimeter(aabb1) - AabbPerimeter(nodes[child1].aabb) + inheritanceCost;
-        }
-
-        double cost2;
-        m2AABB aabb2 = AabbUnion(aabb, nodes[child2].aabb);
-        if (nodes[child2].height == 0)
-        {
-            cost2 = AabbPerimeter(aabb2) + inheritanceCost;
-        }
-        else
-        {
-            cost2 = AabbPerimeter(aabb2) - AabbPerimeter(nodes[child2].aabb) + inheritanceCost;
-        }
-
-        if (cost < cost1 && cost < cost2)
-        {
-            break;
-        }
-        index = cost1 < cost2 ? child1 : child2;
-    }
-
-    int32_t sibling = index;
-    int32_t oldParent = nodes[sibling].parentOrNext;
-    int32_t newParent = AllocateNode(tree, nodes);
-    if (newParent == M2_NULL_NODE)
-    {
-        // Pool exhausted mid-insert: undo the leaf, fail loudly upstream.
-        FreeNode(tree, nodes, leaf);
-        return M2_NULL_NODE;
-    }
-    nodes[newParent].parentOrNext = oldParent;
-    nodes[newParent].aabb = AabbUnion(aabb, nodes[sibling].aabb);
-    nodes[newParent].height = nodes[sibling].height + 1;
-    nodes[newParent].child1 = sibling;
-    nodes[newParent].child2 = leaf;
-    nodes[sibling].parentOrNext = newParent;
-    nodes[leaf].parentOrNext = newParent;
-
-    if (oldParent != M2_NULL_NODE)
-    {
-        if (nodes[oldParent].child1 == sibling)
-        {
-            nodes[oldParent].child1 = newParent;
-        }
-        else
-        {
-            nodes[oldParent].child2 = newParent;
-        }
-    }
-    else
-    {
-        tree->root = newParent;
-    }
-
-    FixUpward(tree, nodes, nodes[leaf].parentOrNext);
+    int32_t junction = empty ? M2_NULL_NODE : TakeNode(tree, nodes);
+    Attach(tree, nodes, leaf, junction);
     return leaf;
 }
 
 void m2TreeRemove(m2DynamicTree* tree, m2TreeNode* nodes, int32_t proxy)
 {
     M2_ASSERT(proxy >= 0 && proxy < tree->nodeCapacity && nodes[proxy].height == 0);
-
-    if (tree->root == proxy)
+    int32_t junction = Detach(tree, nodes, proxy);
+    if (junction != M2_NULL_NODE)
     {
-        tree->root = M2_NULL_NODE;
-        FreeNode(tree, nodes, proxy);
-        return;
+        GiveNode(tree, nodes, junction);
     }
-
-    int32_t parent = nodes[proxy].parentOrNext;
-    int32_t grandParent = nodes[parent].parentOrNext;
-    int32_t sibling = nodes[parent].child1 == proxy ? nodes[parent].child2 : nodes[parent].child1;
-
-    if (grandParent != M2_NULL_NODE)
-    {
-        if (nodes[grandParent].child1 == parent)
-        {
-            nodes[grandParent].child1 = sibling;
-        }
-        else
-        {
-            nodes[grandParent].child2 = sibling;
-        }
-        nodes[sibling].parentOrNext = grandParent;
-        FreeNode(tree, nodes, parent);
-        FixUpward(tree, nodes, grandParent);
-    }
-    else
-    {
-        tree->root = sibling;
-        nodes[sibling].parentOrNext = M2_NULL_NODE;
-        FreeNode(tree, nodes, parent);
-    }
-    FreeNode(tree, nodes, proxy);
+    GiveNode(tree, nodes, proxy);
 }
 
 void m2TreeMove(m2DynamicTree* tree, m2TreeNode* nodes, int32_t proxy, m2AABB aabb)
 {
-    int32_t userData = nodes[proxy].userData;
-    m2TreeRemove(tree, nodes, proxy);
-    int32_t fresh = m2TreeInsert(tree, nodes, aabb, userData);
-    // Same node index comes back: Remove pushed exactly the nodes Insert
-    // pops (LIFO free list), and the proxy was freed last.
-    M2_ASSERT(fresh == proxy);
-    (void)fresh;
+    int32_t junction = Detach(tree, nodes, proxy);
+    nodes[proxy].aabb = aabb;
+    Attach(tree, nodes, proxy, junction);
 }
 
 int32_t m2TreeQuery(const m2DynamicTree* tree, const m2TreeNode* nodes, m2AABB aabb,
                     int32_t* results, int32_t resultCapacity)
 {
-    int32_t stack[256];
-    int32_t top = 0;
+    m2TreeCursor cursor;
+    m2TreeBeginQuery(&cursor, tree, nodes, aabb);
     int32_t count = 0;
-    if (tree->root != M2_NULL_NODE)
+    int32_t userData;
+    while (m2TreeNextQuery(&cursor, &userData))
     {
-        stack[top++] = tree->root;
-    }
-    while (top > 0)
-    {
-        int32_t index = stack[--top];
-        if (!m2AABB_Overlaps(nodes[index].aabb, aabb))
+        if (count < resultCapacity)
         {
-            continue;
+            results[count] = userData;
         }
-        if (nodes[index].height == 0)
-        {
-            if (count < resultCapacity)
-            {
-                results[count] = nodes[index].userData;
-            }
-            count += 1;
-        }
-        else
-        {
-            M2_ASSERT(top + 2 <= 256);
-            stack[top++] = nodes[index].child1;
-            stack[top++] = nodes[index].child2;
-        }
+        count += 1;
     }
     return count;
 }
@@ -391,12 +328,14 @@ void m2TreeBeginQuery(m2TreeCursor* cursor, const m2DynamicTree* tree, const m2T
     }
 }
 
+// Depth first, first child first. The stack holds at most one pending
+// sibling per level plus the node in hand, and an AVL tree over any
+// int32 node count is under 64 levels deep.
 bool m2TreeNextQuery(m2TreeCursor* cursor, int32_t* userData)
 {
     while (cursor->top > 0)
     {
-        int32_t index = cursor->stack[--cursor->top];
-        const m2TreeNode* node = cursor->nodes + index;
+        const m2TreeNode* node = cursor->nodes + cursor->stack[--cursor->top];
         if (!m2AABB_Overlaps(node->aabb, cursor->aabb))
         {
             continue;
@@ -407,52 +346,46 @@ bool m2TreeNextQuery(m2TreeCursor* cursor, int32_t* userData)
             return true;
         }
         M2_ASSERT(cursor->top + 2 <= M2_TREE_STACK_CAPACITY);
-        cursor->stack[cursor->top++] = node->child1;
         cursor->stack[cursor->top++] = node->child2;
+        cursor->stack[cursor->top++] = node->child1;
     }
     return false;
 }
 
-static bool ValidateNode(const m2DynamicTree* tree, const m2TreeNode* nodes, int32_t index)
+// Checks one subtree and returns its leaf count, or -1 on any breach:
+// links both ways, the height rule, AVL balance and box containment.
+static int32_t CheckSubtree(const m2DynamicTree* tree, const m2TreeNode* nodes, int32_t node)
 {
-    if (index == M2_NULL_NODE)
+    const m2TreeNode* n = nodes + node;
+    if (n->height == 0)
     {
-        return true;
+        return n->child1 == M2_NULL_NODE && n->child2 == M2_NULL_NODE ? 1 : -1;
     }
-    const m2TreeNode* node = nodes + index;
-    if (node->height == 0)
+    int32_t a = n->child1;
+    int32_t b = n->child2;
+    if (a < 0 || a >= tree->nodeCapacity || b < 0 || b >= tree->nodeCapacity ||
+        nodes[a].parent != node || nodes[b].parent != node ||
+        n->height != 1 + MaxHeight(nodes, a, b) || nodes[a].height - nodes[b].height > 1 ||
+        nodes[b].height - nodes[a].height > 1 || !m2AABB_Contains(n->aabb, nodes[a].aabb) ||
+        !m2AABB_Contains(n->aabb, nodes[b].aabb))
     {
-        return node->child1 == M2_NULL_NODE && node->child2 == M2_NULL_NODE;
+        return -1;
     }
-    int32_t c1 = node->child1;
-    int32_t c2 = node->child2;
-    if (c1 < 0 || c1 >= tree->nodeCapacity || c2 < 0 || c2 >= tree->nodeCapacity)
-    {
-        return false;
-    }
-    if (nodes[c1].parentOrNext != index || nodes[c2].parentOrNext != index)
-    {
-        return false;
-    }
-    int32_t expected =
-        1 + (nodes[c1].height > nodes[c2].height ? nodes[c1].height : nodes[c2].height);
-    if (node->height != expected)
-    {
-        return false;
-    }
-    if (!m2AABB_Contains(node->aabb, nodes[c1].aabb) ||
-        !m2AABB_Contains(node->aabb, nodes[c2].aabb))
-    {
-        return false;
-    }
-    return ValidateNode(tree, nodes, c1) && ValidateNode(tree, nodes, c2);
+    int32_t leavesA = CheckSubtree(tree, nodes, a);
+    int32_t leavesB = CheckSubtree(tree, nodes, b);
+    return leavesA < 0 || leavesB < 0 ? -1 : leavesA + leavesB;
 }
 
 bool m2TreeValidate(const m2DynamicTree* tree, const m2TreeNode* nodes)
 {
-    if (tree->root != M2_NULL_NODE && nodes[tree->root].parentOrNext != M2_NULL_NODE)
+    if (tree->root == M2_NULL_NODE)
+    {
+        return tree->nodeCount == 0;
+    }
+    if (nodes[tree->root].parent != M2_NULL_NODE)
     {
         return false;
     }
-    return ValidateNode(tree, nodes, tree->root);
+    int32_t leaves = CheckSubtree(tree, nodes, tree->root);
+    return leaves > 0 && tree->nodeCount == 2 * leaves - 1;
 }

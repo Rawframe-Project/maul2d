@@ -104,6 +104,10 @@ Work toward 0.0.1, the first release of the reworked library.
   (identical across gcc and clang, Release and Debug).
   docs/references.md lists the published sources behind the
   algorithms.
+- The broadphase tree is rewritten: surface-area-guided insertion,
+  strict AVL balance and moves that keep the proxy index without
+  touching the free list. Every golden hash and bench pin is
+  unchanged.
 
 ### Removed
 

@@ -14,14 +14,12 @@ ccd.c SweepBullet 134 numeric kernel: one pass in a fixed operation order
 contact_solver.c m2PrepareContacts 124 numeric kernel: solver rows in one fixed operation order
 joint_wheel.c SolveWheel 124 numeric kernel: solver rows in one fixed operation order
 particle_solver.c StageBodyContactsRange 120 numeric kernel: one pass in a fixed operation order
-dynamic_tree.c Balance 111 tree kernel: one rotation or insertion in a fixed order
 contact.c UpdateContactsRange 102 numeric kernel: one pass in a fixed operation order
 contact_solver.c m2SolveContactOne 102 numeric kernel: solver rows in one fixed operation order
 manifold.c FinishPolygons 96 numeric kernel: one pass in a fixed operation order
 query.c CastProxyClosest 95 numeric kernel: one pass in a fixed operation order
 island.c m2UpdateIslandsAndWake 94 numeric kernel: one pass in a fixed operation order
 joint_distance.c SolveDistance 94 numeric kernel: solver rows in one fixed operation order
-dynamic_tree.c m2TreeInsert 92 tree kernel: one rotation or insertion in a fixed order
 mover.c m2World_CollideMover 92 numeric kernel: one pass in a fixed operation order
 joint_motor.c SolveMotor 91 numeric kernel: solver rows in one fixed operation order
 manifold.c m2CollidePolygonAndCircle 91 numeric kernel: one pass in a fixed operation order
