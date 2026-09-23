@@ -13,6 +13,7 @@
 
 #include "maul2d/base.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -712,8 +713,34 @@ static void TestAllHitsBeyondSixtyFour(void)
     m2DestroyWorld(world);
 }
 
+// A ray that starts inside a rounded polygon hits where it starts, with
+// no normal, like every other solid shape; from outside it meets the
+// rounded corner.
+static void TestRayInsideRoundedPolygon(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2WorldId world = m2CreateWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2BodyId body = m2CreateBody(world, &bd);
+    m2Vec2 square[4] = {{-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
+    m2Polygon rounded = m2MakePolygon(square, 4, 0.5f);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2ShapeId shape = m2CreatePolygonShape(body, &sd, &rounded);
+    m2RayCastResult inside = m2Shape_RayCast(shape, (m2Pos2){0.0, 0.0}, (m2Vec2){5.0f, 0.0f});
+    CHECK(inside.hit && inside.fraction == 0.0f, "a ray from inside hits at its start");
+    CHECK(inside.normal.x == 0.0f && inside.normal.y == 0.0f, "with no normal");
+    m2RayCastResult corner = m2Shape_RayCast(shape, (m2Pos2){3.0, 3.0}, (m2Vec2){-3.0f, -3.0f});
+    double expected = 1.0 + 0.5 * 0.70710678;
+    CHECK(corner.hit && fabs(corner.point.x - expected) < 1.0e-4 &&
+              fabs(corner.point.y - expected) < 1.0e-4,
+          "a diagonal ray meets the rounded corner");
+    CHECK(fabsf(corner.normal.x - 0.70710678f) < 1.0e-4f, "on the corner's normal");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
+    TestRayInsideRoundedPolygon();
     TestAllHitsBeyondSixtyFour();
     TestQueryFilters();
     TestContactData();

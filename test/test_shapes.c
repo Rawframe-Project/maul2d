@@ -13,6 +13,7 @@
 
 #include "maul2d/base.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -463,8 +464,49 @@ static void TestComputeHull(void)
     CHECK(m2ComputeHull(blob, 3, 0.0f).count == 0, "a welded-away blob returns count zero");
 }
 
+// Mass properties against closed forms: a capsule is a rectangle and
+// two half discs whose centroids sit 4r / (3 pi) past the segment ends,
+// and a rounded square adds edge rectangles and corner quarter discs to
+// its core (Steiner's decomposition).
+static void TestMassClosedForms(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2WorldId world = m2CreateWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    m2ShapeDef sd = m2DefaultShapeDef();
+    sd.density = 1.0f;
+
+    m2BodyId pill = m2CreateBody(world, &bd);
+    m2Capsule capsule = {{-1.0f, 0.0f}, {1.0f, 0.0f}, 0.5f};
+    m2CreateCapsuleShape(pill, &sd, &capsule);
+    double disc = 3.14159265358979 * 0.25;
+    double lc = 4.0 * 0.5 / (3.0 * 3.14159265358979);
+    double capsuleInertia = 2.0 * (4.0 + 1.0) / 12.0 + disc * (0.5 * 0.25 + 1.0 + 2.0 * lc);
+    CHECK(fabs((double)m2Body_GetMass(pill) - (2.0 + disc)) < 1.0e-4, "capsule mass");
+    CHECK(fabs((double)m2Body_GetRotationalInertia(pill) - capsuleInertia) < 1.0e-4,
+          "capsule inertia");
+
+    m2BodyId block = m2CreateBody(world, &bd);
+    m2Vec2 square[4] = {{-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
+    m2Polygon rounded = m2MakePolygon(square, 4, 0.5f);
+    m2CreatePolygonShape(block, &sd, &rounded);
+    double area = 4.0 + 8.0 * 0.5 + disc;
+    double core = 4.0 * 8.0 / 12.0;
+    double rects = 4.0 * (1.0 * (4.0 + 0.25) / 12.0 + 1.25 * 1.25);
+    double quarter = disc / 4.0;
+    double reach = 2.0 * 0.5 * 0.70710678118655 / (3.0 * 3.14159265358979 / 4.0);
+    double out = 1.41421356237310 + reach;
+    double corners = 4.0 * (quarter * (0.5 * 0.25 - reach * reach) + quarter * out * out);
+    CHECK(fabs((double)m2Body_GetMass(block) - area) < 1.0e-4, "rounded square mass");
+    CHECK(fabs((double)m2Body_GetRotationalInertia(block) - (core + rects + corners)) < 1.0e-3,
+          "rounded square inertia");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
+    TestMassClosedForms();
     TestValidation();
     TestComputeHull();
     TestDecomposeOutline();

@@ -1,273 +1,157 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Ray casts against one shape in its body frame: circle, segment,
-// capsule and polygon kernels.
+// Ray casts against one shape in its body frame. The ray is p1 + t d for
+// t in [0, maxFraction]; a hit reports the first t, the surface point
+// and the outward normal. A ray that starts inside a solid shape hits at
+// t = 0 with a zero normal.
 //
-// Adapted from Box2D v3.1.1 geometry.c (MIT, Copyright Erin Catto; see
-// THIRD_PARTY.md), reworked for Maul's frames.
+// Circles solve the quadratic in its cancellation-free form; segments
+// intersect two lines by cross products; sharp polygons clip the ray
+// against every face (Cyrus and Beck); rounded polygons and capsules,
+// which are rounded two-vertex polygons, take the first hit on their
+// offset faces and corner circles.
 
 #include "query.h"
 
 #include <math.h>
 
-static float LengthAndNormalize(m2Vec2* out, m2Vec2 v)
+static float Dot(m2Vec2 a, m2Vec2 b)
 {
-    float length = sqrtf(v.x * v.x + v.y * v.y);
-    if (length < 1.19209290e-7f)
-    {
-        *out = (m2Vec2){0.0f, 0.0f};
-        return 0.0f;
-    }
-    out->x = v.x / length;
-    out->y = v.y / length;
-    return length;
+    return a.x * b.x + a.y * b.y;
 }
 
-// Circle kernel (reference structure).
+static float Cross(m2Vec2 a, m2Vec2 b)
+{
+    return a.x * b.y - a.y * b.x;
+}
+
+static m2Vec2 Sub(m2Vec2 a, m2Vec2 b)
+{
+    return (m2Vec2){a.x - b.x, a.y - b.y};
+}
+
+static m2Vec2 MulAdd(m2Vec2 a, float s, m2Vec2 b)
+{
+    return (m2Vec2){a.x + s * b.x, a.y + s * b.y};
+}
+
+static const m2CastHit s_miss = {{0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f, false};
+
+static m2CastHit StartsInside(m2Vec2 p1)
+{
+    m2CastHit hit = {p1, {0.0f, 0.0f}, 0.0f, true};
+    return hit;
+}
+
+// |p1 + t d - center|^2 = radius^2, smallest root. With s = p1 - center,
+// a = d.d, b = d.s and c = s.s - r^2, the root t = c / (-b + sqrt(b^2 - a
+// c)) avoids subtracting nearly equal numbers when the ray grazes.
 static m2CastHit RayCastCircle(m2Vec2 p1, m2Vec2 d, float maxFraction, m2Vec2 center, float radius)
 {
-    m2CastHit output = {{0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f, false};
-    m2Vec2 s = {p1.x - center.x, p1.y - center.y};
-    float rr = radius * radius;
-
-    m2Vec2 unit;
-    float length = LengthAndNormalize(&unit, d);
-    if (length == 0.0f)
+    m2Vec2 s = Sub(p1, center);
+    float c = Dot(s, s) - radius * radius;
+    if (c < 0.0f)
     {
-        if (s.x * s.x + s.y * s.y < rr)
-        {
-            output.point = p1;
-            output.hit = true;
-        }
-        return output;
+        return StartsInside(p1);
     }
-
-    float t = -(s.x * unit.x + s.y * unit.y);
-    m2Vec2 c = {s.x + t * unit.x, s.y + t * unit.y};
-    float cc = c.x * c.x + c.y * c.y;
-    if (cc > rr)
+    float a = Dot(d, d);
+    float b = Dot(d, s);
+    float disc = b * b - a * c;
+    if (a == 0.0f || b >= 0.0f || disc < 0.0f)
     {
-        return output;
+        return s_miss; // no motion, moving away, or passing by
     }
-
-    float h = sqrtf(rr - cc);
-    float fraction = t - h;
-    if (fraction < 0.0f || maxFraction * length < fraction)
+    float t = c / (-b + sqrtf(disc));
+    if (t > maxFraction)
     {
-        if (s.x * s.x + s.y * s.y < rr)
-        {
-            output.point = p1;
-            output.hit = true;
-        }
-        return output;
+        return s_miss;
     }
-
-    m2Vec2 hitPoint = {s.x + fraction * unit.x, s.y + fraction * unit.y};
-    float invRadius = radius > 0.0f ? 1.0f / radius : 0.0f;
-    output.fraction = fraction / length;
-    output.normal = (m2Vec2){hitPoint.x * invRadius, hitPoint.y * invRadius};
-    output.point =
-        (m2Vec2){center.x + radius * output.normal.x, center.y + radius * output.normal.y};
-    output.hit = true;
-    return output;
+    m2Vec2 point = MulAdd(p1, t, d);
+    m2Vec2 n = Sub(point, center);
+    float length = sqrtf(Dot(n, n));
+    m2CastHit hit = {point, {n.x / length, n.y / length}, t, true};
+    if (!(length > 0.0f))
+    {
+        hit.normal = (m2Vec2){0.0f, 0.0f};
+    }
+    return hit;
 }
 
-// Two-sided segment kernel (reference structure).
+// Two-sided: the normal faces the ray's origin.
 static m2CastHit RayCastSegment(m2Vec2 p1, m2Vec2 d, float maxFraction, m2Vec2 v1, m2Vec2 v2)
 {
-    m2CastHit output = {{0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f, false};
-    m2Vec2 e = {v2.x - v1.x, v2.y - v1.y};
-    m2Vec2 eUnit;
-    float length = LengthAndNormalize(&eUnit, e);
-    if (length == 0.0f)
+    m2Vec2 e = Sub(v2, v1);
+    float denom = Cross(d, e);
+    if (denom == 0.0f)
     {
-        return output;
+        return s_miss; // parallel, or a point segment
     }
-
-    m2Vec2 normal = {eUnit.y, -eUnit.x}; // right perp
-    float numerator = normal.x * (v1.x - p1.x) + normal.y * (v1.y - p1.y);
-    float denominator = normal.x * d.x + normal.y * d.y;
-    if (denominator == 0.0f)
+    m2Vec2 r = Sub(v1, p1);
+    float t = Cross(r, e) / denom;
+    float u = Cross(r, d) / denom;
+    if (t < 0.0f || t > maxFraction || u < 0.0f || u > 1.0f)
     {
-        return output;
+        return s_miss;
     }
-
-    float t = numerator / denominator;
-    if (t < 0.0f || maxFraction < t)
+    float length = sqrtf(Dot(e, e));
+    m2Vec2 n = {e.y / length, -e.x / length};
+    if (Dot(n, d) > 0.0f)
     {
-        return output;
-    }
-
-    m2Vec2 p = {p1.x + t * d.x, p1.y + t * d.y};
-    float s = (p.x - v1.x) * eUnit.x + (p.y - v1.y) * eUnit.y;
-    if (s < 0.0f || length < s)
-    {
-        return output;
-    }
-    if (numerator > 0.0f)
-    {
-        normal = (m2Vec2){-normal.x, -normal.y};
-    }
-    output.fraction = t;
-    output.point = p;
-    output.normal = normal;
-    output.hit = true;
-    return output;
-}
-
-// Capsule kernel (reference structure).
-static m2CastHit RayCastCapsule(m2Vec2 p1, m2Vec2 d, float maxFraction, m2Vec2 v1, m2Vec2 v2,
-                                float radius)
-{
-    m2CastHit output = {{0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f, false};
-    m2Vec2 a;
-    float capsuleLength = LengthAndNormalize(&a, (m2Vec2){v2.x - v1.x, v2.y - v1.y});
-    if (capsuleLength == 0.0f)
-    {
-        return RayCastCircle(p1, d, maxFraction, v1, radius);
-    }
-
-    m2Vec2 q = {p1.x - v1.x, p1.y - v1.y};
-    float qa = q.x * a.x + q.y * a.y;
-    m2Vec2 qp = {q.x - qa * a.x, q.y - qa * a.y};
-
-    if (qp.x * qp.x + qp.y * qp.y < radius * radius)
-    {
-        if (qa < 0.0f)
-        {
-            return RayCastCircle(p1, d, maxFraction, v1, radius);
-        }
-        if (qa > capsuleLength)
-        {
-            return RayCastCircle(p1, d, maxFraction, v2, radius);
-        }
-        output.point = p1;
-        output.hit = true;
-        return output;
-    }
-
-    m2Vec2 n = {a.y, -a.x};
-    m2Vec2 u;
-    float rayLength = LengthAndNormalize(&u, d);
-    if (rayLength == 0.0f)
-    {
-        return output;
-    }
-
-    float den = -a.x * u.y + u.x * a.y;
-    if (den > -1.19209290e-7f && den < 1.19209290e-7f)
-    {
-        return output; // parallel and outside
-    }
-
-    m2Vec2 b1 = {q.x - radius * n.x, q.y - radius * n.y};
-    m2Vec2 b2 = {q.x + radius * n.x, q.y + radius * n.y};
-    float invDen = 1.0f / den;
-    float s21 = (a.x * b1.y - b1.x * a.y) * invDen;
-    float s22 = (a.x * b2.y - b2.x * a.y) * invDen;
-
-    float s2;
-    m2Vec2 b;
-    if (s21 < s22)
-    {
-        s2 = s21;
-        b = b1;
-    }
-    else
-    {
-        s2 = s22;
-        b = b2;
         n = (m2Vec2){-n.x, -n.y};
     }
-
-    if (s2 < 0.0f || maxFraction * rayLength < s2)
-    {
-        return output;
-    }
-
-    float s1 = (-b.x * u.y + u.x * b.y) * invDen;
-    if (s1 < 0.0f)
-    {
-        return RayCastCircle(p1, d, maxFraction, v1, radius);
-    }
-    if (capsuleLength < s1)
-    {
-        return RayCastCircle(p1, d, maxFraction, v2, radius);
-    }
-
-    float lerp = s1 / capsuleLength;
-    output.fraction = s2 / rayLength;
-    output.point = (m2Vec2){v1.x + lerp * (v2.x - v1.x) + radius * n.x,
-                            v1.y + lerp * (v2.y - v1.y) + radius * n.y};
-    output.normal = n;
-    output.hit = true;
-    return output;
+    m2CastHit hit = {MulAdd(p1, t, d), n, t, true};
+    return hit;
 }
 
-// Sharp polygon kernel (reference structure, radius == 0 path).
-static m2CastHit RayCastSharpPolygon(m2Vec2 p1In, m2Vec2 d, float maxFraction,
-                                     const m2Polygon* shape)
+// The polygon clips the ray face by face: entering faces raise the lower
+// bound, leaving faces lower the upper bound, and a ray parallel to a
+// face outside it misses. Positions are taken relative to the first
+// vertex, since the polygon may sit far from the body origin.
+static m2CastHit RayCastSharpPolygon(m2Vec2 p1, m2Vec2 d, float maxFraction, const m2Polygon* poly)
 {
-    m2CastHit output = {{0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f, false};
-    // Shift the math to the first vertex (the polygon may sit far from
-    // the body origin).
-    m2Vec2 base = shape->vertices[0];
-    m2Vec2 p1 = {p1In.x - base.x, p1In.y - base.y};
-
+    m2Vec2 base = poly->vertices[0];
+    m2Vec2 start = Sub(p1, base);
     float lower = 0.0f;
     float upper = maxFraction;
-    int32_t index = -1;
-
-    for (int32_t i = 0; i < shape->count; ++i)
+    int32_t entering = -1;
+    for (int32_t i = 0; i < poly->count; ++i)
     {
-        m2Vec2 vertex = {shape->vertices[i].x - base.x, shape->vertices[i].y - base.y};
-        float numerator =
-            shape->normals[i].x * (vertex.x - p1.x) + shape->normals[i].y * (vertex.y - p1.y);
-        float denominator = shape->normals[i].x * d.x + shape->normals[i].y * d.y;
-
-        if (denominator == 0.0f)
+        m2Vec2 n = poly->normals[i];
+        float gap = Dot(n, Sub(Sub(poly->vertices[i], base), start)); // > 0 inside
+        float rate = Dot(n, d);
+        if (rate == 0.0f)
         {
-            if (numerator < 0.0f)
+            if (gap < 0.0f)
             {
-                return output;
+                return s_miss;
             }
+            continue;
         }
-        else
+        float t = gap / rate;
+        if (rate < 0.0f && t > lower)
         {
-            if (denominator < 0.0f && numerator < lower * denominator)
-            {
-                lower = numerator / denominator;
-                index = i;
-            }
-            else if (denominator > 0.0f && numerator < upper * denominator)
-            {
-                upper = numerator / denominator;
-            }
+            lower = t;
+            entering = i;
         }
-
+        else if (rate > 0.0f && t < upper)
+        {
+            upper = t;
+        }
         if (upper < lower)
         {
-            return output;
+            return s_miss;
         }
     }
-
-    if (index >= 0)
+    if (entering < 0)
     {
-        output.fraction = lower;
-        output.normal = shape->normals[index];
-        output.point = (m2Vec2){p1In.x + lower * d.x, p1In.y + lower * d.y};
-        output.hit = true;
+        return StartsInside(p1);
     }
-    else
-    {
-        output.point = p1In;
-        output.hit = true;
-    }
-    return output;
+    m2CastHit hit = {MulAdd(p1, lower, d), poly->normals[entering], lower, true};
+    return hit;
 }
 
-static void TakeBetter(m2CastHit* best, m2CastHit candidate)
+static void KeepFirst(m2CastHit* best, m2CastHit candidate)
 {
     if (candidate.hit && (!best->hit || candidate.fraction < best->fraction))
     {
@@ -275,25 +159,59 @@ static void TakeBetter(m2CastHit* best, m2CastHit candidate)
     }
 }
 
-// Rounded polygons cast as the union of offset edges and vertex
-// circles: exact, and built from kernels that are already exact.
-static m2CastHit RayCastPolygon(m2Vec2 p1, m2Vec2 d, float maxFraction, const m2Polygon* shape)
+// True when p lies within radius of the polygon's core.
+static bool InsideRounded(m2Vec2 p, const m2Polygon* poly)
 {
-    if (shape->radius == 0.0f)
+    float inside = -3.4e38f;
+    float nearest = 3.4e38f;
+    for (int32_t i = 0; i < poly->count; ++i)
     {
-        return RayCastSharpPolygon(p1, d, maxFraction, shape);
+        int32_t j = i + 1 < poly->count ? i + 1 : 0;
+        m2Vec2 a = poly->vertices[i];
+        m2Vec2 e = Sub(poly->vertices[j], a);
+        inside =
+            inside > Dot(poly->normals[i], Sub(p, a)) ? inside : Dot(poly->normals[i], Sub(p, a));
+        float ee = Dot(e, e);
+        float t = ee > 0.0f ? Dot(Sub(p, a), e) / ee : 0.0f;
+        t = t < 0.0f ? 0.0f : (t > 1.0f ? 1.0f : t);
+        m2Vec2 r = Sub(p, MulAdd(a, t, e));
+        nearest = Dot(r, r) < nearest ? Dot(r, r) : nearest;
     }
-    m2CastHit best = {{0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f, false};
-    for (int32_t i = 0; i < shape->count; ++i)
+    return inside <= 0.0f || nearest < poly->radius * poly->radius;
+}
+
+// A rounded polygon is its faces pushed out by the radius joined by
+// circles at the corners. From outside, the first hit on an offset face
+// the ray enters or on a corner circle is the first hit on the shape.
+static m2CastHit RayCastRoundedPolygon(m2Vec2 p1, m2Vec2 d, float maxFraction,
+                                       const m2Polygon* poly)
+{
+    if (InsideRounded(p1, poly))
     {
-        int32_t j = i + 1 < shape->count ? i + 1 : 0;
-        m2Vec2 offset = {shape->normals[i].x * shape->radius, shape->normals[i].y * shape->radius};
-        m2Vec2 e1 = {shape->vertices[i].x + offset.x, shape->vertices[i].y + offset.y};
-        m2Vec2 e2 = {shape->vertices[j].x + offset.x, shape->vertices[j].y + offset.y};
-        TakeBetter(&best, RayCastSegment(p1, d, maxFraction, e1, e2));
-        TakeBetter(&best, RayCastCircle(p1, d, maxFraction, shape->vertices[i], shape->radius));
+        return StartsInside(p1);
+    }
+    m2CastHit best = s_miss;
+    for (int32_t i = 0; i < poly->count; ++i)
+    {
+        int32_t j = i + 1 < poly->count ? i + 1 : 0;
+        m2Vec2 n = poly->normals[i];
+        if (Dot(n, d) < 0.0f)
+        {
+            m2Vec2 e1 = MulAdd(poly->vertices[i], poly->radius, n);
+            m2Vec2 e2 = MulAdd(poly->vertices[j], poly->radius, n);
+            m2CastHit face = RayCastSegment(p1, d, maxFraction, e1, e2);
+            face.normal = n;
+            KeepFirst(&best, face);
+        }
+        KeepFirst(&best, RayCastCircle(p1, d, maxFraction, poly->vertices[i], poly->radius));
     }
     return best;
+}
+
+static m2CastHit RayCastPolygon(m2Vec2 p1, m2Vec2 d, float maxFraction, const m2Polygon* poly)
+{
+    return poly->radius == 0.0f ? RayCastSharpPolygon(p1, d, maxFraction, poly)
+                                : RayCastRoundedPolygon(p1, d, maxFraction, poly);
 }
 
 m2CastHit m2RayCastGeometry(const m2ShapeGeometry* geometry, m2Vec2 p1, m2Vec2 d, float maxFraction)
@@ -303,21 +221,22 @@ m2CastHit m2RayCastGeometry(const m2ShapeGeometry* geometry, m2Vec2 p1, m2Vec2 d
     case m2_circleShape:
         return RayCastCircle(p1, d, maxFraction, geometry->circle.center, geometry->circle.radius);
     case m2_capsuleShape:
-        return RayCastCapsule(p1, d, maxFraction, geometry->capsule.point1,
-                              geometry->capsule.point2, geometry->capsule.radius);
+    {
+        m2Polygon capsule = m2MakeSegmentProxy(geometry->capsule.point1, geometry->capsule.point2,
+                                               geometry->capsule.radius);
+        return RayCastRoundedPolygon(p1, d, maxFraction, &capsule);
+    }
     case m2_segmentShape:
         return RayCastSegment(p1, d, maxFraction, geometry->segment.point1,
                               geometry->segment.point2);
     case m2_chainSegmentShape:
     {
-        // One-sided, like the collision: rays from the ghost side miss.
+        // One-sided like the collision: rays from the ghost side, on the
+        // left of point1 to point2, pass through.
         const m2Segment* seg = &geometry->chainSegment.segment;
-        m2Vec2 e = {seg->point2.x - seg->point1.x, seg->point2.y - seg->point1.y};
-        float offset = (p1.x - seg->point1.x) * e.y - (p1.y - seg->point1.y) * e.x;
-        if (offset < 0.0f) // reference sign: skip rays from the ghost side
+        if (Cross(Sub(seg->point2, seg->point1), Sub(p1, seg->point1)) > 0.0f)
         {
-            m2CastHit missHit = {{0.0f, 0.0f}, {0.0f, 0.0f}, 0.0f, false};
-            return missHit;
+            return s_miss;
         }
         return RayCastSegment(p1, d, maxFraction, seg->point1, seg->point2);
     }

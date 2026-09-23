@@ -78,12 +78,19 @@ typedef struct m2RelativePose
 // Constant shared with the fat margin family.
 #define M2_SPECULATIVE_DISTANCE (4.0f * 0.005f)
 
+// Feature ids, stable while the same features touch so warm starting can
+// match points across steps. A polygon pair point holds the index of A's
+// nearest vertex times 16 plus the index of B's nearest vertex, whichever
+// face is the reference; a polygon-circle point is a face index, or a
+// vertex index with the vertex flag.
+#define M2_FEATURE_VERTEX 0x2000u
+
 m2Manifold m2CollideCircles(const m2Circle* a, const m2Circle* b, m2RelativePose pose);
 m2Manifold m2CollidePolygonAndCircle(const m2Polygon* a, const m2Circle* b, m2RelativePose pose);
 m2Manifold m2CollidePolygons(const m2Polygon* a, const m2Polygon* b, m2RelativePose pose);
 
 // Capsules and segments enter the polygon kernels as 2-vertex rounded
-// polygons (the Box2D v3 model): one kernel table, fewer edge cases.
+// polygons: one kernel table, fewer edge cases.
 m2Polygon m2MakeSegmentProxy(m2Vec2 p1, m2Vec2 p2, float radius);
 
 // Signed-ish distance from a point (in the shape's body frame) to the

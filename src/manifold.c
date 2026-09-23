@@ -1,11 +1,22 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Narrowphase manifold kernels: circle-vs-circle, polygon-vs-circle
-// (Voronoi regions) and polygon-vs-polygon (SAT + clip, covering
-// capsules and segments as 2-vertex rounded polygons). Structure follows Box2D v3's manifold
-// functions (Copyright 2023 Erin Catto, MIT). Pure functions of their inputs: no state, only
-// allowed ops, evaluated in canonical pair order by the world.
+// Contact manifolds between convex shapes, all in body A's frame with B
+// placed by the relative pose. Circles are points with a radius;
+// capsules and segments are two-vertex polygons with a radius, so three
+// kernels cover every pair: circle and circle, polygon and circle, and
+// polygon and polygon.
+//
+// Polygon pairs use the separating axis test over both polygons' face
+// normals. The deeper face becomes the reference, the most opposed face
+// of the other polygon the incident edge, and the incident edge clipped
+// to the reference face's extent gives up to two points (Sutherland and
+// Hodgman's clipping, one edge against two side planes). Rounded shapes
+// that are apart may touch corner to corner instead; the closest points
+// of the two edges decide.
+//
+// Every contact point sits halfway between the two surfaces. Kernels are
+// pure functions of their inputs.
 
 #include "geometry.h"
 
@@ -14,510 +25,399 @@
 #include "maul2d/base.h"
 #include "maul2d/core_math.h"
 
-static m2Vec2 RotateVec(m2Rot q, m2Vec2 v)
+// Points whose separation is within this of the best one count as ties.
+#define M2_MANIFOLD_TOLERANCE (0.1f * 0.005f)
+
+// A polygon point is named by the vertex of A and the vertex of B nearest
+// to it, so the name survives a change of reference face.
+#define M2_PAIR_ID(vertexA, vertexB) ((uint16_t)(((uint32_t)(vertexA) << 4) | (uint32_t)(vertexB)))
+
+static float Dot(m2Vec2 a, m2Vec2 b)
 {
-    return (m2Vec2){q.c * v.x - q.s * v.y, q.s * v.x + q.c * v.y};
+    return a.x * b.x + a.y * b.y;
 }
 
-static m2Vec2 InvRotateVec(m2Rot q, m2Vec2 v)
+static m2Vec2 Sub(m2Vec2 a, m2Vec2 b)
 {
-    return (m2Vec2){q.c * v.x + q.s * v.y, -q.s * v.x + q.c * v.y};
+    return (m2Vec2){a.x - b.x, a.y - b.y};
 }
 
-static m2Vec2 PoseTransform(m2RelativePose pose, m2Vec2 v)
+static m2Vec2 MulAdd(m2Vec2 a, float s, m2Vec2 b)
 {
-    m2Vec2 r = RotateVec(pose.q, v);
-    return (m2Vec2){r.x + pose.p.x, r.y + pose.p.y};
+    return (m2Vec2){a.x + s * b.x, a.y + s * b.y};
 }
 
-// Express a point given in A's frame back in B's frame.
-static m2Vec2 PoseUntransform(m2RelativePose pose, m2Vec2 pointInA)
+// B's frame to A's frame.
+static m2Vec2 ToA(m2RelativePose pose, m2Vec2 v)
 {
-    m2Vec2 d = {pointInA.x - pose.p.x, pointInA.y - pose.p.y};
-    return InvRotateVec(pose.q, d);
+    return (m2Vec2){pose.q.c * v.x - pose.q.s * v.y + pose.p.x,
+                    pose.q.s * v.x + pose.q.c * v.y + pose.p.y};
+}
+
+// A's frame to B's frame.
+static m2Vec2 ToB(m2RelativePose pose, m2Vec2 v)
+{
+    m2Vec2 d = Sub(v, pose.p);
+    return (m2Vec2){pose.q.c * d.x + pose.q.s * d.y, -pose.q.s * d.x + pose.q.c * d.y};
+}
+
+static m2Manifold EmptyManifold(void)
+{
+    m2Manifold manifold;
+    memset(&manifold, 0, sizeof(manifold));
+    return manifold;
+}
+
+// One contact point: the surfaces lie radiusA past p along the normal on
+// A's side and separation further on B's side; the point is their
+// midpoint.
+static void SetPoint(m2Manifold* manifold, int32_t k, m2Vec2 p, float radiusA, float separation,
+                     uint16_t id, m2RelativePose pose)
+{
+    m2ManifoldPoint* mp = &manifold->points[k];
+    mp->anchorA = MulAdd(p, radiusA + 0.5f * separation, manifold->normal);
+    mp->anchorB = ToB(pose, mp->anchorA);
+    mp->separation = separation;
+    mp->id = id;
 }
 
 m2Manifold m2CollideCircles(const m2Circle* a, const m2Circle* b, m2RelativePose pose)
 {
-    m2Manifold manifold;
-    memset(&manifold, 0, sizeof(manifold));
-
-    m2Vec2 centerB = PoseTransform(pose, b->center);
-    m2Vec2 d = {centerB.x - a->center.x, centerB.y - a->center.y};
-    float distSq = d.x * d.x + d.y * d.y;
-    float radiusSum = a->radius + b->radius;
-    float maxDist = radiusSum + M2_SPECULATIVE_DISTANCE;
-    if (distSq > maxDist * maxDist)
+    m2Manifold manifold = EmptyManifold();
+    m2Vec2 d = Sub(ToA(pose, b->center), a->center);
+    float radius = a->radius + b->radius;
+    float reach = radius + M2_SPECULATIVE_DISTANCE;
+    float dd = Dot(d, d);
+    if (dd > reach * reach)
     {
         return manifold;
     }
-
-    float dist = sqrtf(distSq);
-    m2Vec2 normal;
-    if (dist > 1.19209290e-7f)
-    {
-        float inv = 1.0f / dist;
-        normal = (m2Vec2){d.x * inv, d.y * inv};
-    }
-    else
-    {
-        // Coincident centers: the canonical fallback normal,
-        // deterministic and never NaN.
-        normal = (m2Vec2){0.0f, 1.0f};
-    }
-
-    m2Vec2 pointInA = {a->center.x + (0.5f * (dist + a->radius - b->radius)) * normal.x,
-                       a->center.y + (0.5f * (dist + a->radius - b->radius)) * normal.y};
-
-    manifold.normal = normal;
+    float distance = sqrtf(dd);
+    // Coincident centers have no direction; up is the fixed stand-in.
+    manifold.normal =
+        distance > 1.19209290e-7f ? (m2Vec2){d.x / distance, d.y / distance} : (m2Vec2){0.0f, 1.0f};
     manifold.pointCount = 1;
-    manifold.points[0].anchorA = pointInA;
-    manifold.points[0].anchorB = PoseUntransform(pose, pointInA);
-    manifold.points[0].separation = dist - radiusSum;
-    manifold.points[0].id = 0;
+    SetPoint(&manifold, 0, a->center, a->radius, distance - radius, 0, pose);
     return manifold;
 }
 
 m2Manifold m2CollidePolygonAndCircle(const m2Polygon* a, const m2Circle* b, m2RelativePose pose)
 {
-    m2Manifold manifold;
-    memset(&manifold, 0, sizeof(manifold));
-
-    m2Vec2 center = PoseTransform(pose, b->center);
-    float radiusSum = a->radius + b->radius;
-    float maxDist = radiusSum + M2_SPECULATIVE_DISTANCE;
-
-    // Deepest-penetration / closest-feature edge by support separation.
-    int32_t bestEdge = 0;
-    float bestSeparation = -3.4e38f;
+    m2Manifold manifold = EmptyManifold();
+    m2Vec2 c = ToA(pose, b->center);
+    float radius = a->radius + b->radius;
+    float separations[M2_MAX_POLYGON_VERTICES] = {0.0f};
+    int32_t deepest = 0;
     for (int32_t i = 0; i < a->count; ++i)
     {
-        m2Vec2 n = a->normals[i];
-        m2Vec2 v = a->vertices[i];
-        float separation = n.x * (center.x - v.x) + n.y * (center.y - v.y);
-        if (separation > bestSeparation)
-        {
-            bestSeparation = separation;
-            bestEdge = i;
-        }
+        separations[i] = Dot(a->normals[i], Sub(c, a->vertices[i]));
+        deepest = separations[i] > separations[deepest] ? i : deepest;
     }
-    if (bestSeparation > maxDist)
+    if (separations[deepest] > radius + M2_SPECULATIVE_DISTANCE)
     {
         return manifold;
     }
-
-    m2Vec2 v1 = a->vertices[bestEdge];
-    m2Vec2 v2 = a->vertices[(bestEdge + 1) % a->count];
-
-    m2Vec2 normal;
     m2Vec2 closest;
+    float distance;
     uint16_t id;
-    // Voronoi region of the reference edge: vertex, vertex, or face.
-    float u1 = (center.x - v1.x) * (v2.x - v1.x) + (center.y - v1.y) * (v2.y - v1.y);
-    float u2 = (center.x - v2.x) * (v1.x - v2.x) + (center.y - v2.y) * (v1.y - v2.y);
-    if (bestSeparation > 1.19209290e-7f && u1 <= 0.0f)
+    if (separations[deepest] <= 0.0f)
     {
-        closest = v1;
-        id = (uint16_t)((bestEdge << 8) | 1);
-    }
-    else if (bestSeparation > 1.19209290e-7f && u2 <= 0.0f)
-    {
-        closest = v2;
-        id = (uint16_t)((bestEdge << 8) | 2);
+        // The center is inside the core: out through the nearest face.
+        manifold.normal = a->normals[deepest];
+        distance = separations[deepest];
+        closest = MulAdd(c, -distance, manifold.normal);
+        id = (uint16_t)deepest;
     }
     else
     {
-        closest = (m2Vec2){0.0f, 0.0f}; // set below via face projection
-        id = (uint16_t)(bestEdge << 8);
-    }
-
-    float separation;
-    if ((id & 0xFF) != 0)
-    {
-        m2Vec2 d = {center.x - closest.x, center.y - closest.y};
-        float dist = sqrtf(d.x * d.x + d.y * d.y);
-        if (dist > maxDist)
+        // Outside: the nearest boundary point over every edge that faces
+        // the center, first edge first on ties.
+        float best = 3.4e38f;
+        closest = a->vertices[0];
+        id = 0;
+        for (int32_t i = 0; i < a->count; ++i)
+        {
+            if (separations[i] <= 0.0f)
+            {
+                continue;
+            }
+            int32_t j = i + 1 < a->count ? i + 1 : 0;
+            m2Vec2 e = Sub(a->vertices[j], a->vertices[i]);
+            float t = m2ClampF(Dot(Sub(c, a->vertices[i]), e) / Dot(e, e), 0.0f, 1.0f);
+            m2Vec2 q = MulAdd(a->vertices[i], t, e);
+            m2Vec2 r = Sub(c, q);
+            if (Dot(r, r) < best)
+            {
+                best = Dot(r, r);
+                closest = q;
+                id = t == 0.0f   ? (uint16_t)(M2_FEATURE_VERTEX | (uint32_t)i)
+                     : t == 1.0f ? (uint16_t)(M2_FEATURE_VERTEX | (uint32_t)j)
+                                 : (uint16_t)i;
+            }
+        }
+        distance = sqrtf(best);
+        if (distance > radius + M2_SPECULATIVE_DISTANCE)
         {
             return manifold;
         }
-        if (dist > 1.19209290e-7f)
-        {
-            float inv = 1.0f / dist;
-            normal = (m2Vec2){d.x * inv, d.y * inv};
-        }
-        else
-        {
-            normal = a->normals[bestEdge];
-        }
-        separation = dist - radiusSum;
+        m2Vec2 r = Sub(c, closest);
+        manifold.normal = (m2Vec2){r.x / distance, r.y / distance};
     }
-    else
-    {
-        normal = a->normals[bestEdge];
-        separation = bestSeparation - radiusSum;
-        closest =
-            (m2Vec2){center.x - bestSeparation * normal.x, center.y - bestSeparation * normal.y};
-    }
-
-    m2Vec2 pointInA = {closest.x + a->radius * normal.x, closest.y + a->radius * normal.y};
-    // Midpoint between the two surfaces along the normal.
-    pointInA.x += 0.5f * (separation)*normal.x;
-    pointInA.y += 0.5f * (separation)*normal.y;
-
-    manifold.normal = normal;
     manifold.pointCount = 1;
-    manifold.points[0].anchorA = pointInA;
-    manifold.points[0].anchorB = PoseUntransform(pose, pointInA);
-    manifold.points[0].separation = separation;
-    manifold.points[0].id = id;
+    SetPoint(&manifold, 0, closest, a->radius, distance - radius, id, pose);
     return manifold;
 }
 
-// --- Polygon vs polygon (SAT + clip; adapted from Box2D v3) ------------------
+// --- Polygon vs polygon --------------------------------------------------------
 
-#define M2_MAKE_ID(a, b) ((uint16_t)(((a) << 8) | (b)))
-
-typedef struct m2SegmentDistanceResult
+typedef struct Face
 {
-    m2Vec2 closest1;
-    m2Vec2 closest2;
-    float fraction1;
-    float fraction2;
-    float distanceSquared;
-} m2SegmentDistanceResult;
+    int32_t index;
+    float separation;
+} Face;
 
-static m2SegmentDistanceResult SegmentDistance(m2Vec2 p1, m2Vec2 q1, m2Vec2 p2, m2Vec2 q2)
+// The face of ref that separates other best: the largest over ref's faces
+// of the smallest signed distance of other's vertices past the face.
+// Ties keep the lower face.
+static Face DeepestFace(const m2Polygon* ref, const m2Polygon* other)
 {
-    m2SegmentDistanceResult result = {0};
-    m2Vec2 d1 = {q1.x - p1.x, q1.y - p1.y};
-    m2Vec2 d2 = {q2.x - p2.x, q2.y - p2.y};
-    m2Vec2 r = {p1.x - p2.x, p1.y - p2.y};
-    float dd1 = d1.x * d1.x + d1.y * d1.y;
-    float dd2 = d2.x * d2.x + d2.y * d2.y;
-    float rd1 = r.x * d1.x + r.y * d1.y;
-    float rd2 = r.x * d2.x + r.y * d2.y;
-    const float epsSqr = 1.19209290e-7f * 1.19209290e-7f;
-
-    if (dd1 < epsSqr || dd2 < epsSqr)
+    Face best = {0, -3.4e38f};
+    for (int32_t i = 0; i < ref->count; ++i)
     {
-        if (dd1 >= epsSqr)
+        float s = 3.4e38f;
+        for (int32_t j = 0; j < other->count; ++j)
         {
-            result.fraction1 = m2ClampF(-rd1 / dd1, 0.0f, 1.0f);
+            s = m2MinF(s, Dot(ref->normals[i], Sub(other->vertices[j], ref->vertices[i])));
         }
-        else if (dd2 >= epsSqr)
+        if (s > best.separation)
         {
-            result.fraction2 = m2ClampF(rd2 / dd2, 0.0f, 1.0f);
+            best = (Face){i, s};
         }
     }
-    else
-    {
-        float d12 = d1.x * d2.x + d1.y * d2.y;
-        float denominator = dd1 * dd2 - d12 * d12;
-        float f1 = 0.0f;
-        if (denominator != 0.0f)
-        {
-            f1 = m2ClampF((d12 * rd2 - rd1 * dd2) / denominator, 0.0f, 1.0f);
-        }
-        float f2 = (d12 * f1 + rd2) / dd2;
-        if (f2 < 0.0f)
-        {
-            f2 = 0.0f;
-            f1 = m2ClampF(-rd1 / dd1, 0.0f, 1.0f);
-        }
-        else if (f2 > 1.0f)
-        {
-            f2 = 1.0f;
-            f1 = m2ClampF((d12 - rd1) / dd1, 0.0f, 1.0f);
-        }
-        result.fraction1 = f1;
-        result.fraction2 = f2;
-    }
-    result.closest1 = (m2Vec2){p1.x + result.fraction1 * d1.x, p1.y + result.fraction1 * d1.y};
-    result.closest2 = (m2Vec2){p2.x + result.fraction2 * d2.x, p2.y + result.fraction2 * d2.y};
-    float cx = result.closest1.x - result.closest2.x;
-    float cy = result.closest1.y - result.closest2.y;
-    result.distanceSquared = cx * cx + cy * cy;
-    return result;
+    return best;
 }
 
-static float FindMaxSeparation(int32_t* edgeIndex, const m2Polygon* poly1, const m2Polygon* poly2)
+// The edge of poly whose normal opposes n most; ties keep the lower edge.
+static int32_t MostOpposedEdge(const m2Polygon* poly, m2Vec2 n)
 {
-    int32_t bestIndex = 0;
-    float maxSeparation = -3.4e38f;
-    for (int32_t i = 0; i < poly1->count; ++i)
+    int32_t best = 0;
+    for (int32_t i = 1; i < poly->count; ++i)
     {
-        m2Vec2 n = poly1->normals[i];
-        m2Vec2 v1 = poly1->vertices[i];
-        float si = 3.4e38f;
-        for (int32_t j = 0; j < poly2->count; ++j)
-        {
-            float sij = n.x * (poly2->vertices[j].x - v1.x) + n.y * (poly2->vertices[j].y - v1.y);
-            si = m2MinF(si, sij);
-        }
-        if (si > maxSeparation)
-        {
-            maxSeparation = si;
-            bestIndex = i;
-        }
+        best = Dot(poly->normals[i], n) < Dot(poly->normals[best], n) ? i : best;
     }
-    *edgeIndex = bestIndex;
-    return maxSeparation;
+    return best;
 }
 
-static m2Manifold ClipPolygons(const m2Polygon* polyA, const m2Polygon* polyB, int32_t edgeA,
-                               int32_t edgeB, bool flip)
+// Closest points of segments p1-q1 and p2-q2 as fractions along each,
+// clamped to the segments. Degenerate segments act as points.
+static void ClosestFractions(m2Vec2 p1, m2Vec2 q1, m2Vec2 p2, m2Vec2 q2, float* s, float* t)
 {
-    m2Manifold manifold;
-    memset(&manifold, 0, sizeof(manifold));
-
-    const m2Polygon* poly1 = flip ? polyB : polyA;
-    const m2Polygon* poly2 = flip ? polyA : polyB;
-    int32_t i11 = flip ? edgeB : edgeA;
-    int32_t i12;
-    int32_t i21 = flip ? edgeA : edgeB;
-    int32_t i22;
-    i12 = i11 + 1 < poly1->count ? i11 + 1 : 0;
-    i22 = i21 + 1 < poly2->count ? i21 + 1 : 0;
-
-    m2Vec2 normal = poly1->normals[i11];
-    m2Vec2 v11 = poly1->vertices[i11];
-    m2Vec2 v12 = poly1->vertices[i12];
-    m2Vec2 v21 = poly2->vertices[i21];
-    m2Vec2 v22 = poly2->vertices[i22];
-    m2Vec2 tangent = {-normal.y, normal.x}; // CCW perp
-
-    float lower1 = 0.0f;
-    float upper1 = (v12.x - v11.x) * tangent.x + (v12.y - v11.y) * tangent.y;
-    float upper2 = (v21.x - v11.x) * tangent.x + (v21.y - v11.y) * tangent.y;
-    float lower2 = (v22.x - v11.x) * tangent.x + (v22.y - v11.y) * tangent.y;
-
-    if (upper2 < lower1 || upper1 < lower2)
+    m2Vec2 d1 = Sub(q1, p1);
+    m2Vec2 d2 = Sub(q2, p2);
+    m2Vec2 r = Sub(p1, p2);
+    float a = Dot(d1, d1);
+    float e = Dot(d2, d2);
+    float f = Dot(d2, r);
+    const float tiny = 1.0e-12f;
+    *s = 0.0f;
+    *t = 0.0f;
+    if (a <= tiny)
     {
-        return manifold;
+        *t = e > tiny ? m2ClampF(f / e, 0.0f, 1.0f) : 0.0f;
+        return;
     }
-
-    m2Vec2 vLower;
-    if (lower2 < lower1 && upper2 - lower2 > 1.19209290e-7f)
+    float c = Dot(d1, r);
+    if (e <= tiny)
     {
-        float t = (lower1 - lower2) / (upper2 - lower2);
-        vLower = (m2Vec2){v22.x + t * (v21.x - v22.x), v22.y + t * (v21.y - v22.y)};
+        *s = m2ClampF(-c / a, 0.0f, 1.0f);
+        return;
     }
-    else
+    float b = Dot(d1, d2);
+    float denom = a * e - b * b;
+    *s = denom > 0.0f ? m2ClampF((b * f - c * e) / denom, 0.0f, 1.0f) : 0.0f;
+    *t = (b * *s + f) / e;
+    if (*t < 0.0f)
     {
-        vLower = v22;
+        *t = 0.0f;
+        *s = m2ClampF(-c / a, 0.0f, 1.0f);
     }
-    m2Vec2 vUpper;
-    if (upper2 > upper1 && upper2 - lower2 > 1.19209290e-7f)
+    else if (*t > 1.0f)
     {
-        float t = (upper1 - lower2) / (upper2 - lower2);
-        vUpper = (m2Vec2){v22.x + t * (v21.x - v22.x), v22.y + t * (v21.y - v22.y)};
+        *t = 1.0f;
+        *s = m2ClampF((b - c) / a, 0.0f, 1.0f);
     }
-    else
-    {
-        vUpper = v21;
-    }
-
-    float separationLower = (vLower.x - v11.x) * normal.x + (vLower.y - v11.y) * normal.y;
-    float separationUpper = (vUpper.x - v11.x) * normal.x + (vUpper.y - v11.y) * normal.y;
-    float r1 = poly1->radius;
-    float r2 = poly2->radius;
-    vLower = (m2Vec2){vLower.x + 0.5f * (r1 - r2 - separationLower) * normal.x,
-                      vLower.y + 0.5f * (r1 - r2 - separationLower) * normal.y};
-    vUpper = (m2Vec2){vUpper.x + 0.5f * (r1 - r2 - separationUpper) * normal.x,
-                      vUpper.y + 0.5f * (r1 - r2 - separationUpper) * normal.y};
-    float radius = r1 + r2;
-
-    if (!flip)
-    {
-        manifold.normal = normal;
-        manifold.points[0].anchorA = vLower;
-        manifold.points[0].separation = separationLower - radius;
-        manifold.points[0].id = M2_MAKE_ID(i11, i22);
-        manifold.points[1].anchorA = vUpper;
-        manifold.points[1].separation = separationUpper - radius;
-        manifold.points[1].id = M2_MAKE_ID(i12, i21);
-        manifold.pointCount = 2;
-    }
-    else
-    {
-        manifold.normal = (m2Vec2){-normal.x, -normal.y};
-        manifold.points[0].anchorA = vUpper;
-        manifold.points[0].separation = separationUpper - radius;
-        manifold.points[0].id = M2_MAKE_ID(i21, i12);
-        manifold.points[1].anchorA = vLower;
-        manifold.points[1].separation = separationLower - radius;
-        manifold.points[1].id = M2_MAKE_ID(i22, i11);
-        manifold.pointCount = 2;
-    }
-    return manifold;
 }
 
-// Stage 1 of the polygon collide: shift both polygons near A's first
-// vertex for round-off (reference technique; our positions are already
-// A-relative f32, this tightens the last bits) and rotate B into A's
-// frame. Split out so the SAT between it and FinishPolygons can run one
-// pair at a time (m2CollidePolygons) or eight at a time (the batch), the
-// SAT being the only step that changes; the transform math is byte for
-// byte the same either way.
-static void PreparePolygons(const m2Polygon* a, const m2Polygon* b, m2RelativePose pose,
-                            m2Polygon* localA, m2Polygon* localB, m2Vec2* origin)
+// Both polygons in one frame: A's frame shifted to the mean of A's
+// vertices, so the coordinates the kernel works with stay small.
+static m2Vec2 ShiftedPair(const m2Polygon* a, const m2Polygon* b, m2RelativePose pose,
+                          m2Polygon* la, m2Polygon* lb)
 {
-    m2Vec2 o = a->vertices[0];
-    *origin = o;
-
-    memset(localA, 0, sizeof(*localA));
-    localA->count = a->count;
-    localA->radius = a->radius;
+    m2Vec2 o = {0.0f, 0.0f};
     for (int32_t i = 0; i < a->count; ++i)
     {
-        localA->vertices[i] = (m2Vec2){a->vertices[i].x - o.x, a->vertices[i].y - o.y};
-        localA->normals[i] = a->normals[i];
+        o = MulAdd(o, 1.0f, a->vertices[i]);
     }
-    memset(localB, 0, sizeof(*localB));
-    localB->count = b->count;
-    localB->radius = b->radius;
+    o = (m2Vec2){o.x / (float)a->count, o.y / (float)a->count};
+    *la = *a;
+    *lb = *b;
+    for (int32_t i = 0; i < a->count; ++i)
+    {
+        la->vertices[i] = Sub(a->vertices[i], o);
+    }
     for (int32_t i = 0; i < b->count; ++i)
     {
-        m2Vec2 r = {pose.q.c * b->vertices[i].x - pose.q.s * b->vertices[i].y,
-                    pose.q.s * b->vertices[i].x + pose.q.c * b->vertices[i].y};
-        localB->vertices[i] = (m2Vec2){r.x + pose.p.x - o.x, r.y + pose.p.y - o.y};
-        localB->normals[i] = (m2Vec2){pose.q.c * b->normals[i].x - pose.q.s * b->normals[i].y,
-                                      pose.q.s * b->normals[i].x + pose.q.c * b->normals[i].y};
+        lb->vertices[i] = Sub(ToA(pose, b->vertices[i]), o);
+        lb->normals[i] = (m2Vec2){pose.q.c * b->normals[i].x - pose.q.s * b->normals[i].y,
+                                  pose.q.s * b->normals[i].x + pose.q.c * b->normals[i].y};
     }
+    return o;
 }
 
-// Stage 3 of the polygon collide: given the prepared polygons and the
-// SAT result (max separations and winning edges), reject on the margin,
-// pick the incident edge, clip or fall back to vertex-vertex, and undo
-// the origin shift. Both callers (scalar and batch) finish through this,
-// so they share identical bits.
-static m2Manifold FinishPolygons(const m2Polygon* localA, const m2Polygon* localB, int32_t edgeA,
-                                 int32_t edgeB, float separationA, float separationB,
-                                 m2RelativePose pose, m2Vec2 origin)
+// Clips the incident edge to the extent of the reference face and keeps
+// the points within the speculative distance, in the shifted frame, with
+// the normal pointing from A to B.
+static m2Manifold ClipToFace(const m2Polygon* ref, const m2Polygon* inc, int32_t face, int32_t edge,
+                             bool flip)
 {
-    float radius = localA->radius + localB->radius;
-
-    m2Manifold manifold;
-    memset(&manifold, 0, sizeof(manifold));
-    if (separationA > M2_SPECULATIVE_DISTANCE + radius ||
-        separationB > M2_SPECULATIVE_DISTANCE + radius)
+    m2Manifold manifold = EmptyManifold();
+    int32_t face2 = face + 1 < ref->count ? face + 1 : 0;
+    int32_t edge2 = edge + 1 < inc->count ? edge + 1 : 0;
+    m2Vec2 n = ref->normals[face];
+    m2Vec2 t = {-n.y, n.x}; // along the face, counterclockwise
+    m2Vec2 v1 = ref->vertices[face];
+    float length = Dot(Sub(ref->vertices[face2], v1), t);
+    // The incident edge runs against the face: its first vertex lies at
+    // the face's far end.
+    m2Vec2 w[2] = {inc->vertices[edge], inc->vertices[edge2]};
+    int32_t incVertex[2] = {edge, edge2};
+    int32_t refVertex[2] = {face2, face};
+    float s[2] = {Dot(Sub(w[0], v1), t), Dot(Sub(w[1], v1), t)};
+    if (m2MaxF(s[0], s[1]) < 0.0f || m2MinF(s[0], s[1]) > length)
     {
         return manifold;
     }
-
-    bool flip = separationA < separationB;
-    const m2Polygon* searchPoly = flip ? localB : localA;
-    const m2Polygon* incidentPoly = flip ? localA : localB;
-    int32_t* incidentEdge = flip ? &edgeA : &edgeB;
-    m2Vec2 searchDirection = searchPoly->normals[flip ? edgeB : edgeA];
-    float minDot = 3.4e38f;
-    *incidentEdge = 0;
-    for (int32_t i = 0; i < incidentPoly->count; ++i)
+    float span = s[1] - s[0];
+    float radius = ref->radius + inc->radius;
+    manifold.normal = flip ? (m2Vec2){-n.x, -n.y} : n;
+    for (int32_t k = 0; k < 2; ++k)
     {
-        float dot = searchDirection.x * incidentPoly->normals[i].x +
-                    searchDirection.y * incidentPoly->normals[i].y;
-        if (dot < minDot)
+        float bound = s[k] < 0.0f ? 0.0f : (s[k] > length ? length : s[k]);
+        m2Vec2 q = w[k];
+        if (bound != s[k] && (span > 1.19209290e-7f || span < -1.19209290e-7f))
         {
-            minDot = dot;
-            *incidentEdge = i;
+            q = MulAdd(w[0], (bound - s[0]) / span, Sub(w[1], w[0]));
         }
-    }
-
-    const float linearSlop = 0.005f;
-    if (separationA > 0.1f * linearSlop || separationB > 0.1f * linearSlop)
-    {
-        // Disjoint edges: closest points decide vertex-vertex vs clip.
-        int32_t i11 = edgeA;
-        int32_t i12 = edgeA + 1 < localA->count ? edgeA + 1 : 0;
-        int32_t i21 = edgeB;
-        int32_t i22 = edgeB + 1 < localB->count ? edgeB + 1 : 0;
-        m2SegmentDistanceResult result =
-            SegmentDistance(localA->vertices[i11], localA->vertices[i12], localB->vertices[i21],
-                            localB->vertices[i22]);
-        M2_ASSERT(result.distanceSquared > 0.0f);
-        float distance = sqrtf(result.distanceSquared);
-        if (distance - radius > M2_SPECULATIVE_DISTANCE)
+        float depth = Dot(Sub(q, v1), n);
+        if (depth - radius > M2_SPECULATIVE_DISTANCE)
         {
-            return manifold; // vertex-vertex beyond the margin
+            continue;
         }
-        manifold = ClipPolygons(localA, localB, edgeA, edgeB, flip);
-
-        float minSeparation = 3.4e38f;
-        for (int32_t i = 0; i < manifold.pointCount; ++i)
-        {
-            minSeparation = m2MinF(minSeparation, manifold.points[i].separation);
-        }
-        if (distance - radius + 0.1f * linearSlop < minSeparation)
-        {
-            // Vertex-vertex beats the clip: single-point manifold.
-            bool f1 = result.fraction1 > 0.5f;
-            bool f2 = result.fraction2 > 0.5f;
-            m2Vec2 pA = f1 ? localA->vertices[i12] : localA->vertices[i11];
-            m2Vec2 pB = f2 ? localB->vertices[i22] : localB->vertices[i21];
-            float invDistance = 1.0f / distance;
-            m2Vec2 normal = {(pB.x - pA.x) * invDistance, (pB.y - pA.y) * invDistance};
-            m2Vec2 c1 = {pA.x + localA->radius * normal.x, pA.y + localA->radius * normal.y};
-            m2Vec2 c2 = {pB.x - localB->radius * normal.x, pB.y - localB->radius * normal.y};
-            manifold.normal = normal;
-            manifold.points[0].anchorA = (m2Vec2){0.5f * (c1.x + c2.x), 0.5f * (c1.y + c2.y)};
-            manifold.points[0].separation = distance - radius;
-            manifold.points[0].id = M2_MAKE_ID(f1 ? i12 : i11, f2 ? i22 : i21);
-            manifold.points[0].normalImpulse = 0.0f;
-            manifold.points[0].tangentImpulse = 0.0f;
-            manifold.points[0].flags = 0;
-            manifold.pointCount = 1;
-        }
-    }
-    else
-    {
-        manifold = ClipPolygons(localA, localB, edgeA, edgeB, flip);
-    }
-
-    // Undo the origin shift and fill B-frame anchors.
-    m2RelativePose inverse;
-    inverse.q = (m2Rot){pose.q.c, -pose.q.s};
-    {
-        m2Vec2 r = {inverse.q.c * pose.p.x - inverse.q.s * pose.p.y,
-                    inverse.q.s * pose.p.x + inverse.q.c * pose.p.y};
-        inverse.p = (m2Vec2){-r.x, -r.y};
-    }
-    for (int32_t i = 0; i < manifold.pointCount; ++i)
-    {
-        m2Vec2 pointInA = {manifold.points[i].anchorA.x + origin.x,
-                           manifold.points[i].anchorA.y + origin.y};
-        manifold.points[i].anchorA = pointInA;
-        m2Vec2 rb = {inverse.q.c * pointInA.x - inverse.q.s * pointInA.y,
-                     inverse.q.s * pointInA.x + inverse.q.c * pointInA.y};
-        manifold.points[i].anchorB = (m2Vec2){rb.x + inverse.p.x, rb.y + inverse.p.y};
+        // The point on the reference surface, then halfway to the other.
+        m2Vec2 onRef = MulAdd(q, ref->radius - depth, n);
+        m2ManifoldPoint* mp = &manifold.points[manifold.pointCount++];
+        mp->anchorA = MulAdd(onRef, 0.5f * (depth - radius), n);
+        mp->separation = depth - radius;
+        mp->id =
+            flip ? M2_PAIR_ID(incVertex[k], refVertex[k]) : M2_PAIR_ID(refVertex[k], incVertex[k]);
     }
     return manifold;
+}
+
+// Rounded polygons apart from each other can touch corner to corner,
+// closer than any clipped point: one point on the line between the two
+// corners replaces the clip then.
+static bool CornerContact(const m2Polygon* la, const m2Polygon* lb, int32_t edgeA, int32_t edgeB,
+                          m2Manifold* manifold)
+{
+    int32_t a2 = edgeA + 1 < la->count ? edgeA + 1 : 0;
+    int32_t b2 = edgeB + 1 < lb->count ? edgeB + 1 : 0;
+    float s;
+    float t;
+    ClosestFractions(la->vertices[edgeA], la->vertices[a2], lb->vertices[edgeB], lb->vertices[b2],
+                     &s, &t);
+    bool cornerA = s == 0.0f || s == 1.0f;
+    bool cornerB = t == 0.0f || t == 1.0f;
+    int32_t va = s == 1.0f ? a2 : edgeA;
+    int32_t vb = t == 1.0f ? b2 : edgeB;
+    m2Vec2 d = Sub(lb->vertices[vb], la->vertices[va]);
+    float distance = sqrtf(Dot(d, d));
+    float radius = la->radius + lb->radius;
+    float clipped = 3.4e38f;
+    for (int32_t k = 0; k < manifold->pointCount; ++k)
+    {
+        clipped = m2MinF(clipped, manifold->points[k].separation);
+    }
+    if (!cornerA || !cornerB || distance <= 1.19209290e-7f ||
+        distance - radius + M2_MANIFOLD_TOLERANCE >= clipped)
+    {
+        return false;
+    }
+    *manifold = EmptyManifold();
+    manifold->normal = (m2Vec2){d.x / distance, d.y / distance};
+    manifold->pointCount = 1;
+    m2ManifoldPoint* mp = &manifold->points[0];
+    mp->separation = distance - radius;
+    mp->anchorA = MulAdd(la->vertices[va], la->radius + 0.5f * mp->separation, manifold->normal);
+    mp->id = M2_PAIR_ID(va, vb);
+    return true;
 }
 
 m2Manifold m2CollidePolygons(const m2Polygon* a, const m2Polygon* b, m2RelativePose pose)
 {
-    m2Polygon localA;
-    m2Polygon localB;
-    m2Vec2 origin;
-    PreparePolygons(a, b, pose, &localA, &localB, &origin);
-
-    int32_t edgeA = 0;
-    float separationA = FindMaxSeparation(&edgeA, &localA, &localB);
-    int32_t edgeB = 0;
-    float separationB = FindMaxSeparation(&edgeB, &localB, &localA);
-
-    return FinishPolygons(&localA, &localB, edgeA, edgeB, separationA, separationB, pose, origin);
+    m2Polygon la;
+    m2Polygon lb;
+    m2Vec2 origin = ShiftedPair(a, b, pose, &la, &lb);
+    Face fa = DeepestFace(&la, &lb);
+    Face fb = DeepestFace(&lb, &la);
+    float radius = la.radius + lb.radius;
+    if (fa.separation > radius + M2_SPECULATIVE_DISTANCE ||
+        fb.separation > radius + M2_SPECULATIVE_DISTANCE)
+    {
+        return EmptyManifold();
+    }
+    // B's face becomes the reference only when clearly deeper, so a pair
+    // at rest does not flip between the two and lose its warm start.
+    bool flip = fb.separation > fa.separation + M2_MANIFOLD_TOLERANCE;
+    const m2Polygon* ref = flip ? &lb : &la;
+    const m2Polygon* inc = flip ? &la : &lb;
+    int32_t face = flip ? fb.index : fa.index;
+    int32_t edge = MostOpposedEdge(inc, ref->normals[face]);
+    m2Manifold manifold = ClipToFace(ref, inc, face, edge, flip);
+    if (m2MaxF(fa.separation, fb.separation) > M2_MANIFOLD_TOLERANCE)
+    {
+        CornerContact(&la, &lb, flip ? edge : face, flip ? face : edge, &manifold);
+    }
+    // Two points always run along the tangent (the normal turned
+    // counterclockwise), whichever polygon holds the reference face: the
+    // solver visits them in this order, and an order that changed with
+    // the reference side would bias a stack sideways.
+    m2Vec2 tangent = {-manifold.normal.y, manifold.normal.x};
+    if (manifold.pointCount == 2 &&
+        Dot(Sub(manifold.points[1].anchorA, manifold.points[0].anchorA), tangent) < 0.0f)
+    {
+        m2ManifoldPoint swap = manifold.points[0];
+        manifold.points[0] = manifold.points[1];
+        manifold.points[1] = swap;
+    }
+    for (int32_t k = 0; k < manifold.pointCount && k < 2; ++k)
+    {
+        m2ManifoldPoint* mp = &manifold.points[k];
+        mp->anchorA = MulAdd(mp->anchorA, 1.0f, origin);
+        mp->anchorB = ToB(pose, mp->anchorA);
+    }
+    return manifold;
 }
 
 // --- Point-to-shape distance (bullet CCD kernel) ------------------------------
 
 static float PointSegmentDistance(m2Vec2 p, m2Vec2 a, m2Vec2 b)
 {
-    m2Vec2 d = {b.x - a.x, b.y - a.y};
-    m2Vec2 r = {p.x - a.x, p.y - a.y};
-    float dd = d.x * d.x + d.y * d.y;
-    float t = dd > 0.0f ? m2ClampF((r.x * d.x + r.y * d.y) / dd, 0.0f, 1.0f) : 0.0f;
-    m2Vec2 c = {a.x + t * d.x - p.x, a.y + t * d.y - p.y};
-    return sqrtf(c.x * c.x + c.y * c.y);
+    m2Vec2 e = Sub(b, a);
+    float ee = Dot(e, e);
+    float t = ee > 0.0f ? m2ClampF(Dot(Sub(p, a), e) / ee, 0.0f, 1.0f) : 0.0f;
+    m2Vec2 r = Sub(p, MulAdd(a, t, e));
+    return sqrtf(Dot(r, r));
 }
 
 float m2PointShapeDistance(const m2ShapeGeometry* geometry, m2Vec2 point)
@@ -526,45 +426,32 @@ float m2PointShapeDistance(const m2ShapeGeometry* geometry, m2Vec2 point)
     {
     case m2_circleShape:
     {
-        m2Vec2 d = {point.x - geometry->circle.center.x, point.y - geometry->circle.center.y};
-        return sqrtf(d.x * d.x + d.y * d.y) - geometry->circle.radius;
+        m2Vec2 d = Sub(point, geometry->circle.center);
+        return sqrtf(Dot(d, d)) - geometry->circle.radius;
     }
     case m2_capsuleShape:
-    {
         return PointSegmentDistance(point, geometry->capsule.point1, geometry->capsule.point2) -
                geometry->capsule.radius;
-    }
     case m2_segmentShape:
-    {
         return PointSegmentDistance(point, geometry->segment.point1, geometry->segment.point2);
-    }
     case m2_chainSegmentShape:
-    {
         return PointSegmentDistance(point, geometry->chainSegment.segment.point1,
                                     geometry->chainSegment.segment.point2);
-    }
     default:
     {
+        // Inside the core the nearest face decides; outside, the
+        // nearest edge.
         const m2Polygon* poly = &geometry->polygon;
-        float maxSeparation = -3.4e38f;
+        float inside = -3.4e38f;
+        float outside = 3.4e38f;
         for (int32_t i = 0; i < poly->count; ++i)
         {
-            float sep = poly->normals[i].x * (point.x - poly->vertices[i].x) +
-                        poly->normals[i].y * (point.y - poly->vertices[i].y);
-            maxSeparation = m2MaxF(maxSeparation, sep);
+            int32_t j = i + 1 < poly->count ? i + 1 : 0;
+            inside = m2MaxF(inside, Dot(poly->normals[i], Sub(point, poly->vertices[i])));
+            outside =
+                m2MinF(outside, PointSegmentDistance(point, poly->vertices[i], poly->vertices[j]));
         }
-        if (maxSeparation <= 0.0f)
-        {
-            return maxSeparation - poly->radius; // inside the core
-        }
-        float best = 3.4e38f;
-        for (int32_t i = 0; i < poly->count; ++i)
-        {
-            float d = PointSegmentDistance(point, poly->vertices[i],
-                                           poly->vertices[(i + 1) % poly->count]);
-            best = m2MinF(best, d);
-        }
-        return best - poly->radius;
+        return (inside <= 0.0f ? inside : outside) - poly->radius;
     }
     }
 }

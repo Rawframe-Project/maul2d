@@ -108,6 +108,10 @@ Work toward 0.0.1, the first release of the reworked library.
   strict AVL balance and moves that keep the proxy index without
   touching the free list. Every golden hash and bench pin is
   unchanged.
+- Contact manifolds, ray casts, convex hulls, shape mass and the
+  distance and shape cast kernels are rewritten from published sources
+  (docs/references.md). Hashes and bench pins move; the pyramid bench
+  settles exactly as before.
 
 ### Removed
 
@@ -224,3 +228,9 @@ Work toward 0.0.1, the first release of the reworked library.
   session mint different ids.
 - Shape defs refuse an infinite density or friction and a NaN or
   infinite tangent speed.
+- Capsule rotational inertia missed the offset of the end caps'
+  centroids, and rounded polygons had the mass of their unrounded
+  core. Both now match their closed forms.
+- A ray starting inside a rounded polygon reported the exit point as a
+  hit; it now hits at fraction 0 with a zero normal, like every other
+  solid shape.

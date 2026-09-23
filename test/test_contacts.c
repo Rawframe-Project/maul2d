@@ -58,20 +58,20 @@ static void TestPolygonCircleRegions(void)
     m2Polygon box = m2MakeBox(1.0f, 1.0f);
 
     // Face region: circle above the top edge (edge index 2 for MakeBox
-    // winding). Feature id encodes the edge, low byte 0.
+    // winding). The feature id is that face.
     m2Circle above = {{0.0f, 1.4f}, 0.5f};
     m2Manifold m = m2CollidePolygonAndCircle(&box, &above, IdentityPose());
     CHECK(m.pointCount == 1, "face region hit");
     CHECK_NEAR(m.points[0].separation, -0.1f, 1.0e-5f, "face separation");
     CHECK_NEAR(m.normal.y, 1.0f, 1.0e-5f, "face normal");
-    CHECK((m.points[0].id & 0xFF) == 0, "face region id");
+    CHECK(m.points[0].id == 2, "face region id");
 
     // Vertex region: circle overlapping the top-right corner along the
     // diagonal (corner distance 0.283 < radius 0.3).
     m2Circle corner = {{1.2f, 1.2f}, 0.3f};
     m = m2CollidePolygonAndCircle(&box, &corner, IdentityPose());
     CHECK(m.pointCount == 1, "vertex region hit");
-    CHECK((m.points[0].id & 0xFF) != 0, "vertex region id marks a vertex");
+    CHECK((m.points[0].id & M2_FEATURE_VERTEX) != 0, "vertex region id marks a vertex");
     CHECK_NEAR(m.normal.x, 0.7071f, 1.0e-3f, "diagonal normal x");
     CHECK_NEAR(m.normal.y, 0.7071f, 1.0e-3f, "diagonal normal y");
     CHECK(m.points[0].separation < 0.0f, "corner overlap penetrates");

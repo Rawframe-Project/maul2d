@@ -62,32 +62,31 @@ typedef struct m2RayState
     bool initialOverlap;
 } m2RayState;
 
-// Node cull: segment AABB overlap plus the reference's separating-line
-// test, all in f64 so far-from-origin worlds cull exactly.
-static bool RayMissesNode(const m2RayState* ray, m2AABB aabb)
+// A tree node is skipped when the remaining ray segment misses its box:
+// either box axis or the segment's normal separates them (the separating
+// axis test for a segment and a box). Everything runs in f64, so worlds
+// far from the origin cull exactly.
+static bool RayMissesNode(const m2RayState* ray, m2AABB box)
 {
-    double p1x = ray->origin.x;
-    double p1y = ray->origin.y;
-    double p2x = p1x + (double)ray->fraction * (double)ray->translation.x;
-    double p2y = p1y + (double)ray->fraction * (double)ray->translation.y;
-    double segLoX = p1x < p2x ? p1x : p2x;
-    double segHiX = p1x < p2x ? p2x : p1x;
-    double segLoY = p1y < p2y ? p1y : p2y;
-    double segHiY = p1y < p2y ? p2y : p1y;
-    if (segLoX > aabb.upperBound.x || segHiX < aabb.lowerBound.x || segLoY > aabb.upperBound.y ||
-        segHiY < aabb.lowerBound.y)
+    double ax = ray->origin.x;
+    double ay = ray->origin.y;
+    double dx = (double)ray->fraction * (double)ray->translation.x;
+    double dy = (double)ray->fraction * (double)ray->translation.y;
+    double cx = 0.5 * (box.lowerBound.x + box.upperBound.x);
+    double cy = 0.5 * (box.lowerBound.y + box.upperBound.y);
+    double hx = 0.5 * (box.upperBound.x - box.lowerBound.x);
+    double hy = 0.5 * (box.upperBound.y - box.lowerBound.y);
+    // The segment's midpoint relative to the box center, and its half
+    // extent.
+    double mx = ax + 0.5 * dx - cx;
+    double my = ay + 0.5 * dy - cy;
+    double ex = 0.5 * fabs(dx);
+    double ey = 0.5 * fabs(dy);
+    if (fabs(mx) > hx + ex || fabs(my) > hy + ey)
     {
         return true;
     }
-    // Separating line through the ray direction's perpendicular.
-    double cx = 0.5 * (aabb.lowerBound.x + aabb.upperBound.x);
-    double cy = 0.5 * (aabb.lowerBound.y + aabb.upperBound.y);
-    double hx = 0.5 * (aabb.upperBound.x - aabb.lowerBound.x);
-    double hy = 0.5 * (aabb.upperBound.y - aabb.lowerBound.y);
-    double vx = -(p2y - p1y);
-    double vy = p2x - p1x;
-    double separation = fabs(vx * (p1x - cx) + vy * (p1y - cy)) - (fabs(vx) * hx + fabs(vy) * hy);
-    return separation > 0.0;
+    return fabs(mx * dy - my * dx) > hx * fabs(dy) + hy * fabs(dx);
 }
 
 static void RayCastTree(const m2World* world, int32_t treeIndex, m2RayState* ray)

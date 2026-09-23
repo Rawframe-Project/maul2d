@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Shape validation, world-space AABBs, and mass properties. Validation
-// uses relative and geometric thresholds: these
-// guarantees ARE the non-zero-divisor preconditions the sim path relies
-// on. Mass math follows the standard area/inertia integrals (reference:
-// Box2D's ComputeMass lineage, MIT).
+// Shape validation, convex hulls, world-space AABBs and mass properties.
+// Validation uses relative and geometric thresholds: these guarantees are
+// the non-zero-divisor preconditions the simulation relies on.
 
 #include "geometry.h"
 #include "world_internal.h"
@@ -103,54 +101,105 @@ bool m2ValidatePolygon(const m2Polygon* polygon)
     return area > M2_MIN_THINNESS * perimeter * perimeter;
 }
 
-// Quickhull with aggressive welding and collinear merging, ported
-// from the reference (hull.c) under Maul's loud-invalid convention.
-static int32_t RecurseHull(m2Vec2 p1, m2Vec2 p2, const m2Vec2* ps, int32_t count, m2Vec2* out)
+// Twice the signed area of the triangle o, a, b: positive when b lies
+// to the left of o->a.
+static float Turn(m2Vec2 o, m2Vec2 a, m2Vec2 b)
 {
-    if (count == 0)
-    {
-        return 0;
-    }
-    float ex = p2.x - p1.x;
-    float ey = p2.y - p1.y;
-    float len = sqrtf(ex * ex + ey * ey);
-    if (!(len > 0.0f))
-    {
-        return 0;
-    }
-    ex /= len;
-    ey /= len;
+    return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+}
 
-    m2Vec2 rightPoints[M2_MAX_POLYGON_VERTICES];
-    int32_t rightCount = 0;
-    int32_t bestIndex = 0;
-    float bestDistance = (ps[0].x - p1.x) * ey - (ps[0].y - p1.y) * ex;
-    if (bestDistance > 0.0f)
+// The distance of p from the line through a and b.
+static float LineDistance(m2Vec2 a, m2Vec2 b, m2Vec2 p)
+{
+    float length = EdgeLength(a, b);
+    return length > 0.0f ? (Turn(a, b, p) < 0.0f ? -Turn(a, b, p) : Turn(a, b, p)) / length
+                         : EdgeLength(a, p);
+}
+
+// Keeps the first of any points closer than four linear slops. Returns
+// how many remain.
+static int32_t WeldPoints(const m2Vec2* points, int32_t count, m2Vec2* out)
+{
+    const float tolSqr = 16.0f * M2_LINEAR_SLOP * M2_LINEAR_SLOP;
+    int32_t n = 0;
+    for (int32_t i = 0; i < count; ++i)
     {
-        rightPoints[rightCount++] = ps[0];
-    }
-    for (int32_t i = 1; i < count; ++i)
-    {
-        float distance = (ps[i].x - p1.x) * ey - (ps[i].y - p1.y) * ex;
-        if (distance > bestDistance)
+        bool unique = true;
+        for (int32_t j = 0; j < n && unique; ++j)
         {
-            bestIndex = i;
-            bestDistance = distance;
+            float dx = points[i].x - out[j].x;
+            float dy = points[i].y - out[j].y;
+            unique = dx * dx + dy * dy >= tolSqr;
         }
-        if (distance > 0.0f)
+        if (unique)
         {
-            rightPoints[rightCount++] = ps[i];
+            out[n++] = points[i];
         }
     }
-    if (bestDistance < 2.0f * M2_LINEAR_SLOP)
+    return n;
+}
+
+// Andrew's monotone chain: points sorted by x then y, a lower chain left
+// to right and an upper chain right to left, each popping points that
+// do not turn left. The result is counterclockwise from the leftmost
+// point.
+static int32_t MonotoneChain(m2Vec2* ps, int32_t n, m2Vec2* hull)
+{
+    for (int32_t i = 1; i < n; ++i)
     {
-        return 0;
+        m2Vec2 key = ps[i];
+        int32_t j = i - 1;
+        while (j >= 0 && (ps[j].x > key.x || (ps[j].x == key.x && ps[j].y > key.y)))
+        {
+            ps[j + 1] = ps[j];
+            j -= 1;
+        }
+        ps[j + 1] = key;
     }
-    m2Vec2 bestPoint = ps[bestIndex];
-    int32_t n1 = RecurseHull(p1, bestPoint, rightPoints, rightCount, out);
-    out[n1] = bestPoint;
-    int32_t n2 = RecurseHull(bestPoint, p2, rightPoints, rightCount, out + n1 + 1);
-    return n1 + 1 + n2;
+    int32_t k = 0;
+    for (int32_t i = 0; i < n; ++i)
+    {
+        while (k >= 2 && Turn(hull[k - 2], hull[k - 1], ps[i]) <= 0.0f)
+        {
+            k -= 1;
+        }
+        hull[k++] = ps[i];
+    }
+    for (int32_t i = n - 2, lower = k + 1; i >= 0; --i)
+    {
+        while (k >= lower && Turn(hull[k - 2], hull[k - 1], ps[i]) <= 0.0f)
+        {
+            k -= 1;
+        }
+        hull[k++] = ps[i];
+    }
+    return k - 1; // the last point repeats the first
+}
+
+// Drops vertices within two linear slops of the line through their
+// neighbors, one at a time, lowest index first, until none is left.
+static int32_t MergeCollinear(m2Vec2* hull, int32_t n)
+{
+    bool merged = true;
+    while (merged && n > 2)
+    {
+        merged = false;
+        for (int32_t i = 0; i < n && !merged; ++i)
+        {
+            m2Vec2 prev = hull[(i + n - 1) % n];
+            m2Vec2 next = hull[(i + 1) % n];
+            if (LineDistance(prev, next, hull[i]) <= 2.0f * M2_LINEAR_SLOP)
+            {
+                for (int32_t j = i; j < n - 1; ++j)
+                {
+                    hull[j] = hull[j + 1];
+                }
+                n -= 1;
+                merged = true;
+            }
+        }
+    }
+    return n;
 }
 
 m2Polygon m2ComputeHull(const m2Vec2* points, int32_t count, float radius)
@@ -162,152 +211,20 @@ m2Polygon m2ComputeHull(const m2Vec2* points, int32_t count, float radius)
         return invalid; // check your data: count == 0 is the loud sign
     }
     count = count < M2_MAX_POLYGON_VERTICES ? count : M2_MAX_POLYGON_VERTICES;
-
-    // Aggressive welding; track the bounds for the seed pick.
     m2Vec2 ps[M2_MAX_POLYGON_VERTICES];
-    int32_t n = 0;
-    float loX = 3.4e38f;
-    float loY = 3.4e38f;
-    float hiX = -3.4e38f;
-    float hiY = -3.4e38f;
-    float tolSqr = 16.0f * M2_LINEAR_SLOP * M2_LINEAR_SLOP;
-    for (int32_t i = 0; i < count; ++i)
-    {
-        loX = points[i].x < loX ? points[i].x : loX;
-        loY = points[i].y < loY ? points[i].y : loY;
-        hiX = points[i].x > hiX ? points[i].x : hiX;
-        hiY = points[i].y > hiY ? points[i].y : hiY;
-        bool unique = true;
-        for (int32_t j = 0; j < n; ++j)
-        {
-            float dx = points[i].x - ps[j].x;
-            float dy = points[i].y - ps[j].y;
-            if (dx * dx + dy * dy < tolSqr)
-            {
-                unique = false;
-                break;
-            }
-        }
-        if (unique)
-        {
-            ps[n++] = points[i];
-        }
-    }
+    int32_t n = WeldPoints(points, count, ps);
     if (n < 3)
     {
-        return invalid; // welded away: scale problem, be loud
+        return invalid; // welded away: a scale problem, be loud
     }
-
-    // Seed with the point farthest from the bounds center, then its
-    // farthest partner; split the rest left/right of that line.
-    m2Vec2 c = {0.5f * (loX + hiX), 0.5f * (loY + hiY)};
-    int32_t f1 = 0;
-    float dsq1 = (ps[0].x - c.x) * (ps[0].x - c.x) + (ps[0].y - c.y) * (ps[0].y - c.y);
-    for (int32_t i = 1; i < n; ++i)
-    {
-        float dsq = (ps[i].x - c.x) * (ps[i].x - c.x) + (ps[i].y - c.y) * (ps[i].y - c.y);
-        if (dsq > dsq1)
-        {
-            f1 = i;
-            dsq1 = dsq;
-        }
-    }
-    m2Vec2 p1 = ps[f1];
-    ps[f1] = ps[n - 1];
-    n -= 1;
-
-    int32_t f2 = 0;
-    float dsq2 = (ps[0].x - p1.x) * (ps[0].x - p1.x) + (ps[0].y - p1.y) * (ps[0].y - p1.y);
-    for (int32_t i = 1; i < n; ++i)
-    {
-        float dsq = (ps[i].x - p1.x) * (ps[i].x - p1.x) + (ps[i].y - p1.y) * (ps[i].y - p1.y);
-        if (dsq > dsq2)
-        {
-            f2 = i;
-            dsq2 = dsq;
-        }
-    }
-    m2Vec2 p2 = ps[f2];
-    ps[f2] = ps[n - 1];
-    n -= 1;
-
-    m2Vec2 rightPoints[M2_MAX_POLYGON_VERTICES - 2];
-    int32_t rightCount = 0;
-    m2Vec2 leftPoints[M2_MAX_POLYGON_VERTICES - 2];
-    int32_t leftCount = 0;
-    float ex = p2.x - p1.x;
-    float ey = p2.y - p1.y;
-    float elen = sqrtf(ex * ex + ey * ey);
-    ex /= elen;
-    ey /= elen;
-    for (int32_t i = 0; i < n; ++i)
-    {
-        float d = (ps[i].x - p1.x) * ey - (ps[i].y - p1.y) * ex;
-        if (d >= 2.0f * M2_LINEAR_SLOP)
-        {
-            rightPoints[rightCount++] = ps[i];
-        }
-        else if (d <= -2.0f * M2_LINEAR_SLOP)
-        {
-            leftPoints[leftCount++] = ps[i];
-        }
-    }
-
-    m2Vec2 hull[M2_MAX_POLYGON_VERTICES];
-    int32_t hullCount = 0;
-    hull[hullCount++] = p1;
-    int32_t n1 = RecurseHull(p1, p2, rightPoints, rightCount, hull + hullCount);
-    hullCount += n1;
-    hull[hullCount++] = p2;
-    int32_t n2 = RecurseHull(p2, p1, leftPoints, leftCount, hull + hullCount);
-    hullCount += n2;
-    if (n1 == 0 && n2 == 0)
+    m2Vec2 hull[2 * M2_MAX_POLYGON_VERTICES];
+    n = MergeCollinear(hull, MonotoneChain(ps, n, hull));
+    if (n < 3)
     {
         return invalid; // all collinear
     }
-
-    // Merge collinear runs until stable.
-    bool searching = true;
-    while (searching && hullCount > 2)
-    {
-        searching = false;
-        for (int32_t i = 0; i < hullCount; ++i)
-        {
-            int32_t i1 = i;
-            int32_t i2 = (i + 1) % hullCount;
-            int32_t i3 = (i + 2) % hullCount;
-            m2Vec2 s1 = hull[i1];
-            m2Vec2 s2 = hull[i2];
-            m2Vec2 s3 = hull[i3];
-            float rx = s3.x - s1.x;
-            float ry = s3.y - s1.y;
-            float rlen = sqrtf(rx * rx + ry * ry);
-            if (!(rlen > 0.0f))
-            {
-                continue;
-            }
-            rx /= rlen;
-            ry /= rlen;
-            float distance = (s2.x - s1.x) * ry - (s2.y - s1.y) * rx;
-            if (distance <= 2.0f * M2_LINEAR_SLOP)
-            {
-                for (int32_t j = i2; j < hullCount - 1; ++j)
-                {
-                    hull[j] = hull[j + 1];
-                }
-                hullCount -= 1;
-                searching = true;
-                break;
-            }
-        }
-    }
-    if (hullCount < 3)
-    {
-        return invalid;
-    }
-    // The existing constructor does the rest: normals, centroid, and
-    // its own loud validation.
-    return m2MakePolygon(hull, hullCount, radius);
+    // The constructor adds the normals and its own loud validation.
+    return m2MakePolygon(hull, n, radius);
 }
 
 m2Polygon m2MakePolygon(const m2Vec2* points, int32_t count, float radius)
@@ -426,82 +343,129 @@ m2AABB m2ComputeShapeAABB(const m2ShapeGeometry* geometry, m2Transform xf)
 
 // --- Mass properties ----------------------------------------------------------
 
+// Area, first moment and second moment of a region about a reference
+// point, accumulated part by part.
+typedef struct Moments
+{
+    float area;
+    m2Vec2 first; // area times the centroid
+    float polar;  // second moment about the reference point
+} Moments;
+
+// Adds a part given by its area, its centroid and its own second moment
+// about that centroid.
+static void AddPart(Moments* m, float area, m2Vec2 centroid, float ownPolar)
+{
+    m->area += area;
+    m->first.x += area * centroid.x;
+    m->first.y += area * centroid.y;
+    m->polar += ownPolar + area * (centroid.x * centroid.x + centroid.y * centroid.y);
+}
+
+// A convex polygon swollen by radius: by Steiner's decomposition, the
+// core polygon, a rectangle radius wide on every edge, and a circular
+// sector at every vertex spanning the turn between its two edge
+// normals (the sectors together form one disc). Positions are taken
+// relative to the vertex mean, which lies inside the polygon, so the
+// sums carry no large offsets. Two vertices make a capsule.
+static m2MassData RoundedPolygonMass(const m2Vec2* vertices, const m2Vec2* normals, int32_t count,
+                                     float radius, float density)
+{
+    m2Vec2 o = {0.0f, 0.0f};
+    for (int32_t i = 0; i < count; ++i)
+    {
+        o.x += vertices[i].x / (float)count;
+        o.y += vertices[i].y / (float)count;
+    }
+    Moments m = {0.0f, {0.0f, 0.0f}, 0.0f};
+    for (int32_t i = 0; i < count; ++i)
+    {
+        int32_t j = i + 1 < count ? i + 1 : 0;
+        m2Vec2 a = {vertices[i].x - o.x, vertices[i].y - o.y};
+        m2Vec2 b = {vertices[j].x - o.x, vertices[j].y - o.y};
+        // The core triangle o, a, b. Its second moment about o is
+        // area / 6 * (a.a + a.b + b.b).
+        float tri = 0.5f * (a.x * b.y - a.y * b.x);
+        float triPolar = tri *
+                         (a.x * a.x + a.y * a.y + a.x * b.x + a.y * b.y + b.x * b.x + b.y * b.y) *
+                         (1.0f / 6.0f);
+        m.area += tri;
+        m.first.x += tri * (a.x + b.x) * (1.0f / 3.0f);
+        m.first.y += tri * (a.y + b.y) * (1.0f / 3.0f);
+        m.polar += triPolar;
+        if (radius <= 0.0f)
+        {
+            continue;
+        }
+        // The edge rectangle.
+        m2Vec2 n = normals[i];
+        float length = EdgeLength(a, b);
+        float rect = length * radius;
+        m2Vec2 rectCenter = {0.5f * (a.x + b.x) + 0.5f * radius * n.x,
+                             0.5f * (a.y + b.y) + 0.5f * radius * n.y};
+        AddPart(&m, rect, rectCenter, rect * (length * length + radius * radius) * (1.0f / 12.0f));
+        // The sector at vertex b, turning from this edge's normal to the
+        // next one. With half angle h: |n1 - n2| = 2 sin h, |n1 + n2| =
+        // 2 cos h, and the sector's centroid lies 4 r sin h / (3 * 2h)
+        // out along the bisector.
+        m2Vec2 n2 = normals[j];
+        m2Vec2 sum = {n.x + n2.x, n.y + n2.y};
+        m2Vec2 diff = {n2.x - n.x, n2.y - n.y};
+        float sinHalf = 0.5f * sqrtf(diff.x * diff.x + diff.y * diff.y);
+        float cosHalf = 0.5f * sqrtf(sum.x * sum.x + sum.y * sum.y);
+        float half = m2Atan2(sinHalf, cosHalf);
+        // At a two-vertex end the normals are opposite and the bisector
+        // points along the edge, away from the other vertex.
+        m2Vec2 bisector = cosHalf > 1.0e-6f
+                              ? (m2Vec2){0.5f * sum.x / cosHalf, 0.5f * sum.y / cosHalf}
+                              : (m2Vec2){-n.y, n.x};
+        float sector = half * radius * radius;
+        float reach = half > 0.0f ? 4.0f * radius * sinHalf / (6.0f * half) : 0.0f;
+        m2Vec2 sectorCenter = {b.x + reach * bisector.x, b.y + reach * bisector.y};
+        // Its second moment about the apex is r^2 / 2 per unit area; move
+        // it to the sector's own centroid.
+        float ownPolar = sector * (0.5f * radius * radius - reach * reach);
+        AddPart(&m, sector, sectorCenter, ownPolar);
+    }
+    m2MassData data;
+    data.mass = density * m.area;
+    M2_ASSERT(m.area > 0.0f); // validation guarantees this
+    m2Vec2 c = {m.first.x / m.area, m.first.y / m.area};
+    data.center = (m2Vec2){o.x + c.x, o.y + c.y};
+    // About the centroid, so the caller's shift to the body center of
+    // mass stays free of cancellation.
+    data.rotationalInertia = density * (m.polar - m.area * (c.x * c.x + c.y * c.y));
+    return data;
+}
+
 m2MassData m2ComputeShapeMass(const m2ShapeGeometry* geometry, float density)
 {
     m2MassData data = {0};
     switch (geometry->type)
     {
-    case m2_chainSegmentShape: // chains are massless, like segments
-        return data;
-
     case m2_circleShape:
     {
         float r = geometry->circle.radius;
         data.mass = density * M2_PI * r * r;
         data.center = geometry->circle.center;
-        // Inertia about the shape centroid; the caller shifts to the body
-        // center of mass. Leaving the origin shift out here keeps that
-        // shift free of a big-minus-big when the shape sits far off the
-        // body origin.
+        // About the centroid; the caller shifts to the body center of mass.
         data.rotationalInertia = data.mass * 0.5f * r * r;
         return data;
     }
     case m2_capsuleShape:
     {
-        // Rectangle + two half discs (reference formulas).
-        m2Vec2 p1 = geometry->capsule.point1;
-        m2Vec2 p2 = geometry->capsule.point2;
-        float r = geometry->capsule.radius;
-        float length = EdgeLength(p1, p2);
-        float rectMass = density * 2.0f * r * length;
-        float discMass = density * M2_PI * r * r;
-        data.mass = rectMass + discMass;
-        data.center = (m2Vec2){0.5f * (p1.x + p2.x), 0.5f * (p1.y + p2.y)};
-        float h = 0.5f * length;
-        float rectInertia = rectMass * (4.0f * h * h + 4.0f * r * r) * (1.0f / 12.0f);
-        float discInertia = discMass * (0.5f * r * r + h * h);
-        // About the capsule centroid; the caller shifts to the body COM.
-        data.rotationalInertia = rectInertia + discInertia;
-        return data;
+        m2Polygon core = m2MakeSegmentProxy(geometry->capsule.point1, geometry->capsule.point2,
+                                            geometry->capsule.radius);
+        return RoundedPolygonMass(core.vertices, core.normals, 2, core.radius, density);
     }
     case m2_polygonShape:
     {
-        // Standard polygon integrals about the origin, then shifted.
-        float area = 0.0f;
-        float inertia = 0.0f;
-        m2Vec2 center = {0.0f, 0.0f};
         const m2Polygon* poly = &geometry->polygon;
-        for (int32_t i = 0; i < poly->count; ++i)
-        {
-            m2Vec2 a = poly->vertices[i];
-            m2Vec2 b = poly->vertices[(i + 1) % poly->count];
-            float cross = a.x * b.y - a.y * b.x;
-            float triangleArea = 0.5f * cross;
-            area += triangleArea;
-            center.x += triangleArea * (a.x + b.x) * (1.0f / 3.0f);
-            center.y += triangleArea * (a.y + b.y) * (1.0f / 3.0f);
-            float intx2 = a.x * a.x + a.x * b.x + b.x * b.x;
-            float inty2 = a.y * a.y + a.y * b.y + b.y * b.y;
-            inertia += (0.25f * (1.0f / 3.0f) * cross) * (intx2 + inty2);
-        }
-        data.mass = density * area;
-        M2_ASSERT(area > 0.0f); // validation guarantees this
-        float invArea = 1.0f / area;
-        center.x *= invArea;
-        center.y *= invArea;
-        data.center = center;
-        // The integral is about the origin; shift it to the centroid so the
-        // caller's shift to the body COM stays cancellation-free.
-        // A centered polygon (centroid at origin) is unchanged.
-        data.rotationalInertia =
-            density * inertia - data.mass * (center.x * center.x + center.y * center.y);
-        return data;
+        return RoundedPolygonMass(poly->vertices, poly->normals, poly->count, poly->radius,
+                                  density);
     }
     default:
-    {
-        // Segments are one-dimensional: no mass contribution.
-        return data;
-    }
+        return data; // segments and chains are massless
     }
 }
 
