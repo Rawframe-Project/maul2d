@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Islands and sleeping (topic-06). v1 builds islands each step with a
+// Islands and sleeping. v1 builds islands each step with a
 // deterministic union-find over touching contacts in canonical pair
 // order - persistence (topic-06 D2) is a recorded optimization for
 // later; rebuilding from canonical inputs is history-free, so island

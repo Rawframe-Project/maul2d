@@ -1721,7 +1721,7 @@ static void TestReactionAllTypes(void)
 }
 
 // ---- Round 9: the newest surfaces. The velocity cap and belt-wake fix
-// (slice 117), the SIMD guard (119), the centroid inertia (121) and the
+//, the SIMD guard (119), the centroid inertia (121) and the
 // fresh prismatic mass (122) each get an adversary. Pass/fail attacks;
 // they do not feed the gated chaos hash. ----
 
@@ -1940,7 +1940,7 @@ static void TestOffCenterInertiaPrismatic(void)
 
 static void TestSimdBackendStable(void)
 {
-    // The SIMD diagnostics (slice 119) are stable and the create-time
+    // The SIMD diagnostics are stable and the create-time
     // guard is idempotent: many worlds, the same answers, no drift.
     const char* backend = m2GetSimdBackend();
     CHECK(backend != NULL, "the backend name is never NULL");

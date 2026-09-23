@@ -70,7 +70,7 @@ typedef struct m2World
     int32_t freeCount;
     int32_t retiredCount;
 
-    // Shape storage (slice 2): same id discipline as bodies.
+    // Shape storage: same id discipline as bodies.
     int32_t shapeCapacity;
     int32_t maxShapeIndex;
     m2ShapeGeometry* shapeGeometry;
@@ -94,7 +94,7 @@ typedef struct m2World
     int32_t shapeFreeCount;
     int32_t shapeRetiredCount;
 
-    // Joints (slice 8): same id discipline; impulses are warm-start
+    // Joints: same id discipline; impulses are warm-start
     // snapshot state. type: 0 = distance, 1 = revolute.
     int32_t jointCapacity;
     int32_t maxJointIndex;
@@ -221,7 +221,7 @@ typedef struct m2World
     int32_t jointFreeCount;
     int32_t jointRetiredCount;
 
-    // Chains (slice 52): a chain is a named group of segment shapes
+    // Chains: a chain is a named group of segment shapes
     // on one body, so a whole ground run can be destroyed by id.
     // Slots are bounded by shape capacity: every live chain owns at
     // least one shape. Same id discipline as bodies and joints.
@@ -249,8 +249,8 @@ typedef struct m2World
     int32_t pairCapacity;
     uint64_t* pairScratch; // step-transient; not hashed, snapshot-benign
 
-    // Contacts (slice 3): manifolds[i] belongs to pairKeys[i]. Warm-start
-    // impulses live here, so the block is snapshot state (topic-04 §4).
+    // Contacts: manifolds[i] belongs to pairKeys[i]. Warm-start
+    // impulses live here, so the block is snapshot state.
     m2Manifold* manifolds;
     int32_t oldPairCount;        // step-transient
     uint64_t* oldPairScratch;    // step-transient
@@ -258,7 +258,7 @@ typedef struct m2World
     int32_t pairOverflow;        // candidate pairs dropped by the last update (table full)
     m2Manifold* manifoldScratch; // step-transient
 
-    // Solver scratch (slice 4): all step-transient, zeroed at prepare.
+    // Solver scratch: all step-transient, zeroed at prepare.
     m2Vec2* deltaPositions; // f32 position deltas within the step
     m2Rot* deltaRotations;
     void* constraintScratch;      // m2ContactConstraint[pairCapacity]

@@ -60,12 +60,12 @@ extern "C"
         float particleElasticStrength;  // elastic-flagged batches (reference 0.25)
         float particleTensilePressureStrength; // surface tension, reference 0.2
         float particleTensileNormalStrength;   // reference 0.2
-        /// HOST HINT ONLY (integration audit A1/D4): the engine no
+        /// HOST HINT ONLY: the engine no
         /// longer opens threads and never reads this; parallelism
         /// comes from the task hooks below. Kept for ABI and
         /// deliberately outside the config hash.
         int32_t workerCount;
-        /// The host task executor (integration audit A1), the same
+        /// The host task executor, the same
         /// contract Maul3D and Box2D v3 carry: the engine calls
         /// enqueueTask with a range job, the host runs it on its own
         /// scheduler (splitting [0, itemCount) into subranges of at

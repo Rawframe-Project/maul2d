@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The threading law (topic-08): worker count is NON-SEMANTIC. The same
+// The threading law: worker count is NON-SEMANTIC. The same
 // busy scene - stacks, joints, a motorized car, bullets - must produce
 // bit-identical trajectories at 1, 2 and 4 workers, and rollback must
 // hold under a parallel solver. The 4-worker trajectory is the 14th

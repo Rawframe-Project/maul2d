@@ -457,7 +457,7 @@ static void RestitutionOne(m2World* world, m2ContactConstraint* c)
     }
 }
 
-// --- Graph coloring (topic-08): constraints in one color share no
+// --- Graph coloring: constraints in one color share no
 // dynamic body, so a color solves in parallel with bit-identical
 // results at ANY worker count. The color assignment itself is greedy
 // over canonical constraint order - fully deterministic. The colored
@@ -2465,7 +2465,7 @@ void m2SolveStep(m2World* world, float dt, int32_t substepCount)
         WarmStartJoints(world, joints, jointCount);
         RunContactStageWide(world, constraints, colorStart, blockStart, m2_stageWarmStart, invH,
                             minBiasVel, true);
-        SolveJoints(world, joints, jointCount, true, invH); // joints before contacts (topic-05 §5)
+        SolveJoints(world, joints, jointCount, true, invH); // joints before contacts
         RunContactStageWide(world, constraints, colorStart, blockStart, m2_stageSolve, invH,
                             minBiasVel, true);
 

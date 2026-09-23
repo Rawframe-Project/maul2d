@@ -62,7 +62,7 @@ extern "C"
         bool enableSleep;          // false = this body never sleeps
         bool isEnabled;            // false = created dormant, outside simulation
         int8_t dominance;          // higher wins contacts: it cannot be pushed by lower
-        bool isBullet;             // continuous collision vs non-bullets (topic-07)
+        bool isBullet;             // continuous collision vs non-bullets
         uint64_t userData;         // opaque, copied verbatim through snapshots
         int32_t internalValue;
     } m2BodyDef;
@@ -90,7 +90,7 @@ extern "C"
     M2_API float m2Body_GetAngularVelocity(m2BodyId bodyId);
     M2_API uint64_t m2Body_GetUserData(m2BodyId bodyId);
 
-    /// Sleep state (topic-06). Setters and new contacts wake bodies;
+    /// Sleep state. Setters and new contacts wake bodies;
     /// waking is island-transitive at the next step.
     M2_API bool m2Body_IsAwake(m2BodyId bodyId);
 

@@ -52,7 +52,7 @@ bool m2ValidateCapsule(const m2Capsule* capsule)
     {
         return false;
     }
-    // Relative floor (RT1-NUM-1): 1-ulp-apart points must not pass. The
+    // Relative floor: 1-ulp-apart points must not pass. The
     // axis normalization divides by this length.
     float length = EdgeLength(capsule->point1, capsule->point2);
     float scale = m2MaxF(m2AbsF(capsule->point1.x) + m2AbsF(capsule->point1.y),

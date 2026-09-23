@@ -4,7 +4,7 @@
 // Internal dynamic AABB tree (topic-02 D1). Index-based node pool, AVL
 // balancing, fat leaf AABBs. Every field is POD and snapshot-visible:
 // tree shape is insertion-history-dependent, so rollback restores these
-// arrays byte-exactly instead of rebuilding (topic-02 §5). Adapted from
+// arrays byte-exactly instead of rebuilding. Adapted from
 // Box2D's dynamic tree lineage (Copyright 2023 Erin Catto, MIT).
 
 #ifndef MAUL2D_DYNAMIC_TREE_H

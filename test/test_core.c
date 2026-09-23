@@ -99,7 +99,7 @@ static void TestAccuracy(void)
     printf("accuracy: sin %.2e cos %.2e atan2 %.2e\n", maxSinErr, maxCosErr, maxAtanErr);
 }
 
-// --- 2a. FMA canary (RT1-DET-1) -------------------------------------------
+// --- 2a. FMA canary -------------------------------------------
 // float: a = 1 + 2^-13. Exact a*a = 1 + 2^-12 + 2^-26. The 2^-26 term is
 // below half an ulp of 1, so the separately-rounded product is exactly
 // 1 + 2^-12 and r == 0. A contracted fused multiply-add keeps the low
@@ -124,7 +124,7 @@ static void TestFmaCanary(void)
     CHECK(dr == 0.0, "double FMA contraction detected: build flags are wrong");
 }
 
-// --- 2b. Pinned min/max semantics (RT1-DET-2) ------------------------------
+// --- 2b. Pinned min/max semantics ------------------------------
 
 static void TestMinMaxSemantics(void)
 {

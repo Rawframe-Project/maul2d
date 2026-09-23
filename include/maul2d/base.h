@@ -82,7 +82,7 @@ extern "C"
     } m2Result;
     M2_API m2Result m2LastResult(void);
 
-    /// Host assert hook (integration audit A2/A5), contextful from
+    /// Host assert hook, contextful from
     /// day one: called before the default print-and-abort for every
     /// internal assertion failure AND for the create-time CPU
     /// backend refusal. Return nonzero to declare the failure

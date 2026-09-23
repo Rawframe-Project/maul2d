@@ -40,8 +40,8 @@ bool m2ValidatePolygon(const m2Polygon* polygon);
 m2AABB m2ComputeShapeAABB(const m2ShapeGeometry* geometry, m2Transform xf);
 m2MassData m2ComputeShapeMass(const m2ShapeGeometry* geometry, float density);
 
-// --- Contact manifolds (topic-04) -------------------------------------------
-// Everything is expressed in body A's local frame (topic-04/RT1-NUM-3):
+// --- Contact manifolds -------------------------------------------
+// Everything is expressed in body A's local frame:
 // the f64 body positions are differenced exactly once to build the
 // relative transform, then all contact math runs in f32 near the origin.
 
@@ -76,7 +76,7 @@ typedef struct m2RelativePose
 } m2RelativePose;
 
 // Speculative distance: manifolds exist slightly before touch
-// (topic-07 D1). Constant shared with the fat margin family (F-T2-1).
+// (topic-07 D1). Constant shared with the fat margin family.
 #define M2_SPECULATIVE_DISTANCE (4.0f * 0.005f)
 
 m2Manifold m2CollideCircles(const m2Circle* a, const m2Circle* b, m2RelativePose pose);
@@ -89,7 +89,7 @@ m2Polygon m2MakeSegmentProxy(m2Vec2 p1, m2Vec2 p2, float radius);
 
 // Signed-ish distance from a point (in the shape's body frame) to the
 // shape surface: positive outside, <= 0 inside. Conservative-advancement
-// kernel for bullet CCD (topic-07).
+// kernel for bullet CCD.
 float m2PointShapeDistance(const m2ShapeGeometry* geometry, m2Vec2 point);
 
 #endif // MAUL2D_SHAPE_INTERNAL_H

@@ -42,7 +42,7 @@ static bool SameShape(m2ShapeId a, m2ShapeId b)
     return a.index1 == b.index1 && a.generation == b.generation;
 }
 
-// The query pack (slice 63): convex sweeps and overlaps through one
+// The query pack: convex sweeps and overlaps through one
 // GJK kernel. Analytic fractions, the ray conventions (closest wins,
 // ties to lower index, fraction 0 with zero normal on initial
 // overlap), and the one-sided chain law extended to sweeps.

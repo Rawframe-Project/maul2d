@@ -5,7 +5,7 @@
 // snapshot/restore/hash. Every array is POD and lives in the snapshot;
 // the rollback gate byte-compares all of it. Allocation goes through
 // malloc for now - the world-def allocator hooks are a recorded pending
-// item, due before any public release (topic-10).
+// item, due before any public release.
 
 #include "world_internal.h"
 
@@ -125,7 +125,7 @@ static int32_t ShapeTreeIndex(const m2World* world, int32_t shapeIndex)
 }
 
 // ALL moved proxies enter the moved set - shapes of dynamic, kinematic,
-// and static bodies alike (topic-02 §4.2).
+// and static bodies alike.
 static float RelativeJointAngle(m2Rot qA, m2Rot qB);
 static int32_t JointSlotChecked(const m2World* world, m2JointId jointId);
 static int32_t TypedJointSlot(m2World* world, m2JointId jointId, uint8_t type);
@@ -374,7 +374,7 @@ static void EmitSensorBegin(m2World* world, int32_t shapeA, int32_t shapeB, int3
 }
 
 // Re-derive pairs touched by the moved set, then batch-merge with the
-// untouched remainder (topic-02 §4.2, RT1-PERF-3).
+// untouched remainder.
 // Which trees a moved shape queries: dynamic and kinematic movers sweep
 // every tree, static movers (teleports) only the dynamic one.
 static bool MoverSeesTree(const m2World* world, int32_t shapeIndex, int32_t tree)
@@ -669,10 +669,10 @@ static void RecomputeMass(m2World* world, int32_t bodyIndex)
     world->localCenters[bodyIndex] = center;
 }
 
-// --- Contacts (topic-04) -------------------------------------------------------
+// --- Contacts -------------------------------------------------------
 
 // Relative pose of shape B's body in shape A's body frame: the single
-// f64 -> f32 crossing for the contact stage (RT1-NUM-3).
+// f64 -> f32 crossing for the contact stage.
 static m2RelativePose MakeRelativePose(const m2World* world, int32_t bodyA, int32_t bodyB)
 {
     m2Transform xfA = world->transforms[bodyA];
@@ -1121,7 +1121,7 @@ m2WorldId m2CreateWorld(const m2WorldDef* def)
 
     bool ok = true;
 // The macro also meters the world's persistent footprint
-// (integration audit D1): every use site is inside create where
+//: every use site is inside create where
 // `world` is in scope by construction.
 #define M2_ALLOC(field, count, type)                                                               \
     do                                                                                             \
@@ -2119,7 +2119,7 @@ bool m2World_Restore(m2WorldId worldId, const void* buffer, int32_t size)
     m2JournalRecordRestore(world, buffer, size);
 
     // Events are an observer stream from an abandoned timeline: cleared
-    // on restore, re-emitted by re-simulation (RT1-ROLL-3 / RT1-API-3).
+    // on restore, re-emitted by re-simulation.
     world->beginEventCount = 0;
     world->endEventCount = 0;
     world->pendingEndCount = 0;
@@ -6404,7 +6404,7 @@ bool m2Joint_IsValid(m2JointId jointId)
            world->jointGenerations[index] == jointId.generation;
 }
 
-// Introspection and enumeration (slice 55): pure readers for the
+// Introspection and enumeration: pure readers for the
 // editor and engine-integration walk. Every list is ascending slot
 // order (the canonical order everywhere else in Maul) and returns the
 // TRUE total even when it exceeds capacity, so callers can size and
@@ -6461,7 +6461,7 @@ m2BodyId m2Joint_GetBodyB(m2JointId jointId)
     return id;
 }
 
-// Joint parameter readback (slice 57): with these, a world is
+// Joint parameter readback: with these, a world is
 // reconstructible from public getters alone; the mirror test in
 // test_world.c holds that promise to hash equality.
 

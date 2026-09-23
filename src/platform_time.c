@@ -3,7 +3,7 @@
 //
 // The monotonic clock behind the step profile. This is the only
 // platform code left in the library since the worker pool moved to
-// the host's executor (integration audit A1): observer machinery,
+// the host's executor: observer machinery,
 // never a hash input.
 #if !defined(_WIN32)
 #define _POSIX_C_SOURCE 199309L // NOLINT(bugprone-reserved-identifier): clock_gettime

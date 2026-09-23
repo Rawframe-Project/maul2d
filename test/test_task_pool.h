@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // The HOST-side task pool the worker-count invariance tests ride
-// since the engine stopped opening threads (integration audit A1).
+// since the engine stopped opening threads.
 // Same shape as Maul3D's proven test pool: split into ranges, run
 // range 0 on the caller, spawn the rest, join in finish.
 #ifndef MAUL2D_TEST_TASK_POOL_H

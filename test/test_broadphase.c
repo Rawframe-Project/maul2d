@@ -171,7 +171,7 @@ static void TestPairPipeline(void)
     CHECK(world->pairCount == BrutePairCount(world), "pair set matches brute force (intruder)");
     CHECK(world->pairCount >= 1, "creation overlap must produce a pair");
 
-    // Kinematic sweep (RT1-STAB-1): a kinematic body plows through the
+    // Kinematic sweep: a kinematic body plows through the
     // grid; every overlap it reaches must become a pair.
     m2BodyDef kd = m2DefaultBodyDef();
     kd.type = m2_kinematicBody;

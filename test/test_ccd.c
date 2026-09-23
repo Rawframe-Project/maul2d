@@ -3,7 +3,7 @@
 //
 // CCD gate: a fast bullet must stop at a thin wall that the same body
 // tunnels through without the flag; the earliest wall wins; bullets
-// ignore each other (F-T7-1); the whole thing replays under rollback;
+// ignore each other; the whole thing replays under rollback;
 // and the bullet spray hash crosses CI cells.
 
 #include "test_harness.h"

@@ -1200,7 +1200,7 @@ static void TestMirrorRebuild(void)
     m2DestroyWorld(world);
 }
 
-// The body dynamics pack (slice 62): forces with one-step lifetime,
+// The body dynamics pack: forces with one-step lifetime,
 // Pade damping, fixed rotation as a mass property, and sleep control
 // at both scopes. Reference forms, journaled channels, snapshot v20.
 static void TestBodyDynamicsPack(void)

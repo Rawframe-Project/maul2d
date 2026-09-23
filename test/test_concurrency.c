@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The multi-world concurrency proof (integration audit B2): two
+// The multi-world concurrency proof: two
 // DISTINCT worlds stepped on two host threads land bit-identical
 // to their serial twins. One writer per world stays the law;
 // create/destroy stay host-serialized. POSIX-only referee; the
