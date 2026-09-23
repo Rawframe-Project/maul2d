@@ -5,7 +5,7 @@
 # under its limit must go.
 
 query.c * 1457 every world query in one module, sharing the filter and proxy helpers
-body.c * 1379 the whole body API: lifecycle, motion, forces, mass and readback
+body.c * 1378 the whole body API: lifecycle, motion, forces, mass and readback
 particle_solver.c * 1092 the particle step: neighbor pairs, the solver passes and fills
 particle_solver.c m2SolveParticles 476 numeric kernel: one pass in a fixed operation order
 broadphase.c m2UpdatePairs 215 numeric kernel: one pass in a fixed operation order

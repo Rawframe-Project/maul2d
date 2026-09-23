@@ -9,8 +9,10 @@
 # ceiling, and an entry that is back under its limit (or gone) must be
 # deleted.
 #
-# usage: check_lengths.py [--list]
-#   --list  print every function and file over its limit with its length
+# usage: check_lengths.py [--list | --tighten]
+#   --list     print every function and file over its limit with its length
+#   --tighten  lower every ceiling to the measured length and delete the
+#              entries that are back under their limit
 
 import os
 import re
@@ -83,6 +85,22 @@ def main():
                 print(f"{name} {function} {length}")
         return 0
     allow = allowed()
+    if "--tighten" in sys.argv:
+        path = os.path.join(ROOT, "tools", "length-exceptions.txt")
+        kept = []
+        for line in open(path, encoding="utf-8").read().split("\n"):
+            match = re.match(r"(\S+)\s+(\w+|\*)\s+(\d+)\s+(.+)$", line.strip())
+            if not match:
+                kept.append(line)
+                continue
+            key = (match.group(1), match.group(2))
+            length = found.get(key, 0)
+            if length <= limit_of(key):
+                continue
+            ceiling = min(int(match.group(3)), length)
+            kept.append(f"{key[0]} {key[1]} {ceiling} {match.group(4)}")
+        open(path, "w", encoding="utf-8").write("\n".join(kept))
+        return 0
     errors = []
     for key, length in sorted(found.items()):
         if length <= limit_of(key):
