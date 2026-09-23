@@ -33,7 +33,7 @@ function(maul_apply_flags target)
     else()
         target_compile_options(${target} PRIVATE
             -ffp-contract=off -fno-trapping-math -fno-fast-math -fno-unsafe-math-optimizations
-            -Wall -Wextra -Wshadow -Wdouble-promotion)
+            -Wall -Wextra -Wshadow -Wdouble-promotion -Wfloat-conversion)
         if(${MAUL_PREFIX}_WERROR)
             target_compile_options(${target} PRIVATE -Werror)
         endif()
