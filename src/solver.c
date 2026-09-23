@@ -10,7 +10,6 @@
 #include "contact_solver_wide.h"
 #include "graph_color.h"
 #include "joint_solver.h"
-#include "solver.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
