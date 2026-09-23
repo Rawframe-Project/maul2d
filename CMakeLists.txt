@@ -66,14 +66,18 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/ccd.c
     src/chain.c
     src/contact.c
+    src/contact_solver.c
+    src/contact_solver_wide.c
     src/core.c
     src/destruction.c
     src/distance.c
     src/draw.c
     src/dynamic_tree.c
     src/geometry.c
+    src/graph_color.c
     src/island.c
     src/joint.c
+    src/joint_solver.c
     src/journal.c
     src/manifold.c
     src/math_functions.c
