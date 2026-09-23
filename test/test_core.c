@@ -81,20 +81,18 @@ static void TestAccuracy(void)
         double frac = fabs(diff - floor(diff + 0.5));
         CHECK(frac < 1.0e-3, "m2UnwindAngle not congruent mod 2pi");
     }
-#if defined(NDEBUG)
-    // Out-of-contract input: in release the deterministic fallback must be
-    // finite and unit; in debug M2_ASSERT guards this path instead.
+    // Out-of-range input: the deterministic fallback is finite and unit.
     m2Rot big = m2MakeRot(1.0e30f);
     CHECK(big.c == big.c && big.s == big.s, "m2MakeRot must never return NaN");
     CHECK(m2IsNormalizedRot(big), "m2MakeRot fallback must be a unit rotation");
-#endif
     m2Rot degenerate = m2NormalizeRot((m2Rot){0.0f, 0.0f});
     CHECK(degenerate.c == 1.0f && degenerate.s == 0.0f, "degenerate normalize must be identity");
 
-    // Bhaskara I: ~2e-3 absolute worst case; atan2 minimax: ~1e-4.
-    CHECK(maxSinErr < 3.0e-3, "m2MakeRot sine outside error bound");
-    CHECK(maxCosErr < 3.0e-3, "m2MakeRot cosine outside error bound");
-    CHECK(maxAtanErr < 1.0e-3, "m2Atan2 outside error bound");
+    // The series are exact to below float resolution; what remains is the
+    // rounding of the angle and of the result (about 4e-7 here).
+    CHECK(maxSinErr < 1.0e-6, "m2MakeRot sine outside error bound");
+    CHECK(maxCosErr < 1.0e-6, "m2MakeRot cosine outside error bound");
+    CHECK(maxAtanErr < 1.0e-6, "m2Atan2 outside error bound");
     CHECK(m2Atan2(0.0f, 0.0f) == 0.0f, "m2Atan2(0,0) must be 0, not NaN");
 
     printf("accuracy: sin %.2e cos %.2e atan2 %.2e\n", maxSinErr, maxCosErr, maxAtanErr);

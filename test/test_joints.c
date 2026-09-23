@@ -295,12 +295,13 @@ static void TestRevoluteChain(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    // Pivot integrity: consecutive links stay anchor-to-anchor (1m apart
-    // center to center) within a soft tolerance while swinging.
+    // Pivot integrity: each pair of pinned anchors stays together within a
+    // soft tolerance while the chain swings and folds.
     for (int32_t i = 1; i < 4; ++i)
     {
-        double gapSq = Distance(m2Body_GetPosition(links[i - 1]), m2Body_GetPosition(links[i]));
-        CHECK(gapSq > 0.8 && gapSq < 1.2, "revolute pivots hold the chain together");
+        m2Pos2 pinA = m2Body_GetWorldPoint(links[i - 1], (m2Vec2){0.5f, 0.0f});
+        m2Pos2 pinB = m2Body_GetWorldPoint(links[i], (m2Vec2){-0.5f, 0.0f});
+        CHECK(Distance(pinA, pinB) < 0.05 * 0.05, "revolute pivots hold the chain together");
     }
 
     m2DestroyWorld(world);

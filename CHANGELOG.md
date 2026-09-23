@@ -97,6 +97,13 @@ Work toward 0.0.1, the first release of the reworked library.
 - Comments no longer carry development-history markers (slice and rule
   codes, issue numbers, format versions); tools/check_comments.py
   enforces the conventions.md rule in CI next to the length rules.
+- m2MakeRot and m2Atan2 are the engine's own: sine and cosine from a
+  two-part pi/2 reduction and Taylor series, atan2 from an argument-
+  halving identity and a Taylor series, accurate to about 4e-7 instead
+  of the previous 2e-3. Every golden hash and bench pin was re-pinned
+  (identical across gcc and clang, Release and Debug).
+  docs/references.md lists the published sources behind the
+  algorithms.
 
 ### Removed
 

@@ -14,6 +14,7 @@ docs/adr/0002-refusals-record-a-reason.md
 docs/adr/0003-restart-at-0-0-1.md
 docs/adr/README.md
 docs/conventions.md
+docs/references.md
 .editorconfig
 .gitattributes
 .gitignore

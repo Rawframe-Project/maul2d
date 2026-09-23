@@ -71,12 +71,12 @@ Map an angle to [-pi, pi] (boundary within one rounding step of pi). Determinist
 ```c
 m2Rot m2MakeRot(float radians);
 ```
-Build a rotation from an angle. Deterministic across platforms: does not call libm; never returns NaN (out-of-range input falls back deterministically, see m2UnwindAngle). Accuracy is a documented approximation, identical bits everywhere.
+Build a rotation from an angle. Deterministic across platforms: does not call libm; never returns NaN (out-of-range input falls back deterministically, see m2UnwindAngle). Accurate to about 4e-7, with identical bits everywhere.
 
 ```c
 float m2Atan2(float y, float x);
 ```
-Deterministic atan2 replacement. Returns 0 for (0, 0) instead of NaN.
+Deterministic atan2 replacement, accurate to about 3e-7. Returns 0 for (0, 0) instead of NaN.
 
 ```c
 m2Rot m2NormalizeRot(m2Rot q);

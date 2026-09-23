@@ -137,7 +137,7 @@ library version.
 
 Several kernels were adapted from [Box2D](https://github.com/erincatto/box2d)
 v3 by Erin Catto (the polygon clipper, the solver stage structure,
-joint formulations, ray casts and the trigonometric approximations),
+joint formulations and ray casts),
 the particle neighbor pass and buoyancy from LiquidFun, and the
 ratchet joint from Chipmunk2D. Each adaptation is noted in its source
 file, and the licenses are reproduced in
