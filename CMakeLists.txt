@@ -78,6 +78,17 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/island.c
     src/joint.c
     src/joint_solver.c
+    src/joint_distance.c
+    src/joint_filter.c
+    src/joint_gear.c
+    src/joint_motor.c
+    src/joint_mouse.c
+    src/joint_prismatic.c
+    src/joint_pulley.c
+    src/joint_ratchet.c
+    src/joint_revolute.c
+    src/joint_weld.c
+    src/joint_wheel.c
     src/journal.c
     src/journal_replay.c
     src/manifold.c

@@ -127,11 +127,11 @@ void m2World_Draw(m2WorldId worldId, const m2DebugDraw* draw)
                 continue;
             }
             uint8_t type = world->jointType[j];
-            if (type == 5)
+            if (type == (uint8_t)m2_filterJoint)
             {
                 continue; // a filter joint is the absence of contact: nothing to draw
             }
-            if (type == 8 || type == 10)
+            if (type == (uint8_t)m2_gearJoint || type == (uint8_t)m2_ratchetJoint)
             {
                 // Gear and ratchet: the anchor slots carry phase-tracking
                 // rotation state, not anchors; draw the coupling hub to hub.
@@ -144,7 +144,7 @@ void m2World_Draw(m2WorldId worldId, const m2DebugDraw* draw)
                 LocalToWorld(world->transforms[world->jointBodyA[j]], world->jointLocalAnchorA[j]);
             m2Pos2 b =
                 LocalToWorld(world->transforms[world->jointBodyB[j]], world->jointLocalAnchorB[j]);
-            if (type == 9)
+            if (type == (uint8_t)m2_pulleyJoint)
             {
                 // Pulley: two ropes up to the ground anchors and the
                 // crossbar between them, the machine as you drew it.
@@ -160,7 +160,7 @@ void m2World_Draw(m2WorldId worldId, const m2DebugDraw* draw)
                 }
                 continue;
             }
-            if (type == 7)
+            if (type == (uint8_t)m2_mouseJoint)
             {
                 // Mouse: the spring runs from the world target to the
                 // grab point on B.

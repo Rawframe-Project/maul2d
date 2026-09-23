@@ -102,11 +102,11 @@ void m2SolveStep(m2World* world, float dt, int32_t substepCount)
             // and again at integrate-positions below (angular is locked via
             // the mass, invInertia = 0). Off the locked axes are untouched.
             uint8_t locks = world->motionLocks[i];
-            if (locks & 1u)
+            if (locks & M2_LOCK_LINEAR_X)
             {
                 world->linearVelocities[i].x = 0.0f;
             }
-            if (locks & 2u)
+            if (locks & M2_LOCK_LINEAR_Y)
             {
                 world->linearVelocities[i].y = 0.0f;
             }
@@ -171,11 +171,11 @@ void m2SolveStep(m2World* world, float dt, int32_t substepCount)
             // velocity (reference b2 #950): whatever the solve pushed along
             // a locked axis, the body does not move along it.
             uint8_t plocks = world->motionLocks[i];
-            if (plocks & 1u)
+            if (plocks & M2_LOCK_LINEAR_X)
             {
                 world->linearVelocities[i].x = 0.0f;
             }
-            if (plocks & 2u)
+            if (plocks & M2_LOCK_LINEAR_Y)
             {
                 world->linearVelocities[i].y = 0.0f;
             }

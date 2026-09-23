@@ -73,8 +73,8 @@ typedef struct m2JointConstraint
     int32_t jointIndex;
     int32_t bodyA;
     int32_t bodyB;
-    uint8_t type;  // 0 distance, 1 revolute, 2 prismatic, 3 weld, 4 wheel
-    uint8_t flags; // bit0 motor, bit1 limit
+    uint8_t type;  // m2JointType, the index into the kind table
+    uint8_t flags; // M2_JOINT_* (joint.h)
     m2Vec2 rA;     // world-rotated anchors at prepare
     m2Vec2 rB;
     m2Vec2 axis;         // distance/prismatic: unit axis at prepare

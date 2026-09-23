@@ -145,8 +145,8 @@ m2BodyId m2CreateBody(m2WorldId worldId, const m2BodyDef* def)
     world->linearDampings[index] = def->linearDamping;
     world->angularDampings[index] = def->angularDamping;
     world->fixedRotations[index] = (def->fixedRotation || def->motionLocks.angularZ) ? 1 : 0;
-    world->motionLocks[index] =
-        (uint8_t)((def->motionLocks.linearX ? 1u : 0u) | (def->motionLocks.linearY ? 2u : 0u));
+    world->motionLocks[index] = (uint8_t)((def->motionLocks.linearX ? M2_LOCK_LINEAR_X : 0u) |
+                                          (def->motionLocks.linearY ? M2_LOCK_LINEAR_Y : 0u));
     world->sleepEnables[index] = def->enableSleep ? 1 : 0;
     world->forces[index] = (m2Vec2){0.0f, 0.0f};
     world->torques[index] = 0.0f;
@@ -531,8 +531,9 @@ bool m2SetBodyParamInternal(m2World* world, m2BodyId bodyId, uint8_t param, floa
         // Lock linear X: a locked axis holds still, so stop it now and
         // wake the body (a frozen axis with leftover velocity is a lie,
         // same discipline as fixed rotation).
-        world->motionLocks[index] = value != 0.0f ? (uint8_t)(world->motionLocks[index] | 1u)
-                                                  : (uint8_t)(world->motionLocks[index] & ~1u);
+        world->motionLocks[index] = value != 0.0f
+                                        ? (uint8_t)(world->motionLocks[index] | M2_LOCK_LINEAR_X)
+                                        : (uint8_t)(world->motionLocks[index] & ~M2_LOCK_LINEAR_X);
         world->linearVelocities[index].x = value != 0.0f ? 0.0f : world->linearVelocities[index].x;
         if (world->types[index] == (uint8_t)m2_dynamicBody)
         {
@@ -542,8 +543,9 @@ bool m2SetBodyParamInternal(m2World* world, m2BodyId bodyId, uint8_t param, floa
         break;
     case m2_bodyParamLockLinearY:
         // Lock linear Y.
-        world->motionLocks[index] = value != 0.0f ? (uint8_t)(world->motionLocks[index] | 2u)
-                                                  : (uint8_t)(world->motionLocks[index] & ~2u);
+        world->motionLocks[index] = value != 0.0f
+                                        ? (uint8_t)(world->motionLocks[index] | M2_LOCK_LINEAR_Y)
+                                        : (uint8_t)(world->motionLocks[index] & ~M2_LOCK_LINEAR_Y);
         world->linearVelocities[index].y = value != 0.0f ? 0.0f : world->linearVelocities[index].y;
         if (world->types[index] == (uint8_t)m2_dynamicBody)
         {
@@ -626,8 +628,8 @@ m2MotionLocks m2Body_GetMotionLocks(m2BodyId bodyId)
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index >= 0)
     {
-        locks.linearX = (world->motionLocks[index] & 1u) != 0;
-        locks.linearY = (world->motionLocks[index] & 2u) != 0;
+        locks.linearX = (world->motionLocks[index] & M2_LOCK_LINEAR_X) != 0;
+        locks.linearY = (world->motionLocks[index] & M2_LOCK_LINEAR_Y) != 0;
         locks.angularZ = world->fixedRotations[index] != 0;
     }
     return locks;

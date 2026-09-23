@@ -74,6 +74,11 @@ Work toward 0.0.1, the first release of the reworked library.
   header shared by the recorders and replay, and replay dispatches
   through a command table instead of an 800-line switch. The wire
   format is unchanged.
+- Each joint type lives in its own src/joint_<kind>.c: its def
+  defaults, creation, type-specific API and solver rows, reached
+  through a kind table instead of type switches. Joint types, joint
+  flags and motion-lock bits are named constants. Results are bit-
+  identical.
 
 ### Removed
 
