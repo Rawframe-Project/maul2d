@@ -125,3 +125,23 @@ these descriptions, never copied from other implementations (see
   3D", 2013. Point, hinge, slider and fixed constraints written as rows
   with quaternion based angular errors; maul3d's angular rows follow
   from the rate of the relative rotation derived in joint_solver.c.
+
+## Particles
+
+- M. P. Allen and D. J. Tildesley, *Computer Simulation of Liquids*,
+  Oxford, 1987. Cell lists: space cut into cells one interaction range
+  wide, each cell paired with itself and half of its neighbors so that
+  every pair is visited once (maul2d's particle neighbor pass).
+- S. Clavet, P. Beaudoin and P. Poulin, "Particle-based Viscoelastic
+  Fluid Simulation", Symposium on Computer Animation, 2005. Double
+  density relaxation: a density and a near density from the kernels
+  (1 - r/h)^2 and (1 - r/h)^3, pressure above a rest density, near
+  pressure against clustering, and approach viscosity linear and
+  quadratic in the approach speed. maul2d applies it to velocities.
+- J. J. Monaghan, "On the Problem of Penetration in Particle Methods",
+  *Journal of Computational Physics* 82(1), 1989. XSPH: particles pulled
+  toward their neighbors' velocities, maul2d's shear viscosity.
+- M. Müller, B. Heidelberger, M. Teschner and M. Gross, "Meshless
+  Deformations Based on Shape Matching", SIGGRAPH, 2005. The best-fit
+  rotation of rest offsets onto current ones, used per triad of an
+  elastic particle group.

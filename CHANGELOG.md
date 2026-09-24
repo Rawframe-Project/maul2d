@@ -144,6 +144,19 @@ Work toward 0.0.1, the first release of the reworked library.
 - Buoyancy volumes rewritten: a shape's immersion (area and centroid)
   comes from the exact circular segment or from clipping its outline
   at the surface; lift, drag and spin drag apply per body and volume.
+- Particle model rewritten on double density relaxation (Clavet et al.
+  2005) applied to velocities: density and near density from the pair
+  weights q^2 and q^3, walls counting as neighbors; pressure above the
+  rest density of the fill's square packing; cohesion below it and
+  near pressure for tensile particles; powder spacing push; XSPH shear
+  for viscous particles; approach damping linear and quadratic in the
+  approach speed; shape-matched elastic triads and spring nets. Body
+  contacts moved to particle_contacts.c. A tensile droplet now settles
+  at the spacing where cohesion meets its near pressure.
+- World def: particleTensilePressureStrength and
+  particleTensileNormalStrength become particleCohesionStrength and
+  particleNearPressureStrength; the default particlePressureStrength
+  is 0.2 on the new pressure scale (water packs as densely as before).
 
 ### Removed
 

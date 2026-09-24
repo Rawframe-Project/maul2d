@@ -4,11 +4,9 @@
 # shrinks: nothing may grow past its ceiling, and an entry that is back
 # under its limit must go.
 
-particle_solver.c m2SolveParticles 476 numeric kernel: one pass in a fixed operation order
 broadphase.c m2UpdatePairs 215 numeric kernel: one pass in a fixed operation order
 geometry.c m2DecomposeOutline 213 numeric kernel: one pass in a fixed operation order
 ccd.c SweepBullet 134 numeric kernel: one pass in a fixed operation order
-particle_solver.c StageBodyContactsRange 120 numeric kernel: one pass in a fixed operation order
 contact.c UpdateContactsRange 102 numeric kernel: one pass in a fixed operation order
 query.c CastProxyClosest 95 numeric kernel: one pass in a fixed operation order
 island.c m2UpdateIslandsAndWake 94 numeric kernel: one pass in a fixed operation order

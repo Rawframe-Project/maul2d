@@ -249,10 +249,9 @@ static void TestRelaxation(void)
           "the velocity limit clamps to one diameter per step");
     m2DestroyWorld(world);
 
-    // Tangential shear: plain water keeps it, the viscous FLAG eats
-    // it (the reference's per-particle gate). Same world def, the
-    // flag alone decides. Pair normal is y, shear is x: pressure and
-    // damping never touch it.
+    // Tangential shear: plain water keeps it, the viscous flag eats it.
+    // Same world def, the flag alone decides. The pair normal is y and
+    // the shear x: pressure and approach damping never touch it.
     m2WorldDef shearDef = FluidWorldDef(8);
     shearDef.gravity = (m2Vec2){0.0f, 0.0f};
     m2WorldId shearWorld = m2CreateWorld(&shearDef);
@@ -302,8 +301,8 @@ static void TestPairStructure(void)
     m2World* w = m2WorldFromId(world);
 
     // A triangle inside one diameter (0.1), a loner far away, and a
-    // pair straddling the x=0 cell seam (the bias regression: the
-    // reference's 32-bit tag would wrap there).
+    // pair straddling the x = 0 cell boundary, where unbiased cell
+    // coordinates would change sign.
     m2World_EmitParticle(world, (m2Pos2){0.30, 0.30}, (m2Vec2){0.0f, 0.0f}, 0);
     m2World_EmitParticle(world, (m2Pos2){0.36, 0.30}, (m2Vec2){0.0f, 0.0f}, 0);
     m2World_EmitParticle(world, (m2Pos2){0.30, 0.36}, (m2Vec2){0.0f, 0.0f}, 0);
@@ -602,11 +601,12 @@ static void TestSurfaceTension(void)
     CHECK(td > 0.02 && td < 0.065, "the tensile pair pulls together and rests");
     CHECK(pd > 0.079 && pd < 0.081, "the plain pair never moves");
     m2Vec2 tv = m2Particle_GetVelocity(t1);
-    CHECK(tv.x == 0.0f && tv.y == 0.0f, "the settled droplet is at rest, damping ate the approach");
+    CHECK(sqrtf(tv.x * tv.x + tv.y * tv.y) < 1.0e-3f,
+          "the droplet settles where cohesion meets its near pressure");
 
-    // A mixed dense blob stays finite and lawful (in open space the
-    // dense side of the tensile term is repulsive by the reference
-    // formula; cohesion is the sparse story above).
+    // A mixed dense blob stays finite and lawful: above rest density a
+    // tensile particle pushes like water; cohesion is the sparse story
+    // above.
     for (int32_t i = 0; i < 16; ++i)
     {
         double x = 20.0 + (double)(i % 4) * 0.06;

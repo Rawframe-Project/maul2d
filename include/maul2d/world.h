@@ -52,14 +52,21 @@ extern "C"
         float particleRadius;        // meters, floor 4x linear slop
         float particleDensity;       // mass per area
         float particleGravityScale;
-        float particlePressureStrength; // reference water default 0.05
-        float particleDampingStrength;  // reference default 1.0
-        float particleViscousStrength;  // strength for viscous-FLAGGED particles (reference 0.25)
-        float particlePowderStrength;   // strength for powder-flagged grains (reference 0.5)
-        float particleSpringStrength;   // spring-flagged batches (reference 0.25)
-        float particleElasticStrength;  // elastic-flagged batches (reference 0.25)
-        float particleTensilePressureStrength; // surface tension, reference 0.2
-        float particleTensileNormalStrength;   // reference 0.2
+        /// The particle model's strengths (see particle_solver.c): the
+        /// pressure above rest density, the damping of approach
+        /// speed, shear viscosity for viscous-flagged particles, the
+        /// spacing push of powder grains, the pull of spring nets and
+        /// elastic triads, and for tensile particles the cohesion below
+        /// rest density and the near pressure that keeps a droplet
+        /// from collapsing.
+        float particlePressureStrength;
+        float particleDampingStrength;
+        float particleViscousStrength;
+        float particlePowderStrength;
+        float particleSpringStrength;
+        float particleElasticStrength;
+        float particleCohesionStrength;
+        float particleNearPressureStrength;
         /// HOST HINT ONLY: the engine no
         /// longer opens threads and never reads this; parallelism
         /// comes from the task hooks below. Kept for ABI and

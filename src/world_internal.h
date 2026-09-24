@@ -180,8 +180,8 @@ typedef struct m2Particles
     float particlePressureStrength;
     float particleDampingStrength;
     float particleViscousStrength;
-    float particleTensilePressure;
-    float particleTensileNormal;
+    float particleCohesion;
+    float particleNearPressure;
     float particlePowderStrength;
     float particleSpringStrength;
     float particleElasticStrength;

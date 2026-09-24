@@ -85,14 +85,14 @@ m2WorldDef m2DefaultWorldDef(void)
     def.particleRadius = 0.05f;
     def.particleDensity = 1.0f;
     def.particleGravityScale = 1.0f;
-    def.particlePressureStrength = 0.05f;
+    def.particlePressureStrength = 0.2f;
     def.particleDampingStrength = 1.0f;
-    def.particleViscousStrength = 0.25f; // used by viscous-flagged particles only
+    def.particleViscousStrength = 0.25f; // viscous-flagged particles only
     def.particlePowderStrength = 0.5f;
-    def.particleSpringStrength = 0.25f;  // overlapping nets sum; reference value
+    def.particleSpringStrength = 0.25f;  // overlapping nets sum
     def.particleElasticStrength = 0.25f; // stiff blobs combine spring|elastic flags
-    def.particleTensilePressureStrength = 0.2f;
-    def.particleTensileNormalStrength = 0.2f;
+    def.particleCohesionStrength = 0.2f;
+    def.particleNearPressureStrength = 0.2f;
     def.internalValue = M2_WORLD_COOKIE;
     return def;
 }
@@ -114,9 +114,9 @@ static bool ValidWorldDef(const m2WorldDef* def)
     return def->particleRadius >= 0.02f && def->particleDensity > 0.0f &&
            m2FiniteF(def->particleGravityScale) && def->particlePressureStrength >= 0.0f &&
            def->particleDampingStrength >= 0.0f && def->particleViscousStrength >= 0.0f &&
-           def->particleTensilePressureStrength >= 0.0f &&
-           def->particleTensileNormalStrength >= 0.0f && def->particlePowderStrength >= 0.0f &&
-           def->particleSpringStrength >= 0.0f && def->particleElasticStrength >= 0.0f;
+           def->particleCohesionStrength >= 0.0f && def->particleNearPressureStrength >= 0.0f &&
+           def->particlePowderStrength >= 0.0f && def->particleSpringStrength >= 0.0f &&
+           def->particleElasticStrength >= 0.0f;
 }
 
 // Copies the def's settings and capacities into a zeroed world.
@@ -145,11 +145,11 @@ static void ApplyWorldDef(m2World* world, const m2WorldDef* def)
     p->particlePressureStrength = def->particlePressureStrength;
     p->particleDampingStrength = def->particleDampingStrength;
     p->particleViscousStrength = def->particleViscousStrength;
-    p->particleTensilePressure = def->particleTensilePressureStrength;
+    p->particleCohesion = def->particleCohesionStrength;
     p->particlePowderStrength = def->particlePowderStrength;
     p->particleSpringStrength = def->particleSpringStrength;
     p->particleElasticStrength = def->particleElasticStrength;
-    p->particleTensileNormal = def->particleTensileNormalStrength;
+    p->particleNearPressure = def->particleNearPressureStrength;
     p->particlePairCapacity = 12 * particleCap;
     p->particleSpringCapacity = 4 * particleCap;
     p->particleTriadCapacity = 2 * particleCap;
