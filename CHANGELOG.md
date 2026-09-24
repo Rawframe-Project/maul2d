@@ -135,6 +135,10 @@ Work toward 0.0.1, the first release of the reworked library.
   store and joint breaks; per-body integration split into velocity
   caps, locked axes and the pose update. Results are bit for bit
   unchanged.
+- Particle neighbor pass rewritten (src/particle_pairs.c): particles
+  sorted by cell are cut into one run per occupied cell, and each cell
+  pairs with itself and the four cells ahead of it in key order. Pairs
+  now come out cell by cell; the pair set is unchanged.
 
 ### Removed
 

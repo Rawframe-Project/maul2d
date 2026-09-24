@@ -98,6 +98,7 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/math_functions.c
     src/mover.c
     src/particle.c
+    src/particle_pairs.c
     src/particle_solver.c
     src/platform_time.c
     src/query.c
