@@ -1328,6 +1328,20 @@ static void TestBodyDynamicsPack(void)
     }
     CHECK(!m2Body_IsAwake(sleeper), "switch back on, naps resume");
     m2DestroyWorld(nap);
+
+    // The same master switch, given at creation.
+    m2WorldDef awakeDef = def;
+    awakeDef.enableSleeping = false;
+    m2WorldId wakeful = m2CreateWorld(&awakeDef);
+    m2CreatePolygonShape(m2CreateBody(wakeful, &gd), &fs, &slab);
+    m2BodyId restless = m2CreateBody(wakeful, &nd);
+    m2CreatePolygonShape(restless, &sd, &unit);
+    for (int32_t i = 0; i < 240; ++i)
+    {
+        m2World_Step(wakeful, 1.0f / 60.0f, 4);
+    }
+    CHECK(m2Body_IsAwake(restless), "a world created without sleep never naps");
+    m2DestroyWorld(wakeful);
 }
 
 // Integration extras (parity sprint 4a): dormancy that ends contacts

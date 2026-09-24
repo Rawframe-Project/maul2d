@@ -83,6 +83,7 @@ m2WorldDef m2DefaultWorldDef(void)
     m2WorldDef def;
     memset(&def, 0, sizeof(def));
     def.gravity = (m2Vec2){0.0f, -10.0f};
+    def.enableSleeping = true;
     def.bodyCapacity = 1024;
     def.shapeCapacity = 2048;
     def.jointCapacity = 256;
@@ -253,7 +254,7 @@ m2WorldId m2CreateWorld(const m2WorldDef* def)
     world->slot = (uint16_t)slot;
     world->idWorld =
         (uint16_t)(((uint32_t)world->worldGeneration << M2_WORLD_SLOT_BITS) | (uint32_t)slot);
-    world->sleepEnabled = 1;
+    world->sleepEnabled = def->enableSleeping ? 1 : 0;
     s_worlds[slot] = world;
     return (m2WorldId){(uint16_t)(slot + 1), world->worldGeneration};
 }

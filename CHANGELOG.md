@@ -29,6 +29,8 @@ Work toward 0.0.1, the first release of the reworked library.
   boxes).
 - Test for the floating draft of a circle, a capsule and a rounded box
   at half the water's density.
+- m2WorldDef.enableSleeping sets the sleep master switch at creation
+  (default true), as in Maul3D.
 
 ### Changed
 

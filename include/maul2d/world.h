@@ -51,6 +51,7 @@ extern "C"
         int32_t bodyCapacity; // fixed capacities for now (no growth yet)
         int32_t shapeCapacity;
         int32_t jointCapacity;
+        bool enableSleeping; // islands may sleep (default true)
         /// Fluids: particleCapacity > 0 builds the particle system
         /// into the world for its whole lifetime (constant snapshot
         /// shape keeps rollback safe across every point in history).
