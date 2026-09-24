@@ -114,3 +114,14 @@ these descriptions, never copied from other implementations (see
 - R. Tonge, "Solving Rigid Body Contacts", Game Developers Conference,
   2012. Graph coloring so that constraints of one color touch disjoint
   bodies, and lanes of such constraints solved together in SIMD.
+- E. Catto, "Solver2D", 2024 (blog post and companion code study). The
+  soft step schedule compared there against other solvers: per substep
+  a warm start, a biased pass with soft constraints, integration, and
+  an unbiased relax pass, with restitution after the substeps.
+- E. Catto, "Numerical Methods", Game Developers Conference, 2015. The
+  gyroscopic term of Euler's equations integrated implicitly with a
+  Newton step, which keeps tumbling bodies from gaining energy (maul3d).
+- D. Chappuis, "Constraints Derivation for Rigid Body Simulation in
+  3D", 2013. Point, hinge, slider and fixed constraints written as rows
+  with quaternion based angular errors; maul3d's angular rows follow
+  from the rate of the relative rotation derived in joint_solver.c.

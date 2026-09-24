@@ -130,6 +130,11 @@ Work toward 0.0.1, the first release of the reworked library.
   exact current length, and a singular coupled pair falls back to its
   rows one at a time instead of being skipped. Joint-heavy scenes run
   about 10% slower for now.
+- The step reads as its stages: prepare, the substep (forces, warm
+  start, biased solve, integrate, continuous, relax), then bounce,
+  store and joint breaks; per-body integration split into velocity
+  caps, locked axes and the pose update. Results are bit for bit
+  unchanged.
 
 ### Removed
 

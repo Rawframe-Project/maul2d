@@ -16,21 +16,40 @@
 #include <math.h>
 #include <string.h>
 
-// Integrates velocities in fixed body order: v = lvd + damp * v with Pade
-// damping 1/(1+h*d) and lvd = h*invM*force + h*gScale*g; torque and angular
-// damping mirror it.
+// A body the integrator moves this substep.
+static bool Moving(const m2World* world, int32_t i)
+{
+    return world->bodies.alive[i] != 0 && world->bodies.types[i] != (uint8_t)m2_staticBody &&
+           world->bodies.asleep[i] == 0 && world->bodies.disabled[i] == 0;
+}
+
+// A body's locked linear axes hold still: their velocity is zeroed where
+// the solve begins and again where the position consumes it. A locked
+// rotation needs nothing here; its inverse inertia is zero.
+static void HoldLockedAxes(m2World* world, int32_t i)
+{
+    uint8_t locks = world->bodies.motionLocks[i];
+    if (locks & M2_LOCK_LINEAR_X)
+    {
+        world->bodies.linearVelocities[i].x = 0.0f;
+    }
+    if (locks & M2_LOCK_LINEAR_Y)
+    {
+        world->bodies.linearVelocities[i].y = 0.0f;
+    }
+}
+
+// Forces, gravity and damping for one substep. Damping is implicit,
+// v' = v / (1 + h d), so it can never reverse a velocity however large
+// h d grows; the forces add on top: v' = h (F / m + s g) + v / (1 + h d).
 static void IntegrateVelocities(m2World* world, float h)
 {
     for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
-        if (world->bodies.alive[i] == 0 || world->bodies.types[i] != (uint8_t)m2_dynamicBody ||
-            world->bodies.asleep[i] != 0 || world->bodies.disabled[i] != 0)
+        if (!Moving(world, i) || world->bodies.types[i] != (uint8_t)m2_dynamicBody)
         {
             continue;
         }
-        // Reference form: v = lvd + damp * v, with the Pade damping
-        // 1/(1+h*d) and lvd = h*invM*force + h*gScale*g. Torque and
-        // angular damping mirror it.
         float linDamp = 1.0f / (1.0f + h * world->bodies.linearDampings[i]);
         float angDamp = 1.0f / (1.0f + h * world->bodies.angularDampings[i]);
         float lvdx = h * world->bodies.invMass[i] * world->bodies.forces[i].x +
@@ -42,19 +61,7 @@ static void IntegrateVelocities(m2World* world, float h)
         world->bodies.angularVelocities[i] =
             h * world->bodies.invInertia[i] * world->bodies.torques[i] +
             angDamp * world->bodies.angularVelocities[i];
-        // Motion locks: a locked axis holds still,
-        // so its velocity is zeroed here, before the constraint solve,
-        // and again at integrate-positions below (angular is locked via
-        // the mass, invInertia = 0). Off the locked axes are untouched.
-        uint8_t locks = world->bodies.motionLocks[i];
-        if (locks & M2_LOCK_LINEAR_X)
-        {
-            world->bodies.linearVelocities[i].x = 0.0f;
-        }
-        if (locks & M2_LOCK_LINEAR_Y)
-        {
-            world->bodies.linearVelocities[i].y = 0.0f;
-        }
+        HoldLockedAxes(world, i);
     }
 }
 
@@ -70,74 +77,64 @@ static void CaptureBulletOrigins(m2World* world)
     }
 }
 
-// Integrates positions: f64 positions advance, f32 deltas track.
+// Safety caps on a dynamic body's velocity: M2_MAX_LINEAR_SPEED, and a
+// quarter turn per substep. They bound what the position update sees,
+// after every solver stage has had its say, so an over-constrained
+// setup that pumps velocity each substep is stopped at the source
+// before it can reach infinity. Ordinary scenes never reach either cap.
+static void CapVelocity(m2World* world, int32_t i, float invH)
+{
+    float vx = world->bodies.linearVelocities[i].x;
+    float vy = world->bodies.linearVelocities[i].y;
+    float v2 = vx * vx + vy * vy;
+    if (v2 > M2_MAX_LINEAR_SPEED * M2_MAX_LINEAR_SPEED)
+    {
+        float ratio = M2_MAX_LINEAR_SPEED / sqrtf(v2);
+        world->bodies.linearVelocities[i].x = vx * ratio;
+        world->bodies.linearVelocities[i].y = vy * ratio;
+    }
+    float maxW = 0.25f * M2_PI * invH;
+    float w = world->bodies.angularVelocities[i];
+    if (w * w > maxW * maxW)
+    {
+        world->bodies.angularVelocities[i] = w * (maxW / m2AbsF(w));
+    }
+}
+
+// Moves the center of mass by the velocity and turns the body about it;
+// the origin follows the turn. The f64 position advances and the f32
+// deltas track the motion since the step began.
+static void AdvancePose(m2World* world, int32_t i, float h)
+{
+    m2Vec2 lc = world->bodies.localCenters[i];
+    m2Vec2 v = world->bodies.linearVelocities[i];
+    m2Vec2 centerBefore = m2RotateVec2(world->bodies.transforms[i].q, lc);
+    world->bodies.transforms[i].p.x += (double)v.x * (double)h;
+    world->bodies.transforms[i].p.y += (double)v.y * (double)h;
+    world->solver.deltaPositions[i].x += v.x * h;
+    world->solver.deltaPositions[i].y += v.y * h;
+    m2Rot turn = m2MakeRot(world->bodies.angularVelocities[i] * h);
+    world->bodies.transforms[i].q = m2MulRot(world->bodies.transforms[i].q, turn);
+    world->solver.deltaRotations[i] = m2MulRot(world->solver.deltaRotations[i], turn);
+    m2Vec2 centerAfter = m2RotateVec2(world->bodies.transforms[i].q, lc);
+    world->bodies.transforms[i].p.x += (double)(centerBefore.x - centerAfter.x);
+    world->bodies.transforms[i].p.y += (double)(centerBefore.y - centerAfter.y);
+}
+
 static void IntegratePositions(m2World* world, float h, float invH)
 {
     for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
-        if (world->bodies.alive[i] == 0 || world->bodies.types[i] == (uint8_t)m2_staticBody ||
-            world->bodies.asleep[i] != 0 || world->bodies.disabled[i] != 0)
+        if (!Moving(world, i))
         {
             continue;
         }
-        // Reference velocity caps (b2 maximumLinearSpeed 400 m/s and
-        // B2_MAX_ROTATION, a quarter turn per substep), applied to the
-        // STORED dynamic velocity at the point the integrator consumes
-        // it. The reference caps in IntegrateVelocities; Maul caps here
-        // because a warm-started joint accumulation can spike a body past
-        // the cap AFTER that stage, and the guard must bound what
-        // m2MakeRot and the f64 position actually see. Capping the stored
-        // value each substep also breaks an over-constrained scene's
-        // exponential velocity growth at the source, so it can never
-        // reach inf and hand a kinematic neighbour 0 * inf = NaN. Ratio
-        // scaling matches the reference bit-form; tame scenes reach
-        // neither cap, so the gated hashes are untouched.
         if (world->bodies.types[i] == (uint8_t)m2_dynamicBody)
         {
-            float vx = world->bodies.linearVelocities[i].x;
-            float vy = world->bodies.linearVelocities[i].y;
-            float v2 = vx * vx + vy * vy;
-            if (v2 > M2_MAX_LINEAR_SPEED * M2_MAX_LINEAR_SPEED)
-            {
-                float ratio = M2_MAX_LINEAR_SPEED / sqrtf(v2);
-                world->bodies.linearVelocities[i].x = vx * ratio;
-                world->bodies.linearVelocities[i].y = vy * ratio;
-            }
-            float maxW = 0.25f * M2_PI * invH;
-            float wv = world->bodies.angularVelocities[i];
-            if (wv * wv > maxW * maxW)
-            {
-                float ratio = maxW / m2AbsF(wv);
-                world->bodies.angularVelocities[i] = wv * ratio;
-            }
+            CapVelocity(world, i, invH);
         }
-        // Motion locks again at the point the position consumes the
-        // velocity: whatever the solve pushed along
-        // a locked axis, the body does not move along it.
-        uint8_t plocks = world->bodies.motionLocks[i];
-        if (plocks & M2_LOCK_LINEAR_X)
-        {
-            world->bodies.linearVelocities[i].x = 0.0f;
-        }
-        if (plocks & M2_LOCK_LINEAR_Y)
-        {
-            world->bodies.linearVelocities[i].y = 0.0f;
-        }
-        // The center of mass is what the velocity moves; the origin
-        // swings around it. With the COM on the origin both extra
-        // terms are exact zeros and the old bits fall out.
-        m2Vec2 lc = world->bodies.localCenters[i];
-        m2Vec2 rlcOld = m2RotateVec2(world->bodies.transforms[i].q, lc);
-        world->bodies.transforms[i].p.x += (double)world->bodies.linearVelocities[i].x * (double)h;
-        world->bodies.transforms[i].p.y += (double)world->bodies.linearVelocities[i].y * (double)h;
-        world->solver.deltaPositions[i].x += world->bodies.linearVelocities[i].x * h;
-        world->solver.deltaPositions[i].y += world->bodies.linearVelocities[i].y * h;
-        m2Rot dq = m2MakeRot(world->bodies.angularVelocities[i] * h);
-        world->bodies.transforms[i].q = m2MulRot(world->bodies.transforms[i].q, dq);
-        world->solver.deltaRotations[i] = m2MulRot(world->solver.deltaRotations[i], dq);
-        m2Vec2 rlcNew = m2RotateVec2(world->bodies.transforms[i].q, lc);
-        world->bodies.transforms[i].p.x += (double)(rlcOld.x - rlcNew.x);
-        world->bodies.transforms[i].p.y += (double)(rlcOld.y - rlcNew.y);
+        HoldLockedAxes(world, i);
+        AdvancePose(world, i, h);
     }
 }
 
@@ -187,61 +184,78 @@ static void BreakJoints(m2World* world, float invH)
     }
 }
 
-void m2SolveStep(m2World* world, float dt, int32_t substepCount)
+// The step's constraints: contacts planned into colored blocks and the
+// joints behind them in the same scratch block.
+typedef struct StepWork
 {
-    float h = dt / (float)substepCount;
-    float invH = h > 0.0f ? 1.0f / h : 0.0f;
-    world->lastInvH = invH;
+    m2ContactPlan plan;
+    m2JointConstraint* joints;
+    int32_t jointCount;
+} StepWork;
 
-    // Deltas are step-transient: zero at prepare, folded into f64
-    // positions at each integrate-positions stage.
+static void PrepareStep(m2World* world, StepWork* work, float h, float invH)
+{
+    // The deltas measure motion since the step began.
     for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
         world->solver.deltaPositions[i] = (m2Vec2){0.0f, 0.0f};
         world->solver.deltaRotations[i] = (m2Rot){1.0f, 0.0f};
     }
-
-    m2ContactPlan plan;
-    plan.constraints = (m2ContactConstraint*)world->solver.constraintScratch;
-    plan.count = m2PrepareContacts(world, plan.constraints, h);
-    plan.invH = invH;
-    plan.reversed = false;
-    m2JointConstraint* joints =
+    work->plan.constraints = (m2ContactConstraint*)world->solver.constraintScratch;
+    work->plan.count = m2PrepareContacts(world, work->plan.constraints, h);
+    work->plan.invH = invH;
+    work->plan.reversed = false;
+    work->joints =
         (m2JointConstraint*)((uint8_t*)world->solver.constraintScratch +
                              (size_t)world->contacts.pairCapacity * sizeof(m2ContactConstraint));
-    int32_t jointCount = m2PrepareJoints(world, joints, h);
+    work->jointCount = m2PrepareJoints(world, work->joints, h);
+    m2PlanContacts(world, &work->plan);
 
-    m2PlanContacts(world, &plan);
-    world->solver.lastConstraintCount = plan.count;
-    world->solver.lastOverflow =
-        plan.colorStart[M2_GRAPH_COLORS + 1] - plan.colorStart[M2_GRAPH_COLORS];
+    const int32_t* colorStart = work->plan.colorStart;
+    world->solver.lastConstraintCount = work->plan.count;
+    world->solver.lastOverflow = colorStart[M2_GRAPH_COLORS + 1] - colorStart[M2_GRAPH_COLORS];
     world->solver.lastGraphColors = 0;
     for (int32_t c = 0; c < M2_GRAPH_COLORS; ++c)
     {
-        world->solver.lastGraphColors += plan.colorStart[c + 1] > plan.colorStart[c] ? 1 : 0;
+        world->solver.lastGraphColors += colorStart[c + 1] > colorStart[c] ? 1 : 0;
     }
+}
 
+// One substep: forces in; warm start, then the biased solve pushing
+// overlap and joint error out (joints first, so contacts see the
+// joints' result); positions move; continuous collision clamps the
+// fast bodies; then the relax pass, unbiased, removes the velocity the
+// push added.
+static void Substep(m2World* world, StepWork* work, float h, float invH, int32_t index)
+{
+    IntegrateVelocities(world, h);
+    work->plan.reversed = (index & 1) != 0;
+    m2WarmStartJoints(world, work->joints, work->jointCount);
+    m2RunContactStage(world, &work->plan, m2_stageWarmStart);
+    m2SolveJoints(world, work->joints, work->jointCount, true, invH);
+    m2RunContactStage(world, &work->plan, m2_stageSolve);
+    CaptureBulletOrigins(world);
+    IntegratePositions(world, h, invH);
+    m2SolveContinuous(world); // the last stage that moves transforms
+    m2SolveJoints(world, work->joints, work->jointCount, false, invH);
+    m2RunContactStage(world, &work->plan, m2_stageRelax);
+}
+
+void m2SolveStep(m2World* world, float dt, int32_t substepCount)
+{
+    float h = dt / (float)substepCount;
+    float invH = h > 0.0f ? 1.0f / h : 0.0f;
+    world->lastInvH = invH;
+    StepWork work;
+    PrepareStep(world, &work, h, invH);
     for (int32_t sub = 0; sub < substepCount; ++sub)
     {
-        IntegrateVelocities(world, h);
-        plan.reversed = (sub & 1) != 0;
-
-        m2WarmStartJoints(world, joints, jointCount);
-        m2RunContactStage(world, &plan, m2_stageWarmStart);
-        m2SolveJoints(world, joints, jointCount, true, invH); // joints before contacts
-        m2RunContactStage(world, &plan, m2_stageSolve);
-
-        CaptureBulletOrigins(world);
-        IntegratePositions(world, h, invH);
-
-        m2SolveContinuous(world); // the last pass that moves transforms
-        m2SolveJoints(world, joints, jointCount, false, invH);
-        m2RunContactStage(world, &plan, m2_stageRelax);
+        Substep(world, &work, h, invH, sub);
     }
-
-    m2RunContactStage(world, &plan, m2_stageRestitution);
-    m2RunContactStage(world, &plan, m2_stageStore);
-    m2StoreJointImpulses(world, joints, jointCount);
-
+    // Once per step: the bounce, then the impulses kept for the next
+    // step's warm start, then the joints that could not hold.
+    m2RunContactStage(world, &work.plan, m2_stageRestitution);
+    m2RunContactStage(world, &work.plan, m2_stageStore);
+    m2StoreJointImpulses(world, work.joints, work.jointCount);
     BreakJoints(world, invH);
 }
