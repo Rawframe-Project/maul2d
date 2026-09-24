@@ -306,3 +306,8 @@ Work toward 0.0.1, the first release of the reworked library.
   rounded box of half the water's density sank to the bottom. Rounded
   polygons and capsules now become polygons whose corner fans keep the
   true area, instead of a sharp core or a bounding-box fraction.
+- A graph color stopped taking contacts at 256, a leftover of an old
+  packing buffer, and every contact past it went to the serial
+  overflow: in a 4000-box pile 87% of the contacts solved one by one.
+  Colors now take any number of contacts; that pile steps in 3.4 ms
+  instead of 5.9.

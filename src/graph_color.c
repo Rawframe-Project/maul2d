@@ -2,7 +2,9 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // Graph coloring: constraints of one color share no dynamic body, so a
-// color can be solved in parallel.
+// color can be solved in parallel. A color holds any number of
+// constraints; only a body already in every color sends its next
+// constraint to the serial overflow.
 
 #include "graph_color.h"
 
@@ -36,10 +38,6 @@ void m2ColorConstraints(m2World* world, m2ContactConstraint* constraints, int32_
         while (color < M2_GRAPH_COLORS && (used & (1u << color)) != 0)
         {
             color += 1;
-        }
-        if (color < M2_GRAPH_COLORS && counts[color] >= 256)
-        {
-            color = M2_GRAPH_COLORS; // full color: spill to the scalar bucket
         }
         if (color < M2_GRAPH_COLORS)
         {
