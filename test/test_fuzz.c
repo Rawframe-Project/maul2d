@@ -218,8 +218,8 @@ static void DoRandomOp(m2WorldId world)
         sd.friction = PickUnit() * 0.9f;
         sd.restitution = PickUnit() * 0.8f;
         sd.isSensor = Pick(10) == 0;
-        sd.categoryBits = 1u << Pick(4);
-        sd.maskBits = Pick(5) == 0 ? 0x5u : 0xFFFFFFFFu;
+        sd.categoryBits = 1ull << Pick(4);
+        sd.maskBits = Pick(5) == 0 ? 0x5u : UINT64_MAX;
         sd.groupIndex = (int32_t)Pick(5) - 2;
         uint32_t kind = Pick(3);
         if (kind == 0)
@@ -641,7 +641,7 @@ static void DoRandomOp(m2WorldId world)
         }
         else
         {
-            uint64_t category = 1u << Pick(4);
+            uint64_t category = 1ull << Pick(4);
             uint64_t mask = Pick(4) == 0 ? 0x3u : UINT64_MAX;
             int32_t group = (int32_t)Pick(5) - 2;
             m2Shape_SetFilter(shape, category, mask, group);
