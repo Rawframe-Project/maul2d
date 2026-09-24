@@ -328,45 +328,39 @@ extern "C"
                                           m2Transform origin, m2Vec2 translation, m2RayHit* hits,
                                           int32_t capacity, m2QueryFilter filter);
 
-    /// The character mover kit (reference architecture, Maul frames):
-    /// m2World_CollideMover gathers the collision planes touching a
-    /// posed capsule (separation measured from the pose, negative
-    /// means penetration; ascending shape order; truthful total; the
-    /// one-sided chain law applies). Assemble them into
-    /// m2CollisionPlane entries, run m2SolvePlanes on your desired
-    /// step delta to get a translation that respects every plane, and
-    /// m2ClipVector to strip velocity pointing into what you hit. For
-    /// the sweep itself, m2World_CastCapsuleClosest already is the
-    /// mover cast. Thread class: reader (pure math for the solver).
-    typedef struct m2PlaneResult
+    /// The character mover kit. m2World_CollideMover gathers the
+    /// planes touching a posed capsule: one per nearby shape, the normal
+    /// from the shape toward the mover, the separation along it
+    /// (negative means overlap), in ascending shape order, with the
+    /// one-sided chain rule and a truthful total. m2SolveMover turns a
+    /// wished translation into the closest one that no plane blocks and
+    /// reports which planes it rests on; m2ClipMoverVelocity strips the
+    /// velocity that points into those planes. For the sweep itself,
+    /// m2World_CastCapsuleClosest is the mover cast. Thread class:
+    /// reader (the solver and the clip are pure math).
+    typedef struct m2MoverPlane
     {
         m2ShapeId shapeId;
         m2Vec2 normal;    // from the shape toward the mover
         float separation; // gap along the normal; negative = overlap
         m2Pos2 point;     // closest point on the shape's surface
-    } m2PlaneResult;
+    } m2MoverPlane;
 
-    typedef struct m2CollisionPlane
-    {
-        m2Vec2 normal;
-        float separation;
-        float pushLimit; // 3.4e38f = rigid; smaller = squishy wall
-        float push;      // written by m2SolvePlanes
-        bool clipVelocity;
-    } m2CollisionPlane;
+/// Planes past this count take no part in the solve.
+#define M2_MOVER_PLANES 16
 
-    typedef struct m2PlaneSolverResult
+    typedef struct m2MoverMove
     {
         m2Vec2 translation;
-        int32_t iterationCount;
-    } m2PlaneSolverResult;
+        uint32_t pressed; // bit i: plane i stops part of the wish
+    } m2MoverMove;
 
     M2_API int32_t m2World_CollideMover(m2WorldId worldId, const m2Capsule* mover,
-                                        m2Transform origin, m2PlaneResult* results,
-                                        int32_t capacity, m2QueryFilter filter);
-    M2_API m2PlaneSolverResult m2SolvePlanes(m2Vec2 targetDelta, m2CollisionPlane* planes,
-                                             int32_t count);
-    M2_API m2Vec2 m2ClipVector(m2Vec2 vector, const m2CollisionPlane* planes, int32_t count);
+                                        m2Transform origin, m2MoverPlane* planes, int32_t capacity,
+                                        m2QueryFilter filter);
+    M2_API m2MoverMove m2SolveMover(m2Vec2 wish, const m2MoverPlane* planes, int32_t count);
+    M2_API m2Vec2 m2ClipMoverVelocity(m2Vec2 velocity, const m2MoverPlane* planes, int32_t count,
+                                      uint32_t pressed);
 
     /// Convex sweeps: the given shape (in its own local frame, posed
     /// by origin) slides along translation; the closest hit wins and

@@ -1,9 +1,20 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The mover kit: collision planes for a posed capsule, the plane solver
-// and velocity clipping.
+// The mover kit: collision planes for a posed capsule, the closest move
+// they allow, and velocity clipping.
+//
+// The move is the translation d closest to the wish w that keeps every
+// plane clear, n_i . d + s_i >= 0: a small strictly convex problem, so
+// its optimum is unique. At the optimum d = w + sum lambda_j n_j over the
+// planes it rests on, each with lambda_j >= 0 (a plane pushes, never
+// pulls), and in 2D it rests on at most two. The candidate rest sets are
+// tried smallest first, in plane order; the first that clears every
+// plane with pushes that are not negative is the optimum. Planes that
+// contradict each other leave no such point, and the candidate that
+// overlaps least is taken instead.
 
+#include "core.h"
 #include "query.h"
 #include "world.h"
 
@@ -11,13 +22,11 @@
 
 #include <math.h>
 
-// Collision planes for a posed capsule mover: one GJK query per
-// nearby shape, plane normal from the shape toward the mover,
-// separation measured along it (negative = penetration), the
-// speculative collar included so a controller sees walls before it
-// clips them. Reference architecture (mover.c), Maul frames.
+// Planes for a posed capsule: one distance query per nearby shape. A
+// collar of four linear slops lets a controller see a wall before it
+// reaches it.
 int32_t m2World_CollideMover(m2WorldId worldId, const m2Capsule* mover, m2Transform origin,
-                             m2PlaneResult* results, int32_t capacity, m2QueryFilter filter)
+                             m2MoverPlane* results, int32_t capacity, m2QueryFilter filter)
 {
     m2World* world = m2WorldFromId(worldId);
     m2DistanceProxy moverLocal = m2CapsuleProxy(mover);
@@ -84,7 +93,7 @@ int32_t m2World_CollideMover(m2WorldId worldId, const m2Capsule* mover, m2Transf
                            d.pointA.y + target.radius * normalLocal.y};
             if (results != NULL && total < capacity)
             {
-                m2PlaneResult* out = results + total;
+                m2MoverPlane* out = results + total;
                 out->shapeId.index1 = shapeIndex + 1;
                 out->shapeId.world0 = worldId.index1;
                 out->shapeId.generation = world->shapes.shapeGenerations[shapeIndex];
@@ -101,7 +110,7 @@ int32_t m2World_CollideMover(m2WorldId worldId, const m2Capsule* mover, m2Transf
     int32_t filled = results != NULL ? (total < capacity ? total : capacity) : 0;
     for (int32_t i = 1; i < filled; ++i)
     {
-        m2PlaneResult key = results[i];
+        m2MoverPlane key = results[i];
         int32_t j = i - 1;
         while (j >= 0 && results[j].shapeId.index1 > key.shapeId.index1)
         {
@@ -113,64 +122,137 @@ int32_t m2World_CollideMover(m2WorldId worldId, const m2Capsule* mover, m2Transf
     return total;
 }
 
-// The plane solver: iterate the planes,
-// push the delta out along each normal with a clamped accumulator,
-// stop when the total push falls under the slop tolerance.
-m2PlaneSolverResult m2SolvePlanes(m2Vec2 targetDelta, m2CollisionPlane* planes, int32_t count)
-{
-    for (int32_t i = 0; i < count; ++i)
-    {
-        planes[i].push = 0.0f;
-    }
-    m2Vec2 delta = targetDelta;
-    float tolerance = 0.005f; // linear slop
+// How far a move may stand inside a plane and still count as clear.
+#define M2_MOVER_TOLERANCE 1.0e-5f
 
-    int32_t iteration = 0;
-    for (; iteration < 20; ++iteration)
-    {
-        float totalPush = 0.0f;
-        for (int32_t i = 0; i < count; ++i)
-        {
-            m2CollisionPlane* plane = planes + i;
-            // Separation of the moved mover from this plane, slopped
-            // to prevent jitter.
-            float separation =
-                plane->separation + delta.x * plane->normal.x + delta.y * plane->normal.y + 0.005f;
-            float push = -separation;
-            float accumulated = plane->push;
-            float next = accumulated + push;
-            next = next < 0.0f ? 0.0f : (next > plane->pushLimit ? plane->pushLimit : next);
-            plane->push = next;
-            push = next - accumulated;
-            delta.x += push * plane->normal.x;
-            delta.y += push * plane->normal.y;
-            totalPush += push < 0.0f ? -push : push;
-        }
-        if (totalPush < tolerance)
-        {
-            break;
-        }
-    }
-    m2PlaneSolverResult result = {delta, iteration};
-    return result;
+typedef struct Candidate
+{
+    m2Vec2 d;
+    float clearance; // the smallest n . d + s over all planes
+    uint32_t pressed;
+} Candidate;
+
+static float Dot(m2Vec2 a, m2Vec2 b)
+{
+    return a.x * b.x + a.y * b.y;
 }
 
-m2Vec2 m2ClipVector(m2Vec2 vector, const m2CollisionPlane* planes, int32_t count)
+// The point closest to the wish on the planes of set (k of them),
+// pushed by each: solves the Gram system G lambda = -(s + N w). False
+// when the set is degenerate or a push would pull.
+static bool RestOn(m2Vec2 wish, const m2MoverPlane* planes, const int32_t* set, int32_t k,
+                   m2Vec2* d, uint32_t* pressed)
 {
-    m2Vec2 v = vector;
+    float lambda[2] = {0.0f, 0.0f};
+    if (k == 1)
+    {
+        m2Vec2 n = planes[set[0]].normal;
+        lambda[0] = -(planes[set[0]].separation + Dot(n, wish)) / Dot(n, n);
+    }
+    else if (k == 2)
+    {
+        m2Vec2 n0 = planes[set[0]].normal;
+        m2Vec2 n1 = planes[set[1]].normal;
+        float g00 = Dot(n0, n0);
+        float g01 = Dot(n0, n1);
+        float g11 = Dot(n1, n1);
+        float det = g00 * g11 - g01 * g01;
+        if (!(det > 1.0e-10f))
+        {
+            return false;
+        }
+        float r0 = -(planes[set[0]].separation + Dot(n0, wish));
+        float r1 = -(planes[set[1]].separation + Dot(n1, wish));
+        lambda[0] = (g11 * r0 - g01 * r1) / det;
+        lambda[1] = (g00 * r1 - g01 * r0) / det;
+    }
+    *d = wish;
+    *pressed = 0;
+    for (int32_t j = 0; j < k && j < 2; ++j)
+    {
+        if (!(lambda[j] >= 0.0f))
+        {
+            return false;
+        }
+        m2Vec2 n = planes[set[j]].normal;
+        d->x += lambda[j] * n.x;
+        d->y += lambda[j] * n.y;
+        *pressed |= lambda[j] > 0.0f ? 1u << set[j] : 0u;
+    }
+    return true;
+}
+
+// Keeps the better of two candidates: a clear one over an overlapping
+// one, the earlier clear one, or the one that overlaps less.
+static void Consider(m2Vec2 wish, const m2MoverPlane* planes, int32_t count, const int32_t* set,
+                     int32_t k, Candidate* best)
+{
+    Candidate c;
+    if (!RestOn(wish, planes, set, k, &c.d, &c.pressed))
+    {
+        return;
+    }
+    c.clearance = 3.4e38f;
     for (int32_t i = 0; i < count; ++i)
     {
-        const m2CollisionPlane* plane = planes + i;
-        if (plane->push == 0.0f || plane->clipVelocity == false)
+        c.clearance = m2MinF(c.clearance, Dot(planes[i].normal, c.d) + planes[i].separation);
+    }
+    bool bestClear = best->clearance >= -M2_MOVER_TOLERANCE;
+    if (!bestClear && c.clearance > best->clearance)
+    {
+        *best = c;
+    }
+}
+
+m2MoverMove m2SolveMover(m2Vec2 wish, const m2MoverPlane* planes, int32_t count)
+{
+    m2MoverMove move = {wish, 0};
+    if (planes == NULL || count <= 0 || !m2FiniteVec2(wish))
+    {
+        return move;
+    }
+    count = count < M2_MOVER_PLANES ? count : M2_MOVER_PLANES;
+    Candidate best = {wish, -3.4e38f, 0};
+    int32_t set[2];
+    Consider(wish, planes, count, set, 0, &best);
+    for (int32_t a = 0; a < count; ++a)
+    {
+        set[0] = a;
+        Consider(wish, planes, count, set, 1, &best);
+    }
+    for (int32_t a = 0; a < count; ++a)
+    {
+        for (int32_t b = a + 1; b < count; ++b)
         {
-            continue;
-        }
-        float vn = v.x * plane->normal.x + v.y * plane->normal.y;
-        if (vn < 0.0f)
-        {
-            v.x -= vn * plane->normal.x;
-            v.y -= vn * plane->normal.y;
+            set[0] = a;
+            set[1] = b;
+            Consider(wish, planes, count, set, 2, &best);
         }
     }
-    return v;
+    move.translation = best.d;
+    move.pressed = best.pressed;
+    return move;
+}
+
+// The velocity closest to the given one that no pressed plane opposes:
+// the same problem with the pressed planes at zero separation.
+m2Vec2 m2ClipMoverVelocity(m2Vec2 velocity, const m2MoverPlane* planes, int32_t count,
+                           uint32_t pressed)
+{
+    if (planes == NULL || count <= 0 || pressed == 0)
+    {
+        return velocity;
+    }
+    m2MoverPlane touching[M2_MOVER_PLANES];
+    int32_t n = 0;
+    for (int32_t i = 0; i < count && i < M2_MOVER_PLANES; ++i)
+    {
+        if ((pressed & (1u << i)) != 0)
+        {
+            touching[n] = planes[i];
+            touching[n].separation = 0.0f;
+            n += 1;
+        }
+    }
+    return m2SolveMover(velocity, touching, n).translation;
 }

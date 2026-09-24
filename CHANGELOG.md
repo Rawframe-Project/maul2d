@@ -157,6 +157,12 @@ Work toward 0.0.1, the first release of the reworked library.
   particleTensileNormalStrength become particleCohesionStrength and
   particleNearPressureStrength; the default particlePressureStrength
   is 0.2 on the new pressure scale (water packs as densely as before).
+- Mover kit redesigned: m2World_CollideMover fills m2MoverPlane
+  entries; m2SolveMover returns the translation closest to the wish
+  that no plane blocks, found exactly by trying the planes it may rest
+  on, with a bitmask of the planes it rests on; m2ClipMoverVelocity
+  strips the velocity pointing into those planes. m2CollisionPlane,
+  pushLimit, m2SolvePlanes and m2ClipVector are gone.
 
 ### Removed
 

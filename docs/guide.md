@@ -303,11 +303,11 @@ alone and holds hash equality with the original through 90 steps.
 
 ## The character mover
 
-`m2World_CollideMover` gathers the collision planes touching a posed
-capsule (one-sided chains included), `m2SolvePlanes` turns your
-desired step into a translation that respects every plane with the
-reference's accumulated-push solver, and `m2ClipVector` strips the
-velocity you just spent. The sweep half of a controller is
+`m2World_CollideMover` gathers the planes touching a posed capsule
+(one-sided chains included), `m2SolveMover` turns your desired step
+into the closest translation that no plane blocks and reports the
+planes it rests on, and `m2ClipMoverVelocity` strips the velocity that
+points into those planes. The sweep half of a controller is
 `m2World_CastCapsuleClosest`, which already is the mover cast. All
 of it is pure reading and pure math: a kinematic character built on
 these replays bit-exactly like everything else.
@@ -415,8 +415,8 @@ with the mover kit or with velocities you set each step.
 
 **A platformer character.** The character is a viewer-side kinematic
 capsule, not a body: each frame call m2World_CollideMover to gather
-the planes, m2SolvePlanes to resolve your desired move, and
-m2ClipVector to spend the velocity; jump by setting the vertical
+the planes, m2SolveMover to resolve your desired move, and
+m2ClipMoverVelocity to spend the velocity; jump by setting the vertical
 velocity and let one-sided chains be your one-way platforms. The
 testbed's platformer scene is this recipe end to end.
 

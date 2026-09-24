@@ -1238,15 +1238,15 @@ int32_t m2World_CastPolygonAll(m2WorldId worldId, const m2Polygon* polygon, m2Tr
 ```
 
 ```c
-int32_t m2World_CollideMover(m2WorldId worldId, const m2Capsule* mover, m2Transform origin, m2PlaneResult* results, int32_t capacity, m2QueryFilter filter);
+int32_t m2World_CollideMover(m2WorldId worldId, const m2Capsule* mover, m2Transform origin, m2MoverPlane* planes, int32_t capacity, m2QueryFilter filter);
 ```
 
 ```c
-m2PlaneSolverResult m2SolvePlanes(m2Vec2 targetDelta, m2CollisionPlane* planes, int32_t count);
+m2MoverMove m2SolveMover(m2Vec2 wish, const m2MoverPlane* planes, int32_t count);
 ```
 
 ```c
-m2Vec2 m2ClipVector(m2Vec2 vector, const m2CollisionPlane* planes, int32_t count);
+m2Vec2 m2ClipMoverVelocity(m2Vec2 velocity, const m2MoverPlane* planes, int32_t count, uint32_t pressed);
 ```
 
 ```c

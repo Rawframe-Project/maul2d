@@ -241,7 +241,7 @@ static void TestMoverKit(void)
     // A capsule mover standing on the floor near the wall.
     m2Capsule mover = {{0.0f, -0.4f}, {0.0f, 0.4f}, 0.3f};
     m2Transform pose = {{3.69, 0.71}, {1.0f, 0.0f}};
-    m2PlaneResult found[8];
+    m2MoverPlane found[8];
     int32_t n = m2World_CollideMover(world, &mover, pose, found, 8, all);
     CHECK(n == 2, "the corner offers two planes");
     CHECK(found[0].shapeId.index1 < found[1].shapeId.index1, "ascending shape order");
@@ -255,26 +255,17 @@ static void TestMoverKit(void)
     }
     CHECK(sawFloor && sawWall, "with the right orientations");
 
-    // Drive into the corner: the solver returns a translation that
-    // respects both planes instead of tunneling.
-    m2CollisionPlane planes[8];
-    for (int32_t i = 0; i < n; ++i)
-    {
-        planes[i].normal = found[i].normal;
-        planes[i].separation = found[i].separation;
-        planes[i].pushLimit = 3.4e38f;
-        planes[i].push = 0.0f;
-        planes[i].clipVelocity = true;
-    }
+    // Drive into the corner: the solver returns the translation closest
+    // to the wish that clears both planes.
     m2Vec2 wish = {0.5f, -0.3f}; // into the wall AND the floor
-    m2PlaneSolverResult solved = m2SolvePlanes(wish, planes, n);
+    m2MoverMove solved = m2SolveMover(wish, found, n);
     float floorLeak = 0.0f;
     float wallLeak = 0.0f;
     for (int32_t i = 0; i < n; ++i)
     {
-        float after = planes[i].separation + solved.translation.x * planes[i].normal.x +
-                      solved.translation.y * planes[i].normal.y;
-        if (planes[i].normal.y > 0.9f)
+        float after = found[i].separation + solved.translation.x * found[i].normal.x +
+                      solved.translation.y * found[i].normal.y;
+        if (found[i].normal.y > 0.9f)
         {
             floorLeak = after;
         }
@@ -283,14 +274,20 @@ static void TestMoverKit(void)
             wallLeak = after;
         }
     }
-    CHECK(floorLeak > -0.02f && wallLeak > -0.02f,
+    CHECK(floorLeak > -1.0e-4f && wallLeak > -1.0e-4f,
           "the solved translation stays out of both planes");
+    CHECK(solved.pressed != 0, "the move rests on what stopped it");
+
+    // A clear wish passes untouched.
+    m2MoverMove away = m2SolveMover((m2Vec2){-0.5f, 0.3f}, found, n);
+    CHECK(away.translation.x == -0.5f && away.translation.y == 0.3f && away.pressed == 0,
+          "a move away from every plane is not touched");
 
     // Velocity clipping: the into-corner velocity loses its normal
     // components, keeps what slides.
-    m2Vec2 clipped = m2ClipVector((m2Vec2){2.0f, -1.0f}, planes, n);
-    CHECK(clipped.x < 0.1f && clipped.x >= 0.0f, "the wall eats the x approach");
-    CHECK(clipped.y >= -0.05f, "the floor eats the downward part");
+    m2Vec2 clipped = m2ClipMoverVelocity((m2Vec2){2.0f, -1.0f}, found, n, solved.pressed);
+    CHECK(clipped.x < 0.1f && clipped.x >= -1.0e-4f, "the wall eats the x approach");
+    CHECK(clipped.y >= -1.0e-4f, "the floor eats the downward part");
 
     // Free air: no planes at all.
     m2Transform sky = {{-5.0, 5.0}, {1.0f, 0.0f}};

@@ -702,37 +702,30 @@ static void CharacterUpdate(m2WorldId world, float dt)
 
     // Gather planes at the current pose.
     m2Transform pose = {s_charPos, {1.0f, 0.0f}};
-    m2PlaneResult found[16];
+    m2MoverPlane found[16];
     int32_t n = m2World_CollideMover(world, &s_charShape, pose, found, 16, m2DefaultQueryFilter());
     n = n < 16 ? n : 16;
-    m2CollisionPlane planes[16];
     m2Vec2 carry = {0.0f, 0.0f};
     for (int32_t i = 0; i < n; ++i)
     {
-        planes[i].normal = found[i].normal;
-        planes[i].separation = found[i].separation;
-        planes[i].pushLimit = 3.4e38f;
-        planes[i].push = 0.0f;
-        planes[i].clipVelocity = true;
         if (found[i].normal.y > 0.7f)
         {
             // Ride whatever we stand on (the ferry moment).
             m2BodyId under = m2Shape_GetBody(found[i].shapeId);
-            m2Vec2 vUnder = m2Body_GetLinearVelocity(under);
-            carry = vUnder;
+            carry = m2Body_GetLinearVelocity(under);
         }
     }
 
     m2Vec2 delta = {(s_charVel.x + carry.x) * dt, (s_charVel.y + carry.y) * dt};
-    m2PlaneSolverResult solved = m2SolvePlanes(delta, planes, n);
+    m2MoverMove solved = m2SolveMover(delta, found, n);
     s_charPos.x += (double)solved.translation.x;
     s_charPos.y += (double)solved.translation.y;
-    s_charVel = m2ClipVector(s_charVel, planes, n);
+    s_charVel = m2ClipMoverVelocity(s_charVel, found, n, solved.pressed);
 
     s_charGrounded = false;
-    for (int32_t i = 0; i < n; ++i)
+    for (int32_t i = 0; i < n && i < M2_MOVER_PLANES; ++i)
     {
-        if (planes[i].push > 0.0f && planes[i].normal.y > 0.7f)
+        if ((solved.pressed & (1u << i)) != 0 && found[i].normal.y > 0.7f)
         {
             s_charGrounded = true;
         }
