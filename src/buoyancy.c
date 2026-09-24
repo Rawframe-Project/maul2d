@@ -1,20 +1,24 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Particle-free water: buoyancy volumes. An axis-aligned activation
-// region gates which awake dynamic bodies are in the water; a
-// horizontal surface line decides how much of each shape is below
-// it. The physics is the LiquidFun buoyancy controller (see
-// THIRD_PARTY.md): Archimedes lift on the submerged area at its
-// centroid, plus linear and angular drag, plus an optional flow
-// current. The submerged area is exact for circles and polygons and
-// a bounding-box fraction for capsules and segments, a documented
-// approximation for the rounded and thin shapes that rarely float.
+// Particle-free water: buoyancy volumes. A box gates which awake
+// dynamic bodies are in the water, by their origin; a horizontal
+// surface line decides how much of each shape lies below it.
 //
-// Forces feed the ordinary per-body accumulators, so they integrate
-// alongside gravity and die with the step. Only awake dynamic
-// bodies are touched, exactly as gravity is, so a body that settles
-// at the waterline and sleeps simply floats.
+// The water pushes up with the weight it displaces (Archimedes), at the
+// centroid of the submerged area, and drags on that centroid's motion
+// relative to the flow; spin is braked by a torque proportional to the
+// submerged area times the body's squared radius of gyration. The
+// forces go into the body accumulators, so they integrate beside
+// gravity and die with the step, and a body that settles at the
+// waterline and sleeps simply floats.
+//
+// Circles use the exact circular segment. Polygons are clipped by the
+// surface. Rounded polygons and capsules become polygons first: each
+// rounded corner turns into a fan whose inner vertices sit just outside
+// the circle, far enough that the fan has exactly the area of its
+// circular sector, so the outline keeps the shape's true area. Segments
+// have no area and do not float.
 
 #include "buoyancy.h"
 #include "journal.h"
@@ -25,150 +29,185 @@
 
 #include <math.h>
 
-// acos(x) = atan2(sqrt(1 - x^2), x), built on the engine's own
-// deterministic atan2 because libm acosf is not bit-identical
-// across platforms.
-static float FvAcos(float x)
+// acos(x) = atan2(sqrt(1 - x^2), x), on the engine's own atan2 (libm's
+// acos is not bit-identical across platforms).
+static float Acos(float x)
 {
     float s = 1.0f - x * x;
     s = s > 0.0f ? sqrtf(s) : 0.0f;
     return m2Atan2(s, x);
 }
 
-static m2Vec2 FvRotate(m2Rot q, m2Vec2 v)
+static m2Vec2 Rotate(m2Rot q, m2Vec2 v)
 {
     return (m2Vec2){q.c * v.x - q.s * v.y, q.s * v.x + q.c * v.y};
 }
 
-// Submerged area and world centroid of a circle below y = surface.
-static float SubmergedCircle(m2Vec2 center, float radius, double surface, m2Vec2* centroidOut)
+// What of a shape lies below the surface: area and world centroid.
+typedef struct Immersion
 {
-    float depth = (float)(surface - (double)center.y); // >0: center is below the line
-    if (depth >= radius)
+    float area;
+    m2Vec2 centroid;
+} Immersion;
+
+static const Immersion s_dry = {0.0f, {0.0f, 0.0f}};
+
+// A circle against the surface. With the center at depth d below the
+// line, the dry cap above it has area r^2 acos(d/r) - d sqrt(r^2 - d^2)
+// and its centroid sits (2/3) (r^2 - d^2)^(3/2) / area above the
+// center; the wet part balances it.
+static Immersion ImmerseCircle(m2Vec2 center, float r, double surface)
+{
+    float d = (float)(surface - (double)center.y);
+    if (d <= -r)
     {
-        *centroidOut = center;
-        return (float)M2_PI * radius * radius;
+        return s_dry;
     }
-    if (depth <= -radius)
+    float disc = (float)M2_PI * r * r;
+    if (d >= r)
     {
-        return 0.0f;
+        return (Immersion){disc, center};
     }
-    // The dry cap sits above the line at signed height depth from the
-    // center; the submerged area is the disc minus that cap.
-    float r2 = radius * radius;
-    float root = sqrtf(r2 - depth * depth);
-    float dryArea = r2 * FvAcos(depth / radius) - depth * root;
-    float area = (float)M2_PI * r2 - dryArea;
-    if (area <= 0.0f)
+    float half = sqrtf(r * r - d * d);
+    float dryArea = r * r * Acos(d / r) - d * half;
+    float wetArea = disc - dryArea;
+    if (!(wetArea > 0.0f))
     {
-        return 0.0f;
+        return s_dry;
     }
-    // Segment centroids: the dry cap centroid sits above the center by
-    // (2/3) root^3 / dryArea; the submerged centroid balances it.
-    float dryCentroidY = dryArea > 1.0e-9f ? (2.0f / 3.0f) * root * root * root / dryArea : 0.0f;
-    float subCentroidY = -dryCentroidY * dryArea / area;
-    *centroidOut = (m2Vec2){center.x, center.y + subCentroidY};
-    return area;
+    float dryRise = dryArea > 1.0e-9f ? (2.0f / 3.0f) * half * half * half / dryArea : 0.0f;
+    return (Immersion){wetArea, {center.x, center.y - dryRise * dryArea / wetArea}};
 }
 
-// Signed area and area-weighted centroid of a polygon (world verts).
-static float PolygonAreaCentroid(const m2Vec2* v, int32_t n, m2Vec2* centroidOut)
+// Area and centroid of a simple polygon, from the signed triangle fan
+// about the origin.
+static Immersion PolygonMoments(const m2Vec2* v, int32_t n)
 {
-    float area2 = 0.0f;
-    float cx = 0.0f;
-    float cy = 0.0f;
+    float twice = 0.0f;
+    float sx = 0.0f;
+    float sy = 0.0f;
     for (int32_t i = 0; i < n; ++i)
     {
         m2Vec2 a = v[i];
-        m2Vec2 b = v[(i + 1) % n];
+        m2Vec2 b = v[i + 1 < n ? i + 1 : 0];
         float cross = a.x * b.y - b.x * a.y;
-        area2 += cross;
-        cx += (a.x + b.x) * cross;
-        cy += (a.y + b.y) * cross;
+        twice += cross;
+        sx += (a.x + b.x) * cross;
+        sy += (a.y + b.y) * cross;
     }
-    float area = 0.5f * area2;
-    if (area > 1.0e-9f || area < -1.0e-9f)
+    if (!(twice > 2.0e-9f || twice < -2.0e-9f))
     {
-        cx /= 3.0f * area2;
-        cy /= 3.0f * area2;
+        return s_dry;
     }
-    *centroidOut = (m2Vec2){cx, cy};
-    return area < 0.0f ? -area : area;
+    float area = 0.5f * twice;
+    return (Immersion){area < 0.0f ? -area : area, {sx / (3.0f * twice), sy / (3.0f * twice)}};
 }
 
-// Submerged area of a convex polygon below y = surface: clip the
-// polygon by the half-plane, then measure the clipped piece.
-static float SubmergedPolygon(const m2Vec2* verts, int32_t count, double surface,
-                              m2Vec2* centroidOut)
+// The part of a convex outline below the surface (Sutherland and
+// Hodgman against one half-plane).
+#define M2_OUTLINE_MAX 64
+
+static Immersion ImmerseOutline(const m2Vec2* v, int32_t n, double surface)
 {
-    m2Vec2 clipped[2 * M2_MAX_POLYGON_VERTICES];
-    int32_t out = 0;
-    for (int32_t i = 0; i < count; ++i)
+    m2Vec2 wet[M2_OUTLINE_MAX + 2];
+    int32_t count = 0;
+    for (int32_t i = 0; i < n; ++i)
     {
-        m2Vec2 a = verts[i];
-        m2Vec2 b = verts[(i + 1) % count];
-        bool aIn = (double)a.y <= surface;
-        bool bIn = (double)b.y <= surface;
-        if (aIn)
+        m2Vec2 a = v[i];
+        m2Vec2 b = v[i + 1 < n ? i + 1 : 0];
+        bool aWet = (double)a.y <= surface;
+        bool bWet = (double)b.y <= surface;
+        if (aWet)
         {
-            clipped[out++] = a;
+            wet[count++] = a;
         }
-        if (aIn != bIn)
+        if (aWet != bWet)
         {
             float t = (float)((surface - (double)a.y) / ((double)b.y - (double)a.y));
-            clipped[out++] = (m2Vec2){a.x + t * (b.x - a.x), a.y + t * (b.y - a.y)};
+            wet[count++] = (m2Vec2){a.x + t * (b.x - a.x), a.y + t * (b.y - a.y)};
         }
     }
-    if (out < 3)
-    {
-        return 0.0f;
-    }
-    return PolygonAreaCentroid(clipped, out, centroidOut);
+    return count >= 3 ? PolygonMoments(wet, count) : s_dry;
 }
 
-// One shape's submerged area and world centroid.
-static float SubmergedShape(const m2World* world, int32_t shape, m2Transform xf, double surface,
-                            m2Vec2* centroidOut)
+// The radius for the inner vertices of a corner fan. The fan runs m
+// steps of angle a from one edge normal to the next, its two end
+// vertices on the circle (radius r, so the straight edges stay exact)
+// and the m - 1 inner ones at radius R. Its area, r R sin a for the two
+// end triangles plus (m - 2) R^2 sin(a) / 2 for the rest, equals the
+// sector's m a r^2 / 2 when
+//   (m - 2) sin(a) R^2 + 2 r sin(a) R - m a r^2 = 0.
+static float FanRadius(float r, int32_t m, float a, float sinA)
+{
+    if (m == 2)
+    {
+        return r * a / sinA;
+    }
+    float k = (float)(m - 2) * sinA;
+    return r * (sqrtf(sinA * sinA + k * (float)m * a) - sinA) / k;
+}
+
+// The outline of a rounded convex polygon in the world: each corner fans
+// from the previous edge's normal to the next one's in at least two
+// steps of at most a sixteenth of a turn, keeping the shape's area.
+static int32_t RoundedOutline(const m2Vec2* verts, const m2Vec2* normals, int32_t count,
+                              float radius, m2Transform xf, m2Vec2* out)
+{
+    int32_t n = 0;
+    for (int32_t i = 0; i < count; ++i)
+    {
+        m2Vec2 from = normals[i > 0 ? i - 1 : count - 1];
+        m2Vec2 to = normals[i];
+        float turn = m2Atan2(from.x * to.y - from.y * to.x, from.x * to.x + from.y * to.y);
+        turn = turn < 0.0f ? turn + 2.0f * (float)M2_PI : turn; // a half turn may read as -pi
+        int32_t steps = (int32_t)ceilf(turn * (8.0f / (float)M2_PI));
+        steps = steps < 2 ? 2 : steps;
+        m2Rot rot = m2MakeRot(turn / (float)steps);
+        float inner = FanRadius(radius, steps, turn / (float)steps, rot.s);
+        m2Vec2 dir = from;
+        for (int32_t k = 0; k <= steps && n < M2_OUTLINE_MAX; ++k)
+        {
+            float reach = k == 0 || k == steps ? radius : inner;
+            m2Vec2 local = {verts[i].x + reach * dir.x, verts[i].y + reach * dir.y};
+            m2Vec2 world = Rotate(xf.q, local);
+            out[n++] = (m2Vec2){world.x + (float)xf.p.x, world.y + (float)xf.p.y};
+            dir = k + 1 == steps ? to : Rotate(rot, dir);
+        }
+    }
+    return n;
+}
+
+static Immersion ImmerseShape(const m2World* world, int32_t shape, m2Transform xf, double surface)
 {
     const m2ShapeGeometry* g = &world->shapes.shapeGeometry[shape];
-    switch (g->type)
+    m2Vec2 outline[M2_OUTLINE_MAX];
+    int32_t n = 0;
+    if (g->type == m2_circleShape)
     {
-    case m2_circleShape:
-    {
-        m2Vec2 c = FvRotate(xf.q, g->circle.center);
-        c.x += (float)xf.p.x;
-        c.y += (float)xf.p.y;
-        return SubmergedCircle(c, g->circle.radius, surface, centroidOut);
+        m2Vec2 c = Rotate(xf.q, g->circle.center);
+        return ImmerseCircle((m2Vec2){c.x + (float)xf.p.x, c.y + (float)xf.p.y}, g->circle.radius,
+                             surface);
     }
-    case m2_polygonShape:
+    if (g->type == m2_capsuleShape)
     {
-        m2Vec2 verts[M2_MAX_POLYGON_VERTICES];
+        m2Polygon core =
+            m2MakeSegmentProxy(g->capsule.point1, g->capsule.point2, g->capsule.radius);
+        n = RoundedOutline(core.vertices, core.normals, 2, core.radius, xf, outline);
+    }
+    else if (g->type == m2_polygonShape && g->polygon.radius > 0.0f)
+    {
+        n = RoundedOutline(g->polygon.vertices, g->polygon.normals, g->polygon.count,
+                           g->polygon.radius, xf, outline);
+    }
+    else if (g->type == m2_polygonShape)
+    {
         for (int32_t i = 0; i < g->polygon.count; ++i)
         {
-            m2Vec2 w = FvRotate(xf.q, g->polygon.vertices[i]);
-            verts[i] = (m2Vec2){w.x + (float)xf.p.x, w.y + (float)xf.p.y};
+            m2Vec2 w = Rotate(xf.q, g->polygon.vertices[i]);
+            outline[n++] = (m2Vec2){w.x + (float)xf.p.x, w.y + (float)xf.p.y};
         }
-        return SubmergedPolygon(verts, g->polygon.count, surface, centroidOut);
     }
-    default:
-        break;
-    }
-    // Capsule, segment, chain segment: a bounding-box fraction. The
-    // rounded and thin shapes rarely float and never need the exact
-    // waterline; the box keeps the result finite and monotone.
-    m2AABB box = m2ComputeShapeAABB(g, xf);
-    double lo = box.lowerBound.y;
-    double hi = box.upperBound.y;
-    if (surface <= lo || hi <= lo)
-    {
-        return 0.0f;
-    }
-    float frac = surface >= hi ? 1.0f : (float)((surface - lo) / (hi - lo));
-    float fullArea = m2ShapeArea(g);
-    float area = fullArea * frac;
-    float midY = (float)(lo + 0.5 * (double)frac * (hi - lo));
-    *centroidOut = (m2Vec2){(float)(0.5 * (box.lowerBound.x + box.upperBound.x)), midY};
-    return area;
+    return n >= 3 ? ImmerseOutline(outline, n, surface) : s_dry;
 }
 
 m2FluidVolumeDef m2DefaultFluidVolumeDef(void)
@@ -300,8 +339,59 @@ uint64_t m2FluidVolume_GetUserData(m2FluidVolumeId volumeId)
     return index >= 0 ? world->volumes.fvUserData[index] : 0;
 }
 
-// The per-step pass: buoyancy and drag into the force accumulators,
-// in canonical volume-then-body order.
+static bool InWater(const m2World* world, int32_t b, int32_t v)
+{
+    if (world->bodies.alive[b] == 0 || world->bodies.types[b] != (uint8_t)m2_dynamicBody ||
+        world->bodies.asleep[b] != 0 || world->bodies.disabled[b] != 0)
+    {
+        return false;
+    }
+    m2Pos2 p = world->bodies.transforms[b].p;
+    m2Pos2 lo = world->volumes.fvLower[v];
+    m2Pos2 hi = world->volumes.fvUpper[v];
+    return p.x >= lo.x && p.x <= hi.x && p.y >= lo.y && p.y <= hi.y;
+}
+
+// Lift, drag and spin drag of one volume on one body.
+static void Soak(m2World* world, int32_t b, int32_t vol)
+{
+    m2Transform xf = world->bodies.transforms[b];
+    Immersion wet = s_dry;
+    for (int32_t s = world->bodies.bodyShapeHead[b]; s != -1; s = world->shapes.shapeNext[s])
+    {
+        Immersion part = ImmerseShape(world, s, xf, world->volumes.fvSurface[vol]);
+        wet.area += part.area;
+        wet.centroid.x += part.area * part.centroid.x;
+        wet.centroid.y += part.area * part.centroid.y;
+    }
+    if (wet.area <= 1.19209290e-7f)
+    {
+        return;
+    }
+    m2Vec2 center = Rotate(xf.q, world->bodies.localCenters[b]);
+    m2Vec2 arm = {wet.centroid.x / wet.area - ((float)xf.p.x + center.x),
+                  wet.centroid.y / wet.area - ((float)xf.p.y + center.y)};
+    float w = world->bodies.angularVelocities[b];
+    m2Vec2 v = world->bodies.linearVelocities[b];
+    m2Vec2 flow = world->volumes.fvFlow[vol];
+    float lift = -world->volumes.fvDensity[vol] * wet.area;
+    float drag = -world->volumes.fvLinearDrag[vol] * wet.area;
+    float fx = lift * world->gravity.x + drag * (v.x - w * arm.y - flow.x);
+    float fy = lift * world->gravity.y + drag * (v.y + w * arm.x - flow.y);
+    world->bodies.forces[b].x += fx;
+    world->bodies.forces[b].y += fy;
+    world->bodies.torques[b] += arm.x * fy - arm.y * fx;
+    float invM = world->bodies.invMass[b];
+    float invI = world->bodies.invInertia[b];
+    if (invM > 0.0f && invI > 0.0f)
+    {
+        // I / m is the squared radius of gyration.
+        world->bodies.torques[b] -=
+            (invM / invI) * wet.area * w * world->volumes.fvAngularDrag[vol];
+    }
+}
+
+// The per-step pass, volume by volume, bodies in slot order.
 void m2ApplyFluidVolumes(m2World* world, float dt)
 {
     if (dt <= 0.0f)
@@ -310,84 +400,11 @@ void m2ApplyFluidVolumes(m2World* world, float dt)
     }
     for (int32_t v = 0; v < world->volumes.maxFvIndex; ++v)
     {
-        if (world->volumes.fvAlive[v] == 0)
+        for (int32_t b = 0; world->volumes.fvAlive[v] != 0 && b < world->bodies.maxBodyIndex; ++b)
         {
-            continue;
-        }
-        m2Pos2 lo = world->volumes.fvLower[v];
-        m2Pos2 hi = world->volumes.fvUpper[v];
-        double surface = world->volumes.fvSurface[v];
-        float density = world->volumes.fvDensity[v];
-        float linearDrag = world->volumes.fvLinearDrag[v];
-        float angularDrag = world->volumes.fvAngularDrag[v];
-        m2Vec2 flow = world->volumes.fvFlow[v];
-
-        for (int32_t b = 0; b < world->bodies.maxBodyIndex; ++b)
-        {
-            if (world->bodies.alive[b] == 0 || world->bodies.types[b] != (uint8_t)m2_dynamicBody ||
-                world->bodies.asleep[b] != 0 || world->bodies.disabled[b] != 0)
+            if (InWater(world, b, v))
             {
-                continue;
-            }
-            m2Transform xf = world->bodies.transforms[b];
-            // Region gate: the body origin must sit in the activation
-            // box (cheap and canonical; the surface does the physics).
-            if (xf.p.x < lo.x || xf.p.x > hi.x || xf.p.y < lo.y || xf.p.y > hi.y)
-            {
-                continue;
-            }
-
-            m2Vec2 lc = world->bodies.localCenters[b];
-            m2Vec2 comArm = FvRotate(xf.q, lc);
-            float comX = (float)xf.p.x + comArm.x;
-            float comY = (float)xf.p.y + comArm.y;
-
-            float totalArea = 0.0f;
-            m2Vec2 areaCentroid = {0.0f, 0.0f};
-            for (int32_t s = world->bodies.bodyShapeHead[b]; s != -1;
-                 s = world->shapes.shapeNext[s])
-            {
-                m2Vec2 c = {0.0f, 0.0f};
-                float area = SubmergedShape(world, s, xf, surface, &c);
-                if (area <= 0.0f)
-                {
-                    continue;
-                }
-                totalArea += area;
-                areaCentroid.x += area * c.x;
-                areaCentroid.y += area * c.y;
-            }
-            if (totalArea <= 1.19209290e-7f)
-            {
-                continue;
-            }
-            areaCentroid.x /= totalArea;
-            areaCentroid.y /= totalArea;
-
-            // Buoyancy: displaced weight, up, at the submerged centroid.
-            float bfx = -density * totalArea * world->gravity.x;
-            float bfy = -density * totalArea * world->gravity.y;
-            // Drag: opposes the centroid's velocity relative to the flow.
-            float w = world->bodies.angularVelocities[b];
-            float rcx = areaCentroid.x - comX;
-            float rcy = areaCentroid.y - comY;
-            float vcx = world->bodies.linearVelocities[b].x - w * rcy;
-            float vcy = world->bodies.linearVelocities[b].y + w * rcx;
-            float dfx = -linearDrag * totalArea * (vcx - flow.x);
-            float dfy = -linearDrag * totalArea * (vcy - flow.y);
-
-            float fx = bfx + dfx;
-            float fy = bfy + dfy;
-            world->bodies.forces[b].x += fx;
-            world->bodies.forces[b].y += fy;
-            world->bodies.torques[b] += rcx * fy - rcy * fx;
-            // Angular drag scales with the reference's inertia-per-mass.
-            float invM = world->bodies.invMass[b];
-            float invI = world->bodies.invInertia[b];
-            if (invM > 0.0f && invI > 0.0f)
-            {
-                float inertiaPerMass = invM / invI;
-                world->bodies.torques[b] -= inertiaPerMass * totalArea * w * angularDrag;
+                Soak(world, b, v);
             }
         }
     }

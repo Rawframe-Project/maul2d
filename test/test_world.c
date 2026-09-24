@@ -1899,6 +1899,57 @@ static void TestHashParts(void)
 // Particle-free water: a light box floats, a dense box sinks, a
 // flow current carries a drifter, the waterline moves at runtime,
 // and the whole thing rolls back and replays from tape.
+// Archimedes at equilibrium: a body of half the water's density floats
+// with half its area under the surface. A symmetric shape then sits
+// with its center on the waterline, whatever the shape: a circle, a
+// capsule and a rounded box (whose rounded corners count at their true
+// area).
+static void TestFloatingDraft(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 8;
+    def.shapeCapacity = 8;
+    def.fluidVolumeCapacity = 2;
+    m2WorldId world = m2CreateWorld(&def);
+    m2FluidVolumeDef fd = m2DefaultFluidVolumeDef();
+    fd.regionLower = (m2Pos2){-20.0, -20.0};
+    fd.regionUpper = (m2Pos2){20.0, 20.0};
+    fd.surface = 0.0;
+    fd.density = 2.0f;
+    fd.linearDrag = 3.0f;
+    fd.angularDrag = 3.0f;
+    m2World_CreateFluidVolume(world, &fd);
+
+    m2ShapeDef sd = m2DefaultShapeDef();
+    sd.density = 1.0f;
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    bd.fixedRotation = true;
+    bd.position = (m2Pos2){-4.0, 0.3};
+    m2BodyId ball = m2CreateBody(world, &bd);
+    m2Circle circle = {{0.0f, 0.0f}, 0.4f};
+    m2CreateCircleShape(ball, &sd, &circle);
+    bd.position = (m2Pos2){0.0, 0.3};
+    m2BodyId log = m2CreateBody(world, &bd);
+    m2Capsule capsule = {{-0.6f, 0.0f}, {0.6f, 0.0f}, 0.25f};
+    m2CreateCapsuleShape(log, &sd, &capsule);
+    bd.position = (m2Pos2){4.0, 0.3};
+    m2BodyId crate = m2CreateBody(world, &bd);
+    m2Vec2 core[4] = {{-0.25f, -0.15f}, {0.25f, -0.15f}, {0.25f, 0.15f}, {-0.25f, 0.15f}};
+    m2Polygon rounded = m2MakePolygon(core, 4, 0.15f);
+    m2CreatePolygonShape(crate, &sd, &rounded);
+
+    for (int32_t i = 0; i < 900; ++i)
+    {
+        m2World_Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(fabs(m2Body_GetPosition(ball).y) < 0.005, "a half-density circle floats half under");
+    CHECK(fabs(m2Body_GetPosition(log).y) < 0.005, "a half-density capsule floats half under");
+    CHECK(fabs(m2Body_GetPosition(crate).y) < 0.005,
+          "a half-density rounded box floats half under, corners at their true area");
+    m2DestroyWorld(world);
+}
+
 static void TestFluidVolume(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
@@ -2380,6 +2431,7 @@ int main(void)
     TestDominance();
     TestShatterBody();
     TestFluidVolume();
+    TestFloatingDraft();
     TestHashParts();
     TestValidateAndCounters();
     TestLeftoverBasket();

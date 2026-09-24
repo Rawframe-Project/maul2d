@@ -13,5 +13,4 @@ contact.c UpdateContactsRange 102 numeric kernel: one pass in a fixed operation 
 query.c CastProxyClosest 95 numeric kernel: one pass in a fixed operation order
 island.c m2UpdateIslandsAndWake 94 numeric kernel: one pass in a fixed operation order
 mover.c m2World_CollideMover 92 numeric kernel: one pass in a fixed operation order
-buoyancy.c m2ApplyFluidVolumes 87 numeric kernel: one pass in a fixed operation order
 query.c CastProxyAll 81 numeric kernel: one pass in a fixed operation order

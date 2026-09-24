@@ -27,6 +27,8 @@ Work toward 0.0.1, the first release of the reworked library.
   from C++.
 - Test for contacts past the last graph color (a plank carrying 40
   boxes).
+- Test for the floating draft of a circle, a capsule and a rounded box
+  at half the water's density.
 
 ### Changed
 
@@ -139,6 +141,9 @@ Work toward 0.0.1, the first release of the reworked library.
   sorted by cell are cut into one run per occupied cell, and each cell
   pairs with itself and the four cells ahead of it in key order. Pairs
   now come out cell by cell; the pair set is unchanged.
+- Buoyancy volumes rewritten: a shape's immersion (area and centroid)
+  comes from the exact circular segment or from clipping its outline
+  at the surface; lift, drag and spin drag apply per body and volume.
 
 ### Removed
 
@@ -264,3 +269,8 @@ Work toward 0.0.1, the first release of the reworked library.
 - GJK reported rounding noise as a small positive distance, with a
   noise normal, when the origin fell on the simplex of overlapping
   cores; it now reports the overlap.
+- Buoyancy volumes ignored a rounded polygon's radius when measuring
+  its submerged area, so rounded shapes floated too low or sank: a
+  rounded box of half the water's density sank to the bottom. Rounded
+  polygons and capsules now become polygons whose corner fans keep the
+  true area, instead of a sharp core or a bounding-box fraction.
