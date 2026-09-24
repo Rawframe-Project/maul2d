@@ -114,7 +114,7 @@ extern "C"
 
     /// Welds two bodies into one rigid piece: relative position and
     /// rotation lock to their creation values. The linear and angular
-    /// rows soften independently, reference-style: zero hertz means
+    /// rows soften independently: zero hertz means
     /// rigid via the stiff default, nonzero turns that row into a real
     /// spring (biased even in the relax pass).
     typedef struct m2WeldJointDef
@@ -308,7 +308,7 @@ extern "C"
     /// mouse: the drag spring). Motor and filter joints have no
     /// spring and reject loudly. Angular variants are weld-only.
     /// Distance extras: retarget the rod length or clamp it into a
-    /// hard range (accumulated impulses reset, reference-style);
+    /// hard range (accumulated impulses reset);
     /// read the range back through m2Joint_GetLimits. All journaled.
     M2_API void m2Joint_SetSpringHertz(m2JointId jointId, float hertz);
     M2_API void m2Joint_SetSpringDampingRatio(m2JointId jointId, float dampingRatio);

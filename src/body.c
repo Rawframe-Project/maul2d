@@ -577,7 +577,7 @@ void m2Body_SetAwake(m2BodyId bodyId, bool awake)
     world->bodies.sleepTimes[index] = 0.0f;
     if (!awake)
     {
-        // Forced sleep stills the body, reference-style.
+        // Forced sleep stills the body.
         world->bodies.linearVelocities[index] = (m2Vec2){0.0f, 0.0f};
         world->bodies.angularVelocities[index] = 0.0f;
         world->bodies.forces[index] = (m2Vec2){0.0f, 0.0f};

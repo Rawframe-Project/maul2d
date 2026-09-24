@@ -1964,7 +1964,7 @@ static void TestReactionAllTypes(void)
 
 static void TestVelocityCapUnderRollback(void)
 {
-    // The reference velocity cap bounds an absurd speed, and does it
+    // The velocity cap bounds an absurd speed, and does it
     // bit-for-bit under rollback and across worker counts.
     uint64_t caps[2];
     for (int32_t wc = 0; wc < 2; ++wc)

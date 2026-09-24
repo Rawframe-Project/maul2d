@@ -161,8 +161,8 @@ symmetric because dominance touches contacts only.
 
 ## Jointed bodies and collision
 
-Jointed bodies do not collide with each other by default (the
-reference convention ragdolls expect); set `collideConnected` on any
+Jointed bodies do not collide with each other by default (what
+ragdolls expect); set `collideConnected` on any
 joint def to restore contact. Destroying a filter joint turns
 collision back on, with end and begin events flowing as usual.
 
@@ -171,7 +171,7 @@ collision back on, with end and begin events flowing as usual.
 Forces accumulate across calls and live for exactly one step
 (`m2Body_ApplyForce`, `ApplyForceToCenter`, `ApplyTorque`); impulses
 remain for instant changes. Linear and angular damping decay
-velocity with the reference's Pade form. `m2Body_SetFixedRotation`
+velocity implicitly, v / (1 + h d) per substep. `m2Body_SetFixedRotation`
 makes rotation a mass property (inertia recomputes, spin stops).
 Sleep has two scopes: `m2Body_EnableSleep(id, false)` keeps one body
 alert forever, `m2World_EnableSleeping(world, false)` wakes and
@@ -182,7 +182,7 @@ holds everyone. Every mutation here is journaled.
 Give a shape a tangentSpeed and its surface slides along the contact
 tangent: friction drags whatever rests on it toward belt speed.
 Positive speed drives riders toward +x on an upward-facing floor; a
-pair sums both shapes' speeds, the reference convention. Retuning is
+pair sums both shapes' speeds. Retuning is
 journaled and wakes the riders, so a stopped belt lets its cargo
 sleep and a restarted one picks it back up.
 
@@ -237,21 +237,22 @@ truthful totals; a full pool quietly returns the null id, so pace
 emitters off the count.
 
 `m2World_FillPolygonWithParticles` pours a whole pool in one call
-(row-major on the reference stride, deterministic layout), and
+(row-major on the rest stride, deterministic layout), and
 `m2World_OverlapParticlesAABB` reads a region back with truthful
 totals; a circular region is one distance filter away on your side.
 
-Behavior flags: tensile particles attract their tensile neighbors
-(surface tension), so sparse spray beads up and clings instead of
-drifting apart; viscous particles drag their neighbors (honey);
+Behavior flags: tensile particles pull their neighbors together below
+rest density and hold them apart with a near pressure (surface
+tension), so sparse spray beads up into droplets instead of drifting
+apart; viscous particles drag their neighbors (honey);
 powder grains repel when packed tighter than the rest stride and
 never cohere (sand, rubble). Spring and elastic flags turn a fill
 into a body: springs remember their spawn lengths, elastic triads
 remember their spawn shape, the whole batch journals as one op and
 rides every snapshot, and the nets die with their particles. Jelly
-stiffness scales with the def strengths: the reference runs several
-particle iterations per step where Maul pins one, so firm small
-blobs want higher strengths and big soft masses want the defaults.
+stiffness scales with the def strengths: the particle pass runs once
+per step, so firm small blobs want higher strengths and big soft
+masses want the defaults.
 
 Water obeys the house laws: sensors are invisible to it, one-way
 chain platforms hold it only on their solid side, bodies push it and
@@ -260,14 +261,13 @@ it touches wakes up. The neighbor and body-contact builds thread
 deterministically (workers own static particle ranges and write
 disjoint staging slots, so any worker count reaches the same bits,
 which the fuzzer's threaded twin proves on random fluid worlds); the
-relaxation sweeps themselves stay serial because they are
-order-dependent the way the reference's are. Threading the build
+force sweeps themselves stay serial because each one reads the
+velocities the previous pair left. Threading the build
 only pays above a few thousand particles, so small pools stay serial
 and skip the fork-join tax, and a fifteen-hundred particle pool
 steps in well under a millisecond either way. Two speed facts are part of the contract: no particle
-ever moves more than one diameter per step (the stability law; the
-reference raises its iteration count for fast flows, Maul pins one
-iteration and keeps the law explicit), and a world with live
+ever moves more than one diameter per step (the stability law: it
+keeps neighbors discoverable), and a world with live
 particles never hibernates.
 
 ## Buoyancy volumes

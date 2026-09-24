@@ -216,7 +216,7 @@ typedef struct m2Particles
     int32_t* particleBodyBody;
     float* particleBodyWeight;
     m2Vec2* particleBodyNormal;      // outward, shape toward particle, world frame
-    float* particleBodyMass;         // pair-effective mass (reference formula)
+    float* particleBodyMass;         // the mass particle and body show each other
     int32_t* particleBodyStageBody;  // 4 * capacity, -1 = empty
     float* particleBodyStageWeight;  // 4 * capacity
     m2Vec2* particleBodyStageNormal; // 4 * capacity

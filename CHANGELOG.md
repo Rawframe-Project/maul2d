@@ -163,6 +163,13 @@ Work toward 0.0.1, the first release of the reworked library.
   on, with a bitmask of the planes it rests on; m2ClipMoverVelocity
   strips the velocity pointing into those planes. m2CollisionPlane,
   pushLimit, m2SolvePlanes and m2ClipVector are gone.
+- THIRD_PARTY.md now lists only the testbed's raylib: every kernel
+  once adapted from Box2D, LiquidFun or Chipmunk2D has been replaced
+  by the engine's own code, and a token-level similarity scan against
+  those projects finds nothing beyond trivial shared idioms. The
+  README credits the published work in docs/references.md; comments
+  and docs that measured the engine against another engine now state
+  its own rules.
 
 ### Removed
 

@@ -1015,7 +1015,7 @@ static void TestReactionGetters(void)
     m2DestroyWorld(world);
 }
 
-// collideConnected (parity sprint 3a): the reference default is that
+// collideConnected: the default is that
 // jointed bodies pass through each other; the flag restores contact,
 // and the filter joint is nothing but this switch with a lifetime.
 static void TestCollideConnectedAndFilterJoint(void)
@@ -1118,7 +1118,7 @@ static void TestCollideConnectedAndFilterJoint(void)
 
 // Motor and mouse joints (parity sprint 3b): a platform that chases
 // offsets under gravity, and a crate dragged around by a soft target
-// spring. Reference solves on Maul's delta tracking.
+// spring, solved on the step's delta tracking.
 static void TestMotorAndMouseJoints(void)
 {
     m2WorldDef def = m2DefaultWorldDef();

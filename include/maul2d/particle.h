@@ -82,7 +82,7 @@ extern "C"
     M2_API int32_t m2World_GetParticleCount(m2WorldId worldId);
 
     /// Fill a convex polygon (given in world space at position) with
-    /// particles on the reference stride (0.75 diameters), row-major
+    /// particles on the rest stride (0.75 diameters), row-major
     /// bottom-up, left to right: deterministic by construction. Stops
     /// quietly when the pool fills; returns the number emitted.
     /// Spring and elastic flags make the batch a body: springs

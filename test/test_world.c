@@ -524,8 +524,8 @@ static void TestDebugDraw(void)
 
 static void TestRuntimeGravity(void)
 {
-    // Flip gravity over a sleeping box: it must wake and rise. The
-    // reference leaves sleepers floating; Maul wakes the world.
+    // Flip gravity over a sleeping box: it must wake and rise, not
+    // float against the new gravity.
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
@@ -1243,7 +1243,7 @@ static void TestBodyDynamicsPack(void)
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
     float damped = m2Body_GetLinearVelocity(pushed).x;
-    CHECK(damped > 0.05f && damped < 0.5f, "damping decays like the reference");
+    CHECK(damped > 0.05f && damped < 0.5f, "damping decays as v / (1 + h d) per substep");
 
     // Torque spins, angular damping stills.
     m2Body_ApplyTorque(pushed, 5.0f);
@@ -1529,7 +1529,7 @@ static void TestSmallBasket(void)
 }
 
 // The leftover basket (audit appendix bucket 1): every small reader
-// and setter that finishes reference parity, exercised end to end.
+// and setter of the full surface, exercised end to end.
 static void TestLeftoverBasket(void)
 {
     m2WorldDef def = m2DefaultWorldDef();

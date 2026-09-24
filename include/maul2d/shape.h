@@ -207,7 +207,7 @@ extern "C"
     M2_API void m2Shape_SetFriction(m2ShapeId shapeId, float friction);
     M2_API void m2Shape_SetRestitution(m2ShapeId shapeId, float restitution);
     /// Conveyor surface speed along the contact tangent; the pair
-    /// value is the SUM of both shapes (reference mixing). Journaled.
+    /// value is the SUM of both shapes. Journaled.
     M2_API void m2Shape_SetTangentSpeed(m2ShapeId shapeId, float speed);
     M2_API float m2Shape_GetTangentSpeed(m2ShapeId shapeId);
     M2_API void m2Shape_SetFilter(m2ShapeId shapeId, uint32_t categoryBits, uint32_t maskBits,

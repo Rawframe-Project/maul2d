@@ -73,7 +73,7 @@ extern "C"
         /// deliberately outside the config hash.
         int32_t workerCount;
         /// The host task executor, the same
-        /// contract Maul3D and Box2D v3 carry: the engine calls
+        /// contract Maul3D carries: the engine calls
         /// enqueueTask with a range job, the host runs it on its own
         /// scheduler (splitting [0, itemCount) into subranges of at
         /// least minRange), and finishTask must not return before
@@ -125,8 +125,7 @@ extern "C"
     M2_API bool m2World_Validate(m2WorldId worldId);
 
     /// Changing gravity wakes every sleeping dynamic body: a stack
-    /// must not float against a world that turned upside down. (The
-    /// reference leaves sleepers floating; Maul picks honesty.) The
+    /// must not float against a world that turned upside down. The
     /// change is journaled. Thread class: writer / reader.
     M2_API void m2World_SetGravity(m2WorldId worldId, m2Vec2 gravity);
     M2_API m2Vec2 m2World_GetGravity(m2WorldId worldId);

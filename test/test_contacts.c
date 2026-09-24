@@ -513,7 +513,7 @@ static void TestChainGround(void)
     // segments; a box shoved across every seam must never pop: the
     // ghost law eats the phantom edge collisions that a naive segment
     // floor would produce. Chain winds right-to-left so the solid side
-    // faces up (reference winding).
+    // faces up (the chain winding).
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 16;

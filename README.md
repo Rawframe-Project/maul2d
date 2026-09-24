@@ -135,11 +135,11 @@ library version.
 
 ## Acknowledgments
 
-Several kernels were adapted from [Box2D](https://github.com/erincatto/box2d)
-v3 by Erin Catto (the polygon clipper, the solver stage structure,
-joint formulations and ray casts), and the ratchet joint from
-Chipmunk2D. Each adaptation is noted in its source
-file, and the licenses are reproduced in
+The engine's algorithms follow published work: the soft step schedule
+and soft constraints, the collision, distance and hull methods, the
+mass properties and the particle model. [docs/references.md](docs/references.md)
+lists each source. The interactive testbed is built on
+[raylib](https://github.com/raysan5/raylib); see
 [THIRD_PARTY.md](THIRD_PARTY.md).
 
 ## License

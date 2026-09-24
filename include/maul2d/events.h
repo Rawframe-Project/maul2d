@@ -22,10 +22,8 @@ extern "C"
     /// they belong to; after a rollback, re-simulated steps re-emit
     /// their events (dedup by {step, shape ids} on the host side).
     /// Begin events carry the digested impact facts a game consumes:
-    /// where, which way, how hard. (Deliberate deviation from the
-    /// reference, which embeds its internal manifold type in the
-    /// event; Maul keeps internals private so their layout stays free
-    /// to evolve.) The normal points from shape A toward shape B in
+    /// where, which way, how hard, never the internal manifold, whose
+    /// layout stays free to evolve. The normal points from shape A toward shape B in
     /// world frame; approachSpeed is the closing speed along it,
     /// never negative.
     typedef struct m2ContactBeginEvent

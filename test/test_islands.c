@@ -141,8 +141,7 @@ static void TestKinematicWakesSleepers(void)
 static void TestSleepRollback(void)
 {
     // Snapshot mid-doze (counters running), restore, replay: the sleep
-    // moment must land on the identical step - the reference CI's own
-    // oracle, now under rollback.
+    // moment must land on the identical step, under rollback.
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;

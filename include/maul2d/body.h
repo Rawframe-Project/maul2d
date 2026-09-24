@@ -55,7 +55,7 @@ extern "C"
         m2Vec2 linearVelocity;
         float angularVelocity; // radians/s
         float gravityScale;
-        float linearDamping; // 1/(1+h*d) per substep, reference form
+        float linearDamping; // v / (1 + h d) per substep, implicit
         float angularDamping;
         m2MotionLocks motionLocks; // per-axis motion locks (angularZ aliases fixedRotation)
         bool fixedRotation;        // never rotates: infinite rotational inertia
@@ -95,7 +95,7 @@ extern "C"
     M2_API bool m2Body_IsAwake(m2BodyId bodyId);
 
     /// Manual sleep control: false forces the body to sleep NOW
-    /// (velocities zero, like the reference), true wakes it.
+    /// (velocities zero), true wakes it.
     /// Journaled. Thread class: writer.
     M2_API void m2Body_SetAwake(m2BodyId bodyId, bool awake);
     M2_API void m2Body_SetBullet(m2BodyId bodyId, bool flag);

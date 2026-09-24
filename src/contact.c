@@ -155,12 +155,10 @@ static m2RelativePose InvertPose(m2RelativePose pose)
 }
 
 // Chain laws, applied in the chain's own frame after the ordinary SAT
-// pipeline has spoken. DELIBERATE DEVIATION from the reference (argued
-// per CONTRIBUTING): Box2D integrates ghost handling into a GJK-based
-// collider; Maul reuses its bit-proven SAT+clip pipeline and enforces
-// one-sidedness and ghost Voronoi rejection as an explicit post-pass.
-// Buys: no new collider subsystem, laws visible and testable in one
-// place. Cost: seam behavior lives or dies by the crossing tests.
+// pipeline has spoken: one-sidedness and the ghost Voronoi rejection
+// run as an explicit pass over the polygon manifold rather than inside
+// a separate collider, so the laws sit visible and testable in one
+// place. Seam behavior is held by the crossing tests.
 static void ApplyChainLaws(m2Manifold* manifold, const m2ChainSegment* chain)
 {
     if (manifold->pointCount == 0)

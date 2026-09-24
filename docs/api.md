@@ -125,7 +125,7 @@ Walk the whole world and check its invariants: finiteness of every live transfor
 ```c
 void m2World_SetGravity(m2WorldId worldId, m2Vec2 gravity);
 ```
-Changing gravity wakes every sleeping dynamic body: a stack must not float against a world that turned upside down. (The reference leaves sleepers floating; Maul picks honesty.) The change is journaled. Thread class: writer / reader.
+Changing gravity wakes every sleeping dynamic body: a stack must not float against a world that turned upside down. The change is journaled. Thread class: writer / reader.
 
 ```c
 m2Vec2 m2World_GetGravity(m2WorldId worldId);
@@ -315,7 +315,7 @@ Sleep state. Setters and new contacts wake bodies; waking is island-transitive a
 ```c
 void m2Body_SetAwake(m2BodyId bodyId, bool awake);
 ```
-Manual sleep control: false forces the body to sleep NOW (velocities zero, like the reference), true wakes it. Journaled. Thread class: writer.
+Manual sleep control: false forces the body to sleep NOW (velocities zero), true wakes it. Journaled. Thread class: writer.
 
 ```c
 void m2Body_SetBullet(m2BodyId bodyId, bool flag);
@@ -669,7 +669,7 @@ Break thresholds: reaction force or torque beyond these snaps the joint during t
 ```c
 void m2Joint_SetSpringHertz(m2JointId jointId, float hertz);
 ```
-Runtime softness: the main row's spring (weld: linear row; mouse: the drag spring). Motor and filter joints have no spring and reject loudly. Angular variants are weld-only. Distance extras: retarget the rod length or clamp it into a hard range (accumulated impulses reset, reference-style); read the range back through m2Joint_GetLimits. All journaled.
+Runtime softness: the main row's spring (weld: linear row; mouse: the drag spring). Motor and filter joints have no spring and reject loudly. Angular variants are weld-only. Distance extras: retarget the rod length or clamp it into a hard range (accumulated impulses reset); read the range back through m2Joint_GetLimits. All journaled.
 
 ```c
 void m2Joint_SetSpringDampingRatio(m2JointId jointId, float dampingRatio);
@@ -964,7 +964,7 @@ Live particle count. Thread class: reader.
 ```c
 int32_t m2World_FillPolygonWithParticles(m2WorldId worldId, const m2Polygon* polygon, m2Pos2 position, m2Vec2 velocity, uint32_t flags);
 ```
-Fill a convex polygon (given in world space at position) with particles on the reference stride (0.75 diameters), row-major bottom-up, left to right: deterministic by construction. Stops quietly when the pool fills; returns the number emitted. Spring and elastic flags make the batch a body: springs remember their spawn lengths, elastic triads remember their spawn shape, both captured here, journaled as one op, and carried by every snapshot. Thread class: writer.
+Fill a convex polygon (given in world space at position) with particles on the rest stride (0.75 diameters), row-major bottom-up, left to right: deterministic by construction. Stops quietly when the pool fills; returns the number emitted. Spring and elastic flags make the batch a body: springs remember their spawn lengths, elastic triads remember their spawn shape, both captured here, journaled as one op, and carried by every snapshot. Thread class: writer.
 
 ```c
 int32_t m2World_OverlapParticlesAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2ParticleId* ids, int32_t capacity);
@@ -1067,7 +1067,7 @@ void m2Shape_SetRestitution(m2ShapeId shapeId, float restitution);
 ```c
 void m2Shape_SetTangentSpeed(m2ShapeId shapeId, float speed);
 ```
-Conveyor surface speed along the contact tangent; the pair value is the SUM of both shapes (reference mixing). Journaled.
+Conveyor surface speed along the contact tangent; the pair value is the SUM of both shapes. Journaled.
 
 ```c
 float m2Shape_GetTangentSpeed(m2ShapeId shapeId);
