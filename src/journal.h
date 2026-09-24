@@ -230,8 +230,8 @@ typedef struct m2OpShapeFloat
 typedef struct m2OpSetFilter
 {
     m2ShapeId shape;
-    uint32_t categoryBits;
-    uint32_t maskBits;
+    uint64_t categoryBits;
+    uint64_t maskBits;
     int32_t groupIndex;
 } m2OpSetFilter;
 
@@ -254,8 +254,8 @@ typedef struct m2OpChainHeader
     int32_t createdCount;
     float friction;
     float restitution;
-    uint32_t categoryBits;
-    uint32_t maskBits;
+    uint64_t categoryBits;
+    uint64_t maskBits;
     int32_t groupIndex;
     uint64_t userData;
     uint8_t isLoop;

@@ -149,7 +149,7 @@ m2ShapeDef m2DefaultShapeDef(void)
     def.friction = 0.6f;
     def.restitution = 0.0f;
     def.categoryBits = 1;
-    def.maskBits = 0xFFFFFFFFu;
+    def.maskBits = UINT64_MAX;
     def.internalValue = M2_SHAPE_COOKIE;
     return def;
 }
@@ -447,7 +447,7 @@ float m2Shape_GetRestitution(m2ShapeId shapeId)
     return index >= 0 ? world->shapes.shapeRestitution[index] : 0.0f;
 }
 
-void m2Shape_SetFilter(m2ShapeId shapeId, uint32_t categoryBits, uint32_t maskBits,
+void m2Shape_SetFilter(m2ShapeId shapeId, uint64_t categoryBits, uint64_t maskBits,
                        int32_t groupIndex)
 {
     m2World* world = NULL;
@@ -773,13 +773,13 @@ bool m2Shape_IsSensor(m2ShapeId shapeId)
     return world->shapes.shapeSensor[index] != 0;
 }
 
-void m2Shape_GetFilter(m2ShapeId shapeId, uint32_t* categoryBits, uint32_t* maskBits,
+void m2Shape_GetFilter(m2ShapeId shapeId, uint64_t* categoryBits, uint64_t* maskBits,
                        int32_t* groupIndex)
 {
     m2World* world = m2WorldFromTag(shapeId.world);
     int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;
-    uint32_t category = 0;
-    uint32_t mask = 0;
+    uint64_t category = 0;
+    uint64_t mask = 0;
     int32_t group = 0;
     if (index >= 0)
     {

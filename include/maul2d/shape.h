@@ -84,8 +84,8 @@ extern "C"
         /// intersects the other's mask. Defaults: category 1, mask all.
         /// Queries ignore filters for now (a query filter parameter is
         /// a recorded pending).
-        uint32_t categoryBits;
-        uint32_t maskBits;
+        uint64_t categoryBits;
+        uint64_t maskBits;
         /// Same non-zero group on both shapes overrides the mask rule:
         /// positive always collides, negative never does. Zero defers
         /// to categories and masks. Queries ignore groups.
@@ -117,8 +117,8 @@ extern "C"
         bool isLoop;
         float friction;
         float restitution;
-        uint32_t categoryBits;
-        uint32_t maskBits;
+        uint64_t categoryBits;
+        uint64_t maskBits;
         int32_t groupIndex;
         uint64_t userData;
         int32_t internalValue;
@@ -210,14 +210,14 @@ extern "C"
     /// value is the SUM of both shapes. Journaled.
     M2_API void m2Shape_SetTangentSpeed(m2ShapeId shapeId, float speed);
     M2_API float m2Shape_GetTangentSpeed(m2ShapeId shapeId);
-    M2_API void m2Shape_SetFilter(m2ShapeId shapeId, uint32_t categoryBits, uint32_t maskBits,
+    M2_API void m2Shape_SetFilter(m2ShapeId shapeId, uint64_t categoryBits, uint64_t maskBits,
                                   int32_t groupIndex);
     M2_API float m2Shape_GetFriction(m2ShapeId shapeId);
     M2_API float m2Shape_GetRestitution(m2ShapeId shapeId);
     M2_API m2ShapeType m2Shape_GetType(m2ShapeId shapeId);
     M2_API bool m2Shape_IsSensor(m2ShapeId shapeId);
     /// Reads the collision filter; any out pointer may be NULL.
-    M2_API void m2Shape_GetFilter(m2ShapeId shapeId, uint32_t* categoryBits, uint32_t* maskBits,
+    M2_API void m2Shape_GetFilter(m2ShapeId shapeId, uint64_t* categoryBits, uint64_t* maskBits,
                                   int32_t* groupIndex);
 
     /// Geometry readback for editors and gizmos: the getter must
@@ -279,8 +279,8 @@ extern "C"
     /// whose mask includes category 1.
     typedef struct m2QueryFilter
     {
-        uint32_t categoryBits;
-        uint32_t maskBits;
+        uint64_t categoryBits;
+        uint64_t maskBits;
     } m2QueryFilter;
 
     M2_API m2QueryFilter m2DefaultQueryFilter(void);

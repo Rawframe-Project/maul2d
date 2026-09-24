@@ -166,7 +166,7 @@ extern "C"
         float radius;
         float falloff;
         float impulse; // newton seconds at full strength
-        uint32_t maskBits;
+        uint64_t maskBits;
         int32_t internalValue;
     } m2ExplosionDef;
 

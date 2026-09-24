@@ -24,7 +24,7 @@ m2ExplosionDef m2DefaultExplosionDef(void)
     def.radius = 1.0f;
     def.falloff = 0.5f;
     def.impulse = 1.0f;
-    def.maskBits = 0xFFFFFFFFu;
+    def.maskBits = UINT64_MAX;
     def.internalValue = M2_EXPLODE_COOKIE;
     return def;
 }

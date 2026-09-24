@@ -203,6 +203,11 @@ Work toward 0.0.1, the first release of the reworked library.
   naming no live world now records m2_errorInvalid (it returned
   silently before). M2_EVENT_HASH and M2_JOURNAL_HASH, which digest
   raw ids, are re-pinned; gcc, clang and Debug agree.
+- Collision and query filters are 64 bits wide, as in Maul3D:
+  categoryBits and maskBits in m2ShapeDef, m2ChainDef, m2QueryFilter,
+  m2ExplosionDef and m2Shape_SetFilter/GetFilter are uint64_t, and the
+  default mask is UINT64_MAX. The journal records the wider fields, so
+  M2_JOURNAL_HASH is re-pinned; gcc, clang and Debug agree.
 
 ### Removed
 

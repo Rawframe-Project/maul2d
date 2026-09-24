@@ -23,7 +23,7 @@
 
 m2QueryFilter m2DefaultQueryFilter(void)
 {
-    m2QueryFilter filter = {1u, 0xFFFFFFFFu};
+    m2QueryFilter filter = {1u, UINT64_MAX};
     return filter;
 }
 

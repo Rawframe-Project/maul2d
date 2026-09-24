@@ -76,8 +76,8 @@ typedef struct m2Shapes
     int32_t* shapeBody; // owning body index
     int32_t* shapeNext; // body's shape list linkage (-1 = end)
     uint8_t* shapeAlive;
-    uint32_t* shapeCategory; // collision filter (snapshot state)
-    uint32_t* shapeMask;
+    uint64_t* shapeCategory; // collision filter (snapshot state)
+    uint64_t* shapeMask;
     int32_t* shapeGroup;
     uint8_t* shapeSensor;     // overlap-only shapes (snapshot state)
     float* shapeTangentSpeed; // conveyor surface speed (snapshot state)

@@ -712,8 +712,8 @@ static void TestEnumerationWalk(void)
 
     // Filter round-trip, including NULL out-params.
     m2Shape_SetFilter(slab, 0x4u, 0xF0u, -3);
-    uint32_t category = 0;
-    uint32_t mask = 0;
+    uint64_t category = 0;
+    uint64_t mask = 0;
     int32_t group = 0;
     m2Shape_GetFilter(slab, &category, &mask, &group);
     CHECK(category == 0x4u && mask == 0xF0u && group == -3, "filter reads back exactly");

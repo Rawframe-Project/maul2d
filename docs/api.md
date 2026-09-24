@@ -1073,7 +1073,7 @@ float m2Shape_GetTangentSpeed(m2ShapeId shapeId);
 ```
 
 ```c
-void m2Shape_SetFilter(m2ShapeId shapeId, uint32_t categoryBits, uint32_t maskBits, int32_t groupIndex);
+void m2Shape_SetFilter(m2ShapeId shapeId, uint64_t categoryBits, uint64_t maskBits, int32_t groupIndex);
 ```
 
 ```c
@@ -1093,7 +1093,7 @@ bool m2Shape_IsSensor(m2ShapeId shapeId);
 ```
 
 ```c
-void m2Shape_GetFilter(m2ShapeId shapeId, uint32_t* categoryBits, uint32_t* maskBits, int32_t* groupIndex);
+void m2Shape_GetFilter(m2ShapeId shapeId, uint64_t* categoryBits, uint64_t* maskBits, int32_t* groupIndex);
 ```
 Reads the collision filter; any out pointer may be NULL.
 

@@ -36,7 +36,7 @@ m2ChainDef m2DefaultChainDef(void)
     memset(&def, 0, sizeof(def));
     def.friction = 0.6f;
     def.categoryBits = 1;
-    def.maskBits = 0xFFFFFFFFu;
+    def.maskBits = UINT64_MAX;
     def.internalValue = M2_CHAIN_COOKIE;
     return def;
 }

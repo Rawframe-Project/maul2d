@@ -641,8 +641,8 @@ static void DoRandomOp(m2WorldId world)
         }
         else
         {
-            uint32_t category = 1u << Pick(4);
-            uint32_t mask = Pick(4) == 0 ? 0x3u : 0xFFFFFFFFu;
+            uint64_t category = 1u << Pick(4);
+            uint64_t mask = Pick(4) == 0 ? 0x3u : UINT64_MAX;
             int32_t group = (int32_t)Pick(5) - 2;
             m2Shape_SetFilter(shape, category, mask, group);
         }
