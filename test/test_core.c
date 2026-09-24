@@ -222,15 +222,17 @@ static uint64_t HashSweep(void)
 static int32_t s_liveAllocations = 0;
 static int32_t s_totalAllocations = 0;
 
-static void* CountingAlloc(size_t bytes)
+static void* CountingAlloc(size_t bytes, void* context)
 {
+    (void)context;
     s_liveAllocations += 1;
     s_totalAllocations += 1;
     return calloc(1, bytes);
 }
 
-static void CountingFree(void* memory)
+static void CountingFree(void* memory, void* context)
 {
+    (void)context;
     if (memory != NULL)
     {
         s_liveAllocations -= 1;
@@ -241,8 +243,10 @@ static void CountingFree(void* memory)
 static void TestAllocatorHooks(void)
 {
     // Every internal allocation flows through the hooks, and a world's
-    // whole lifetime balances to zero live blocks.
-    m2SetAllocator(CountingAlloc, CountingFree);
+    // whole lifetime balances to zero live blocks. A half pair refuses.
+    m2SetAllocator(CountingAlloc, NULL, NULL);
+    CHECK(m2LastResult() == m2_errorInvalid, "an alloc hook without a free hook refuses");
+    m2SetAllocator(CountingAlloc, CountingFree, NULL);
 
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 16;
@@ -266,7 +270,7 @@ static void TestAllocatorHooks(void)
     m2DestroyWorld(world);
     CHECK(s_liveAllocations == 0, "destroying the world frees every block");
 
-    m2SetAllocator(NULL, NULL); // back to defaults for the other tests
+    m2SetAllocator(NULL, NULL, NULL); // back to defaults for the other tests
 }
 
 static void TestSimdBackend(void)

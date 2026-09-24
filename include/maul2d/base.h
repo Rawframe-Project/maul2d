@@ -54,12 +54,16 @@ extern "C"
     /// with -DMAUL2D_SIMD=scalar for a portable binary. Thread class: reader.
     M2_API int32_t m2CpuSupportsBackend(void);
 
-    /// Routes every internal allocation through your hooks. Set BEFORE
-    /// creating any world and never change it while worlds exist. The
-    /// zeroFn contract: returned memory must be zero-initialized.
-    typedef void* m2AllocZeroedFn(size_t bytes);
-    typedef void m2FreeFn(void* memory);
-    M2_API void m2SetAllocator(m2AllocZeroedFn* allocZeroed, m2FreeFn* freeFn);
+    /// Routes every internal allocation through your hooks. Install them
+    /// BEFORE the first world and never change them while any world
+    /// lives. The alloc hook may return uninitialized memory (the engine
+    /// zeroes what it needs); a NULL return is refused loudly upstream.
+    /// Pass both hooks or neither: NULLs restore the C library's calloc
+    /// and free. The context is handed back to both hooks, so hosts can
+    /// meter or budget per arena.
+    typedef void* m2AllocFn(size_t bytes, void* context);
+    typedef void m2FreeFn(void* memory, void* context);
+    M2_API void m2SetAllocator(m2AllocFn* allocFn, m2FreeFn* freeFn, void* context);
 
     /// The 64-bit hash every determinism gate is built on: eight bytes a
     /// round, xored in, multiplied by an odd constant and folded, the
@@ -80,7 +84,7 @@ extern "C"
         m2_success = 0,
         m2_errorInvalid = 1,  // bad def or argument, stale id, wrong body or joint type
         m2_errorCapacity = 2, // a fixed pool, slot table or allocation ran out
-        m2_errorConfig = 3,   // the CPU cannot run the compiled SIMD backend
+        m2_errorConfig = 3,   // another build or world shape, or a CPU without the SIMD backend
     } m2Result;
     M2_API m2Result m2LastResult(void);
 

@@ -938,8 +938,9 @@ static int32_t s_failAfter = -1; // -1 = never fail
 static int32_t s_liveBlocks = 0;
 static int32_t s_allocCalls = 0;
 
-static void* FlakyAlloc(size_t bytes)
+static void* FlakyAlloc(size_t bytes, void* context)
 {
+    (void)context;
     s_allocCalls += 1;
     if (s_failAfter >= 0 && s_allocCalls > s_failAfter)
     {
@@ -949,8 +950,9 @@ static void* FlakyAlloc(size_t bytes)
     return calloc(1, bytes);
 }
 
-static void FlakyFree(void* memory)
+static void FlakyFree(void* memory, void* context)
 {
+    (void)context;
     if (memory != NULL)
     {
         s_liveBlocks -= 1;
@@ -962,7 +964,7 @@ static void TestAllocationFailure(void)
 {
     // The allocator fails mid-creation at several depths: the world
     // must come back null, and every block taken must be returned.
-    m2SetAllocator(FlakyAlloc, FlakyFree);
+    m2SetAllocator(FlakyAlloc, FlakyFree, NULL);
     int32_t depths[4] = {1, 5, 20, 50};
     for (int32_t d = 0; d < 4; ++d)
     {
@@ -977,7 +979,7 @@ static void TestAllocationFailure(void)
         CHECK(s_liveBlocks == 0, "starved creation leaks nothing");
     }
     s_failAfter = -1;
-    m2SetAllocator(NULL, NULL);
+    m2SetAllocator(NULL, NULL, NULL);
 }
 
 static void TestFrozenEraRollback(void)

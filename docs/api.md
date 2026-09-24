@@ -23,7 +23,7 @@ int32_t m2CpuSupportsBackend(void);
 Whether the CPU running this call actually supports the compiled backend: 1 if it can run, 0 if not. An "avx2" binary needs AVX2 and FMA3 with OS wide-register support; "neon" is architectural on arm64 and "scalar" runs anywhere, so both return 1. Creating a world on a CPU that returns 0 aborts loudly rather than trapping on an illegal instruction; check this first for a graceful path, or build with -DMAUL2D_SIMD=scalar for a portable binary. Thread class: reader.
 
 ```c
-void m2SetAllocator(m2AllocZeroedFn* allocZeroed, m2FreeFn* freeFn);
+void m2SetAllocator(m2AllocFn* allocFn, m2FreeFn* freeFn, void* context);
 ```
 
 ```c

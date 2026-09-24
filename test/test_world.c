@@ -1705,8 +1705,9 @@ static void TestValidateAndCounters(void)
 static int32_t s_allocBudget = 0;
 static int32_t s_allocLive = 0;
 
-static void* FailingAlloc(size_t bytes)
+static void* FailingAlloc(size_t bytes, void* context)
 {
+    (void)context;
     if (s_allocBudget <= 0)
     {
         return NULL;
@@ -1717,8 +1718,9 @@ static void* FailingAlloc(size_t bytes)
     return memory;
 }
 
-static void FailingFree(void* memory)
+static void FailingFree(void* memory, void* context)
 {
+    (void)context;
     if (memory != NULL)
     {
         s_allocLive -= 1;
@@ -1742,7 +1744,7 @@ static void TestCreateWorldOutOfMemory(void)
     {
         s_allocBudget = budget;
         s_allocLive = 0;
-        m2SetAllocator(FailingAlloc, FailingFree);
+        m2SetAllocator(FailingAlloc, FailingFree, NULL);
         m2WorldId world = m2CreateWorld(&def);
         if (m2World_IsValid(world))
         {
@@ -1754,7 +1756,7 @@ static void TestCreateWorldOutOfMemory(void)
             refusals += 1;
             CHECK(m2LastResult() == m2_errorCapacity, "a refused allocation reports capacity");
         }
-        m2SetAllocator(NULL, NULL);
+        m2SetAllocator(NULL, NULL, NULL);
         if (s_allocLive != 0)
         {
             printf("FAIL: %d block(s) leaked with an allocation budget of %d\n", s_allocLive,

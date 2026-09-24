@@ -190,6 +190,10 @@ Work toward 0.0.1, the first release of the reworked library.
   Maul3D's names: m2Body_ApplyForce and m2Body_ApplyLinearImpulse act
   at the center of mass, m2Body_ApplyForceAtPoint and
   m2Body_ApplyLinearImpulseAtPoint at a world point.
+- m2SetAllocator takes Maul3D's hooks: alloc(size_t bytes, void*
+  context) and free(memory, context) with one context pointer, both or
+  neither (a half pair is refused). The alloc hook may return
+  uninitialized memory; the engine zeroes it.
 
 ### Removed
 

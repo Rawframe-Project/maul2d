@@ -13,34 +13,52 @@
 #include <stdlib.h>
 #include <string.h>
 
-static void* DefaultAllocZeroed(size_t bytes)
-{
-    return calloc(1, bytes);
-}
+// The host hooks: set before the first world, constant while worlds
+// live. Hooked memory may arrive uninitialized, so the zeroing happens
+// here either way.
+static m2AllocFn* s_hookAlloc = NULL;
+static m2FreeFn* s_hookFree = NULL;
+static void* s_hookContext = NULL;
 
-static void DefaultFree(void* memory)
+void m2SetAllocator(m2AllocFn* allocFn, m2FreeFn* freeFn, void* context)
 {
-    free(memory);
-}
-
-static m2AllocZeroedFn* s_alloc = DefaultAllocZeroed;
-static m2FreeFn* s_free = DefaultFree;
-
-void m2SetAllocator(m2AllocZeroedFn* allocZeroed, m2FreeFn* freeFn)
-{
-    s_alloc = allocZeroed != NULL ? allocZeroed : DefaultAllocZeroed;
-    s_free = freeFn != NULL ? freeFn : DefaultFree;
+    // Both or neither: a mismatched pair would free with the wrong
+    // authority.
+    if ((allocFn == NULL) != (freeFn == NULL))
+    {
+        m2Refuse(NULL, m2_errorInvalid);
+        return;
+    }
+    s_hookAlloc = allocFn;
+    s_hookFree = freeFn;
+    s_hookContext = context;
 }
 
 // Internal faces (world_internal.h).
 void* m2AllocZeroed(size_t bytes)
 {
-    return s_alloc(bytes);
+    if (s_hookAlloc == NULL)
+    {
+        return calloc(1, bytes);
+    }
+    void* memory = s_hookAlloc(bytes, s_hookContext);
+    if (memory != NULL)
+    {
+        memset(memory, 0, bytes);
+    }
+    return memory;
 }
 
 void m2Free(void* memory)
 {
-    s_free(memory);
+    if (s_hookFree == NULL)
+    {
+        free(memory);
+    }
+    else
+    {
+        s_hookFree(memory, s_hookContext);
+    }
 }
 
 int32_t m2GetVersion(void)
