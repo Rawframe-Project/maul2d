@@ -23,51 +23,43 @@
 
 // --- Snapshot -------------------------------------------------------------------
 
+// The header says which build and which world shape wrote the bytes;
+// everything else, pool cursors included, is the state table's.
 typedef struct m2SnapshotHeader
 {
     uint32_t magic;
-    uint32_t version;
-    int32_t bodyCapacity;
-    int32_t maxBodyIndex;
-    uint64_t stepCount;
-    m2Vec2 gravity;
-    m2Vec2 windVelocity;
-    float windLinearDrag;
-    int32_t windReserved; // keeps the header 8-aligned and padding-free
-    int32_t freeHead;
-    int32_t freeTail;
-    int32_t freeCount;
-    int32_t retiredCount;
-    int32_t movedCount;
-    int32_t pairCount;
-    int32_t shapeCapacity;
-    int32_t maxShapeIndex;
-    int32_t shapeFreeHead;
-    int32_t shapeFreeTail;
-    int32_t shapeFreeCount;
-    int32_t shapeRetiredCount;
+    uint32_t formatVersion;
+    uint64_t configHash;
+    int32_t capacities[6];
 } m2SnapshotHeader;
 
-_Static_assert(sizeof(m2SnapshotHeader) == 96, "snapshot header must be padding-free");
+_Static_assert(sizeof(m2SnapshotHeader) == 40, "snapshot header must be padding-free");
 
-static bool InRange(int32_t value, int32_t lo, int32_t hi)
+static void WorldCapacities(const m2World* world, int32_t capacities[6])
 {
-    return value >= lo && value <= hi;
+    capacities[0] = world->bodies.bodyCapacity;
+    capacities[1] = world->shapes.shapeCapacity;
+    capacities[2] = world->joints.jointCapacity;
+    capacities[3] = world->particles.particleCapacity;
+    capacities[4] = world->volumes.fvCapacity;
+    capacities[5] = world->contacts.pairCapacity;
 }
 
-// The header's counters index the world's arrays directly after a
-// restore, so a buffer whose counters point outside the capacities is
-// refused before anything is overwritten.
-static bool HeaderCountsInRange(const m2SnapshotHeader* h)
+static uint64_t ConfigHash(void)
 {
-    int32_t bodies = h->bodyCapacity;
-    int32_t shapes = h->shapeCapacity;
-    return InRange(h->maxBodyIndex, 0, bodies) && InRange(h->freeHead, 0, bodies - 1) &&
-           InRange(h->freeTail, 0, bodies - 1) && InRange(h->freeCount, 0, bodies) &&
-           InRange(h->retiredCount, 0, bodies) && InRange(h->movedCount, 0, shapes) &&
-           InRange(h->pairCount, 0, 8 * shapes) && InRange(h->maxShapeIndex, 0, shapes) &&
-           InRange(h->shapeFreeHead, 0, shapes - 1) && InRange(h->shapeFreeTail, 0, shapes - 1) &&
-           InRange(h->shapeFreeCount, 0, shapes) && InRange(h->shapeRetiredCount, 0, shapes);
+    // Everything that changes what the serialized bytes MEAN, and
+    // nothing that does not (SIMD backend and worker count are
+    // deliberately absent: the format is portable across them).
+    uint64_t h = 0xCBF29CE484222325ull;
+    int32_t version = m2GetVersion();
+    int32_t realSize = (int32_t)sizeof(float);
+    int32_t posSize = (int32_t)sizeof(double);
+    const char* fpPolicy = "contract-off;no-fast-math;explicit-fma";
+    h = m2Hash64(h, &version, 4);
+    h = m2Hash64(h, &realSize, 4);
+    h = m2Hash64(h, &posSize, 4);
+    h = m2Hash64(h, fpPolicy, (int32_t)strlen(fpPolicy));
+    return h;
 }
 
 // Single source of truth: the size IS the walk (measure mode). The
@@ -103,26 +95,9 @@ int32_t m2World_Snapshot(m2WorldId worldId, void* buffer, int32_t capacity)
     m2SnapshotHeader header;
     memset(&header, 0, sizeof(header));
     header.magic = M2_SNAPSHOT_MAGIC;
-    header.version = M2_SNAPSHOT_VERSION;
-    header.bodyCapacity = world->bodies.bodyCapacity;
-    header.maxBodyIndex = world->bodies.maxBodyIndex;
-    header.stepCount = world->stepCount;
-    header.gravity = world->gravity;
-    header.windVelocity = world->windVelocity;
-    header.windLinearDrag = world->windLinearDrag;
-    header.windReserved = 0;
-    header.freeHead = world->bodies.freeHead;
-    header.freeTail = world->bodies.freeTail;
-    header.freeCount = world->bodies.freeCount;
-    header.retiredCount = world->bodies.retiredCount;
-    header.movedCount = world->broadphase.movedCount;
-    header.pairCount = world->contacts.pairCount;
-    header.shapeCapacity = world->shapes.shapeCapacity;
-    header.maxShapeIndex = world->shapes.maxShapeIndex;
-    header.shapeFreeHead = world->shapes.shapeFreeHead;
-    header.shapeFreeTail = world->shapes.shapeFreeTail;
-    header.shapeFreeCount = world->shapes.shapeFreeCount;
-    header.shapeRetiredCount = world->shapes.shapeRetiredCount;
+    header.formatVersion = M2_SNAPSHOT_VERSION;
+    header.configHash = ConfigHash();
+    WorldCapacities(world, header.capacities);
 
     uint8_t* out = buffer;
     memcpy(out, &header, sizeof(header));
@@ -141,40 +116,24 @@ bool m2World_Restore(m2WorldId worldId, const void* buffer, int32_t size)
     }
     m2SnapshotHeader header;
     memcpy(&header, buffer, sizeof(header));
-    if (header.magic != M2_SNAPSHOT_MAGIC || header.version != M2_SNAPSHOT_VERSION ||
-        header.bodyCapacity != world->bodies.bodyCapacity ||
-        header.shapeCapacity != world->shapes.shapeCapacity)
+    int32_t capacities[6];
+    WorldCapacities(world, capacities);
+    if (header.magic != M2_SNAPSHOT_MAGIC || header.formatVersion != M2_SNAPSHOT_VERSION ||
+        header.configHash != ConfigHash() ||
+        memcmp(header.capacities, capacities, sizeof(capacities)) != 0)
     {
         m2Refuse(world, m2_errorConfig); // another build or another world shape
         return false;
     }
-    // Hostile bytes are checked before any of them land: the header
-    // counts, then every block the table describes.
+    // Hostile bytes are checked before any of them land: every row the
+    // table describes, cursors included.
     const uint8_t* in = buffer;
-    if (size != (int32_t)sizeof(header) + BlockBytes(world) || !HeaderCountsInRange(&header) ||
-        !m2FiniteVec2(header.gravity) || !m2FiniteVec2(header.windVelocity) ||
-        !m2FiniteF(header.windLinearDrag) || !m2StateValidate(world, in + sizeof(header)))
+    if (size != (int32_t)sizeof(header) + BlockBytes(world) ||
+        !m2StateValidate(world, in + sizeof(header)))
     {
         m2Refuse(world, m2_errorInvalid);
         return false;
     }
-
-    world->bodies.maxBodyIndex = header.maxBodyIndex;
-    world->stepCount = header.stepCount;
-    world->gravity = header.gravity;
-    world->windVelocity = header.windVelocity;
-    world->windLinearDrag = header.windLinearDrag;
-    world->bodies.freeHead = header.freeHead;
-    world->bodies.freeTail = header.freeTail;
-    world->bodies.freeCount = header.freeCount;
-    world->bodies.retiredCount = header.retiredCount;
-    world->broadphase.movedCount = header.movedCount;
-    world->contacts.pairCount = header.pairCount;
-    world->shapes.maxShapeIndex = header.maxShapeIndex;
-    world->shapes.shapeFreeHead = header.shapeFreeHead;
-    world->shapes.shapeFreeTail = header.shapeFreeTail;
-    world->shapes.shapeFreeCount = header.shapeFreeCount;
-    world->shapes.shapeRetiredCount = header.shapeRetiredCount;
 
     int32_t cursor = (int32_t)sizeof(header) + m2StateWalk(world, NULL, in + sizeof(header), 1);
     M2_ASSERT(cursor == size);

@@ -212,6 +212,13 @@ Work toward 0.0.1, the first release of the reworked library.
   Object: m2CreateFluidVolume, m2DestroyFluidVolume and
   m2DestroyParticle (were m2World_CreateFluidVolume,
   m2World_DestroyFluidVolume and m2World_DestroyParticle).
+- The snapshot header holds only the magic, the format version, a
+  build configuration hash and the six world capacities, as in Maul3D.
+  Step count, gravity, wind, the pair count and every pool cursor are
+  state table rows, checked before any byte lands; a snapshot from
+  another build is refused with m2_errorConfig. M2_JOURNAL_HASH, which
+  covers the embedded snapshot, is re-pinned; gcc, clang and Debug
+  agree.
 
 ### Removed
 

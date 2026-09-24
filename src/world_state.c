@@ -110,7 +110,24 @@ typedef struct m2StateArray
      m2_extent_##rangeExtent}
 
 static const m2StateArray s_state[] = {
-    // Snapshot state, in snapshot byte order.
+    // Snapshot state, in snapshot byte order: the world scalars and the
+    // pool cursors first, each checked before any byte lands.
+    M2_STATE_INLINE(stepCount, M2_STATE_SNAPSHOT),
+    M2_STATE_INLINE_CHECKED(gravity, M2_STATE_SNAPSHOT, finite32, one),
+    M2_STATE_INLINE_CHECKED(windVelocity, M2_STATE_SNAPSHOT, finite32, one),
+    M2_STATE_INLINE_CHECKED(windLinearDrag, M2_STATE_SNAPSHOT, finite32, one),
+    M2_STATE_INLINE_CHECKED(bodies.maxBodyIndex, M2_STATE_SNAPSHOT, count, body),
+    M2_STATE_INLINE_CHECKED(bodies.freeHead, M2_STATE_SNAPSHOT, cursor, body),
+    M2_STATE_INLINE_CHECKED(bodies.freeTail, M2_STATE_SNAPSHOT, cursor, body),
+    M2_STATE_INLINE_CHECKED(bodies.freeCount, M2_STATE_SNAPSHOT, count, body),
+    M2_STATE_INLINE_CHECKED(bodies.retiredCount, M2_STATE_SNAPSHOT, count, body),
+    M2_STATE_INLINE_CHECKED(shapes.maxShapeIndex, M2_STATE_SNAPSHOT, count, shape),
+    M2_STATE_INLINE_CHECKED(shapes.shapeFreeHead, M2_STATE_SNAPSHOT, cursor, shape),
+    M2_STATE_INLINE_CHECKED(shapes.shapeFreeTail, M2_STATE_SNAPSHOT, cursor, shape),
+    M2_STATE_INLINE_CHECKED(shapes.shapeFreeCount, M2_STATE_SNAPSHOT, count, shape),
+    M2_STATE_INLINE_CHECKED(shapes.shapeRetiredCount, M2_STATE_SNAPSHOT, count, shape),
+    M2_STATE_INLINE_CHECKED(broadphase.movedCount, M2_STATE_SNAPSHOT, count, shape),
+    M2_STATE_INLINE_CHECKED(contacts.pairCount, M2_STATE_SNAPSHOT, count, pair),
     M2_STATE_CHECKED(bodies.transforms, m2Transform, body, 0, M2_STATE_SNAPSHOT, transform, one),
     M2_STATE_CHECKED(bodies.linearVelocities, m2Vec2, body, 1, M2_STATE_SNAPSHOT, finite32, one),
     M2_STATE_CHECKED(bodies.angularVelocities, float, body, 1, M2_STATE_SNAPSHOT, finite32, one),
