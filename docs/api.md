@@ -216,12 +216,12 @@ m2FluidVolumeDef m2DefaultFluidVolumeDef(void);
 ```
 
 ```c
-m2FluidVolumeId m2World_CreateFluidVolume(m2WorldId worldId, const m2FluidVolumeDef* def);
+m2FluidVolumeId m2CreateFluidVolume(m2WorldId worldId, const m2FluidVolumeDef* def);
 ```
 Thread class: writer. Journaled.
 
 ```c
-void m2World_DestroyFluidVolume(m2FluidVolumeId volumeId);
+void m2DestroyFluidVolume(m2FluidVolumeId volumeId);
 ```
 
 ```c
@@ -911,7 +911,7 @@ m2ParticleId m2World_EmitParticle(m2WorldId worldId, m2Pos2 position, m2Vec2 vel
 Emit one particle at a world position. Refuses with the null id when the world has no particle system (invalid) or when the system is full (capacity; also counted in m2Counters.particlePoolFull, so pace emitters off m2World_GetParticleCount). Journaled. Thread class: writer.
 
 ```c
-void m2World_DestroyParticle(m2ParticleId particleId);
+void m2DestroyParticle(m2ParticleId particleId);
 ```
 Destroy one particle; its slot recycles FIFO under a fresh generation. Journaled. Thread class: writer.
 

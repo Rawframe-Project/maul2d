@@ -244,7 +244,7 @@ static void RunSession(m2WorldId world, uint8_t* journal, int32_t capacity, int3
         m2World_EmitParticle(world, (m2Pos2){0.5, 6.0}, (m2Vec2){0.0f, 0.0f}, 0); // op 53
     m2Particle_SetVelocity(drop, (m2Vec2){0.2f, 0.0f});                           // op 55
     m2ParticleId drop2 = m2World_EmitParticle(world, (m2Pos2){0.7, 6.0}, (m2Vec2){0.0f, 0.0f}, 0);
-    m2World_DestroyParticle(drop); // op 54
+    m2DestroyParticle(drop); // op 54
     m2Vec2 shardTri[3] = {{0.0f, 0.0f}, {0.3f, 0.0f}, {0.0f, 0.3f}};
     m2Polygon shard = m2MakePolygon(shardTri, 3, 0.0f);
     m2Polygon shardPair[2];
@@ -258,8 +258,8 @@ static void RunSession(m2WorldId world, uint8_t* journal, int32_t capacity, int3
     poolDef.regionLower = (m2Pos2){-5.0, -5.0};
     poolDef.regionUpper = (m2Pos2){5.0, 5.0};
     poolDef.surface = -1.0;
-    m2FluidVolumeId pool = m2World_CreateFluidVolume(world, &poolDef); // op 61
-    m2FluidVolume_SetSurface(pool, 0.5);                               // op 63
+    m2FluidVolumeId pool = m2CreateFluidVolume(world, &poolDef); // op 61
+    m2FluidVolume_SetSurface(pool, 0.5);                         // op 63
     m2BodyDef drd = m2DefaultBodyDef();
     drd.position = (m2Pos2){-4.0, 6.0};
     m2BodyId drHook = m2CreateBody(world, &drd);

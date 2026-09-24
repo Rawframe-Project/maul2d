@@ -339,9 +339,8 @@ extern "C"
 
     M2_API m2FluidVolumeDef m2DefaultFluidVolumeDef(void);
     /// Thread class: writer. Journaled.
-    M2_API m2FluidVolumeId m2World_CreateFluidVolume(m2WorldId worldId,
-                                                     const m2FluidVolumeDef* def);
-    M2_API void m2World_DestroyFluidVolume(m2FluidVolumeId volumeId);
+    M2_API m2FluidVolumeId m2CreateFluidVolume(m2WorldId worldId, const m2FluidVolumeDef* def);
+    M2_API void m2DestroyFluidVolume(m2FluidVolumeId volumeId);
     M2_API bool m2FluidVolume_IsValid(m2FluidVolumeId volumeId);
     /// Move the waterline at runtime (a rising tide, a draining tank).
     /// Journaled. Thread class: writer.

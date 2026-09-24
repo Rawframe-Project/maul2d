@@ -173,7 +173,7 @@ static void DoRandomOp(m2WorldId world)
             m2Particle_SetVelocity(targets[victim], (m2Vec2){vx, vy});
             return;
         }
-        m2World_DestroyParticle(targets[victim]);
+        m2DestroyParticle(targets[victim]);
         return;
     }
     if (roll < 35)
@@ -782,7 +782,7 @@ static uint64_t RunScenario(uint64_t seed, uint8_t* journal, int32_t journalCapa
     pool.regionUpper = (m2Pos2){14.0, 2.0};
     pool.surface = 0.0;
     pool.flow = (m2Vec2){0.3f, 0.0f};
-    m2World_CreateFluidVolume(world, &pool);
+    m2CreateFluidVolume(world, &pool);
 
     for (int32_t i = 0; i < 300; ++i)
     {

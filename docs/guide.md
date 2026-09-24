@@ -276,7 +276,7 @@ particles never hibernates.
 
 When a full particle pool is more than a scene needs, a fluid
 volume is the cheap answer: an axis-aligned activation region and a
-horizontal surface line. `m2World_CreateFluidVolume` places one,
+horizontal surface line. `m2CreateFluidVolume` places one,
 and every awake dynamic body whose origin sits in the region feels
 Archimedes lift on the part of each shape below the surface (exact
 for circles and polygons, a bounding-box fraction for capsules and

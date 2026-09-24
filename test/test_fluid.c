@@ -62,7 +62,7 @@ static void TestLifecycle(void)
     // Destroy one third; slots recycle FIFO under fresh generations.
     for (int32_t i = 0; i < 20; i += 3)
     {
-        m2World_DestroyParticle(ids[i]);
+        m2DestroyParticle(ids[i]);
     }
     CHECK(m2World_GetParticleCount(world) == 13, "destroys drop the count");
     CHECK(!m2Particle_IsValid(ids[0]), "a destroyed id goes stale");
@@ -158,8 +158,8 @@ static void TestJournalReplay(void)
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
     m2Particle_SetVelocity(ids[3], (m2Vec2){-2.0f, 1.0f});
-    m2World_DestroyParticle(ids[8]);
-    m2World_DestroyParticle(ids[9]);
+    m2DestroyParticle(ids[8]);
+    m2DestroyParticle(ids[9]);
     m2World_EmitParticle(world, (m2Pos2){0.5, 8.0}, (m2Vec2){0.0f, -1.0f}, 0);
     m2Polygon jellyTub = m2MakeBox(0.2f, 0.15f);
     m2World_FillPolygonWithParticles(world, &jellyTub, (m2Pos2){2.0, 6.0}, (m2Vec2){0.0f, 0.0f},
@@ -757,7 +757,7 @@ static void TestJelly(void)
             break;
         }
     }
-    m2World_DestroyParticle(victim);
+    m2DestroyParticle(victim);
     CHECK(gwi->particles.particleSpringCount < springsBefore, "springs die with their particle");
     m2World_Step(gw, 1.0f / 60.0f, 4);
     m2DestroyWorld(gw);
@@ -928,7 +928,7 @@ static void TestFluidHash(void)
         m2World_Step(world, 1.0f / 60.0f, 4);
         if (step % 13 == 0 && step / 13 < made && m2Particle_IsValid(ids[step / 13]))
         {
-            m2World_DestroyParticle(ids[step / 13]);
+            m2DestroyParticle(ids[step / 13]);
         }
         if (step % 17 == 0)
         {

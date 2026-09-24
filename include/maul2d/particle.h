@@ -52,7 +52,7 @@ extern "C"
 
     /// Destroy one particle; its slot recycles FIFO under a fresh
     /// generation. Journaled. Thread class: writer.
-    M2_API void m2World_DestroyParticle(m2ParticleId particleId);
+    M2_API void m2DestroyParticle(m2ParticleId particleId);
 
     /// Generation-checked liveness. Thread class: reader.
     M2_API bool m2Particle_IsValid(m2ParticleId particleId);

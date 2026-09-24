@@ -80,7 +80,7 @@ m2ParticleId m2World_EmitParticle(m2WorldId worldId, m2Pos2 position, m2Vec2 vel
     return id;
 }
 
-void m2World_DestroyParticle(m2ParticleId particleId)
+void m2DestroyParticle(m2ParticleId particleId)
 {
     m2World* world = m2WorldFromTag(particleId.world);
     int32_t index = ParticleSlot(world, particleId);

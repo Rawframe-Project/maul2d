@@ -208,6 +208,10 @@ Work toward 0.0.1, the first release of the reworked library.
   m2ExplosionDef and m2Shape_SetFilter/GetFilter are uint64_t, and the
   default mask is UINT64_MAX. The journal records the wider fields, so
   M2_JOURNAL_HASH is re-pinned; gcc, clang and Debug agree.
+- Lifetime functions follow the family form P + Create/Destroy +
+  Object: m2CreateFluidVolume, m2DestroyFluidVolume and
+  m2DestroyParticle (were m2World_CreateFluidVolume,
+  m2World_DestroyFluidVolume and m2World_DestroyParticle).
 
 ### Removed
 

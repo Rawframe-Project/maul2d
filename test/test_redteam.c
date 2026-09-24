@@ -52,7 +52,7 @@ static void TestParticleStaleIds(void)
     }
     for (int32_t i = 0; i < 8; ++i)
     {
-        m2World_DestroyParticle(ids[i]);
+        m2DestroyParticle(ids[i]);
     }
     // Drain the FIFO so every original slot is reborn once.
     m2ParticleId reborn[8];
@@ -103,7 +103,7 @@ static void TestJellyRollbackStorm(void)
     int32_t n = m2World_GetParticles(world, ids, 128);
     for (int32_t i = 0; i < n; i += 5)
     {
-        m2World_DestroyParticle(ids[i]);
+        m2DestroyParticle(ids[i]);
     }
     n = m2World_GetParticles(world, ids, 128);
     for (int32_t i = 0; i < n; i += 3)
@@ -156,7 +156,7 @@ static void TestJellyJournalStorm(void)
     int32_t n = m2World_GetParticles(world, ids, 128);
     for (int32_t i = 0; i < n; i += 4)
     {
-        m2World_DestroyParticle(ids[i]);
+        m2DestroyParticle(ids[i]);
     }
     m2World_FillPolygonWithParticles(world, &blob, (m2Pos2){1.0, 1.0}, (m2Vec2){0.0f, -1.0f},
                                      m2_elasticParticle);
@@ -2065,7 +2065,7 @@ static void TestNewFeatureStorm(void)
         pool.regionUpper = (m2Pos2){8.0, 0.0};
         pool.surface = 0.0;
         pool.density = 1.2f;
-        m2World_CreateFluidVolume(world, &pool);
+        m2CreateFluidVolume(world, &pool);
         m2Polygon blob = m2MakeBox(0.3f, 0.3f);
         m2World_FillPolygonWithParticles(world, &blob, (m2Pos2){-2.0, 1.0}, (m2Vec2){0.0f, 0.0f},
                                          m2_springParticle | m2_elasticParticle);

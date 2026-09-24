@@ -69,6 +69,14 @@ Root files are `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`,
   names (`Atan2`, `Hash64`), and `LastResult` and
   `CpuSupportsBackend` read as the question they answer.
 - Struct fields that hold ids end in `Id`: `bodyId`, `shapeIdA`.
+- Create functions take their owner first, then the def, then any
+  geometry: `P` + `CreateWorld(def)`, `CreateBody(worldId, def)`,
+  `Create<Kind>Shape(bodyId, def, geometry)`, and every other object
+  owned by a world `Create<Object>(worldId, def)`. Joints follow each
+  engine's model: maul2d's joints are distinct constraints, one def
+  and create function per kind (`m2CreateRevoluteJoint`); maul3d's
+  are one six-axis constraint configured by a kind field, one def and
+  `m3CreateJoint`.
 - The same concept has the same name in both engines. When one engine
   gains a function the other already has, it takes the existing name.
 

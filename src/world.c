@@ -418,7 +418,7 @@ static void AgeParticles(m2World* world, float dt)
             m2ParticleId dying = {i + 1, world->idWorld, world->particles.particleGenerations[i]};
             uint8_t journalWas = world->recorder.journalActive;
             world->recorder.journalActive = 0; // derived death is never recorded
-            m2World_DestroyParticle(dying);
+            m2DestroyParticle(dying);
             world->recorder.journalActive = journalWas;
         }
     }

@@ -221,7 +221,7 @@ m2FluidVolumeDef m2DefaultFluidVolumeDef(void)
     return def;
 }
 
-m2FluidVolumeId m2World_CreateFluidVolume(m2WorldId worldId, const m2FluidVolumeDef* def)
+m2FluidVolumeId m2CreateFluidVolume(m2WorldId worldId, const m2FluidVolumeDef* def)
 {
     m2World* world = m2WorldFromId(worldId);
     if (world == NULL || def == NULL || def->internalValue != M2_FVOLUME_COOKIE ||
@@ -279,7 +279,7 @@ static int32_t FvSlot(const m2World* world, m2FluidVolumeId id)
     return index;
 }
 
-void m2World_DestroyFluidVolume(m2FluidVolumeId volumeId)
+void m2DestroyFluidVolume(m2FluidVolumeId volumeId)
 {
     m2World* world = m2WorldFromTag(volumeId.world);
     int32_t index = FvSlot(world, volumeId);

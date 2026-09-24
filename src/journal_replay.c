@@ -403,7 +403,7 @@ static bool ApplyFillParticles(m2ReplayCursor* r, const m2OpPayload* p)
 
 static bool ApplyDestroyParticle(m2ReplayCursor* r, const m2OpPayload* p)
 {
-    m2World_DestroyParticle(ParticleHere(r, p->particleId));
+    m2DestroyParticle(ParticleHere(r, p->particleId));
     return true;
 }
 
@@ -427,13 +427,13 @@ static bool ApplySetParticleUserData(m2ReplayCursor* r, const m2OpPayload* p)
 
 static bool ApplyCreateFluidVolume(m2ReplayCursor* r, const m2OpPayload* p)
 {
-    m2FluidVolumeId id = m2World_CreateFluidVolume(r->worldId, &p->createFluidVolume.def);
+    m2FluidVolumeId id = m2CreateFluidVolume(r->worldId, &p->createFluidVolume.def);
     return id.index1 == p->createFluidVolume.expected.index1;
 }
 
 static bool ApplyDestroyFluidVolume(m2ReplayCursor* r, const m2OpPayload* p)
 {
-    m2World_DestroyFluidVolume(FluidVolumeHere(r, p->fluidVolumeId));
+    m2DestroyFluidVolume(FluidVolumeHere(r, p->fluidVolumeId));
     return true;
 }
 

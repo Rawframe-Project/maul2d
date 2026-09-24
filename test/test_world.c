@@ -1947,7 +1947,7 @@ static void TestFloatingDraft(void)
     fd.density = 2.0f;
     fd.linearDrag = 3.0f;
     fd.angularDrag = 3.0f;
-    m2World_CreateFluidVolume(world, &fd);
+    m2CreateFluidVolume(world, &fd);
 
     m2ShapeDef sd = m2DefaultShapeDef();
     sd.density = 1.0f;
@@ -1994,7 +1994,7 @@ static void TestFluidVolume(void)
     fd.density = 2.0f;
     fd.linearDrag = 2.0f;
     fd.userData = 42;
-    m2FluidVolumeId vol = m2World_CreateFluidVolume(world, &fd);
+    m2FluidVolumeId vol = m2CreateFluidVolume(world, &fd);
     CHECK(m2FluidVolume_IsValid(vol), "the volume is live");
     CHECK(m2FluidVolume_GetSurface(vol) == 0.0, "the surface reads back");
     CHECK(m2FluidVolume_GetUserData(vol) == 42, "userData reads back");
@@ -2057,7 +2057,7 @@ static void TestFluidVolume(void)
     rfd.regionLower = (m2Pos2){-10.0, -10.0};
     rfd.regionUpper = (m2Pos2){10.0, 10.0};
     rfd.surface = 0.0;
-    m2FluidVolumeId rv = m2World_CreateFluidVolume(rec, &rfd);
+    m2FluidVolumeId rv = m2CreateFluidVolume(rec, &rfd);
     m2BodyDef rb = m2DefaultBodyDef();
     rb.type = m2_dynamicBody;
     rb.position = (m2Pos2){0.0, -2.0};
