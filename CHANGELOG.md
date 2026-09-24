@@ -8,7 +8,9 @@ snapshot and journal formats.
 
 ## [Unreleased]
 
-Work toward 0.0.1, the first release of the reworked library.
+## [0.0.1] - 2026-09-24
+
+The first release of the reworked library.
 
 ### Added
 

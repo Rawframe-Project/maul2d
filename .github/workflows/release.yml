@@ -54,7 +54,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
-          gh release view "$TAG" || gh release create "$TAG" --title "$TAG" --notes-file CHANGELOG.md || true
+          awk -v v="${TAG#v}" '/^## \[/ { keep = index($0, "[" v "]") > 0; next } keep' CHANGELOG.md > notes.md
+          gh release view "$TAG" || gh release create "$TAG" --title "$TAG" --notes-file notes.md || true
           gh release upload "$TAG" $(ls "$LIB-$TAG-${{ matrix.name }}".*) --clobber
 
   testbed:
@@ -95,5 +96,6 @@ jobs:
             (cd stage && tar czf "../$NAME.tar.gz" .)
             FILE="$NAME.tar.gz"
           fi
-          gh release view "$TAG" || gh release create "$TAG" --title "$TAG" --notes-file CHANGELOG.md || true
+          awk -v v="${TAG#v}" '/^## \[/ { keep = index($0, "[" v "]") > 0; next } keep' CHANGELOG.md > notes.md
+          gh release view "$TAG" || gh release create "$TAG" --title "$TAG" --notes-file notes.md || true
           gh release upload "$TAG" "$FILE" --clobber
