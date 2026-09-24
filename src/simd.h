@@ -23,6 +23,7 @@
 #define MAUL2D_SRC_SIMD_H
 
 #include <math.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -98,6 +99,22 @@ static inline m2f8 m2F8GT(m2f8 a, m2f8 b)
 static inline m2f8 m2F8LT(m2f8 a, m2f8 b)
 {
     return _mm256_cmp_ps(a, b, _CMP_LT_OQ);
+}
+static inline m2f8 m2F8EQ(m2f8 a, m2f8 b)
+{
+    return _mm256_cmp_ps(a, b, _CMP_EQ_OQ);
+}
+static inline m2f8 m2F8Div(m2f8 a, m2f8 b)
+{
+    return _mm256_div_ps(a, b);
+}
+static inline m2f8 m2F8Sqrt(m2f8 a)
+{
+    return _mm256_sqrt_ps(a);
+}
+static inline m2f8 m2F8And(m2f8 a, m2f8 b)
+{
+    return _mm256_and_ps(a, b);
 }
 
 #elif defined(M2_SIMD_NEON)
@@ -177,6 +194,29 @@ static inline m2f8 m2F8LT(m2f8 a, m2f8 b)
 {
     m2f8 r = {vreinterpretq_f32_u32(vcltq_f32(a.lo, b.lo)),
               vreinterpretq_f32_u32(vcltq_f32(a.hi, b.hi))};
+    return r;
+}
+static inline m2f8 m2F8EQ(m2f8 a, m2f8 b)
+{
+    m2f8 r = {vreinterpretq_f32_u32(vceqq_f32(a.lo, b.lo)),
+              vreinterpretq_f32_u32(vceqq_f32(a.hi, b.hi))};
+    return r;
+}
+static inline m2f8 m2F8Div(m2f8 a, m2f8 b)
+{
+    m2f8 r = {vdivq_f32(a.lo, b.lo), vdivq_f32(a.hi, b.hi)};
+    return r;
+}
+static inline m2f8 m2F8Sqrt(m2f8 a)
+{
+    m2f8 r = {vsqrtq_f32(a.lo), vsqrtq_f32(a.hi)};
+    return r;
+}
+static inline m2f8 m2F8And(m2f8 a, m2f8 b)
+{
+    m2f8 r = {
+        vreinterpretq_f32_u32(vandq_u32(vreinterpretq_u32_f32(a.lo), vreinterpretq_u32_f32(b.lo))),
+        vreinterpretq_f32_u32(vandq_u32(vreinterpretq_u32_f32(a.hi), vreinterpretq_u32_f32(b.hi)))};
     return r;
 }
 
@@ -280,12 +320,14 @@ static inline m2f8 m2F8Select(m2f8 mask, m2f8 a, m2f8 b)
     }
     return r;
 }
-static inline m2f8 m2F8Cmp(int gt, m2f8 a, m2f8 b)
+// kind: 1 greater, 0 less, 2 equal.
+static inline m2f8 m2F8Cmp(int kind, m2f8 a, m2f8 b)
 {
     m2f8 r;
     for (int32_t i = 0; i < 8; ++i)
     {
-        uint32_t m = (gt ? (a.v[i] > b.v[i]) : (a.v[i] < b.v[i])) ? 0xFFFFFFFFu : 0u;
+        bool hit = kind == 1 ? a.v[i] > b.v[i] : (kind == 0 ? a.v[i] < b.v[i] : a.v[i] == b.v[i]);
+        uint32_t m = hit ? 0xFFFFFFFFu : 0u;
         memcpy(&r.v[i], &m, 4);
     }
     return r;
@@ -297,6 +339,42 @@ static inline m2f8 m2F8GT(m2f8 a, m2f8 b)
 static inline m2f8 m2F8LT(m2f8 a, m2f8 b)
 {
     return m2F8Cmp(0, a, b);
+}
+static inline m2f8 m2F8EQ(m2f8 a, m2f8 b)
+{
+    return m2F8Cmp(2, a, b);
+}
+static inline m2f8 m2F8Div(m2f8 a, m2f8 b)
+{
+    m2f8 r;
+    for (int32_t i = 0; i < 8; ++i)
+    {
+        r.v[i] = a.v[i] / b.v[i];
+    }
+    return r;
+}
+static inline m2f8 m2F8Sqrt(m2f8 a)
+{
+    m2f8 r;
+    for (int32_t i = 0; i < 8; ++i)
+    {
+        r.v[i] = sqrtf(a.v[i]);
+    }
+    return r;
+}
+static inline m2f8 m2F8And(m2f8 a, m2f8 b)
+{
+    m2f8 r;
+    for (int32_t i = 0; i < 8; ++i)
+    {
+        uint32_t ua;
+        uint32_t ub;
+        memcpy(&ua, &a.v[i], 4);
+        memcpy(&ub, &b.v[i], 4);
+        uint32_t out = ua & ub;
+        memcpy(&r.v[i], &out, 4);
+    }
+    return r;
 }
 
 #endif

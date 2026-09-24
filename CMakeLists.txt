@@ -77,6 +77,7 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/dynamic_tree.c
     src/geometry.c
     src/graph_color.c
+    src/hash.c
     src/island.c
     src/joint.c
     src/joint_row.c

@@ -14,6 +14,7 @@ stays, marked superseded.
 | [0001](0001-one-family-one-set-of-rules.md) | One family, one set of rules | Accepted |
 | [0002](0002-refusals-record-a-reason.md) | Refusals record a reason and never assert | Accepted |
 | [0003](0003-restart-at-0-0-1.md) | Restart the version history at 0.0.1 | Accepted |
+| [0004](0004-shared-code-by-copy.md) | Shared code by copy, checked for drift | Accepted |
 
 ## Template
 

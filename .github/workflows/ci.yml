@@ -289,12 +289,7 @@ jobs:
         shell: bash
         run: |
           if [ "$LIB" = "maul2d" ]; then SIBLING=maul3d; else SIBLING=maul2d; fi
-          fail=0
-          for f in $(cat tools/family-files.txt); do
-            curl -fsSL "https://raw.githubusercontent.com/${{ github.repository_owner }}/$SIBLING/main/$f" -o sibling.tmp || { echo "missing in $SIBLING: $f"; fail=1; continue; }
-            cmp -s "$f" sibling.tmp || { echo "differs from $SIBLING: $f"; fail=1; }
-          done
-          exit $fail
+          python3 tools/check_family.py "https://raw.githubusercontent.com/${{ github.repository_owner }}/$SIBLING/main"
 
   soak:
     name: weekly soak

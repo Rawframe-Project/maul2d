@@ -219,6 +219,13 @@ Work toward 0.0.1, the first release of the reworked library.
   another build is refused with m2_errorConfig. M2_JOURNAL_HASH, which
   covers the embedded snapshot, is re-pinned; gcc, clang and Debug
   agree.
+- Shared code follows ADR 0004: src/hash.c holds the hash in both
+  engines, src/simd.h and src/cpu.c are the same file in both once the
+  prefix is renamed, and tools/check_family.py checks the shared files
+  against the sibling repository (byte for byte, or after the rename
+  for tools/family-renamed.txt) in the weekly CI job.
+- src/simd.h gains the equality, division, square root and mask-and
+  lanes Maul3D's kernel uses, so both engines carry one SIMD header.
 
 ### Removed
 

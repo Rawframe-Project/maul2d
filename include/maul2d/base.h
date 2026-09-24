@@ -71,8 +71,8 @@ extern "C"
     /// Thread class: reader (pure function).
     M2_API uint64_t m2Hash64(uint64_t seed, const void* data, int32_t byteCount);
 
-/// Seed value for m2Hash64 chains (FNV-1a offset basis).
-#define M2_HASH_INIT 14695981039346656037ULL
+/// Seed m2Hash64 chains with M2_HASH_INIT, fold bytes in canonical order.
+#define M2_HASH_INIT 0xCBF29CE484222325ull
 
     /// Why the last call on this thread refused. Every API that rejects
     /// its input (a bad def, a stale or wrong-kind id, a full pool)

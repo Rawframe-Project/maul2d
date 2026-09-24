@@ -177,7 +177,9 @@ Root files are `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`,
 - Same build, same inputs, same bits: on every supported platform,
   compiler, architecture and worker count.
 - No fast math and no floating-point contraction; the compiler flags
-  in `cmake/` enforce this and refuse to configure otherwise.
+  in `cmake/` enforce this and refuse to configure otherwise. Fused
+  multiply-add appears only where a kernel spells it through
+  `src/simd.h`, the same on every backend.
 - Only `sqrt` and the operations IEEE 754 rounds exactly come from the
   platform. Transcendentals are the engine's own. Engine code reads no
   random source or environment, and a clock only for the profile,
