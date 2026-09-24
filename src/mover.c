@@ -213,7 +213,7 @@ m2MoverMove m2SolveMover(m2Vec2 wish, const m2MoverPlane* planes, int32_t count)
     }
     count = count < M2_MOVER_PLANES ? count : M2_MOVER_PLANES;
     Candidate best = {wish, -3.4e38f, 0};
-    int32_t set[2];
+    int32_t set[2] = {0, 0};
     Consider(wish, planes, count, set, 0, &best);
     for (int32_t a = 0; a < count; ++a)
     {
