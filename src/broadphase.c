@@ -21,7 +21,7 @@
 
 // --- Broadphase helpers ------------------------------------------------------
 
-m2AABB m2Fatten(m2AABB aabb)
+m2Aabb m2Fatten(m2Aabb aabb)
 {
     aabb.lowerBound.x -= M2_AABB_MARGIN;
     aabb.lowerBound.y -= M2_AABB_MARGIN;
@@ -30,10 +30,10 @@ m2AABB m2Fatten(m2AABB aabb)
     return aabb;
 }
 
-m2AABB m2ShapeTightAABB(const m2World* world, int32_t shapeIndex)
+m2Aabb m2ShapeTightAabb(const m2World* world, int32_t shapeIndex)
 {
     int32_t body = world->shapes.shapeBody[shapeIndex];
-    return m2ComputeShapeAABB(&world->shapes.shapeGeometry[shapeIndex],
+    return m2ComputeShapeAabb(&world->shapes.shapeGeometry[shapeIndex],
                               world->bodies.transforms[body]);
 }
 
@@ -126,7 +126,7 @@ void m2UpdatePairs(m2World* world)
             continue;
         }
         int32_t treeIndex = m2ShapeTreeIndex(world, shapeIndex);
-        m2AABB fat =
+        m2Aabb fat =
             world->broadphase.treeNodes[treeIndex][world->broadphase.proxyIds[shapeIndex]].aabb;
 
         bool moverDynamic = ShapeIsDynamic(world, shapeIndex);

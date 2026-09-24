@@ -1280,7 +1280,7 @@ static void TestDistanceRange(void)
     // deviation from its clamp grows), then stiffen and it pins.
     m2Joint_SetSpringHertz(ropes[0], 0.1f);
     m2Joint_SetSpringDampingRatio(ropes[0], 0.05f);
-    m2Body_ApplyLinearImpulseToCenter(crates[0], (m2Vec2){30.0f, 0.0f});
+    m2Body_ApplyLinearImpulse(crates[0], (m2Vec2){30.0f, 0.0f});
     double wobble = 0.0;
     for (int32_t i = 0; i < 120; ++i)
     {

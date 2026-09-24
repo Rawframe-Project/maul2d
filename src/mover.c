@@ -38,7 +38,7 @@ int32_t m2World_CollideMover(m2WorldId worldId, const m2Capsule* mover, m2Transf
     m2ProxyQuery q = m2MakeProxyQuery(&moverLocal, origin, (m2Vec2){0.0f, 0.0f});
 
     float collar = 0.02f; // 4x linear slop, the speculative margin
-    m2AABB aabb;
+    m2Aabb aabb;
     aabb.lowerBound.x = q.pose.p.x - (double)(q.boundRadius + collar);
     aabb.lowerBound.y = q.pose.p.y - (double)(q.boundRadius + collar);
     aabb.upperBound.x = q.pose.p.x + (double)(q.boundRadius + collar);

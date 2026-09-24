@@ -116,7 +116,7 @@ void m2JournalRecordChain(m2World* world, m2BodyId bodyId, const m2ChainDef* def
     memcpy(out + sizeof(header), def->points, (size_t)pointBytes);
 }
 
-int32_t m2World_JournalBaseSize(m2WorldId worldId)
+int32_t m2World_GetJournalBaseSize(m2WorldId worldId)
 {
     int32_t snapshot = m2World_SnapshotSize(worldId);
     if (snapshot <= 0)

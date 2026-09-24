@@ -15,11 +15,11 @@ extern "C"
 #endif
 
     /// A world-space box in f64, for editor and camera math.
-    typedef struct m2AABBResult
+    typedef struct m2AabbResult
     {
         m2Pos2 lowerBound;
         m2Pos2 upperBound;
-    } m2AABBResult;
+    } m2AabbResult;
 
     typedef enum m2BodyType
     {
@@ -162,7 +162,7 @@ extern "C"
     /// The tight AABB enclosing every shape on the body (fat tree
     /// margins excluded); a shapeless body returns a point at its
     /// origin. Thread class: reader.
-    M2_API m2AABBResult m2Body_ComputeAABB(m2BodyId bodyId);
+    M2_API m2AabbResult m2Body_ComputeAabb(m2BodyId bodyId);
 
     /// Setters wake nothing yet (no sleep system in this slice) but are
     /// already journal-shaped: every mutation is a discrete command.
@@ -187,14 +187,15 @@ extern "C"
     /// Thread class: writer.
     M2_API void m2Body_SetType(m2BodyId bodyId, m2BodyType type);
 
-    M2_API void m2Body_ApplyLinearImpulse(m2BodyId bodyId, m2Vec2 impulse, m2Pos2 worldPoint);
-    M2_API void m2Body_ApplyLinearImpulseToCenter(m2BodyId bodyId, m2Vec2 impulse);
+    M2_API void m2Body_ApplyLinearImpulseAtPoint(m2BodyId bodyId, m2Vec2 impulse,
+                                                 m2Pos2 worldPoint);
+    M2_API void m2Body_ApplyLinearImpulse(m2BodyId bodyId, m2Vec2 impulse);
 
     /// Continuous forces: accumulated across calls, applied during the
     /// step, cleared when it ends. Waking is implied. Journaled.
     /// Thread class: writer.
-    M2_API void m2Body_ApplyForce(m2BodyId bodyId, m2Vec2 force, m2Pos2 worldPoint);
-    M2_API void m2Body_ApplyForceToCenter(m2BodyId bodyId, m2Vec2 force);
+    M2_API void m2Body_ApplyForceAtPoint(m2BodyId bodyId, m2Vec2 force, m2Pos2 worldPoint);
+    M2_API void m2Body_ApplyForce(m2BodyId bodyId, m2Vec2 force);
     M2_API void m2Body_ApplyTorque(m2BodyId bodyId, float torque);
 
     /// Runtime body dynamics tuning, journaled. Fixed rotation zeroes

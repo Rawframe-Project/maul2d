@@ -343,9 +343,9 @@ static void MoveProxies(m2World* world)
         }
         for (int32_t s = world->bodies.bodyShapeHead[i]; s != -1; s = world->shapes.shapeNext[s])
         {
-            m2AABB tight = m2ShapeTightAABB(world, s);
+            m2Aabb tight = m2ShapeTightAabb(world, s);
             int32_t tree = m2ShapeTreeIndex(world, s);
-            if (!m2AABB_Contains(
+            if (!m2Aabb_Contains(
                     world->broadphase.treeNodes[tree][world->broadphase.proxyIds[s]].aabb, tight))
             {
                 m2TreeMove(&world->broadphase.trees[tree], world->broadphase.treeNodes[tree],
@@ -541,14 +541,15 @@ uint64_t m2World_GetStepCount(m2WorldId worldId)
     return world != NULL ? world->stepCount : 0;
 }
 
-int64_t m2World_MemoryBytes(m2WorldId worldId)
+m2MemoryUsage m2World_GetMemoryUsage(m2WorldId worldId)
 {
+    m2MemoryUsage usage = {0};
     m2World* world = m2GetWorld(worldId);
-    if (world == NULL)
+    if (world != NULL)
     {
-        return 0;
+        usage.persistentBytes = world->memoryBytes + (int64_t)sizeof(m2World);
     }
-    return world->memoryBytes + (int64_t)sizeof(m2World);
+    return usage;
 }
 
 void m2World_EnableSleeping(m2WorldId worldId, bool flag)

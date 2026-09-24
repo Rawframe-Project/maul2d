@@ -548,7 +548,7 @@ static void TestChainGround(void)
     }
     CHECK(m2Body_GetPosition(box).y > 0.3, "the box rests on the chain floor");
 
-    m2Body_ApplyLinearImpulse(box, (m2Vec2){-4.0f, 0.0f}, m2Body_GetPosition(box));
+    m2Body_ApplyLinearImpulseAtPoint(box, (m2Vec2){-4.0f, 0.0f}, m2Body_GetPosition(box));
     float worstVy = 0.0f;
     for (int32_t i = 0; i < 240; ++i)
     {
@@ -663,7 +663,7 @@ static void TestRuntimeMaterials(void)
     }
     m2Shape_SetRestitution(ballShape, 0.9f);
     CHECK(m2Shape_GetRestitution(ballShape) == 0.9f, "the getter agrees");
-    m2Body_ApplyLinearImpulse(ball, (m2Vec2){0.0f, -0.6f}, m2Body_GetPosition(ball));
+    m2Body_ApplyLinearImpulseAtPoint(ball, (m2Vec2){0.0f, -0.6f}, m2Body_GetPosition(ball));
     double peak = 0.0;
     for (int32_t i = 0; i < 90; ++i)
     {

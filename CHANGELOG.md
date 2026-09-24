@@ -181,6 +181,15 @@ Work toward 0.0.1, the first release of the reworked library.
   instead of FNV-1a over every byte: about three times faster on a
   whole world. Every hash value changes; the golden hashes and bench
   pins are re-pinned, and gcc, clang and Debug agree.
+- Public names follow the family rules: m2Aabb, m2AabbResult,
+  m2World_OverlapAabb, m2World_OverlapParticlesAabb, m2Shape_GetAabb,
+  m2Body_ComputeAabb and the drawAabbs flag spell the acronym as a
+  word; m2Shape_CastRay, m2World_GetJournalBaseSize and
+  m2World_GetHashParts lead with their verb; m2World_GetMemoryUsage
+  returns an m2MemoryUsage, as in Maul3D. Forces and impulses take
+  Maul3D's names: m2Body_ApplyForce and m2Body_ApplyLinearImpulse act
+  at the center of mass, m2Body_ApplyForceAtPoint and
+  m2Body_ApplyLinearImpulseAtPoint at a world point.
 
 ### Removed
 

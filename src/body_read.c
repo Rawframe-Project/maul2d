@@ -183,9 +183,9 @@ m2WorldId m2Body_GetWorld(m2BodyId bodyId)
     return id;
 }
 
-m2AABBResult m2Body_ComputeAABB(m2BodyId bodyId)
+m2AabbResult m2Body_ComputeAabb(m2BodyId bodyId)
 {
-    m2AABBResult result = {{0.0, 0.0}, {0.0, 0.0}};
+    m2AabbResult result = {{0.0, 0.0}, {0.0, 0.0}};
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0)
@@ -198,8 +198,8 @@ m2AABBResult m2Body_ComputeAABB(m2BodyId bodyId)
     bool first = true;
     for (int32_t s = world->bodies.bodyShapeHead[index]; s != -1; s = world->shapes.shapeNext[s])
     {
-        m2AABB tight =
-            m2ComputeShapeAABB(&world->shapes.shapeGeometry[s], world->bodies.transforms[index]);
+        m2Aabb tight =
+            m2ComputeShapeAabb(&world->shapes.shapeGeometry[s], world->bodies.transforms[index]);
         if (first)
         {
             result.lowerBound = tight.lowerBound;

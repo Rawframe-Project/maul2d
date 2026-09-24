@@ -521,7 +521,7 @@ static void DoRandomOp(m2WorldId world)
                 m2Pos2 at = m2Body_GetPosition(body);
                 float jx = (float)((int32_t)Pick(5) - 2);
                 float jy = (float)((int32_t)Pick(5) - 2);
-                m2Body_ApplyLinearImpulse(body, (m2Vec2){jx, jy}, at);
+                m2Body_ApplyLinearImpulseAtPoint(body, (m2Vec2){jx, jy}, at);
             }
         }
         else if (which == 3)
@@ -541,7 +541,7 @@ static void DoRandomOp(m2WorldId world)
             {
                 float fx = (float)((int32_t)Pick(9) - 4) * 3.0f;
                 float fy = (float)((int32_t)Pick(9) - 4) * 3.0f;
-                m2Body_ApplyForceToCenter(body, (m2Vec2){fx, fy});
+                m2Body_ApplyForce(body, (m2Vec2){fx, fy});
             }
         }
         else if (which == 6)

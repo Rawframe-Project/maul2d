@@ -398,7 +398,7 @@ static void LimitSpeed(m2Particles* p, const Fluid* f)
 static int32_t FirstCrossing(const m2World* world, m2Pos2 from, m2Vec2 move, float* fraction,
                              m2Vec2* normal)
 {
-    m2AABB box = {{from.x + (move.x < 0.0f ? (double)move.x : 0.0),
+    m2Aabb box = {{from.x + (move.x < 0.0f ? (double)move.x : 0.0),
                    from.y + (move.y < 0.0f ? (double)move.y : 0.0)},
                   {from.x + (move.x > 0.0f ? (double)move.x : 0.0),
                    from.y + (move.y > 0.0f ? (double)move.y : 0.0)}};

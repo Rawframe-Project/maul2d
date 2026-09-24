@@ -12,20 +12,20 @@
 
 static void Shove(m2BodyId body, float impulseX)
 {
-    m2Body_ApplyLinearImpulse(body, (m2Vec2){impulseX, 0.0f}, m2Body_GetPosition(body));
+    m2Body_ApplyLinearImpulseAtPoint(body, (m2Vec2){impulseX, 0.0f}, m2Body_GetPosition(body));
 }
 
 int main(void)
 {
     // The journal embeds a full snapshot up front, so size the tape
-    // from m2World_JournalBaseSize plus room for the ops you expect.
+    // from m2World_GetJournalBaseSize plus room for the ops you expect.
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 64;
     def.shapeCapacity = 64;
     def.jointCapacity = 8;
     m2WorldId world = m2CreateWorld(&def);
 
-    int tapeCapacity = m2World_JournalBaseSize(world) + (1 << 16);
+    int tapeCapacity = m2World_GetJournalBaseSize(world) + (1 << 16);
     unsigned char* journal = malloc((size_t)tapeCapacity);
     if (!m2World_StartJournal(world, journal, tapeCapacity))
     {

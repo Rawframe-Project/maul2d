@@ -36,7 +36,7 @@ bool m2ValidateSegment(const m2Segment* segment);
 // m2ValidatePolygon is internal; the validator family is not public API.
 bool m2ValidatePolygon(const m2Polygon* polygon);
 
-m2AABB m2ComputeShapeAABB(const m2ShapeGeometry* geometry, m2Transform xf);
+m2Aabb m2ComputeShapeAabb(const m2ShapeGeometry* geometry, m2Transform xf);
 m2MassData m2ComputeShapeMass(const m2ShapeGeometry* geometry, float density);
 
 // --- Contact manifolds -------------------------------------------

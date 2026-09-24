@@ -204,12 +204,11 @@ uint64_t m2World_Hash(m2WorldId worldId);
 Deterministic state hash (alive bodies in index order + globals). Present in all builds: this is the desync-forensics primitive. Thread class: reader.
 
 ```c
-int64_t m2World_MemoryBytes(m2WorldId worldId);
+m2MemoryUsage m2World_GetMemoryUsage(m2WorldId worldId);
 ```
-Per-world persistent memory footprint in bytes: everything create allocated for this world, including the world struct itself. Fixed for the world's lifetime (pools never grow; the journal buffer is the host's). Thread class: reader.
 
 ```c
-m2WorldHashParts m2World_HashParts(m2WorldId worldId);
+m2WorldHashParts m2World_GetHashParts(m2WorldId worldId);
 ```
 
 ```c
@@ -243,7 +242,7 @@ uint64_t m2FluidVolume_GetUserData(m2FluidVolumeId volumeId);
 ```
 
 ```c
-int32_t m2World_JournalBaseSize(m2WorldId worldId);
+int32_t m2World_GetJournalBaseSize(m2WorldId worldId);
 ```
 Command journal (the replay primitive). StartJournal embeds a full snapshot into the caller's buffer, then records every mutating call and step marker with raw IEEE-754 bit encoding. StopJournal returns the byte size (0 = overflow or not recording: loud, never truncated-silent). ReplayJournal restores the embedded snapshot and re-applies the stream. It is atomic: a tape that is malformed, truncated or recreates an object under a different id than the recording saw is refused and the world is left as it was. A restore during recording is recorded too. Thread class: writer. The journal's fixed cost: header plus the embedded snapshot. Size tapes as this plus room for your ops. Thread class: reader.
 
@@ -423,7 +422,7 @@ m2WorldId m2Body_GetWorld(m2BodyId bodyId);
 ```
 
 ```c
-m2AABBResult m2Body_ComputeAABB(m2BodyId bodyId);
+m2AabbResult m2Body_ComputeAabb(m2BodyId bodyId);
 ```
 The tight AABB enclosing every shape on the body (fat tree margins excluded); a shapeless body returns a point at its origin. Thread class: reader.
 
@@ -447,20 +446,20 @@ void m2Body_SetType(m2BodyId bodyId, m2BodyType type);
 Converts the body's type in place. Becoming static zeroes the velocities; becoming dynamic recomputes mass from the shapes. The body and everything it touches wake, proxies migrate to the right tree, and stale pairs end with proper events. Journaled. Thread class: writer.
 
 ```c
-void m2Body_ApplyLinearImpulse(m2BodyId bodyId, m2Vec2 impulse, m2Pos2 worldPoint);
+void m2Body_ApplyLinearImpulseAtPoint(m2BodyId bodyId, m2Vec2 impulse, m2Pos2 worldPoint);
 ```
 
 ```c
-void m2Body_ApplyLinearImpulseToCenter(m2BodyId bodyId, m2Vec2 impulse);
+void m2Body_ApplyLinearImpulse(m2BodyId bodyId, m2Vec2 impulse);
 ```
 
 ```c
-void m2Body_ApplyForce(m2BodyId bodyId, m2Vec2 force, m2Pos2 worldPoint);
+void m2Body_ApplyForceAtPoint(m2BodyId bodyId, m2Vec2 force, m2Pos2 worldPoint);
 ```
 Continuous forces: accumulated across calls, applied during the step, cleared when it ends. Waking is implied. Journaled. Thread class: writer.
 
 ```c
-void m2Body_ApplyForceToCenter(m2BodyId bodyId, m2Vec2 force);
+void m2Body_ApplyForce(m2BodyId bodyId, m2Vec2 force);
 ```
 
 ```c
@@ -967,7 +966,7 @@ int32_t m2World_FillPolygonWithParticles(m2WorldId worldId, const m2Polygon* pol
 Fill a convex polygon (given in world space at position) with particles on the rest stride (0.75 diameters), row-major bottom-up, left to right: deterministic by construction. Stops quietly when the pool fills; returns the number emitted. Spring and elastic flags make the batch a body: springs remember their spawn lengths, elastic triads remember their spawn shape, both captured here, journaled as one op, and carried by every snapshot. Thread class: writer.
 
 ```c
-int32_t m2World_OverlapParticlesAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2ParticleId* ids, int32_t capacity);
+int32_t m2World_OverlapParticlesAabb(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2ParticleId* ids, int32_t capacity);
 ```
 Live particles whose centers lie inside the box: ascending slot order, truthful total, NULL ids with zero capacity is a count query (the enumeration contract). Circular regions are one distance filter away on the caller's side. Thread class: reader.
 
@@ -1143,7 +1142,7 @@ void m2Shape_SetSegment(m2ShapeId shapeId, const m2Segment* segment);
 ```c
 int32_t m2Body_GetShapes(m2BodyId bodyId, m2ShapeId* ids, int32_t capacity);
 ```
-Enumeration walks, ascending slot order, truthful totals (same contract as m2World_OverlapAABB). Thread class: reader.
+Enumeration walks, ascending slot order, truthful totals (same contract as m2World_OverlapAabb). Thread class: reader.
 
 ```c
 int32_t m2World_GetChains(m2WorldId worldId, m2ChainId* ids, int32_t capacity);
@@ -1179,7 +1178,7 @@ m2ChainId m2Shape_GetParentChain(m2ShapeId shapeId);
 ```
 
 ```c
-m2AABBResult m2Shape_GetAABB(m2ShapeId shapeId);
+m2AabbResult m2Shape_GetAabb(m2ShapeId shapeId);
 ```
 
 ```c
@@ -1218,7 +1217,7 @@ m2RayCastResult m2World_CastRayClosest(m2WorldId worldId, m2Pos2 origin, m2Vec2 
 Closest hit along origin + t * translation, t in [0, 1]. Thread class: reader.
 
 ```c
-m2RayCastResult m2Shape_RayCast(m2ShapeId shapeId, m2Pos2 origin, m2Vec2 translation);
+m2RayCastResult m2Shape_CastRay(m2ShapeId shapeId, m2Pos2 origin, m2Vec2 translation);
 ```
 
 ```c
@@ -1265,7 +1264,7 @@ m2RayCastResult m2World_CastPolygonClosest(m2WorldId worldId, const m2Polygon* p
 ```c
 int32_t m2World_OverlapCircle(m2WorldId worldId, const m2Circle* circle, m2Transform origin, m2ShapeId* ids, int32_t capacity, m2QueryFilter filter);
 ```
-Convex overlaps: live shapes touching the posed shape, in ascending slot order with a truthful total (the OverlapAABB contract). Chain segments are one-sided here too. Thread class: reader.
+Convex overlaps: live shapes touching the posed shape, in ascending slot order with a truthful total (the OverlapAabb contract). Chain segments are one-sided here too. Thread class: reader.
 
 ```c
 int32_t m2World_OverlapCapsule(m2WorldId worldId, const m2Capsule* capsule, m2Transform origin, m2ShapeId* ids, int32_t capacity, m2QueryFilter filter);
@@ -1276,7 +1275,7 @@ int32_t m2World_OverlapPolygon(m2WorldId worldId, const m2Polygon* polygon, m2Tr
 ```
 
 ```c
-int32_t m2World_OverlapAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2ShapeId* results, int32_t capacity, m2QueryFilter filter);
+int32_t m2World_OverlapAabb(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2ShapeId* results, int32_t capacity, m2QueryFilter filter);
 ```
 Fills results with up to capacity alive shapes whose tight AABB overlaps [lower, upper], ascending shape order. Returns the total number of overlapping shapes even when it exceeds capacity. Thread class: reader.
 

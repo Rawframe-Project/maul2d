@@ -98,7 +98,7 @@ extern "C"
     /// count query (the enumeration contract). Circular regions are
     /// one distance filter away on the caller's side.
     /// Thread class: reader.
-    M2_API int32_t m2World_OverlapParticlesAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper,
+    M2_API int32_t m2World_OverlapParticlesAabb(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper,
                                                 m2ParticleId* ids, int32_t capacity);
 
     /// Fill ids with live particles in ascending slot order; returns

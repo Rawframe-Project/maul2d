@@ -779,7 +779,7 @@ static void TestOverlapParticles(void)
     }
     m2ParticleId found[64];
     int32_t n =
-        m2World_OverlapParticlesAABB(world, (m2Pos2){0.5, 0.5}, (m2Pos2){3.5, 3.5}, found, 64);
+        m2World_OverlapParticlesAabb(world, (m2Pos2){0.5, 0.5}, (m2Pos2){3.5, 3.5}, found, 64);
     CHECK(n == 9, "the inner three-by-three answers the box");
     for (int32_t i = 0; i < n; ++i)
     {
@@ -788,12 +788,12 @@ static void TestOverlapParticles(void)
         CHECK(m2Particle_IsValid(found[i]), "every answer is live");
     }
     int32_t total =
-        m2World_OverlapParticlesAABB(world, (m2Pos2){0.5, 0.5}, (m2Pos2){3.5, 3.5}, found, 4);
+        m2World_OverlapParticlesAabb(world, (m2Pos2){0.5, 0.5}, (m2Pos2){3.5, 3.5}, found, 4);
     CHECK(total == 9, "capacity pressure never lies about the total");
-    total = m2World_OverlapParticlesAABB(world, (m2Pos2){0.5, 0.5}, (m2Pos2){3.5, 3.5}, NULL, 0);
+    total = m2World_OverlapParticlesAabb(world, (m2Pos2){0.5, 0.5}, (m2Pos2){3.5, 3.5}, NULL, 0);
     CHECK(total == 9, "the count query agrees");
     total =
-        m2World_OverlapParticlesAABB(world, (m2Pos2){50.0, 50.0}, (m2Pos2){51.0, 51.0}, found, 64);
+        m2World_OverlapParticlesAabb(world, (m2Pos2){50.0, 50.0}, (m2Pos2){51.0, 51.0}, found, 64);
     CHECK(total == 0, "an empty region answers zero");
 
     // Read-only law: a query storm moves no bits.
@@ -801,7 +801,7 @@ static void TestOverlapParticles(void)
     uint64_t before = m2World_Hash(world);
     for (int32_t i = 0; i < 50; ++i)
     {
-        m2World_OverlapParticlesAABB(world, (m2Pos2){-1.0, -1.0}, (m2Pos2){5.0, 5.0}, found, 64);
+        m2World_OverlapParticlesAabb(world, (m2Pos2){-1.0, -1.0}, (m2Pos2){5.0, 5.0}, found, 64);
     }
     CHECK(m2World_Hash(world) == before, "the query storm leaves the world untouched");
     m2DestroyWorld(world);

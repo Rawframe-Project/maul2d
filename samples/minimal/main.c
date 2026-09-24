@@ -42,7 +42,7 @@ int main(void)
     m2World_Snapshot(world, snap, size);
     unsigned long long before = (unsigned long long)m2World_Hash(world);
 
-    m2Body_ApplyLinearImpulseToCenter(top, (m2Vec2){8.0f, 4.0f});
+    m2Body_ApplyLinearImpulse(top, (m2Vec2){8.0f, 4.0f});
     for (int i = 0; i < 120; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);

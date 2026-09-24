@@ -136,7 +136,7 @@ static void RunSession(m2WorldId world, uint8_t* journal, int32_t capacity, int3
     }
     // Shape destruction, impulses and joint tuning all ride the journal
     // too.
-    m2Body_ApplyLinearImpulse(ram, (m2Vec2){0.4f, 0.9f}, (m2Pos2){9.1, 2.0});
+    m2Body_ApplyLinearImpulseAtPoint(ram, (m2Vec2){0.4f, 0.9f}, (m2Pos2){9.1, 2.0});
     m2Body_ApplyAngularImpulse(ram, 0.3f);
     m2Joint_SetMotorSpeed(pressJoint, 0.7f);
     m2Body_SetTransform(ram, (m2Pos2){8.6, 2.4}, m2MakeRot(0.3f)); // op 17
@@ -157,12 +157,12 @@ static void RunSession(m2WorldId world, uint8_t* journal, int32_t capacity, int3
     }
     m2DestroyBody(victim);
     m2DestroyJoint(rod);
-    m2DestroyChain(chainId);                              // op 24
-    m2Body_ApplyForceToCenter(bob, (m2Vec2){3.0f, 1.0f}); // op 28
-    m2Body_ApplyTorque(bob, 0.8f);                        // op 29
-    m2Body_SetLinearDamping(bob, 0.2f);                   // op 25
-    m2Body_SetFixedRotation(bob, true);                   // op 25
-    m2World_EnableSleeping(world, false);                 // op 26
+    m2DestroyChain(chainId);                      // op 24
+    m2Body_ApplyForce(bob, (m2Vec2){3.0f, 1.0f}); // op 28
+    m2Body_ApplyTorque(bob, 0.8f);                // op 29
+    m2Body_SetLinearDamping(bob, 0.2f);           // op 25
+    m2Body_SetFixedRotation(bob, true);           // op 25
+    m2World_EnableSleeping(world, false);         // op 26
     m2World_EnableSleeping(world, true);
     m2MotorJointDef chase = m2DefaultMotorJointDef(); // op 31
     chase.bodyIdA = anchor;
@@ -203,10 +203,10 @@ static void RunSession(m2WorldId world, uint8_t* journal, int32_t capacity, int3
     matChain.points = matPts;
     matChain.count = 5;
     m2ChainId matLedge = m2CreateChain(cylinder, &matChain);
-    m2Chain_SetFriction(matLedge, 0.75f);                         // op 41
-    m2Chain_SetRestitution(matLedge, 0.15f);                      // op 42
-    m2Body_ApplyLinearImpulseToCenter(bob, (m2Vec2){0.5f, 0.2f}); // op 43
-    m2Body_SetAwake(bob, false);                                  // op 44
+    m2Chain_SetFriction(matLedge, 0.75f);                 // op 41
+    m2Chain_SetRestitution(matLedge, 0.15f);              // op 42
+    m2Body_ApplyLinearImpulse(bob, (m2Vec2){0.5f, 0.2f}); // op 43
+    m2Body_SetAwake(bob, false);                          // op 44
     m2Body_SetAwake(bob, true);
     m2Body_SetBullet(bob, true);            // op 45
     m2Shape_SetDensity(reshapeShape, 1.5f); // op 46
@@ -375,7 +375,7 @@ static void TestRollbackWhileRecording(void)
     def.bodyCapacity = 32;
     def.shapeCapacity = 32;
     m2WorldId world = m2CreateWorld(&def);
-    int32_t tapeCapacity = 2 * m2World_JournalBaseSize(world) + (1 << 16);
+    int32_t tapeCapacity = 2 * m2World_GetJournalBaseSize(world) + (1 << 16);
     unsigned char* tape = malloc((size_t)tapeCapacity);
     CHECK(m2World_StartJournal(world, tape, tapeCapacity), "tape starts");
 
@@ -403,7 +403,7 @@ static void TestRollbackWhileRecording(void)
     CHECK(m2World_Snapshot(world, snap, snapSize) == snapSize, "mid-recording snapshot");
 
     // The misprediction: a shove that will be rolled back.
-    m2Body_ApplyLinearImpulse(ball, (m2Vec2){2.0f, 1.0f}, m2Body_GetPosition(ball));
+    m2Body_ApplyLinearImpulseAtPoint(ball, (m2Vec2){2.0f, 1.0f}, m2Body_GetPosition(ball));
     for (int32_t i = 0; i < 25; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);

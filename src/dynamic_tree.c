@@ -23,9 +23,9 @@
 
 #include "maul2d/base.h"
 
-static m2AABB Union(m2AABB a, m2AABB b)
+static m2Aabb Union(m2Aabb a, m2Aabb b)
 {
-    m2AABB c;
+    m2Aabb c;
     c.lowerBound.x = a.lowerBound.x < b.lowerBound.x ? a.lowerBound.x : b.lowerBound.x;
     c.lowerBound.y = a.lowerBound.y < b.lowerBound.y ? a.lowerBound.y : b.lowerBound.y;
     c.upperBound.x = a.upperBound.x > b.upperBound.x ? a.upperBound.x : b.upperBound.x;
@@ -35,7 +35,7 @@ static m2AABB Union(m2AABB a, m2AABB b)
 
 // Half the perimeter: in 2D the surface area heuristic weighs a box by
 // its perimeter, and the factor two never changes a comparison.
-static double HalfPerimeter(m2AABB box)
+static double HalfPerimeter(m2Aabb box)
 {
     return (box.upperBound.x - box.lowerBound.x) + (box.upperBound.y - box.lowerBound.y);
 }
@@ -194,7 +194,7 @@ static void RepairUpward(m2DynamicTree* tree, m2TreeNode* nodes, int32_t node)
 // union, then to the first child) and keeps the cheapest node it meets.
 // It stops once the growth inherited so far plus |box|, the least any
 // deeper junction can cost, reaches the best cost found.
-static int32_t PickSibling(const m2DynamicTree* tree, const m2TreeNode* nodes, m2AABB box)
+static int32_t PickSibling(const m2DynamicTree* tree, const m2TreeNode* nodes, m2Aabb box)
 {
     double boxArea = HalfPerimeter(box);
     int32_t node = tree->root;
@@ -262,7 +262,7 @@ static int32_t Detach(m2DynamicTree* tree, m2TreeNode* nodes, int32_t leaf)
     return parent;
 }
 
-int32_t m2TreeInsert(m2DynamicTree* tree, m2TreeNode* nodes, m2AABB aabb, int32_t userData)
+int32_t m2TreeInsert(m2DynamicTree* tree, m2TreeNode* nodes, m2Aabb aabb, int32_t userData)
 {
     // A non-empty tree needs a junction node besides the leaf; both are
     // taken up front so a full pool refuses with the tree untouched.
@@ -291,14 +291,14 @@ void m2TreeRemove(m2DynamicTree* tree, m2TreeNode* nodes, int32_t proxy)
     GiveNode(tree, nodes, proxy);
 }
 
-void m2TreeMove(m2DynamicTree* tree, m2TreeNode* nodes, int32_t proxy, m2AABB aabb)
+void m2TreeMove(m2DynamicTree* tree, m2TreeNode* nodes, int32_t proxy, m2Aabb aabb)
 {
     int32_t junction = Detach(tree, nodes, proxy);
     nodes[proxy].aabb = aabb;
     Attach(tree, nodes, proxy, junction);
 }
 
-int32_t m2TreeQuery(const m2DynamicTree* tree, const m2TreeNode* nodes, m2AABB aabb,
+int32_t m2TreeQuery(const m2DynamicTree* tree, const m2TreeNode* nodes, m2Aabb aabb,
                     int32_t* results, int32_t resultCapacity)
 {
     m2TreeCursor cursor;
@@ -317,7 +317,7 @@ int32_t m2TreeQuery(const m2DynamicTree* tree, const m2TreeNode* nodes, m2AABB a
 }
 
 void m2TreeBeginQuery(m2TreeCursor* cursor, const m2DynamicTree* tree, const m2TreeNode* nodes,
-                      m2AABB aabb)
+                      m2Aabb aabb)
 {
     cursor->nodes = nodes;
     cursor->aabb = aabb;
@@ -336,7 +336,7 @@ bool m2TreeNextQuery(m2TreeCursor* cursor, int32_t* userData)
     while (cursor->top > 0)
     {
         const m2TreeNode* node = cursor->nodes + cursor->stack[--cursor->top];
-        if (!m2AABB_Overlaps(node->aabb, cursor->aabb))
+        if (!m2Aabb_Overlaps(node->aabb, cursor->aabb))
         {
             continue;
         }
@@ -366,8 +366,8 @@ static int32_t CheckSubtree(const m2DynamicTree* tree, const m2TreeNode* nodes, 
     if (a < 0 || a >= tree->nodeCapacity || b < 0 || b >= tree->nodeCapacity ||
         nodes[a].parent != node || nodes[b].parent != node ||
         n->height != 1 + MaxHeight(nodes, a, b) || nodes[a].height - nodes[b].height > 1 ||
-        nodes[b].height - nodes[a].height > 1 || !m2AABB_Contains(n->aabb, nodes[a].aabb) ||
-        !m2AABB_Contains(n->aabb, nodes[b].aabb))
+        nodes[b].height - nodes[a].height > 1 || !m2Aabb_Contains(n->aabb, nodes[a].aabb) ||
+        !m2Aabb_Contains(n->aabb, nodes[b].aabb))
     {
         return -1;
     }

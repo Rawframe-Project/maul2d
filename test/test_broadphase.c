@@ -41,9 +41,9 @@ static double RandomInRange(double lo, double hi)
     return lo + t * (hi - lo);
 }
 
-static m2AABB RandomAabb(void)
+static m2Aabb RandomAabb(void)
 {
-    m2AABB aabb;
+    m2Aabb aabb;
     aabb.lowerBound.x = RandomInRange(-100.0, 100.0);
     aabb.lowerBound.y = RandomInRange(-100.0, 100.0);
     aabb.upperBound.x = aabb.lowerBound.x + RandomInRange(0.1, 8.0);
@@ -60,7 +60,7 @@ static void TestTreeStructure(void)
     };
     m2DynamicTree tree;
     m2TreeNode* nodes = calloc(CAPACITY, sizeof(m2TreeNode));
-    m2AABB boxes[N];
+    m2Aabb boxes[N];
     int32_t proxies[N];
     m2TreeInit(&tree, nodes, CAPACITY);
 
@@ -75,13 +75,13 @@ static void TestTreeStructure(void)
     // Query oracle: tree results must equal brute force exactly.
     for (int32_t q = 0; q < 50; ++q)
     {
-        m2AABB query = RandomAabb();
+        m2Aabb query = RandomAabb();
         int32_t results[N];
         int32_t hits = m2TreeQuery(&tree, nodes, query, results, N);
         int32_t brute = 0;
         for (int32_t i = 0; i < N; ++i)
         {
-            brute += m2AABB_Overlaps(boxes[i], query) ? 1 : 0;
+            brute += m2Aabb_Overlaps(boxes[i], query) ? 1 : 0;
         }
         CHECK(hits == brute, "tree query must match brute force");
     }
@@ -94,13 +94,13 @@ static void TestTreeStructure(void)
     CHECK(m2TreeValidate(&tree, nodes), "tree valid after removals");
     for (int32_t q = 0; q < 25; ++q)
     {
-        m2AABB query = RandomAabb();
+        m2Aabb query = RandomAabb();
         int32_t results[N];
         int32_t hits = m2TreeQuery(&tree, nodes, query, results, N);
         int32_t brute = 0;
         for (int32_t i = 1; i < N; i += 2)
         {
-            brute += m2AABB_Overlaps(boxes[i], query) ? 1 : 0;
+            brute += m2Aabb_Overlaps(boxes[i], query) ? 1 : 0;
         }
         CHECK(hits == brute, "tree query after removal must match brute force");
     }
@@ -108,7 +108,7 @@ static void TestTreeStructure(void)
     free(nodes);
 }
 
-static m2AABB ShapeFat(const m2World* world, int32_t s)
+static m2Aabb ShapeFat(const m2World* world, int32_t s)
 {
     int32_t tree = world->bodies.types[world->shapes.shapeBody[s]];
     return world->broadphase.treeNodes[tree][world->broadphase.proxyIds[s]].aabb;
@@ -135,7 +135,7 @@ static int32_t BrutePairCount(const m2World* world)
             {
                 continue;
             }
-            count += m2AABB_Overlaps(ShapeFat(world, a), ShapeFat(world, b)) ? 1 : 0;
+            count += m2Aabb_Overlaps(ShapeFat(world, a), ShapeFat(world, b)) ? 1 : 0;
         }
     }
     return count;
@@ -398,7 +398,7 @@ static void TestTreeChurn(void)
     };
     m2DynamicTree tree;
     m2TreeNode* nodes = calloc(CAPACITY, sizeof(m2TreeNode));
-    m2AABB boxes[N];
+    m2Aabb boxes[N];
     int32_t proxies[N];
     m2TreeInit(&tree, nodes, CAPACITY);
     for (int32_t i = 0; i < N; ++i)
@@ -410,7 +410,7 @@ static void TestTreeChurn(void)
     for (int32_t op = 0; op < 6000; ++op)
     {
         int32_t i = (int32_t)(NextRandom() % N);
-        m2AABB box = RandomAabb();
+        m2Aabb box = RandomAabb();
         if (NextRandom() % 16 == 0)
         {
             box.upperBound.x = box.lowerBound.x + 150.0; // a wide floor-like box
@@ -438,13 +438,13 @@ static void TestTreeChurn(void)
     CHECK(stable, "moves keep proxy indices");
     for (int32_t q = 0; q < 50; ++q)
     {
-        m2AABB query = RandomAabb();
+        m2Aabb query = RandomAabb();
         int32_t results[N];
         int32_t hits = m2TreeQuery(&tree, nodes, query, results, N);
         int32_t brute = 0;
         for (int32_t i = 0; i < N; ++i)
         {
-            brute += proxies[i] != M2_NULL_NODE && m2AABB_Overlaps(boxes[i], query) ? 1 : 0;
+            brute += proxies[i] != M2_NULL_NODE && m2Aabb_Overlaps(boxes[i], query) ? 1 : 0;
         }
         CHECK(hits == brute, "churned tree queries match brute force");
     }

@@ -59,7 +59,7 @@ void m2Body_SetAngularVelocity(m2BodyId bodyId, float velocity)
     }
 }
 
-void m2Body_ApplyLinearImpulse(m2BodyId bodyId, m2Vec2 impulse, m2Pos2 worldPoint)
+void m2Body_ApplyLinearImpulseAtPoint(m2BodyId bodyId, m2Vec2 impulse, m2Pos2 worldPoint)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
@@ -93,7 +93,7 @@ void m2Body_ApplyLinearImpulse(m2BodyId bodyId, m2Vec2 impulse, m2Pos2 worldPoin
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_ApplyForce(m2BodyId bodyId, m2Vec2 force, m2Pos2 worldPoint)
+void m2Body_ApplyForceAtPoint(m2BodyId bodyId, m2Vec2 force, m2Pos2 worldPoint)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
@@ -126,7 +126,7 @@ void m2Body_ApplyForce(m2BodyId bodyId, m2Vec2 force, m2Pos2 worldPoint)
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_ApplyForceToCenter(m2BodyId bodyId, m2Vec2 force)
+void m2Body_ApplyForce(m2BodyId bodyId, m2Vec2 force)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
@@ -193,7 +193,7 @@ void m2Body_ApplyAngularImpulse(m2BodyId bodyId, float impulse)
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_ApplyLinearImpulseToCenter(m2BodyId bodyId, m2Vec2 impulse)
+void m2Body_ApplyLinearImpulse(m2BodyId bodyId, m2Vec2 impulse)
 {
     m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
@@ -266,9 +266,9 @@ void m2Body_SetTransform(m2BodyId bodyId, m2Pos2 position, m2Rot rotation)
         {
             continue;
         }
-        m2AABB tight = m2ShapeTightAABB(world, shape);
+        m2Aabb tight = m2ShapeTightAabb(world, shape);
         int32_t tree = m2ShapeTreeIndex(world, shape);
-        if (!m2AABB_Contains(
+        if (!m2Aabb_Contains(
                 world->broadphase.treeNodes[tree][world->broadphase.proxyIds[shape]].aabb, tight))
         {
             m2TreeMove(&world->broadphase.trees[tree], world->broadphase.treeNodes[tree],

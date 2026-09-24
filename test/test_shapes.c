@@ -76,7 +76,7 @@ static void TestAabbAndMass(void)
 
     // Rotating (3,0) by +90deg lands at (0,3): center ~(10, 23).
     int32_t shapeIndex = shape.index1 - 1;
-    m2AABB tight = m2ComputeShapeAABB(&world->shapes.shapeGeometry[shapeIndex],
+    m2Aabb tight = m2ComputeShapeAabb(&world->shapes.shapeGeometry[shapeIndex],
                                       world->bodies.transforms[body.index1 - 1]);
     CHECK_NEAR(tight.lowerBound.x, 10.0 - 0.5, 1.0e-3, "rotated AABB lower x");
     CHECK_NEAR(tight.upperBound.y, 23.0 + 0.5, 1.0e-3, "rotated AABB upper y");

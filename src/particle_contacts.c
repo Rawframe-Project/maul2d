@@ -39,7 +39,7 @@ static m2Vec2 Rotate(m2Rot q, m2Vec2 v)
 
 // The non-sensor shapes whose boxes overlap box, ascending. Returns the
 // count.
-static int32_t Candidates(const m2World* world, m2AABB box, int32_t* out)
+static int32_t Candidates(const m2World* world, m2Aabb box, int32_t* out)
 {
     int32_t count = 0;
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
@@ -145,7 +145,7 @@ static void StageRange(int32_t begin, int32_t end, void* context)
             continue;
         }
         m2Pos2 at = p->particlePositions[i];
-        m2AABB box = {{at.x - (double)h, at.y - (double)h}, {at.x + (double)h, at.y + (double)h}};
+        m2Aabb box = {{at.x - (double)h, at.y - (double)h}, {at.x + (double)h, at.y + (double)h}};
         int32_t shapes[M2_PARTICLE_CANDIDATES];
         int32_t count = Candidates(world, box, shapes);
         int32_t kept = 0;

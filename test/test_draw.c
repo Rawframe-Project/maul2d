@@ -136,7 +136,7 @@ static m2DebugDraw FullDraw(Rec* r)
     d.drawShapes = true;
     d.drawJoints = true;
     d.drawContacts = true;
-    d.drawAABBs = true;
+    d.drawAabbs = true;
     d.context = r;
     return d;
 }
@@ -210,7 +210,7 @@ static void TestShapeCountsAndColors(void)
     m2DebugDraw d = FullDraw(&r);
     d.drawJoints = false;
     d.drawContacts = false;
-    d.drawAABBs = false;
+    d.drawAabbs = false;
     m2World_Draw(world, &d);
 
     CHECK(r.circles == 2, "two circle shapes draw two circles"); // dynamic + sensor
@@ -240,7 +240,7 @@ static void TestShapeCountsAndColors(void)
     m2DebugDraw kd = FullDraw(&kr);
     kd.drawJoints = false;
     kd.drawContacts = false;
-    kd.drawAABBs = false;
+    kd.drawAabbs = false;
     m2World_Draw(kworld, &kd);
     CHECK(kr.polygons == 1 && kr.lastPolygonColor == kKinematic, "kinematic body draws blue");
     m2DestroyWorld(kworld);
@@ -274,7 +274,7 @@ static void TestSleepingColor(void)
     m2DebugDraw d = FullDraw(&r);
     d.drawJoints = false;
     d.drawContacts = false;
-    d.drawAABBs = false;
+    d.drawAabbs = false;
     m2World_Draw(world, &d);
     // Two polygons: static floor (gray) and the sleeping box (dim).
     CHECK(r.polygons == 2, "floor and box both draw");
@@ -352,7 +352,7 @@ static void TestJointDrawing(void)
     m2DebugDraw d = FullDraw(&r);
     d.drawShapes = false;
     d.drawContacts = false;
-    d.drawAABBs = false;
+    d.drawAabbs = false;
     m2World_Draw(world, &d);
 
     // Segments: distance 1 + gear 1 + ratchet 1 + mouse 1 + pulley 3 = 7.
@@ -368,7 +368,7 @@ static void TestJointDrawing(void)
     m2DebugDraw d2 = FullDraw(&r2);
     d2.drawShapes = false;
     d2.drawContacts = false;
-    d2.drawAABBs = false;
+    d2.drawAabbs = false;
     d2.drawSegment = NULL;
     m2World_Draw(world, &d2);
     CHECK(r2.points == 0, "no segment sink means the joint pass is skipped entirely");
@@ -394,7 +394,7 @@ static void TestChainDrawing(void)
     m2DebugDraw d = FullDraw(&r);
     d.drawJoints = false;
     d.drawContacts = false;
-    d.drawAABBs = false;
+    d.drawAabbs = false;
     m2World_Draw(world, &d);
     CHECK(r.segments == 4, "a four-point loop chain draws four chain segments");
     CHECK(r.lastSegmentColor == kStatic, "chain segments on a static body draw gray");
@@ -436,7 +436,7 @@ static void TestContactsAndAABBs(void)
     m2DebugDraw d = FullDraw(&r);
     d.drawShapes = false;
     d.drawJoints = false;
-    d.drawAABBs = false;
+    d.drawAabbs = false;
     m2World_Draw(world, &d);
     CHECK(r.points >= 1, "a resting box draws at least one contact point");
     CHECK(r.nonFinite == 0, "every contact point is finite");
@@ -487,7 +487,7 @@ static void TestContactForces(void)
     d.drawShapes = false;
     d.drawJoints = false;
     d.drawContacts = false;
-    d.drawAABBs = false;
+    d.drawAabbs = false;
     d.drawContactForces = true;
     d.forceScale = 5.0f;
     m2World_Draw(world, &d);
@@ -500,7 +500,7 @@ static void TestContactForces(void)
     d2.drawShapes = false;
     d2.drawJoints = false;
     d2.drawContacts = false;
-    d2.drawAABBs = false;
+    d2.drawAabbs = false;
     m2World_Draw(world, &d2);
     CHECK(r2.segments == 0, "force arrows are off unless asked");
 

@@ -283,9 +283,9 @@ static m2Pos2 WorldPoint(m2Transform xf, m2Vec2 local)
     return (m2Pos2){xf.p.x + (double)x, xf.p.y + (double)y};
 }
 
-m2AABB m2ComputeShapeAABB(const m2ShapeGeometry* geometry, m2Transform xf)
+m2Aabb m2ComputeShapeAabb(const m2ShapeGeometry* geometry, m2Transform xf)
 {
-    m2AABB aabb;
+    m2Aabb aabb;
     switch (geometry->type)
     {
     case m2_circleShape:

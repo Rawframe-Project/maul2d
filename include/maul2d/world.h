@@ -186,7 +186,7 @@ extern "C"
         bool drawJoints;
         bool drawContacts;
         bool drawContactForces; // per-point normal and friction impulse arrows
-        bool drawAABBs;
+        bool drawAabbs;
         /// Length in world units per unit of impulse for the force arrows;
         /// <= 0 draws them at the raw impulse magnitude (scale 1).
         float forceScale;
@@ -272,12 +272,16 @@ extern "C"
     /// Thread class: reader.
     M2_API uint64_t m2World_Hash(m2WorldId worldId);
 
-    /// Per-world persistent memory footprint in bytes: everything
-    /// create allocated for this world,
-    /// including the world struct itself. Fixed for the world's
-    /// lifetime (pools never grow; the journal buffer is the
-    /// host's). Thread class: reader.
-    M2_API int64_t m2World_MemoryBytes(m2WorldId worldId);
+    /// Per-world memory footprint. persistentBytes is everything create
+    /// allocated for this world, including the world struct itself; it
+    /// is fixed for the world's lifetime (pools never grow, step
+    /// scratch lives in them, and the journal buffer is the host's).
+    /// Thread class: reader.
+    typedef struct m2MemoryUsage
+    {
+        int64_t persistentBytes;
+    } m2MemoryUsage;
+    M2_API m2MemoryUsage m2World_GetMemoryUsage(m2WorldId worldId);
 
     /// Per-subsystem hashes for hunting a divergence: run your twin
     /// simulations, compare parts each step, and the first field
@@ -293,7 +297,7 @@ extern "C"
         uint64_t joints;    // constraint accumulator memory
         uint64_t particles; // fluid state including the jelly nets
     } m2WorldHashParts;
-    M2_API m2WorldHashParts m2World_HashParts(m2WorldId worldId);
+    M2_API m2WorldHashParts m2World_GetHashParts(m2WorldId worldId);
 
     typedef struct m2FluidVolumeId
     {
@@ -348,7 +352,7 @@ extern "C"
     /// Thread class: writer.
     /// The journal's fixed cost: header plus the embedded snapshot.
     /// Size tapes as this plus room for your ops. Thread class: reader.
-    M2_API int32_t m2World_JournalBaseSize(m2WorldId worldId);
+    M2_API int32_t m2World_GetJournalBaseSize(m2WorldId worldId);
 
     M2_API bool m2World_StartJournal(m2WorldId worldId, void* buffer, int32_t capacity);
     M2_API int32_t m2World_StopJournal(m2WorldId worldId);

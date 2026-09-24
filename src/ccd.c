@@ -88,7 +88,7 @@ static void SweepBullet(m2World* world, int32_t body, m2Pos2 p0)
     }
 
     // Swept AABB over the whole motion, fattened by the bounding circle.
-    m2AABB sweep;
+    m2Aabb sweep;
     sweep.lowerBound.x = (p0.x < p1.x ? p0.x : p1.x) - (double)bulletRadius;
     sweep.lowerBound.y = (p0.y < p1.y ? p0.y : p1.y) - (double)bulletRadius;
     sweep.upperBound.x = (p0.x > p1.x ? p0.x : p1.x) + (double)bulletRadius;

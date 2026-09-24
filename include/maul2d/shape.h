@@ -241,7 +241,7 @@ extern "C"
     M2_API void m2Shape_SetSegment(m2ShapeId shapeId, const m2Segment* segment);
 
     /// Enumeration walks, ascending slot order, truthful totals
-    /// (same contract as m2World_OverlapAABB). Thread class: reader.
+    /// (same contract as m2World_OverlapAabb). Thread class: reader.
     M2_API int32_t m2Body_GetShapes(m2BodyId bodyId, m2ShapeId* ids, int32_t capacity);
     M2_API int32_t m2World_GetChains(m2WorldId worldId, m2ChainId* ids, int32_t capacity);
     M2_API int32_t m2Chain_GetShapes(m2ChainId chainId, m2ShapeId* ids, int32_t capacity);
@@ -255,7 +255,7 @@ extern "C"
     M2_API m2BodyId m2Shape_GetBody(m2ShapeId shapeId);
     M2_API m2WorldId m2Shape_GetWorld(m2ShapeId shapeId);
     M2_API m2ChainId m2Shape_GetParentChain(m2ShapeId shapeId); // null if free-standing
-    M2_API m2AABBResult m2Shape_GetAABB(m2ShapeId shapeId);     // tight, world space
+    M2_API m2AabbResult m2Shape_GetAabb(m2ShapeId shapeId);     // tight, world space
 
     /// Point and ray queries against ONE shape. TestPoint counts
     /// touching within the engine's slop skin (the overlap law);
@@ -301,7 +301,7 @@ extern "C"
     /// Thread class: reader.
     M2_API m2RayCastResult m2World_CastRayClosest(m2WorldId worldId, m2Pos2 origin,
                                                   m2Vec2 translation, m2QueryFilter filter);
-    M2_API m2RayCastResult m2Shape_RayCast(m2ShapeId shapeId, m2Pos2 origin, m2Vec2 translation);
+    M2_API m2RayCastResult m2Shape_CastRay(m2ShapeId shapeId, m2Pos2 origin, m2Vec2 translation);
 
     /// Every hit along a ray or sweep, not just the first: results
     /// arrive in ascending fraction order (ties break to the lower
@@ -379,7 +379,7 @@ extern "C"
                                                       m2QueryFilter filter);
 
     /// Convex overlaps: live shapes touching the posed shape, in
-    /// ascending slot order with a truthful total (the OverlapAABB
+    /// ascending slot order with a truthful total (the OverlapAabb
     /// contract). Chain segments are one-sided here too. Thread
     /// class: reader.
     M2_API int32_t m2World_OverlapCircle(m2WorldId worldId, const m2Circle* circle,
@@ -396,7 +396,7 @@ extern "C"
     /// overlaps [lower, upper], ascending shape order. Returns the total
     /// number of overlapping shapes even when it exceeds capacity.
     /// Thread class: reader.
-    M2_API int32_t m2World_OverlapAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper,
+    M2_API int32_t m2World_OverlapAabb(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper,
                                        m2ShapeId* results, int32_t capacity, m2QueryFilter filter);
 
 #ifdef __cplusplus

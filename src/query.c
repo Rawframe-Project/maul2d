@@ -66,7 +66,7 @@ typedef struct m2RayState
 // either box axis or the segment's normal separates them (the separating
 // axis test for a segment and a box). Everything runs in f64, so worlds
 // far from the origin cull exactly.
-static bool RayMissesNode(const m2RayState* ray, m2AABB box)
+static bool RayMissesNode(const m2RayState* ray, m2Aabb box)
 {
     double ax = ray->origin.x;
     double ay = ray->origin.y;
@@ -266,7 +266,7 @@ static int32_t FinishSelection(ShapeSelection* sel)
     return sel->total;
 }
 
-int32_t m2World_OverlapAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2ShapeId* results,
+int32_t m2World_OverlapAabb(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2ShapeId* results,
                             int32_t capacity, m2QueryFilter filter)
 {
     m2World* world = m2WorldFromId(worldId);
@@ -277,7 +277,7 @@ int32_t m2World_OverlapAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2Sha
         return 0;
     }
 
-    m2AABB aabb = {lower, upper};
+    m2Aabb aabb = {lower, upper};
     ShapeSelection sel = {results, capacity, 0, 0};
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
@@ -294,9 +294,9 @@ int32_t m2World_OverlapAABB(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2Sha
             }
             // Tight filter: the fat tree AABB over-reports.
             int32_t body = world->shapes.shapeBody[shapeIndex];
-            m2AABB tight = m2ComputeShapeAABB(&world->shapes.shapeGeometry[shapeIndex],
+            m2Aabb tight = m2ComputeShapeAabb(&world->shapes.shapeGeometry[shapeIndex],
                                               world->bodies.transforms[body]);
-            if (!m2AABB_Overlaps(tight, aabb))
+            if (!m2Aabb_Overlaps(tight, aabb))
             {
                 continue;
             }
@@ -338,7 +338,7 @@ static m2RayCastResult CastProxyClosest(m2WorldId worldId, const m2DistanceProxy
     double hiy = q.pose.p.y + (double)q.boundRadius;
     double tx = (double)translation.x;
     double ty = (double)translation.y;
-    m2AABB aabb;
+    m2Aabb aabb;
     aabb.lowerBound.x = tx < 0.0 ? lox + tx : lox;
     aabb.lowerBound.y = ty < 0.0 ? loy + ty : loy;
     aabb.upperBound.x = tx > 0.0 ? hix + tx : hix;
@@ -423,7 +423,7 @@ static int32_t OverlapProxy(m2WorldId worldId, const m2DistanceProxy* castLocal,
         return 0;
     }
     m2ProxyQuery q = m2MakeProxyQuery(castLocal, pose, (m2Vec2){0.0f, 0.0f});
-    m2AABB aabb;
+    m2Aabb aabb;
     aabb.lowerBound.x = q.pose.p.x - (double)q.boundRadius;
     aabb.lowerBound.y = q.pose.p.y - (double)q.boundRadius;
     aabb.upperBound.x = q.pose.p.x + (double)q.boundRadius;
@@ -529,7 +529,7 @@ struct m2CastHitInternal m2RayCastShapeIndex(const m2World* world, int32_t shape
 }
 
 // same RayCastShape the world walk uses, minus the walk.
-m2RayCastResult m2Shape_RayCast(m2ShapeId shapeId, m2Pos2 origin, m2Vec2 translation)
+m2RayCastResult m2Shape_CastRay(m2ShapeId shapeId, m2Pos2 origin, m2Vec2 translation)
 {
     m2RayCastResult result;
     result.shapeId = m2_nullShapeId;
@@ -694,7 +694,7 @@ static int32_t CastProxyAll(m2WorldId worldId, const m2DistanceProxy* castLocal,
     double hiy = q.pose.p.y + (double)q.boundRadius;
     double tx = (double)translation.x;
     double ty = (double)translation.y;
-    m2AABB aabb;
+    m2Aabb aabb;
     aabb.lowerBound.x = tx < 0.0 ? lox + tx : lox;
     aabb.lowerBound.y = ty < 0.0 ? loy + ty : loy;
     aabb.upperBound.x = tx > 0.0 ? hix + tx : hix;

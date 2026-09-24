@@ -534,7 +534,7 @@ void m2Body_SetType(m2BodyId bodyId, m2BodyType type)
                      world->broadphase.proxyIds[shape]);
         world->broadphase.proxyIds[shape] =
             m2TreeInsert(&world->broadphase.trees[type], world->broadphase.treeNodes[type],
-                         m2Fatten(m2ShapeTightAABB(world, shape)), shape);
+                         m2Fatten(m2ShapeTightAabb(world, shape)), shape);
         M2_ASSERT(world->broadphase.proxyIds[shape] != M2_NULL_NODE);
         m2PushMoved(world, shape);
     }
@@ -663,7 +663,7 @@ void m2Body_Enable(m2BodyId bodyId)
     {
         world->broadphase.proxyIds[s] =
             m2TreeInsert(&world->broadphase.trees[tree], world->broadphase.treeNodes[tree],
-                         m2Fatten(m2ShapeTightAABB(world, s)), s);
+                         m2Fatten(m2ShapeTightAabb(world, s)), s);
         m2PushMoved(world, s);
     }
     world->bodies.asleep[index] = 0;

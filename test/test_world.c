@@ -336,7 +336,7 @@ static void TestTeleport(void)
                                                  m2DefaultQueryFilter());
     CHECK(hit.hit, "queries see the teleported body at once");
 
-    CHECK(m2World_JournalBaseSize(world) == 32 + m2World_SnapshotSize(world),
+    CHECK(m2World_GetJournalBaseSize(world) == 32 + m2World_SnapshotSize(world),
           "journal base size is header plus snapshot");
 
     m2DestroyWorld(world);
@@ -1222,7 +1222,7 @@ static void TestBodyDynamicsPack(void)
     m2CreatePolygonShape(pushed, &sd, &unit);
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2Body_ApplyForceToCenter(pushed, (m2Vec2){6.4f, 0.0f}); // a = 10
+        m2Body_ApplyForce(pushed, (m2Vec2){6.4f, 0.0f}); // a = 10
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
     float vx = m2Body_GetLinearVelocity(pushed).x;
@@ -1264,12 +1264,12 @@ static void TestBodyDynamicsPack(void)
     fdd.fixedRotation = true;
     m2BodyId upright = m2CreateBody(world, &fdd);
     m2CreatePolygonShape(upright, &sd, &unit);
-    m2Body_ApplyLinearImpulse(upright, (m2Vec2){0.0f, 2.0f}, (m2Pos2){5.4, 10.0});
+    m2Body_ApplyLinearImpulseAtPoint(upright, (m2Vec2){0.0f, 2.0f}, (m2Pos2){5.4, 10.0});
     m2World_Step(world, 1.0f / 60.0f, 4);
     CHECK(m2Body_GetAngularVelocity(upright) == 0.0f, "fixed rotation never spins");
     CHECK(m2Body_IsFixedRotation(upright), "and reads back");
     m2Body_SetFixedRotation(upright, false);
-    m2Body_ApplyLinearImpulse(upright, (m2Vec2){0.0f, 2.0f}, (m2Pos2){5.4, 10.0});
+    m2Body_ApplyLinearImpulseAtPoint(upright, (m2Vec2){0.0f, 2.0f}, (m2Pos2){5.4, 10.0});
     m2World_Step(world, 1.0f / 60.0f, 4);
     CHECK(m2Body_GetAngularVelocity(upright) != 0.0f, "released, it spins again");
 
@@ -1379,8 +1379,8 @@ static void TestDormancyMassAndExplosions(void)
     doubled.rotationalInertia = original.rotationalInertia * 2.0f;
     m2Body_SetMassData(heavy, doubled);
     CHECK(m2Body_GetMass(heavy) > original.mass * 1.9f, "the override sticks");
-    m2Body_ApplyLinearImpulse(heavy, (m2Vec2){original.mass * 2.0f, 0.0f},
-                              m2Body_GetPosition(heavy));
+    m2Body_ApplyLinearImpulseAtPoint(heavy, (m2Vec2){original.mass * 2.0f, 0.0f},
+                                     m2Body_GetPosition(heavy));
     float vx = m2Body_GetLinearVelocity(heavy).x;
     CHECK(vx > 0.9f && vx < 1.1f, "twice the mass takes half the speed");
     m2Body_ApplyMassFromShapes(heavy);
@@ -1548,7 +1548,7 @@ static void TestLeftoverBasket(void)
     m2ShapeId boxShape = m2CreatePolygonShape(box, &sd, &unit);
 
     // Impulse to center: speed without spin.
-    m2Body_ApplyLinearImpulseToCenter(box, (m2Vec2){0.64f, 0.0f});
+    m2Body_ApplyLinearImpulse(box, (m2Vec2){0.64f, 0.0f});
     CHECK(m2Body_GetLinearVelocity(box).x > 0.9f && m2Body_GetAngularVelocity(box) == 0.0f,
           "center impulse moves without spin");
 
@@ -1575,10 +1575,10 @@ static void TestLeftoverBasket(void)
     CHECK(com.x > -0.01 && com.x < 0.01 && com.y > 4.99 && com.y < 5.01,
           "world center of mass sits on the centered box");
     CHECK(m2Body_GetRotationalInertia(box) > 0.0f, "inertia reads positive");
-    m2AABBResult ab = m2Body_ComputeAABB(box);
+    m2AabbResult ab = m2Body_ComputeAabb(box);
     CHECK(ab.lowerBound.x < -0.39 && ab.upperBound.x > 0.39 && ab.upperBound.y > 5.39,
           "the body AABB hugs the shape");
-    m2AABBResult sab = m2Shape_GetAABB(boxShape);
+    m2AabbResult sab = m2Shape_GetAabb(boxShape);
     CHECK(sab.lowerBound.y < 4.61 && sab.upperBound.y > 5.39, "the shape AABB agrees");
     m2WorldId back = m2Body_GetWorld(box);
     CHECK(back.index1 == world.index1 && back.generation == world.generation,
@@ -1589,7 +1589,7 @@ static void TestLeftoverBasket(void)
     CHECK(!m2Shape_TestPoint(boxShape, (m2Pos2){2.0, 5.0}), "two meters out is not");
     m2Pos2 closest = m2Shape_GetClosestPoint(boxShape, (m2Pos2){3.0, 5.0});
     CHECK(closest.x > 0.35 && closest.x < 0.45, "closest point sits on the face");
-    m2RayCastResult ray = m2Shape_RayCast(boxShape, (m2Pos2){3.0, 5.0}, (m2Vec2){-5.0f, 0.0f});
+    m2RayCastResult ray = m2Shape_CastRay(boxShape, (m2Pos2){3.0, 5.0}, (m2Vec2){-5.0f, 0.0f});
     CHECK(ray.hit && ray.normal.x > 0.99f, "the one-shape ray hits the right face");
 
     // Chain parentage.
@@ -1858,8 +1858,8 @@ static void TestHashParts(void)
             m2World_Step(world, 1.0f / 60.0f, 4);
         }
     }
-    m2WorldHashParts pa = m2World_HashParts(a);
-    m2WorldHashParts pb = m2World_HashParts(b);
+    m2WorldHashParts pa = m2World_GetHashParts(a);
+    m2WorldHashParts pb = m2World_GetHashParts(b);
     CHECK(pa.world == pb.world && pa.bodies == pb.bodies && pa.contacts == pb.contacts &&
               pa.joints == pb.joints && pa.particles == pb.particles,
           "twin worlds agree part by part");
@@ -1869,7 +1869,7 @@ static void TestHashParts(void)
     m2BodyId bodies[4];
     m2World_GetBodies(b, bodies, 4);
     m2Body_SetLinearVelocity(bodies[1], (m2Vec2){0.5f, 0.0f});
-    pb = m2World_HashParts(b);
+    pb = m2World_GetHashParts(b);
     CHECK(pa.bodies != pb.bodies, "a body nudge splits the bodies part");
     CHECK(pa.contacts == pb.contacts, "the contacts part holds");
     CHECK(pa.particles == pb.particles, "the particles part holds");
@@ -1878,7 +1878,7 @@ static void TestHashParts(void)
     m2ParticleId drops[4];
     m2World_GetParticles(a, drops, 4);
     m2Particle_SetVelocity(drops[0], (m2Vec2){0.0f, 1.0f});
-    m2WorldHashParts pa2 = m2World_HashParts(a);
+    m2WorldHashParts pa2 = m2World_GetHashParts(a);
     CHECK(pa2.particles != pa.particles, "a particle nudge splits the particles part");
     CHECK(pa2.bodies == pa.bodies, "the bodies part holds against a particle nudge");
 
@@ -1886,7 +1886,7 @@ static void TestHashParts(void)
     uint64_t before = m2World_Hash(b);
     for (int32_t i = 0; i < 50; ++i)
     {
-        m2World_HashParts(b);
+        m2World_GetHashParts(b);
     }
     CHECK(m2World_Hash(b) == before, "the parts storm leaves the world untouched");
     m2DestroyWorld(a);

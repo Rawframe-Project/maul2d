@@ -64,6 +64,11 @@ Root files are `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`,
   `Has`, `Enable`, `Disable`, `Create`, `Destroy`, `Apply`, `Cast`,
   `Overlap`, `Collide`.
 - Acronyms are written as words: `Aabb`, `Gjk`, `Id`, `Ccd`.
+- A few shared names read better without a leading verb and keep
+  their form in both engines: math functions take their mathematical
+  names (`Atan2`, `Hash64`), and `LastResult` and
+  `CpuSupportsBackend` read as the question they answer.
+- Struct fields that hold ids end in `Id`: `bodyId`, `shapeIdA`.
 - The same concept has the same name in both engines. When one engine
   gains a function the other already has, it takes the existing name.
 

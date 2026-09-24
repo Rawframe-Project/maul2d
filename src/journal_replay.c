@@ -73,13 +73,13 @@ static bool ApplySetLinearVelocity(m2ReplayCursor* r, const m2OpPayload* p)
 
 static bool ApplyApplyForceCenter(m2ReplayCursor* r, const m2OpPayload* p)
 {
-    m2Body_ApplyForceToCenter(BodyHere(r, p->bodyVec.body), p->bodyVec.value);
+    m2Body_ApplyForce(BodyHere(r, p->bodyVec.body), p->bodyVec.value);
     return true;
 }
 
 static bool ApplyImpulseCenter(m2ReplayCursor* r, const m2OpPayload* p)
 {
-    m2Body_ApplyLinearImpulseToCenter(BodyHere(r, p->bodyVec.body), p->bodyVec.value);
+    m2Body_ApplyLinearImpulse(BodyHere(r, p->bodyVec.body), p->bodyVec.value);
     return true;
 }
 
@@ -103,14 +103,15 @@ static bool ApplyAngularImpulse(m2ReplayCursor* r, const m2OpPayload* p)
 
 static bool ApplyLinearImpulse(m2ReplayCursor* r, const m2OpPayload* p)
 {
-    m2Body_ApplyLinearImpulse(BodyHere(r, p->bodyPoint.body), p->bodyPoint.value,
-                              p->bodyPoint.point);
+    m2Body_ApplyLinearImpulseAtPoint(BodyHere(r, p->bodyPoint.body), p->bodyPoint.value,
+                                     p->bodyPoint.point);
     return true;
 }
 
 static bool ApplyApplyForce(m2ReplayCursor* r, const m2OpPayload* p)
 {
-    m2Body_ApplyForce(BodyHere(r, p->bodyPoint.body), p->bodyPoint.value, p->bodyPoint.point);
+    m2Body_ApplyForceAtPoint(BodyHere(r, p->bodyPoint.body), p->bodyPoint.value,
+                             p->bodyPoint.point);
     return true;
 }
 

@@ -129,7 +129,7 @@ static void* ReaderMain(void* arg)
     {
         ReaderBox box = MakeReaderBox(r);
         m2ShapeId got[READER_CAPACITY];
-        int32_t n = m2World_OverlapAABB(job->world, box.lower, box.upper, got, READER_CAPACITY,
+        int32_t n = m2World_OverlapAabb(job->world, box.lower, box.upper, got, READER_CAPACITY,
                                         m2DefaultQueryFilter());
         int32_t stored = n < READER_CAPACITY ? n : READER_CAPACITY;
         if (n != job->expectedCount[r] ||
@@ -154,7 +154,7 @@ static void TestConcurrentReadersMatchSerial(void)
     {
         ReaderBox box = MakeReaderBox(r);
         jobs[0].expectedCount[r] =
-            m2World_OverlapAABB(world, box.lower, box.upper, jobs[0].expected[r], READER_CAPACITY,
+            m2World_OverlapAabb(world, box.lower, box.upper, jobs[0].expected[r], READER_CAPACITY,
                                 m2DefaultQueryFilter());
     }
     CHECK(jobs[0].expectedCount[READER_ROUNDS / 2] > READER_CAPACITY,

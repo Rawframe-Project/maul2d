@@ -169,7 +169,7 @@ collision back on, with end and begin events flowing as usual.
 ## Body dynamics
 
 Forces accumulate across calls and live for exactly one step
-(`m2Body_ApplyForce`, `ApplyForceToCenter`, `ApplyTorque`); impulses
+(`m2Body_ApplyForce`, `ApplyForceAtPoint`, `ApplyTorque`); impulses
 remain for instant changes. Linear and angular damping decay
 velocity implicitly, v / (1 + h d) per substep. `m2Body_SetFixedRotation`
 makes rotation a mass property (inertia recomputes, spin stops).
@@ -238,7 +238,7 @@ emitters off the count.
 
 `m2World_FillPolygonWithParticles` pours a whole pool in one call
 (row-major on the rest stride, deterministic layout), and
-`m2World_OverlapParticlesAABB` reads a region back with truthful
+`m2World_OverlapParticlesAabb` reads a region back with truthful
 totals; a circular region is one distance filter away on your side.
 
 Behavior flags: tensile particles pull their neighbors together below
@@ -343,12 +343,12 @@ apply the corrected inputs, re-step to now. The engine guarantees
 the re-simulation lands on the same bits the original would have, so
 divergence can only come from your input handling. If you record a
 journal while doing this, the tape includes your rollbacks and
-replays them faithfully; size tapes from `m2World_JournalBaseSize`.
+replays them faithfully; size tapes from `m2World_GetJournalBaseSize`.
 
 ## Hunting a divergence
 
 When your rollback game desyncs, the question is always the same:
-which step, and whose fault. `m2World_HashParts` answers both. Run
+which step, and whose fault. `m2World_GetHashParts` answers both. Run
 the two simulations you believe should match and compare parts after
 every step: the step where any field first splits names the moment,
 and the field itself names the subsystem: bodies means a transform

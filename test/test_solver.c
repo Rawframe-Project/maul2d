@@ -497,13 +497,13 @@ static void TestImpulses(void)
     m2CreateCircleShape(ball, &sd, &circle);
 
     float mass = 3.14159265f * 0.25f; // rho=1, r=0.5
-    m2Body_ApplyLinearImpulse(ball, (m2Vec2){mass, 0.0f}, (m2Pos2){0.0, 0.0});
+    m2Body_ApplyLinearImpulseAtPoint(ball, (m2Vec2){mass, 0.0f}, (m2Pos2){0.0, 0.0});
     m2Vec2 v = m2Body_GetLinearVelocity(ball);
     CHECK(v.x > 0.99f && v.x < 1.01f, "COM impulse gives J/m");
     CHECK(m2Body_GetAngularVelocity(ball) == 0.0f, "COM impulse does not spin");
 
     // Arm (0, 0.5): J=(mass,0) -> torque = -0.5*mass, w = -0.5*mass*invI.
-    m2Body_ApplyLinearImpulse(ball, (m2Vec2){mass, 0.0f}, (m2Pos2){0.0, 0.5});
+    m2Body_ApplyLinearImpulseAtPoint(ball, (m2Vec2){mass, 0.0f}, (m2Pos2){0.0, 0.5});
     float w = m2Body_GetAngularVelocity(ball);
     CHECK(w < -0.1f, "offset impulse spins the ball");
 

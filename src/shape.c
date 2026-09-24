@@ -193,7 +193,7 @@ static bool InsertShapeProxy(m2World* world, int32_t index, int32_t oldMaxShapeI
     int32_t tree = world->bodies.types[bodyIndex];
     world->broadphase.proxyIds[index] =
         m2TreeInsert(&world->broadphase.trees[tree], world->broadphase.treeNodes[tree],
-                     m2Fatten(m2ShapeTightAABB(world, index)), index);
+                     m2Fatten(m2ShapeTightAabb(world, index)), index);
     if (world->broadphase.proxyIds[index] != M2_NULL_NODE)
     {
         m2PushMoved(world, index);
@@ -689,9 +689,9 @@ m2ChainId m2Shape_GetParentChain(m2ShapeId shapeId)
     return id;
 }
 
-m2AABBResult m2Shape_GetAABB(m2ShapeId shapeId)
+m2AabbResult m2Shape_GetAabb(m2ShapeId shapeId)
 {
-    m2AABBResult result = {{0.0, 0.0}, {0.0, 0.0}};
+    m2AabbResult result = {{0.0, 0.0}, {0.0, 0.0}};
     m2World* world = m2WorldFromIndex(shapeId.world0);
     int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;
     if (index < 0)
@@ -699,7 +699,7 @@ m2AABBResult m2Shape_GetAABB(m2ShapeId shapeId)
         m2Refuse(world, m2_errorInvalid);
         return result;
     }
-    m2AABB tight = m2ComputeShapeAABB(&world->shapes.shapeGeometry[index],
+    m2Aabb tight = m2ComputeShapeAabb(&world->shapes.shapeGeometry[index],
                                       world->bodies.transforms[world->shapes.shapeBody[index]]);
     result.lowerBound = tight.lowerBound;
     result.upperBound = tight.upperBound;

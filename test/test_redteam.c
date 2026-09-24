@@ -687,7 +687,7 @@ static void TestHostileQueries(void)
           "a non-unit rotation casts nothing");
     CHECK(!m2World_CastRayClosest(world, (m2Pos2){0.0, 3.0}, (m2Vec2){NAN, -6.0f}, filter).hit,
           "a NaN ray hits nothing");
-    CHECK(m2World_OverlapAABB(world, (m2Pos2){(double)NAN, 0.0}, (m2Pos2){1.0, 1.0}, ids, 4,
+    CHECK(m2World_OverlapAabb(world, (m2Pos2){(double)NAN, 0.0}, (m2Pos2){1.0, 1.0}, ids, 4,
                               filter) == 0,
           "a NaN box overlaps nothing");
     CHECK(m2World_GetCounters(world).misuse == misuse + 9, "every hostile query refuses once");
@@ -862,7 +862,7 @@ static void TestQueryEdges(void)
                                                   m2DefaultQueryFilter());
     CHECK(!miss.hit, "empty world misses");
     m2ShapeId results[4];
-    CHECK(m2World_OverlapAABB(world, (m2Pos2){-1.0, -1.0}, (m2Pos2){1.0, 1.0}, results, 4,
+    CHECK(m2World_OverlapAabb(world, (m2Pos2){-1.0, -1.0}, (m2Pos2){1.0, 1.0}, results, 4,
                               m2DefaultQueryFilter()) == 0,
           "empty world overlaps nothing");
 
@@ -877,7 +877,7 @@ static void TestQueryEdges(void)
     // Destroyed shapes drop out of query results after the flush.
     m2DestroyBody(box);
     m2World_Step(world, 1.0f / 60.0f, 4);
-    CHECK(m2World_OverlapAABB(world, (m2Pos2){-1.0, -1.0}, (m2Pos2){1.0, 1.0}, results, 4,
+    CHECK(m2World_OverlapAabb(world, (m2Pos2){-1.0, -1.0}, (m2Pos2){1.0, 1.0}, results, 4,
                               m2DefaultQueryFilter()) == 0,
           "destroyed shape leaves the query space");
 
@@ -1045,7 +1045,7 @@ static void TestWakeAfterFrozenEra(void)
     CHECK(!m2Body_IsAwake(box), "asleep deep in the frozen era");
     double x0 = m2Body_GetPosition(box).x;
 
-    m2Body_ApplyLinearImpulse(box, (m2Vec2){2.0f, 0.0f}, m2Body_GetPosition(box));
+    m2Body_ApplyLinearImpulseAtPoint(box, (m2Vec2){2.0f, 0.0f}, m2Body_GetPosition(box));
     for (int32_t i = 0; i < 30; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);

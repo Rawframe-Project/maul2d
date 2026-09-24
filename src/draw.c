@@ -23,7 +23,7 @@ enum
     m2_colorJoint = 0x9f5fd8,
     m2_colorContact = 0xd85f5f,
     m2_colorFriction = 0x5fd8d8,
-    m2_colorAABB = 0x3f4f3f,
+    m2_colorAabb = 0x3f4f3f,
 };
 
 static uint32_t BodyColor(const m2World* world, int32_t body)
@@ -207,7 +207,7 @@ static void DrawContactForces(const m2World* world, const m2DebugDraw* draw)
     }
 }
 
-static void DrawAABBs(const m2World* world, const m2DebugDraw* draw)
+static void DrawAabbs(const m2World* world, const m2DebugDraw* draw)
 {
     for (int32_t i = 0; i < world->shapes.maxShapeIndex; ++i)
     {
@@ -218,15 +218,15 @@ static void DrawAABBs(const m2World* world, const m2DebugDraw* draw)
         const m2TreeNode* node =
             &world->broadphase.treeNodes[world->bodies.types[world->shapes.shapeBody[i]]]
                                         [world->broadphase.proxyIds[i]];
-        m2AABB box = node->aabb;
+        m2Aabb box = node->aabb;
         m2Pos2 c1 = {box.lowerBound.x, box.lowerBound.y};
         m2Pos2 c2 = {box.upperBound.x, box.lowerBound.y};
         m2Pos2 c3 = {box.upperBound.x, box.upperBound.y};
         m2Pos2 c4 = {box.lowerBound.x, box.upperBound.y};
-        draw->drawSegment(c1, c2, m2_colorAABB, draw->context);
-        draw->drawSegment(c2, c3, m2_colorAABB, draw->context);
-        draw->drawSegment(c3, c4, m2_colorAABB, draw->context);
-        draw->drawSegment(c4, c1, m2_colorAABB, draw->context);
+        draw->drawSegment(c1, c2, m2_colorAabb, draw->context);
+        draw->drawSegment(c2, c3, m2_colorAabb, draw->context);
+        draw->drawSegment(c3, c4, m2_colorAabb, draw->context);
+        draw->drawSegment(c4, c1, m2_colorAabb, draw->context);
     }
 }
 
@@ -260,8 +260,8 @@ void m2World_Draw(m2WorldId worldId, const m2DebugDraw* draw)
     {
         DrawContactForces(world, draw);
     }
-    if (draw->drawAABBs && draw->drawSegment != NULL)
+    if (draw->drawAabbs && draw->drawSegment != NULL)
     {
-        DrawAABBs(world, draw);
+        DrawAabbs(world, draw);
     }
 }

@@ -325,7 +325,7 @@ uint64_t m2World_Hash(m2WorldId worldId)
 
 // Subsystem hashes: independent seeds on purpose (the total is not
 // a function of the parts).
-m2WorldHashParts m2World_HashParts(m2WorldId worldId)
+m2WorldHashParts m2World_GetHashParts(m2WorldId worldId)
 {
     m2WorldHashParts parts;
     memset(&parts, 0, sizeof(parts));

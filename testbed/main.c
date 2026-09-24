@@ -1209,7 +1209,7 @@ int main(void)
         }
         if (IsKeyPressed(KEY_V))
         {
-            draw.drawAABBs = !draw.drawAABBs;
+            draw.drawAabbs = !draw.drawAabbs;
         }
         if (IsKeyPressed(KEY_H))
         {
