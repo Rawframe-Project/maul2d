@@ -55,7 +55,7 @@ Root files are `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`,
 | Enum type | `P` + PascalCase | `m2BodyType` |
 | Enum value | `P` + `_` + camelCase | `m2_dynamicBody` |
 | Macro, constant | `PP_` + UPPER_SNAKE | `M2_MAX_WORLDS` |
-| Internal function shared across files | `P` + PascalCase, no `_` | `m2SolveContacts`, `m3TreeInsert` |
+| Internal function shared across files | `P` + PascalCase, no `_` | `m2PrepareContacts`, `m3TreeInsert` |
 | `static` function | PascalCase | `UpdatePairs` |
 | Local variable, parameter, struct field | camelCase | `bodyIndex`, `pairCount` |
 | File-scope `static` variable | `s_` + camelCase | `s_worlds` |
@@ -280,7 +280,7 @@ Root files are `README.md`, `CHANGELOG.md`, `CONTRIBUTING.md`,
 - No code is copied or adapted from other projects. Algorithms from
   the literature are implemented from their published descriptions,
   and `docs/references.md` lists those sources.
-- Code adapted from other projects in the past keeps its origin note
-  and its license in `THIRD_PARTY.md` until it has been replaced.
+- The library takes no dependencies. If one is ever added, its name
+  and license go in a `THIRD_PARTY.md` at the repository root.
 - The testbed may use outside libraries (it is not part of the
   engine); they are listed in `README.md` under the testbed.

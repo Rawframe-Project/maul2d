@@ -435,7 +435,7 @@ pieces: the body becomes one flying fragment per piece, each
 carrying the parent's velocity. Pair it with an m2World_Explode at
 the impact point for the shove.
 
-**Water without particles.** Drop an m2FluidVolume over the region,
+**Water without particles.** Drop a fluid volume (`m2CreateFluidVolume`) over the region,
 set its surface line, and light bodies float while dense ones sink;
 give it a flow for a current, move the surface for a tide. Reach for
 a real particle pool only when you need the splash.

@@ -8,6 +8,14 @@ snapshot and journal formats.
 
 ## [Unreleased]
 
+### Changed
+
+- The README is rewritten. A new section introduces the Maul family:
+  what each engine is built for, and the contract, vocabulary, rules
+  and tools the two share; both libraries link into one program.
+  THIRD_PARTY.md is gone: the library uses no outside code, and the
+  testbed's raylib is credited in the README.
+
 ## [0.0.1] - 2026-09-24
 
 The first release of the reworked library.
