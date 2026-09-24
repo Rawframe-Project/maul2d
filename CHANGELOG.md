@@ -226,6 +226,9 @@ Work toward 0.0.1, the first release of the reworked library.
   for tools/family-renamed.txt) in the weekly CI job.
 - src/simd.h gains the equality, division, square root and mask-and
   lanes Maul3D's kernel uses, so both engines carry one SIMD header.
+- The README says no language bindings ship yet, and points to
+  Maul3D's C# starter kit for the pattern; CI runs the bindings check
+  where a repository has bindings.
 
 ### Removed
 

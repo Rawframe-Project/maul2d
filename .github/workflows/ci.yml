@@ -239,6 +239,9 @@ jobs:
           COUNT=$(python3 tools/gen_api.py | grep -oE '\([0-9]+ functions\)' | grep -oE '[0-9]+')
           git diff --exit-code docs/api.md || { echo "docs/api.md is stale: run tools/gen_api.py"; exit 1; }
           grep -q "$COUNT public functions" README.md || { echo "README says the wrong function count ($COUNT)"; exit 1; }
+      - name: The bindings match the C API
+        run: |
+          if [ -f tools/check_bindings.py ]; then python3 tools/check_bindings.py; fi
 
   bench-pins:
     name: bench pins

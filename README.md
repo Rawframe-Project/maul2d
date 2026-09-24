@@ -120,6 +120,10 @@ so a def that was not initialized with its `m2Default...Def`
 function is refused. Snapshots and journal tapes belong to one
 library version.
 
+No language bindings ship yet. The API is plain C with blittable
+structs, so it binds directly; Maul3D's C# starter kit shows the
+pattern, and its layout check applies unchanged.
+
 ## Documentation
 
 - [The guide](docs/guide.md): the contract, rollback netcode, joints,
