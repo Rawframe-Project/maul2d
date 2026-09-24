@@ -176,6 +176,11 @@ Work toward 0.0.1, the first release of the reworked library.
   rotation helpers inline; the public m2MakeRot, m2MulRot,
   m2NormalizeRot and m2UnwindAngle are the same inline code, so
   rotations are bit for bit unchanged.
+- m2Hash64 hashes eight bytes a round (xor, multiply by an odd
+  constant, fold the high half) and the leftover bytes one at a time,
+  instead of FNV-1a over every byte: about three times faster on a
+  whole world. Every hash value changes; the golden hashes and bench
+  pins are re-pinned, and gcc, clang and Debug agree.
 
 ### Removed
 

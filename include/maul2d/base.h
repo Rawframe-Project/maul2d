@@ -61,8 +61,9 @@ extern "C"
     typedef void m2FreeFn(void* memory);
     M2_API void m2SetAllocator(m2AllocZeroedFn* allocZeroed, m2FreeFn* freeFn);
 
-    /// FNV-1a 64-bit hash over a byte range. This is the hash used by the
-    /// determinism gates; its constants are frozen and will never change.
+    /// The 64-bit hash every determinism gate is built on: eight bytes a
+    /// round, xored in, multiplied by an odd constant and folded, the
+    /// leftover bytes one at a time (FNV-1a). Its constants are frozen.
     /// Thread class: reader (pure function).
     M2_API uint64_t m2Hash64(uint64_t seed, const void* data, int32_t byteCount);
 
