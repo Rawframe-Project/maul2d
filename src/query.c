@@ -176,7 +176,7 @@ m2RayCastResult m2World_CastRayClosest(m2WorldId worldId, m2Pos2 origin, m2Vec2 
     }
 
     result.shapeId.index1 = ray.shapeIndex + 1;
-    result.shapeId.world0 = worldId.index1;
+    result.shapeId.world = world->idWorld;
     result.shapeId.generation = world->shapes.shapeGenerations[ray.shapeIndex];
     result.fraction = ray.initialOverlap ? 0.0f : ray.fraction;
     result.point = (m2Pos2){origin.x + (double)result.fraction * (double)translation.x,
@@ -224,15 +224,14 @@ static void SiftDown(m2ShapeId* heap, int32_t size, int32_t i)
     }
 }
 
-static void OfferShape(ShapeSelection* sel, const m2World* world, m2WorldId worldId,
-                       int32_t shapeIndex)
+static void OfferShape(ShapeSelection* sel, const m2World* world, int32_t shapeIndex)
 {
     sel->total += 1;
     if (sel->ids == NULL || sel->capacity <= 0)
     {
         return;
     }
-    m2ShapeId id = {shapeIndex + 1, worldId.index1, world->shapes.shapeGenerations[shapeIndex]};
+    m2ShapeId id = {shapeIndex + 1, world->idWorld, world->shapes.shapeGenerations[shapeIndex]};
     if (sel->size < sel->capacity)
     {
         // Sift up.
@@ -300,7 +299,7 @@ int32_t m2World_OverlapAabb(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper, m2Sha
             {
                 continue;
             }
-            OfferShape(&sel, world, worldId, shapeIndex);
+            OfferShape(&sel, world, shapeIndex);
         }
     }
     return FinishSelection(&sel);
@@ -396,7 +395,7 @@ static m2RayCastResult CastProxyClosest(m2WorldId worldId, const m2DistanceProxy
     int32_t body = world->shapes.shapeBody[bestShape];
     m2Transform xf = world->bodies.transforms[body];
     result.shapeId.index1 = bestShape + 1;
-    result.shapeId.world0 = worldId.index1;
+    result.shapeId.world = world->idWorld;
     result.shapeId.generation = world->shapes.shapeGenerations[bestShape];
     result.fraction = bestOverlap ? 0.0f : bestFraction;
     result.hit = true;
@@ -462,7 +461,7 @@ static int32_t OverlapProxy(m2WorldId worldId, const m2DistanceProxy* castLocal,
             {
                 continue;
             }
-            OfferShape(&sel, world, worldId, shapeIndex);
+            OfferShape(&sel, world, shapeIndex);
         }
     }
     return FinishSelection(&sel);
@@ -538,7 +537,7 @@ m2RayCastResult m2Shape_CastRay(m2ShapeId shapeId, m2Pos2 origin, m2Vec2 transla
     result.fraction = 0.0f;
     result.hit = false;
 
-    m2World* world = m2WorldFromIndex0(shapeId.world0);
+    m2World* world = m2WorldFromTag(shapeId.world);
     if (world == NULL)
     {
         m2Refuse(world, m2_errorInvalid);
@@ -660,7 +659,7 @@ int32_t m2World_CastRayAll(m2WorldId worldId, m2Pos2 origin, m2Vec2 translation,
             bool initialOverlap = hit.normal.x == 0.0f && hit.normal.y == 0.0f;
             m2RayHit out;
             out.shapeId.index1 = shapeIndex + 1;
-            out.shapeId.world0 = worldId.index1;
+            out.shapeId.world = world->idWorld;
             out.shapeId.generation = world->shapes.shapeGenerations[shapeIndex];
             out.fraction = initialOverlap ? 0.0f : hit.fraction;
             out.normal = hit.normal;
@@ -737,7 +736,7 @@ static int32_t CastProxyAll(m2WorldId worldId, const m2DistanceProxy* castLocal,
             bool initialOverlap = hit.normal.x == 0.0f && hit.normal.y == 0.0f;
             m2RayHit out;
             out.shapeId.index1 = shapeIndex + 1;
-            out.shapeId.world0 = worldId.index1;
+            out.shapeId.world = world->idWorld;
             out.shapeId.generation = world->shapes.shapeGenerations[shapeIndex];
             out.fraction = initialOverlap ? 0.0f : hit.fraction;
             if (initialOverlap)

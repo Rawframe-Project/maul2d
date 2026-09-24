@@ -159,7 +159,7 @@ m2ChainId m2CreateChain(m2BodyId bodyId, const m2ChainDef* def)
         world->chains.maxChainIndex = chainIndex + 1;
     }
     m2JournalRecordChain(world, bodyId, def, created);
-    m2ChainId id = {chainIndex + 1, world->worldIndex0, world->chains.chainGenerations[chainIndex]};
+    m2ChainId id = {chainIndex + 1, world->idWorld, world->chains.chainGenerations[chainIndex]};
     return id;
 }
 
@@ -176,7 +176,7 @@ static int32_t ChainSlot(const m2World* world, m2ChainId chainId)
 
 void m2DestroyChain(m2ChainId chainId)
 {
-    m2World* world = m2WorldFromIndex(chainId.world0);
+    m2World* world = m2WorldFromTag(chainId.world);
     int32_t index = world != NULL ? ChainSlot(world, chainId) : -1;
     if (index < 0)
     {
@@ -220,13 +220,13 @@ void m2DestroyChain(m2ChainId chainId)
 
 bool m2Chain_IsValid(m2ChainId chainId)
 {
-    m2World* world = m2WorldFromIndex(chainId.world0);
+    m2World* world = m2WorldFromTag(chainId.world);
     return world != NULL && ChainSlot(world, chainId) >= 0;
 }
 
 int32_t m2Chain_GetSegmentCount(m2ChainId chainId)
 {
-    m2World* world = m2WorldFromIndex(chainId.world0);
+    m2World* world = m2WorldFromTag(chainId.world);
     int32_t index = world != NULL ? ChainSlot(world, chainId) : -1;
     if (index < 0)
     {
@@ -273,7 +273,7 @@ static void ChainMaterialInternal(m2World* world, m2ChainId chainId, int32_t cha
 
 void m2Chain_SetFriction(m2ChainId chainId, float friction)
 {
-    m2World* world = m2WorldFromIndex(chainId.world0);
+    m2World* world = m2WorldFromTag(chainId.world);
     int32_t index = world != NULL ? ChainSlot(world, chainId) : -1;
     if (index < 0 || !m2FiniteF(friction) || friction < 0.0f)
     {
@@ -285,7 +285,7 @@ void m2Chain_SetFriction(m2ChainId chainId, float friction)
 
 void m2Chain_SetRestitution(m2ChainId chainId, float restitution)
 {
-    m2World* world = m2WorldFromIndex(chainId.world0);
+    m2World* world = m2WorldFromTag(chainId.world);
     int32_t index = world != NULL ? ChainSlot(world, chainId) : -1;
     if (index < 0 || !(restitution >= 0.0f && restitution <= 1.0f))
     {
@@ -297,21 +297,21 @@ void m2Chain_SetRestitution(m2ChainId chainId, float restitution)
 
 m2WorldId m2Chain_GetWorld(m2ChainId chainId)
 {
-    m2World* world = m2WorldFromIndex(chainId.world0);
+    m2World* world = m2WorldFromTag(chainId.world);
     m2WorldId id = {0, 0};
     if (world == NULL)
     {
         m2Refuse(world, m2_errorInvalid);
         return id;
     }
-    id.index1 = world->worldIndex0;
+    id.index1 = (uint16_t)(world->slot + 1);
     id.generation = world->worldGeneration;
     return id;
 }
 
 int32_t m2Chain_GetShapes(m2ChainId chainId, m2ShapeId* ids, int32_t capacity)
 {
-    m2World* world = m2WorldFromIndex(chainId.world0);
+    m2World* world = m2WorldFromTag(chainId.world);
     int32_t chainIndex = world != NULL ? ChainSlot(world, chainId) : -1;
     if (chainIndex < 0)
     {

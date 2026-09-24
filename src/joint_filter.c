@@ -49,8 +49,8 @@ m2JointId m2CreateFilterJoint(m2WorldId worldId, const m2FilterJointDef* def)
         return m2_nullJointId;
     }
     m2Vec2 zero = {0.0f, 0.0f};
-    m2JointId jointId = m2FinishJoint(world, worldId, index, (uint8_t)m2_filterJoint, bodyA, bodyB,
-                                      zero, zero, 0.0f, 0.0f, 0.0f);
+    m2JointId jointId = m2FinishJoint(world, index, (uint8_t)m2_filterJoint, bodyA, bodyB, zero,
+                                      zero, 0.0f, 0.0f, 0.0f);
     world->joints.jointUserData[index] = def->userData;
     world->joints.jointCollide[index] = 0; // its entire purpose
     m2RefilterJointedBodies(world, bodyA, bodyB);

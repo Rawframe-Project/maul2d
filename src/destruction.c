@@ -144,7 +144,8 @@ static m2BodyId CreatePiece(m2World* world, int32_t parent, const m2ShapeDef* sh
     bd.gravityScale = world->bodies.gravityScales[parent];
     bd.linearDamping = world->bodies.linearDampings[parent];
     bd.angularDamping = world->bodies.angularDampings[parent];
-    m2BodyId piece = m2CreateBody((m2WorldId){world->worldIndex0, world->worldGeneration}, &bd);
+    m2BodyId piece =
+        m2CreateBody((m2WorldId){(uint16_t)(world->slot + 1), world->worldGeneration}, &bd);
     m2CreatePolygonShape(piece, shapeDef, polygon);
     int32_t index = piece.index1 - 1;
     m2Vec2 lc = world->bodies.localCenters[index];
@@ -160,7 +161,7 @@ static m2BodyId CreatePiece(m2World* world, int32_t parent, const m2ShapeDef* sh
 int32_t m2World_ShatterBody(m2BodyId bodyId, const m2Polygon* pieces, int32_t pieceCount,
                             m2BodyId* outBodies, int32_t capacity)
 {
-    m2World* world = m2WorldFromIndex(bodyId.world0);
+    m2World* world = m2WorldFromTag(bodyId.world);
     int32_t parent = world != NULL ? m2BodySlot(world, bodyId) : -1;
     bool valid = parent >= 0 && pieces != NULL && pieceCount >= 1 && pieceCount <= 64 &&
                  world->bodies.types[parent] == (uint8_t)m2_dynamicBody;

@@ -34,7 +34,7 @@ static int32_t ShapeSlot(const m2World* world, m2ShapeId id)
 
 m2ShapeId m2MakeShapeId(const m2World* world, int32_t shapeIndex)
 {
-    m2ShapeId id = {shapeIndex + 1, world->worldIndex0, world->shapes.shapeGenerations[shapeIndex]};
+    m2ShapeId id = {shapeIndex + 1, world->idWorld, world->shapes.shapeGenerations[shapeIndex]};
     return id;
 }
 
@@ -100,7 +100,7 @@ void m2DestroyShapeInternal(m2World* world, int32_t shapeIndex)
 
 void m2DestroyShape(m2ShapeId shapeId)
 {
-    m2World* world = m2WorldFromIndex(shapeId.world0);
+    m2World* world = m2WorldFromTag(shapeId.world);
     if (world == NULL)
     {
         return;
@@ -238,7 +238,7 @@ m2ShapeId m2CreateShape(m2BodyId bodyId, const m2ShapeDef* def, const m2ShapeGeo
         return m2_nullShapeId;
     }
     m2RecomputeMass(world, bodyIndex);
-    m2ShapeId id = {index + 1, bodyId.world0, world->shapes.shapeGenerations[index]};
+    m2ShapeId id = {index + 1, bodyId.world, world->shapes.shapeGenerations[index]};
     if (world->recorder.journalActive != 0)
     {
         m2OpCreateShape record;
@@ -277,13 +277,13 @@ M2_SHAPE_CTOR(m2CreateSegmentShape, m2Segment, m2_segmentShape, m2ValidateSegmen
 
 bool m2Shape_IsValid(m2ShapeId shapeId)
 {
-    m2World* world = m2WorldFromIndex(shapeId.world0);
+    m2World* world = m2WorldFromTag(shapeId.world);
     return world != NULL && ShapeSlot(world, shapeId) >= 0;
 }
 
 m2BodyId m2Shape_GetBody(m2ShapeId shapeId)
 {
-    m2World* world = m2WorldFromIndex(shapeId.world0);
+    m2World* world = m2WorldFromTag(shapeId.world);
     int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;
     if (index < 0)
     {
@@ -291,13 +291,13 @@ m2BodyId m2Shape_GetBody(m2ShapeId shapeId)
         return m2_nullBodyId;
     }
     int32_t bodyIndex = world->shapes.shapeBody[index];
-    m2BodyId id = {bodyIndex + 1, shapeId.world0, world->bodies.generations[bodyIndex]};
+    m2BodyId id = {bodyIndex + 1, shapeId.world, world->bodies.generations[bodyIndex]};
     return id;
 }
 
 uint64_t m2Shape_GetUserData(m2ShapeId shapeId)
 {
-    m2World* world = m2WorldFromIndex(shapeId.world0);
+    m2World* world = m2WorldFromTag(shapeId.world);
     int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;
     if (index < 0)
     {
@@ -309,7 +309,7 @@ uint64_t m2Shape_GetUserData(m2ShapeId shapeId)
 
 static int32_t ShapeSlotChecked(m2ShapeId shapeId, m2World** outWorld)
 {
-    m2World* world = m2WorldFromIndex(shapeId.world0);
+    m2World* world = m2WorldFromTag(shapeId.world);
     *outWorld = world;
     if (world == NULL)
     {
@@ -404,13 +404,13 @@ bool m2SetShapeParamInternal(m2World* world, m2ShapeId shapeId, uint8_t param, f
 
 void m2Shape_SetTangentSpeed(m2ShapeId shapeId, float speed)
 {
-    m2SetShapeParamInternal(m2WorldFromIndex(shapeId.world0), shapeId, m2_shapeParamTangentSpeed,
+    m2SetShapeParamInternal(m2WorldFromTag(shapeId.world), shapeId, m2_shapeParamTangentSpeed,
                             speed);
 }
 
 float m2Shape_GetTangentSpeed(m2ShapeId shapeId)
 {
-    m2World* world = m2WorldFromIndex(shapeId.world0);
+    m2World* world = m2WorldFromTag(shapeId.world);
     int32_t index = shapeId.index1 - 1;
     if (world == NULL || index < 0 || index >= world->shapes.shapeCapacity ||
         world->shapes.shapeAlive[index] == 0 ||
@@ -423,13 +423,13 @@ float m2Shape_GetTangentSpeed(m2ShapeId shapeId)
 
 void m2Shape_SetFriction(m2ShapeId shapeId, float friction)
 {
-    m2SetShapeParamInternal(m2WorldFromIndex(shapeId.world0), shapeId, m2_shapeParamFriction,
+    m2SetShapeParamInternal(m2WorldFromTag(shapeId.world), shapeId, m2_shapeParamFriction,
                             friction);
 }
 
 void m2Shape_SetRestitution(m2ShapeId shapeId, float restitution)
 {
-    m2SetShapeParamInternal(m2WorldFromIndex(shapeId.world0), shapeId, m2_shapeParamRestitution,
+    m2SetShapeParamInternal(m2WorldFromTag(shapeId.world), shapeId, m2_shapeParamRestitution,
                             restitution);
 }
 
@@ -604,7 +604,7 @@ void m2Shape_SetSegment(m2ShapeId shapeId, const m2Segment* segment)
 
 bool m2Shape_TestPoint(m2ShapeId shapeId, m2Pos2 point)
 {
-    m2World* world = m2WorldFromIndex(shapeId.world0);
+    m2World* world = m2WorldFromTag(shapeId.world);
     int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;
     if (index < 0)
     {
@@ -627,7 +627,7 @@ bool m2Shape_TestPoint(m2ShapeId shapeId, m2Pos2 point)
 
 m2Pos2 m2Shape_GetClosestPoint(m2ShapeId shapeId, m2Pos2 point)
 {
-    m2World* world = m2WorldFromIndex(shapeId.world0);
+    m2World* world = m2WorldFromTag(shapeId.world);
     int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;
     if (index < 0)
     {
@@ -656,21 +656,21 @@ m2Pos2 m2Shape_GetClosestPoint(m2ShapeId shapeId, m2Pos2 point)
 
 m2WorldId m2Shape_GetWorld(m2ShapeId shapeId)
 {
-    m2World* world = m2WorldFromIndex(shapeId.world0);
+    m2World* world = m2WorldFromTag(shapeId.world);
     m2WorldId id = {0, 0};
     if (world == NULL)
     {
         m2Refuse(world, m2_errorInvalid);
         return id;
     }
-    id.index1 = world->worldIndex0;
+    id.index1 = (uint16_t)(world->slot + 1);
     id.generation = world->worldGeneration;
     return id;
 }
 
 m2ChainId m2Shape_GetParentChain(m2ShapeId shapeId)
 {
-    m2World* world = m2WorldFromIndex(shapeId.world0);
+    m2World* world = m2WorldFromTag(shapeId.world);
     int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;
     m2ChainId id = {0, 0, 0};
     if (index < 0)
@@ -684,7 +684,7 @@ m2ChainId m2Shape_GetParentChain(m2ShapeId shapeId)
         return id;
     }
     id.index1 = chain + 1;
-    id.world0 = world->worldIndex0;
+    id.world = world->idWorld;
     id.generation = world->chains.chainGenerations[chain];
     return id;
 }
@@ -692,7 +692,7 @@ m2ChainId m2Shape_GetParentChain(m2ShapeId shapeId)
 m2AabbResult m2Shape_GetAabb(m2ShapeId shapeId)
 {
     m2AabbResult result = {{0.0, 0.0}, {0.0, 0.0}};
-    m2World* world = m2WorldFromIndex(shapeId.world0);
+    m2World* world = m2WorldFromTag(shapeId.world);
     int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;
     if (index < 0)
     {
@@ -751,7 +751,7 @@ void m2Shape_SetUserData(m2ShapeId shapeId, uint64_t userData)
 
 m2ShapeType m2Shape_GetType(m2ShapeId shapeId)
 {
-    m2World* world = m2WorldFromIndex(shapeId.world0);
+    m2World* world = m2WorldFromTag(shapeId.world);
     int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;
     if (index < 0)
     {
@@ -763,7 +763,7 @@ m2ShapeType m2Shape_GetType(m2ShapeId shapeId)
 
 bool m2Shape_IsSensor(m2ShapeId shapeId)
 {
-    m2World* world = m2WorldFromIndex(shapeId.world0);
+    m2World* world = m2WorldFromTag(shapeId.world);
     int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;
     if (index < 0)
     {
@@ -776,7 +776,7 @@ bool m2Shape_IsSensor(m2ShapeId shapeId)
 void m2Shape_GetFilter(m2ShapeId shapeId, uint32_t* categoryBits, uint32_t* maskBits,
                        int32_t* groupIndex)
 {
-    m2World* world = m2WorldFromIndex(shapeId.world0);
+    m2World* world = m2WorldFromTag(shapeId.world);
     int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;
     uint32_t category = 0;
     uint32_t mask = 0;
@@ -811,7 +811,7 @@ void m2Shape_GetFilter(m2ShapeId shapeId, uint32_t* categoryBits, uint32_t* mask
     {                                                                                              \
         fieldType zero;                                                                            \
         memset(&zero, 0, sizeof(zero));                                                            \
-        m2World* world = m2WorldFromIndex(shapeId.world0);                                         \
+        m2World* world = m2WorldFromTag(shapeId.world);                                            \
         int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;                            \
         if (index < 0 || world->shapes.shapeGeometry[index].type != (int32_t)(enumValue))          \
         {                                                                                          \
@@ -835,7 +835,7 @@ M2_GEOMETRY_GETTER(m2Shape_GetChainSegment, m2ChainSegment, chainSegment, m2_cha
 
 float m2Shape_GetDensity(m2ShapeId shapeId)
 {
-    m2World* world = m2WorldFromIndex(shapeId.world0);
+    m2World* world = m2WorldFromTag(shapeId.world);
     int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;
     if (index < 0)
     {

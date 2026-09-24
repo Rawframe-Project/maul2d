@@ -28,6 +28,14 @@ extern "C"
         uint16_t generation;
     } m2WorldId;
 
+    /// Ids of objects inside a world ({index1, world, generation}) name
+    /// the world that handed them out in their world field: its slot in
+    /// the low M2_WORLD_SLOT_BITS bits and the low bits of its
+    /// generation above them, so an id from a destroyed world is refused
+    /// by the next world in the same slot (until the slot has been
+    /// reused 1024 times).
+#define M2_WORLD_SLOT_BITS 6
+
     /// A range job: run items [startIndex, endIndex).
     typedef void m2TaskFn(int32_t startIndex, int32_t endIndex, void* taskContext);
     /// Split [0, itemCount) into subranges of at least minRange and
@@ -302,7 +310,7 @@ extern "C"
     typedef struct m2FluidVolumeId
     {
         int32_t index1; // 1-based, 0 = null
-        uint16_t world0;
+        uint16_t world;
         uint16_t generation;
     } m2FluidVolumeId;
 

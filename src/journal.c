@@ -216,7 +216,7 @@ static m2Result ReplayOps(m2WorldId worldId, m2World* world, const uint8_t* data
     m2ReplayCursor cursor;
     cursor.worldId = worldId;
     cursor.world = world;
-    cursor.here = worldId.index1;
+    cursor.here = world->idWorld;
     cursor.data = data;
     cursor.size = size;
     cursor.offset = (int32_t)sizeof(header) + header.snapshotSize;

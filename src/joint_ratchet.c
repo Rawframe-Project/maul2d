@@ -62,8 +62,8 @@ m2JointId m2CreateRatchetJoint(m2WorldId worldId, const m2RatchetJointDef* def)
         return m2_nullJointId;
     }
     m2Vec2 zero = {0.0f, 0.0f};
-    m2JointId jointId = m2FinishJoint(world, worldId, index, (uint8_t)m2_ratchetJoint, bodyA, bodyB,
-                                      zero, zero, 0.0f, 0.0f, 0.0f);
+    m2JointId jointId = m2FinishJoint(world, index, (uint8_t)m2_ratchetJoint, bodyA, bodyB, zero,
+                                      zero, 0.0f, 0.0f, 0.0f);
     world->joints.jointLength[index] = def->ratchet;
     world->joints.jointRefAngle[index] = def->phase;
     m2Rot qA = world->bodies.transforms[bodyA].q;
@@ -93,14 +93,14 @@ m2JointId m2CreateRatchetJoint(m2WorldId worldId, const m2RatchetJointDef* def)
 
 float m2RatchetJoint_GetRatchet(m2JointId jointId)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
+    m2World* world = m2WorldFromTag(jointId.world);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_ratchetJoint);
     return index >= 0 ? world->joints.jointLength[index] : 0.0f;
 }
 
 float m2RatchetJoint_GetPhase(m2JointId jointId)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
+    m2World* world = m2WorldFromTag(jointId.world);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_ratchetJoint);
     return index >= 0 ? world->joints.jointRefAngle[index] : 0.0f;
 }

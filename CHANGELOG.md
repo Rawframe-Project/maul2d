@@ -194,6 +194,13 @@ Work toward 0.0.1, the first release of the reworked library.
   context) and free(memory, context) with one context pointer, both or
   neither (a half pair is refused). The alloc hook may return
   uninitialized memory; the engine zeroes it.
+- Object ids carry their world's generation: the world field (was
+  world0) holds the world slot in its low M2_WORLD_SLOT_BITS bits and
+  the low bits of the world generation above them, so a world
+  recycling a slot refuses the ids of the world before it. An id
+  naming no live world now records m2_errorInvalid (it returned
+  silently before). M2_EVENT_HASH and M2_JOURNAL_HASH, which digest
+  raw ids, are re-pinned; gcc, clang and Debug agree.
 
 ### Removed
 

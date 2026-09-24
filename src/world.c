@@ -22,6 +22,7 @@
 #include <string.h>
 
 #define M2_MAX_WORLDS 16
+_Static_assert(M2_MAX_WORLDS <= (1 << M2_WORLD_SLOT_BITS), "a world slot fits the id bits");
 
 static m2World* s_worlds[M2_MAX_WORLDS];
 
@@ -46,13 +47,18 @@ m2World* m2WorldFromId(m2WorldId worldId)
     return m2GetWorld(worldId);
 }
 
-m2World* m2WorldFromIndex(uint16_t world0)
+m2World* m2WorldFromTag(uint16_t tag)
 {
-    if (world0 < 1 || world0 > M2_MAX_WORLDS)
+    // Slots past the table read as empty rather than wrapping onto a
+    // live world.
+    uint32_t slot = tag & ((1u << M2_WORLD_SLOT_BITS) - 1u);
+    m2World* world = slot < M2_MAX_WORLDS ? s_worlds[slot] : NULL;
+    if (world == NULL || world->idWorld != tag)
     {
+        m2Refuse(NULL, m2_errorInvalid); // an id of a world that is gone
         return NULL;
     }
-    return s_worlds[world0 - 1];
+    return world;
 }
 
 // --- Defs & world lifecycle ----------------------------------------------------
@@ -244,7 +250,9 @@ m2WorldId m2CreateWorld(const m2WorldDef* def)
 
     s_worldGenerations[slot] += 1;
     world->worldGeneration = s_worldGenerations[slot];
-    world->worldIndex0 = (uint16_t)(slot + 1);
+    world->slot = (uint16_t)slot;
+    world->idWorld =
+        (uint16_t)(((uint32_t)world->worldGeneration << M2_WORLD_SLOT_BITS) | (uint32_t)slot);
     world->sleepEnabled = 1;
     s_worlds[slot] = world;
     return (m2WorldId){(uint16_t)(slot + 1), world->worldGeneration};
@@ -395,7 +403,7 @@ static void EmitTouchEvents(m2World* world)
 // Particle lifetimes count down and expire in ascending slot order at
 // step end; derived from state, so no journal op, and it replays and
 // rolls back by itself.
-static void AgeParticles(m2World* world, m2WorldId worldId, float dt)
+static void AgeParticles(m2World* world, float dt)
 {
     for (int32_t i = 0; i < world->particles.maxParticleIndex; ++i)
     {
@@ -406,7 +414,7 @@ static void AgeParticles(m2World* world, m2WorldId worldId, float dt)
         world->particles.particleLifetime[i] -= dt;
         if (world->particles.particleLifetime[i] <= 0.0f)
         {
-            m2ParticleId dying = {i + 1, worldId.index1, world->particles.particleGenerations[i]};
+            m2ParticleId dying = {i + 1, world->idWorld, world->particles.particleGenerations[i]};
             uint8_t journalWas = world->recorder.journalActive;
             world->recorder.journalActive = 0; // derived death is never recorded
             m2World_DestroyParticle(dying);
@@ -503,7 +511,7 @@ void m2World_Step(m2WorldId worldId, float dt, int32_t substepCount)
         // pairs frozen at step start, and before the island update, so a
         // body the water wakes pulls its whole island awake.
         m2SolveParticles(world, dt);
-        AgeParticles(world, worldId, dt);
+        AgeParticles(world, dt);
     }
     if (world->volumes.maxFvIndex > 0)
     {
@@ -712,11 +720,6 @@ void m2World_GetWind(m2WorldId worldId, m2Vec2* velocity, float* linearDrag)
     }
 }
 
-m2World* m2WorldFromIndex0(uint16_t index0)
-{
-    return m2WorldFromIndex(index0);
-}
-
 m2Counters m2World_GetCounters(m2WorldId worldId)
 {
     m2Counters counters;
@@ -776,7 +779,7 @@ int32_t m2World_GetBodies(m2WorldId worldId, m2BodyId* ids, int32_t capacity)
         }
         if (ids != NULL && total < capacity)
         {
-            m2BodyId id = {i + 1, world->worldIndex0, world->bodies.generations[i]};
+            m2BodyId id = {i + 1, world->idWorld, world->bodies.generations[i]};
             ids[total] = id;
         }
         total += 1;
@@ -800,7 +803,7 @@ int32_t m2World_GetJoints(m2WorldId worldId, m2JointId* ids, int32_t capacity)
         }
         if (ids != NULL && total < capacity)
         {
-            m2JointId id = {i + 1, world->worldIndex0, world->joints.jointGenerations[i]};
+            m2JointId id = {i + 1, world->idWorld, world->joints.jointGenerations[i]};
             ids[total] = id;
         }
         total += 1;
@@ -824,7 +827,7 @@ int32_t m2World_GetChains(m2WorldId worldId, m2ChainId* ids, int32_t capacity)
         }
         if (ids != NULL && total < capacity)
         {
-            m2ChainId id = {i + 1, world->worldIndex0, world->chains.chainGenerations[i]};
+            m2ChainId id = {i + 1, world->idWorld, world->chains.chainGenerations[i]};
             ids[total] = id;
         }
         total += 1;

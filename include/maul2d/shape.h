@@ -19,7 +19,7 @@ extern "C"
     typedef struct m2ShapeId
     {
         int32_t index1; // 1-based, 0 = null
-        uint16_t world0;
+        uint16_t world;
         uint16_t generation;
     } m2ShapeId;
 
@@ -106,7 +106,7 @@ extern "C"
     typedef struct m2ChainId
     {
         int32_t index1; // 1-based, 0 = null
-        uint16_t world0;
+        uint16_t world;
         uint16_t generation;
     } m2ChainId;
 

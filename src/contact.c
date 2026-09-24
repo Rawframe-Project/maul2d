@@ -484,7 +484,7 @@ m2JointEvents m2World_GetJointEvents(m2WorldId worldId)
 
 int32_t m2Shape_GetSensorOverlaps(m2ShapeId sensorShapeId, m2ShapeId* overlaps, int32_t capacity)
 {
-    m2World* world = m2WorldFromIndex(sensorShapeId.world0);
+    m2World* world = m2WorldFromTag(sensorShapeId.world);
     if (world == NULL)
     {
         return 0;

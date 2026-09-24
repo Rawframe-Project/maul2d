@@ -58,7 +58,7 @@ m2JointId m2CreateWeldJoint(m2WorldId worldId, const m2WeldJointDef* def)
         return m2_nullJointId;
     }
     m2JointId jointId =
-        m2FinishJoint(world, worldId, index, (uint8_t)m2_weldJoint, bodyA, bodyB, def->localAnchorA,
+        m2FinishJoint(world, index, (uint8_t)m2_weldJoint, bodyA, bodyB, def->localAnchorA,
                       def->localAnchorB, 0.0f, def->linearHertz, def->linearDampingRatio);
     world->joints.jointUserData[index] = def->userData;
     world->joints.jointCollide[index] = def->collideConnected ? 1 : 0;

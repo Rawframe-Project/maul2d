@@ -256,7 +256,7 @@ m2FluidVolumeId m2World_CreateFluidVolume(m2WorldId worldId, const m2FluidVolume
     world->volumes.fvFlow[index] = def->flow;
     world->volumes.fvUserData[index] = def->userData;
     world->volumes.fvAlive[index] = 1;
-    m2FluidVolumeId id = {index + 1, worldId.index1, world->volumes.fvGenerations[index]};
+    m2FluidVolumeId id = {index + 1, world->idWorld, world->volumes.fvGenerations[index]};
     if (world->recorder.journalActive != 0)
     {
         m2OpCreateFluidVolume record;
@@ -281,7 +281,7 @@ static int32_t FvSlot(const m2World* world, m2FluidVolumeId id)
 
 void m2World_DestroyFluidVolume(m2FluidVolumeId volumeId)
 {
-    m2World* world = m2WorldFromIndex0(volumeId.world0);
+    m2World* world = m2WorldFromTag(volumeId.world);
     int32_t index = FvSlot(world, volumeId);
     if (index < 0)
     {
@@ -301,13 +301,13 @@ void m2World_DestroyFluidVolume(m2FluidVolumeId volumeId)
 
 bool m2FluidVolume_IsValid(m2FluidVolumeId volumeId)
 {
-    m2World* world = m2WorldFromIndex0(volumeId.world0);
+    m2World* world = m2WorldFromTag(volumeId.world);
     return FvSlot(world, volumeId) >= 0;
 }
 
 void m2FluidVolume_SetSurface(m2FluidVolumeId volumeId, double surface)
 {
-    m2World* world = m2WorldFromIndex0(volumeId.world0);
+    m2World* world = m2WorldFromTag(volumeId.world);
     int32_t index = FvSlot(world, volumeId);
     if (index < 0 || !m2FiniteD(surface))
     {
@@ -327,14 +327,14 @@ void m2FluidVolume_SetSurface(m2FluidVolumeId volumeId, double surface)
 
 double m2FluidVolume_GetSurface(m2FluidVolumeId volumeId)
 {
-    m2World* world = m2WorldFromIndex0(volumeId.world0);
+    m2World* world = m2WorldFromTag(volumeId.world);
     int32_t index = FvSlot(world, volumeId);
     return index >= 0 ? world->volumes.fvSurface[index] : 0.0;
 }
 
 uint64_t m2FluidVolume_GetUserData(m2FluidVolumeId volumeId)
 {
-    m2World* world = m2WorldFromIndex0(volumeId.world0);
+    m2World* world = m2WorldFromTag(volumeId.world);
     int32_t index = FvSlot(world, volumeId);
     return index >= 0 ? world->volumes.fvUserData[index] : 0;
 }

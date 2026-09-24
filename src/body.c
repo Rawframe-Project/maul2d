@@ -21,7 +21,7 @@
 
 m2World* m2GetBodyWorld(m2BodyId id)
 {
-    return m2WorldFromIndex(id.world0);
+    return m2WorldFromTag(id.world);
 }
 
 int32_t m2BodySlot(const m2World* world, m2BodyId id)
@@ -174,7 +174,7 @@ m2BodyId m2CreateBody(m2WorldId worldId, const m2BodyDef* def)
         world->bodies.maxBodyIndex = index + 1;
     }
 
-    m2BodyId id = {index + 1, worldId.index1, world->bodies.generations[index]};
+    m2BodyId id = {index + 1, world->idWorld, world->bodies.generations[index]};
 
     if (world->recorder.journalActive != 0)
     {

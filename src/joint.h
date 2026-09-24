@@ -40,9 +40,8 @@ int32_t m2TypedJointSlot(m2World* world, m2JointId jointId, uint8_t type);
 // Creation: a free slot (or -1), then the fields every joint starts
 // with, linked into both bodies' lists, both bodies awake.
 int32_t m2AllocateJoint(m2World* world);
-m2JointId m2FinishJoint(m2World* world, m2WorldId worldId, int32_t index, uint8_t type,
-                        int32_t bodyA, int32_t bodyB, m2Vec2 anchorA, m2Vec2 anchorB, float length,
-                        float hertz, float damping);
+m2JointId m2FinishJoint(m2World* world, int32_t index, uint8_t type, int32_t bodyA, int32_t bodyB,
+                        m2Vec2 anchorA, m2Vec2 anchorB, float length, float hertz, float damping);
 
 // The rope length on one side of a pulley (0 = A, 1 = B) right now.
 float m2PulleyLiveLength(m2World* world, int32_t index, int32_t side);

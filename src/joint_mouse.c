@@ -65,8 +65,8 @@ m2JointId m2CreateMouseJoint(m2WorldId worldId, const m2MouseJointDef* def)
     m2Vec2 rel = {(float)(def->target.x - xfB.p.x), (float)(def->target.y - xfB.p.y)};
     m2Vec2 grab = {xfB.q.c * rel.x + xfB.q.s * rel.y, -xfB.q.s * rel.x + xfB.q.c * rel.y};
     m2Vec2 zero = {0.0f, 0.0f};
-    m2JointId jointId = m2FinishJoint(world, worldId, index, (uint8_t)m2_mouseJoint, bodyA, bodyB,
-                                      zero, grab, 0.0f, def->hertz, def->dampingRatio);
+    m2JointId jointId = m2FinishJoint(world, index, (uint8_t)m2_mouseJoint, bodyA, bodyB, zero,
+                                      grab, 0.0f, def->hertz, def->dampingRatio);
     world->joints.jointLength[index] = def->maxForce;
     world->joints.jointTargets[index] = def->target;
     world->joints.jointUserData[index] = def->userData;
@@ -88,7 +88,7 @@ m2JointId m2CreateMouseJoint(m2WorldId worldId, const m2MouseJointDef* def)
 
 void m2MouseJoint_SetTarget(m2JointId jointId, m2Pos2 target)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
+    m2World* world = m2WorldFromTag(jointId.world);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_mouseJoint);
     if (index < 0)
     {
@@ -114,7 +114,7 @@ void m2MouseJoint_SetTarget(m2JointId jointId, m2Pos2 target)
 
 m2Pos2 m2MouseJoint_GetTarget(m2JointId jointId)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
+    m2World* world = m2WorldFromTag(jointId.world);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_mouseJoint);
     m2Pos2 zero = {0.0, 0.0};
     return index >= 0 ? world->joints.jointTargets[index] : zero;
@@ -122,7 +122,7 @@ m2Pos2 m2MouseJoint_GetTarget(m2JointId jointId)
 
 float m2MouseJoint_GetMaxForce(m2JointId jointId)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
+    m2World* world = m2WorldFromTag(jointId.world);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_mouseJoint);
     return index >= 0 ? world->joints.jointLength[index] : 0.0f;
 }

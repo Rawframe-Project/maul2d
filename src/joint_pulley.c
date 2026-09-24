@@ -79,7 +79,7 @@ m2JointId m2CreatePulleyJoint(m2WorldId worldId, const m2PulleyJointDef* def)
         m2Refuse(world, m2_errorCapacity);
         return m2_nullJointId;
     }
-    m2JointId jointId = m2FinishJoint(world, worldId, index, (uint8_t)m2_pulleyJoint, bodyA, bodyB,
+    m2JointId jointId = m2FinishJoint(world, index, (uint8_t)m2_pulleyJoint, bodyA, bodyB,
                                       def->localAnchorA, def->localAnchorB, def->ratio, 0.0f, 0.0f);
     world->joints.jointTargets[index] = def->groundAnchorA;
     world->joints.jointTargetsB[index] = def->groundAnchorB;
@@ -105,27 +105,27 @@ m2JointId m2CreatePulleyJoint(m2WorldId worldId, const m2PulleyJointDef* def)
 
 void m2PulleyJoint_SetRatio(m2JointId jointId, float ratio)
 {
-    m2SetJointParamInternal(m2WorldFromIndex(jointId.world0), jointId, m2_jointParamPulleyRatio,
+    m2SetJointParamInternal(m2WorldFromTag(jointId.world), jointId, m2_jointParamPulleyRatio,
                             ratio);
 }
 
 float m2PulleyJoint_GetRatio(m2JointId jointId)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
+    m2World* world = m2WorldFromTag(jointId.world);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_pulleyJoint);
     return index >= 0 ? world->joints.jointLength[index] : 0.0f;
 }
 
 float m2PulleyJoint_GetLengthA(m2JointId jointId)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
+    m2World* world = m2WorldFromTag(jointId.world);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_pulleyJoint);
     return index >= 0 ? m2PulleyLiveLength(world, index, 0) : 0.0f;
 }
 
 float m2PulleyJoint_GetLengthB(m2JointId jointId)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
+    m2World* world = m2WorldFromTag(jointId.world);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_pulleyJoint);
     return index >= 0 ? m2PulleyLiveLength(world, index, 1) : 0.0f;
 }
@@ -133,7 +133,7 @@ float m2PulleyJoint_GetLengthB(m2JointId jointId)
 m2Pos2 m2PulleyJoint_GetGroundAnchorA(m2JointId jointId)
 {
     m2Pos2 zero = {0.0, 0.0};
-    m2World* world = m2WorldFromIndex(jointId.world0);
+    m2World* world = m2WorldFromTag(jointId.world);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_pulleyJoint);
     return index >= 0 ? world->joints.jointTargets[index] : zero;
 }
@@ -141,7 +141,7 @@ m2Pos2 m2PulleyJoint_GetGroundAnchorA(m2JointId jointId)
 m2Pos2 m2PulleyJoint_GetGroundAnchorB(m2JointId jointId)
 {
     m2Pos2 zero = {0.0, 0.0};
-    m2World* world = m2WorldFromIndex(jointId.world0);
+    m2World* world = m2WorldFromTag(jointId.world);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_pulleyJoint);
     return index >= 0 ? world->joints.jointTargetsB[index] : zero;
 }

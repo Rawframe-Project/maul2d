@@ -95,7 +95,7 @@ int32_t m2World_CollideMover(m2WorldId worldId, const m2Capsule* mover, m2Transf
             {
                 m2MoverPlane* out = results + total;
                 out->shapeId.index1 = shapeIndex + 1;
-                out->shapeId.world0 = worldId.index1;
+                out->shapeId.world = world->idWorld;
                 out->shapeId.generation = world->shapes.shapeGenerations[shapeIndex];
                 out->normal = (m2Vec2){xf.q.c * normalLocal.x - xf.q.s * normalLocal.y,
                                        xf.q.s * normalLocal.x + xf.q.c * normalLocal.y};

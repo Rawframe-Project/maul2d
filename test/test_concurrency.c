@@ -197,8 +197,8 @@ static void TestLastResultIsPerThread(void)
     def.shapeCapacity = 1;
     m2WorldId world = m2CreateWorld(&def);
     m2BodyDef bd = m2DefaultBodyDef();
-    m2CreateBody(world, &bd);
-    m2BodyId stale = {99, world.index1, 0};
+    m2BodyId stale = m2CreateBody(world, &bd);
+    stale.generation += 1; // this world's id, but for no live body
     m2DestroyBody(stale);
     CHECK(m2LastResult() == m2_errorInvalid, "this thread's refusal is invalid");
     pthread_t other;

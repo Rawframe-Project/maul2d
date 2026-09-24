@@ -67,8 +67,8 @@ m2JointId m2CreateMotorJoint(m2WorldId worldId, const m2MotorJointDef* def)
         return m2_nullJointId;
     }
     m2Vec2 zero = {0.0f, 0.0f};
-    m2JointId jointId = m2FinishJoint(world, worldId, index, (uint8_t)m2_motorJoint, bodyA, bodyB,
-                                      zero, zero, 0.0f, 0.0f, 0.0f);
+    m2JointId jointId = m2FinishJoint(world, index, (uint8_t)m2_motorJoint, bodyA, bodyB, zero,
+                                      zero, 0.0f, 0.0f, 0.0f);
     world->joints.jointLocalAxisA[index] = def->linearOffset;
     world->joints.jointRefAngle[index] = def->angularOffset;
     world->joints.jointMaxMotor[index] = def->maxTorque;
@@ -98,7 +98,7 @@ m2JointId m2CreateMotorJoint(m2WorldId worldId, const m2MotorJointDef* def)
 
 void m2MotorJoint_SetOffsets(m2JointId jointId, m2Vec2 linearOffset, float angularOffset)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
+    m2World* world = m2WorldFromTag(jointId.world);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
     if (index < 0)
     {
@@ -129,7 +129,7 @@ void m2MotorJoint_SetOffsets(m2JointId jointId, m2Vec2 linearOffset, float angul
 
 m2Vec2 m2MotorJoint_GetLinearOffset(m2JointId jointId)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
+    m2World* world = m2WorldFromTag(jointId.world);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
     m2Vec2 zero = {0.0f, 0.0f};
     return index >= 0 ? world->joints.jointLocalAxisA[index] : zero;
@@ -137,21 +137,21 @@ m2Vec2 m2MotorJoint_GetLinearOffset(m2JointId jointId)
 
 float m2MotorJoint_GetAngularOffset(m2JointId jointId)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
+    m2World* world = m2WorldFromTag(jointId.world);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
     return index >= 0 ? world->joints.jointRefAngle[index] : 0.0f;
 }
 
 float m2MotorJoint_GetMaxForce(m2JointId jointId)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
+    m2World* world = m2WorldFromTag(jointId.world);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
     return index >= 0 ? world->joints.jointLength[index] : 0.0f;
 }
 
 float m2MotorJoint_GetCorrectionFactor(m2JointId jointId)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
+    m2World* world = m2WorldFromTag(jointId.world);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
     return index >= 0 ? world->joints.jointDamping[index] : 0.0f;
 }

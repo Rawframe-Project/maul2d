@@ -71,8 +71,8 @@ m2JointId m2CreateWheelJoint(m2WorldId worldId, const m2WheelJointDef* def)
         return m2_nullJointId;
     }
     m2JointId jointId =
-        m2FinishJoint(world, worldId, index, (uint8_t)m2_wheelJoint, bodyA, bodyB,
-                      def->localAnchorA, def->localAnchorB, 0.0f, def->hertz, def->dampingRatio);
+        m2FinishJoint(world, index, (uint8_t)m2_wheelJoint, bodyA, bodyB, def->localAnchorA,
+                      def->localAnchorB, 0.0f, def->hertz, def->dampingRatio);
     world->joints.jointUserData[index] = def->userData;
     world->joints.jointCollide[index] = def->collideConnected ? 1 : 0;
     if (def->collideConnected == false)

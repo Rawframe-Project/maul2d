@@ -73,8 +73,8 @@ m2JointId m2CreateDistanceJoint(m2WorldId worldId, const m2DistanceJointDef* def
         length = sqrtf(dx * dx + dy * dy);
     }
     m2JointId jointId =
-        m2FinishJoint(world, worldId, index, (uint8_t)m2_distanceJoint, bodyA, bodyB,
-                      def->localAnchorA, def->localAnchorB, length, def->hertz, def->dampingRatio);
+        m2FinishJoint(world, index, (uint8_t)m2_distanceJoint, bodyA, bodyB, def->localAnchorA,
+                      def->localAnchorB, length, def->hertz, def->dampingRatio);
     // The hard range: off by default (0 .. huge); a def maxLength <= 0
     // means unbounded, mirroring "length <= 0 derives".
     world->joints.jointLower[index] = def->minLength > 0.0f ? def->minLength : 0.0f;
@@ -102,12 +102,12 @@ m2JointId m2CreateDistanceJoint(m2WorldId worldId, const m2DistanceJointDef* def
 
 void m2DistanceJoint_SetLength(m2JointId jointId, float length)
 {
-    m2SetJointParamInternal(m2WorldFromIndex(jointId.world0), jointId, m2_jointParamLength, length);
+    m2SetJointParamInternal(m2WorldFromTag(jointId.world), jointId, m2_jointParamLength, length);
 }
 
 void m2DistanceJoint_SetLengthRange(m2JointId jointId, float minLength, float maxLength)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
+    m2World* world = m2WorldFromTag(jointId.world);
     if (!m2FiniteF(minLength) || !m2FiniteF(maxLength))
     {
         m2Refuse(world, m2_errorInvalid);

@@ -47,10 +47,12 @@ every step; 1/60 with 4 substeps is the tuned default.
 ## Ids, not pointers
 
 Every handle (`m2BodyId`, `m2ShapeId`, `m2JointId`, `m2ChainId`,
-`m2ParticleId`) is an index plus a generation. Destroyed ids stay
-dead forever, even after their slot is reused; `m2Body_IsValid` and
-friends answer without asserting. Handles are values: copy them,
-store them, send them over the network.
+`m2ParticleId`) is an index plus a generation, and names its world
+by slot and generation. Destroyed ids stay dead, even after their
+slot is reused, and so do the ids of a destroyed world when a new
+world takes its slot; `m2Body_IsValid` and friends answer without
+asserting. Handles are values: copy them, store them, send them over
+the network.
 
 ## Positions are doubles
 

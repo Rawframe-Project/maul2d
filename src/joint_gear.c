@@ -60,8 +60,8 @@ m2JointId m2CreateGearJoint(m2WorldId worldId, const m2GearJointDef* def)
         return m2_nullJointId;
     }
     m2Vec2 zero = {0.0f, 0.0f};
-    m2JointId jointId = m2FinishJoint(world, worldId, index, (uint8_t)m2_gearJoint, bodyA, bodyB,
-                                      zero, zero, 0.0f, 0.0f, 0.0f);
+    m2JointId jointId = m2FinishJoint(world, index, (uint8_t)m2_gearJoint, bodyA, bodyB, zero, zero,
+                                      0.0f, 0.0f, 0.0f);
     world->joints.jointLength[index] = def->ratio;
     m2Rot qA = world->bodies.transforms[bodyA].q;
     m2Rot qB = world->bodies.transforms[bodyB].q;
@@ -87,13 +87,12 @@ m2JointId m2CreateGearJoint(m2WorldId worldId, const m2GearJointDef* def)
 
 void m2GearJoint_SetRatio(m2JointId jointId, float ratio)
 {
-    m2SetJointParamInternal(m2WorldFromIndex(jointId.world0), jointId, m2_jointParamGearRatio,
-                            ratio);
+    m2SetJointParamInternal(m2WorldFromTag(jointId.world), jointId, m2_jointParamGearRatio, ratio);
 }
 
 float m2GearJoint_GetRatio(m2JointId jointId)
 {
-    m2World* world = m2WorldFromIndex(jointId.world0);
+    m2World* world = m2WorldFromTag(jointId.world);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_gearJoint);
     return index >= 0 ? world->joints.jointLength[index] : 0.0f;
 }

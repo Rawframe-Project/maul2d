@@ -1954,7 +1954,7 @@ static void TestReactionAllTypes(void)
     CHECK(m2Joint_GetReactionTorque(shoulder) > 1.0f, "the holding motor reads torque");
     CHECK(m2Joint_GetReactionForce(shoulder) > 1.0f, "and the pin carries the arm");
 
-    m2JointId never = {5, shoulder.world0, 999};
+    m2JointId never = {5, shoulder.world, 999};
     CHECK(m2Joint_GetReactionForce(never) == 0.0f, "a bogus id reads zero force");
     CHECK(m2Joint_GetReactionTorque(never) == 0.0f, "and zero torque");
     m2DestroyWorld(world);

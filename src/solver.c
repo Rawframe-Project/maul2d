@@ -175,7 +175,7 @@ static void BreakJoints(m2World* world, float invH)
                 &world->events.jointBreakEvents[world->events.jointBreakEventCount++];
             memset(e, 0, sizeof(*e));
             e->jointId.index1 = j + 1;
-            e->jointId.world0 = world->worldIndex0;
+            e->jointId.world = world->idWorld;
             e->jointId.generation = world->joints.jointGenerations[j];
             e->step = world->stepCount;
             e->force = force;

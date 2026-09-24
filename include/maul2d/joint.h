@@ -32,7 +32,7 @@ extern "C"
     typedef struct m2JointId
     {
         int32_t index1; // 1-based, 0 = null
-        uint16_t world0;
+        uint16_t world;
         uint16_t generation;
     } m2JointId;
 

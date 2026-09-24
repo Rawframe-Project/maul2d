@@ -461,7 +461,7 @@ typedef struct m2ReplayCursor
 {
     m2WorldId worldId;
     m2World* world;
-    uint16_t here; // the target world's registry index, rebinding every id
+    uint16_t here; // the target world's id field, rebinding every id
     const uint8_t* data;
     int32_t size;
     int32_t offset;

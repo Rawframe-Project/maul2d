@@ -131,7 +131,7 @@ int32_t m2Body_GetJoints(m2BodyId bodyId, m2JointId* ids, int32_t capacity)
         int32_t j = e >> 1;
         if (ids != NULL && total < capacity)
         {
-            m2JointId id = {j + 1, world->worldIndex0, world->joints.jointGenerations[j]};
+            m2JointId id = {j + 1, world->idWorld, world->joints.jointGenerations[j]};
             ids[total] = id;
         }
         total += 1;
@@ -178,7 +178,7 @@ m2WorldId m2Body_GetWorld(m2BodyId bodyId)
         m2Refuse(world, m2_errorInvalid);
         return id;
     }
-    id.index1 = world->worldIndex0;
+    id.index1 = (uint16_t)(world->slot + 1);
     id.generation = world->worldGeneration;
     return id;
 }

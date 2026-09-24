@@ -103,6 +103,26 @@ static void TestRollbackIdentity(void)
     m2DestroyWorld(world);
 }
 
+static void TestIdsOutliveNoWorld(void)
+{
+    // A world recycling a slot refuses the ids of the world before it,
+    // even when the object slot and generation line up exactly.
+    m2WorldDef def = m2DefaultWorldDef();
+    m2WorldId first = m2CreateWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2BodyId old = m2CreateBody(first, &bd);
+    m2DestroyWorld(first);
+    m2WorldId second = m2CreateWorld(&def);
+    CHECK(second.index1 == first.index1 && second.generation != first.generation,
+          "the new world takes the same slot");
+    m2BodyId fresh = m2CreateBody(second, &bd);
+    CHECK(fresh.index1 == old.index1 && fresh.generation == old.generation,
+          "the new body takes the same slot and generation");
+    CHECK(!m2Body_IsValid(old), "the old world's id is refused");
+    CHECK(m2Body_IsValid(fresh), "the new world's id resolves");
+    m2DestroyWorld(second);
+}
+
 static void TestIdSemantics(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
@@ -142,13 +162,6 @@ static uint64_t DeterminismSweep(void)
     for (int32_t i = 0; i < 300; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
-    }
-    // Mutate mid-run the way a game would, in fixed order.
-    for (int32_t i = 0; i < 100; ++i)
-    {
-        m2BodyId probe = {i + 1, world.index1, 0};
-        probe.generation = 0;
-        (void)probe; // id probing is covered in TestIdSemantics
     }
     uint64_t h = m2World_Hash(world);
     m2DestroyWorld(world);
@@ -1822,7 +1835,7 @@ static void TestEveryRefusalHasAReason(void)
     CHECK(m2LastResult() == m2_errorInvalid, "a zero dt is refused");
     m2World_Step(world, 1.0f / 60.0f, 0);
     CHECK(m2LastResult() == m2_errorInvalid, "zero substeps are refused");
-    m2JointId staleJoint = {1, a.world0, 1};
+    m2JointId staleJoint = {1, a.world, 1};
     CHECK(m2Joint_GetLength(staleJoint) == 0.0f, "a stale joint read returns zero");
     CHECK(m2World_GetCounters(world).misuse == misuseBefore + 3, "and each refusal counts once");
     m2DestroyWorld(world);
@@ -2451,6 +2464,7 @@ int main(void)
     TestDefCookies();
     TestRollbackIdentity();
     TestIdSemantics();
+    TestIdsOutliveNoWorld();
     TestMotionLocks();
     TestWind();
 

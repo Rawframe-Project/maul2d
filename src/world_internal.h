@@ -364,7 +364,8 @@ typedef struct m2World
         misuseCount;     // cumulative refusals; atomic access only (m2Refuse, m2MisuseCount)
     int64_t memoryBytes; // persistent footprint, from create
     uint16_t worldGeneration;
-    uint16_t worldIndex0; // registry slot + 1, for building public ids
+    uint16_t slot;    // 0-based registry slot
+    uint16_t idWorld; // the world field of every id this world hands out
 } m2World;
 
 #endif // MAUL2D_SRC_WORLD_INTERNAL_H

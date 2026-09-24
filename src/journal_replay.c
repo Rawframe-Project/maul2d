@@ -37,7 +37,7 @@ static bool ApplyCreateBody(m2ReplayCursor* r, const m2OpPayload* p)
 // Rebinds a recorded id to the target world; the other kinds below follow suit.
 static m2BodyId BodyHere(const m2ReplayCursor* r, m2BodyId id)
 {
-    id.world0 = r->here;
+    id.world = r->here;
     return id;
 }
 
@@ -168,7 +168,7 @@ static bool ApplySetMassData(m2ReplayCursor* r, const m2OpPayload* p)
 
 static m2ShapeId ShapeHere(const m2ReplayCursor* r, m2ShapeId id)
 {
-    id.world0 = r->here;
+    id.world = r->here;
     return id;
 }
 
@@ -255,7 +255,7 @@ static bool ApplyShapeUserData(m2ReplayCursor* r, const m2OpPayload* p)
 
 static m2ChainId ChainHere(const m2ReplayCursor* r, m2ChainId id)
 {
-    id.world0 = r->here;
+    id.world = r->here;
     return id;
 }
 
@@ -312,7 +312,7 @@ static bool ApplyChainRestitution(m2ReplayCursor* r, const m2OpPayload* p)
 
 static m2JointId JointHere(const m2ReplayCursor* r, m2JointId id)
 {
-    id.world0 = r->here;
+    id.world = r->here;
     return id;
 }
 
@@ -321,8 +321,8 @@ static m2JointId JointHere(const m2ReplayCursor* r, m2JointId id)
     static bool ApplyCreate##kind##Joint(m2ReplayCursor* r, const m2OpPayload* p)                  \
     {                                                                                              \
         m2OpCreate##kind##Joint op = p->create##kind##Joint;                                       \
-        op.def.bodyIdA.world0 = r->here;                                                           \
-        op.def.bodyIdB.world0 = r->here;                                                           \
+        op.def.bodyIdA.world = r->here;                                                            \
+        op.def.bodyIdB.world = r->here;                                                            \
         m2JointId id = m2Create##kind##Joint(r->worldId, &op.def);                                 \
         return M2_SAME_ID(id, op.expected);                                                        \
     }
@@ -376,13 +376,13 @@ static bool ApplyMouseTarget(m2ReplayCursor* r, const m2OpPayload* p)
 
 static m2ParticleId ParticleHere(const m2ReplayCursor* r, m2ParticleId id)
 {
-    id.world0 = r->here;
+    id.world = r->here;
     return id;
 }
 
 static m2FluidVolumeId FluidVolumeHere(const m2ReplayCursor* r, m2FluidVolumeId id)
 {
-    id.world0 = r->here;
+    id.world = r->here;
     return id;
 }
 
