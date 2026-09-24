@@ -116,8 +116,8 @@ static void SolveWeld(m2JointConstraint* c, const m2JointPose* pose, m2JointBodi
     m2Vec2 gap = linear ? m2PoseGap(c, pose) : (m2Vec2){0.0f, 0.0f};
     m2RowDrive x = m2HeldDrive(c->soft, gap.x, linear);
     m2RowDrive y = m2HeldDrive(c->soft, gap.y, linear);
-    m2SolvePointPair(pose->armA, pose->armB, b, (m2Vec2){x.bias, y.bias}, x, &c->impulse,
-                     M2_ROW_FREE);
+    m2SolvePointPair(pose->armA, pose->armB, c->pointMass, b, (m2Vec2){x.bias, y.bias}, x,
+                     &c->impulse, M2_ROW_FREE);
 }
 
 static void WeldReaction(const m2World* world, int32_t j, float invH, float* force, float* torque)

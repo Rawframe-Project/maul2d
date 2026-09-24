@@ -9,6 +9,7 @@
 #include "ccd.h"
 #include "contact_solver.h"
 #include "joint_solver.h"
+#include "rotation.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -113,9 +114,9 @@ static void AdvancePose(m2World* world, int32_t i, float h)
     world->bodies.transforms[i].p.y += (double)v.y * (double)h;
     world->solver.deltaPositions[i].x += v.x * h;
     world->solver.deltaPositions[i].y += v.y * h;
-    m2Rot turn = m2MakeRot(world->bodies.angularVelocities[i] * h);
-    world->bodies.transforms[i].q = m2MulRot(world->bodies.transforms[i].q, turn);
-    world->solver.deltaRotations[i] = m2MulRot(world->solver.deltaRotations[i], turn);
+    m2Rot turn = m2RotOfAngle(world->bodies.angularVelocities[i] * h);
+    world->bodies.transforms[i].q = m2RotCompose(world->bodies.transforms[i].q, turn);
+    world->solver.deltaRotations[i] = m2RotCompose(world->solver.deltaRotations[i], turn);
     m2Vec2 centerAfter = m2RotateVec2(world->bodies.transforms[i].q, lc);
     world->bodies.transforms[i].p.x += (double)(centerBefore.x - centerAfter.x);
     world->bodies.transforms[i].p.y += (double)(centerBefore.y - centerAfter.y);

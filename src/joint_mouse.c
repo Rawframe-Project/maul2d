@@ -141,6 +141,15 @@ static void PrepareMouse(m2World* world, m2JointConstraint* c, const m2JointFram
     c->gap = (m2Vec2){(float)(origin.x - world->joints.jointTargets[j].x) + center.x + c->armB.x,
                       (float)(origin.y - world->joints.jointTargets[j].y) + center.y + c->armB.y};
     c->spring = m2MakeSoft(0.5f, 0.1f, f->h);
+    m2JointBodies onlyB = {{0.0f, 0.0f},
+                           0.0f,
+                           {0.0f, 0.0f},
+                           0.0f,
+                           0.0f,
+                           0.0f,
+                           world->bodies.invMass[c->bodyB],
+                           world->bodies.invInertia[c->bodyB]};
+    c->pointMass = m2MakePointMass((m2Vec2){0.0f, 0.0f}, c->armB, &onlyB);
     c->maxPullImpulse = f->h * world->joints.jointLength[j];
 }
 
@@ -177,8 +186,8 @@ static void SolveMouse(m2JointConstraint* c, const m2JointPose* pose, m2JointBod
                   c->gap.y + pose->moveB.y + (pose->armB.y - c->armB.y)};
     m2RowDrive x = m2SpringDrive(c->soft, gap.x);
     m2RowDrive y = m2SpringDrive(c->soft, gap.y);
-    m2SolvePointPair((m2Vec2){0.0f, 0.0f}, pose->armB, &only, (m2Vec2){x.bias, y.bias}, x,
-                     &c->impulse, c->maxPullImpulse);
+    m2SolvePointPair((m2Vec2){0.0f, 0.0f}, pose->armB, c->pointMass, &only,
+                     (m2Vec2){x.bias, y.bias}, x, &c->impulse, c->maxPullImpulse);
     b->vB = only.vB;
     b->wB = only.wB;
 }

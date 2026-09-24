@@ -137,8 +137,8 @@ static void SolveRevolute(m2JointConstraint* c, const m2JointPose* pose, m2Joint
     m2Vec2 gap = pass->biased ? m2PoseGap(c, pose) : (m2Vec2){0.0f, 0.0f};
     m2RowDrive x = m2HeldDrive(c->soft, gap.x, pass->biased);
     m2RowDrive y = m2HeldDrive(c->soft, gap.y, pass->biased);
-    m2SolvePointPair(pose->armA, pose->armB, b, (m2Vec2){x.bias, y.bias}, x, &c->impulse,
-                     M2_ROW_FREE);
+    m2SolvePointPair(pose->armA, pose->armB, c->pointMass, b, (m2Vec2){x.bias, y.bias}, x,
+                     &c->impulse, M2_ROW_FREE);
 }
 
 static void RevoluteReaction(const m2World* world, int32_t j, float invH, float* force,

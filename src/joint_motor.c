@@ -200,8 +200,8 @@ static void SolveMotor(m2JointConstraint* c, const m2JointPose* pose, m2JointBod
     m2Vec2 gap = m2PoseGap(c, pose);
     m2RowDrive x = MotorDrive(c, gap.x - offset.x, pass->invH);
     m2RowDrive y = MotorDrive(c, gap.y - offset.y, pass->invH);
-    m2SolvePointPair(pose->armA, pose->armB, b, (m2Vec2){x.bias, y.bias}, x, &c->impulse,
-                     c->maxPullImpulse);
+    m2SolvePointPair(pose->armA, pose->armB, c->pointMass, b, (m2Vec2){x.bias, y.bias}, x,
+                     &c->impulse, c->maxPullImpulse);
 }
 
 static void MotorReaction(const m2World* world, int32_t j, float invH, float* force, float* torque)

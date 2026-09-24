@@ -98,6 +98,15 @@ static void PrepareCommon(const m2World* world, m2JointConstraint* c, int32_t j,
     c->armA = WorldArm(world, c->bodyA, joints->jointLocalAnchorA[j]);
     c->armB = WorldArm(world, c->bodyB, joints->jointLocalAnchorB[j]);
     c->gap = AnchorGap(world, c);
+    m2JointBodies masses = {{0.0f, 0.0f},
+                            0.0f,
+                            {0.0f, 0.0f},
+                            0.0f,
+                            world->bodies.invMass[c->bodyA],
+                            world->bodies.invInertia[c->bodyA],
+                            world->bodies.invMass[c->bodyB],
+                            world->bodies.invInertia[c->bodyB]};
+    c->pointMass = m2MakePointMass(c->armA, c->armB, &masses);
     m2Rot qA = world->bodies.transforms[c->bodyA].q;
     m2Rot qB = world->bodies.transforms[c->bodyB].q;
     c->angle = m2UnwindAngle(m2RelativeJointAngle(qA, qB) - joints->jointRefAngle[j]);

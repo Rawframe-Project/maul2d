@@ -89,8 +89,7 @@ void m2PushPointPair(m2Vec2 armA, m2Vec2 armB, m2JointBodies* b, m2Vec2 impulse)
     b->wB += b->iB * m2Cross2(armB, impulse);
 }
 
-void m2SolvePointPair(m2Vec2 armA, m2Vec2 armB, m2JointBodies* b, m2Vec2 bias, m2RowDrive drive,
-                      m2Vec2* accumulated, float budget)
+m2PointMass m2MakePointMass(m2Vec2 armA, m2Vec2 armB, const m2JointBodies* b)
 {
     float m = b->mA + b->mB;
     float k11 = m + b->iA * armA.y * armA.y + b->iB * armB.y * armB.y;
@@ -99,16 +98,26 @@ void m2SolvePointPair(m2Vec2 armA, m2Vec2 armB, m2JointBodies* b, m2Vec2 bias, m
     float det = k11 * k22 - k12 * k12;
     if (!(det > 0.0f))
     {
+        return (m2PointMass){0.0f, 0.0f, 0.0f};
+    }
+    float inv = 1.0f / det;
+    return (m2PointMass){k22 * inv, -k12 * inv, k11 * inv};
+}
+
+void m2SolvePointPair(m2Vec2 armA, m2Vec2 armB, m2PointMass mass, m2JointBodies* b, m2Vec2 bias,
+                      m2RowDrive drive, m2Vec2* accumulated, float budget)
+{
+    if (mass.xx == 0.0f && mass.yy == 0.0f)
+    {
         return;
     }
     m2Vec2 speed = {b->vB.x - b->wB * armB.y - b->vA.x + b->wA * armA.y,
                     b->vB.y + b->wB * armB.x - b->vA.y - b->wA * armA.x};
     float x = drive.scale * speed.x + bias.x;
     float y = drive.scale * speed.y + bias.y;
-    float inv = 1.0f / det;
     m2Vec2 old = *accumulated;
-    m2Vec2 next = {old.x - inv * (k22 * x - k12 * y) - drive.leak * old.x,
-                   old.y - inv * (k11 * y - k12 * x) - drive.leak * old.y};
+    m2Vec2 next = {old.x - (mass.xx * x + mass.xy * y) - drive.leak * old.x,
+                   old.y - (mass.xy * x + mass.yy * y) - drive.leak * old.y};
     if (budget < M2_ROW_FREE)
     {
         float length2 = next.x * next.x + next.y * next.y;

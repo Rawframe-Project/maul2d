@@ -170,6 +170,12 @@ Work toward 0.0.1, the first release of the reworked library.
   README credits the published work in docs/references.md; comments
   and docs that measured the engine against another engine now state
   its own rules.
+- Joint point pairs take their mass inverse once per step at the
+  prepare arms instead of rebuilding and inverting it every pass
+  (chain scenes about 7% faster), and the pose update runs the
+  rotation helpers inline; the public m2MakeRot, m2MulRot,
+  m2NormalizeRot and m2UnwindAngle are the same inline code, so
+  rotations are bit for bit unchanged.
 
 ### Removed
 

@@ -101,11 +101,23 @@ float m2SolveRow(const m2JointRow* row, m2JointBodies* b, m2RowDrive drive, floa
 void m2SolveRowPair(const m2JointRow rows[2], m2JointBodies* b, m2Vec2 bias, m2RowDrive drive,
                     m2Vec2* accumulated);
 
-// The two rows that pin B's anchor to A's (along x and y), solved as one
-// pair in closed form with the accumulated impulse held within a circle
-// of radius budget (M2_ROW_FREE for none). A singular pair does nothing.
-void m2SolvePointPair(m2Vec2 armA, m2Vec2 armB, m2JointBodies* b, m2Vec2 bias, m2RowDrive drive,
-                      m2Vec2* accumulated, float budget);
+// The inverse of the 2x2 mass the point pair (the two rows that pin B's
+// anchor to A's, along x and y) shows at the given arms: {xx, xy, yy},
+// all zero when the pair is singular.
+typedef struct m2PointMass
+{
+    float xx;
+    float xy;
+    float yy;
+} m2PointMass;
+
+m2PointMass m2MakePointMass(m2Vec2 armA, m2Vec2 armB, const m2JointBodies* b);
+
+// Solves the point pair with its mass inverse from m2MakePointMass, the
+// accumulated impulse held within a circle of radius budget (M2_ROW_FREE
+// for none). A singular pair does nothing.
+void m2SolvePointPair(m2Vec2 armA, m2Vec2 armB, m2PointMass mass, m2JointBodies* b, m2Vec2 bias,
+                      m2RowDrive drive, m2Vec2* accumulated, float budget);
 void m2PushPointPair(m2Vec2 armA, m2Vec2 armB, m2JointBodies* b, m2Vec2 impulse);
 
 // Drives. A rigid row meets bias exactly; a held row pulls its error C

@@ -42,6 +42,9 @@ typedef struct m2JointConstraint
     m2Softness spring;     // the kind's spring (see each kind)
     bool linearSpring;     // a real spring: pulls in the relax pass too
     bool angularSpring;
+    // The point pair's mass inverse, taken once per step at the prepare
+    // arms: within a step the arms turn by one step's rotation at most.
+    m2PointMass pointMass;
     m2Vec2 impulse;
     float motorImpulse;
     float lowerImpulse;
