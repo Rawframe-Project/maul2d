@@ -11,3 +11,4 @@ _site/
 *.m3j
 out.txt
 harness-metrics.txt
+__pycache__/
