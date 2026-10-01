@@ -33,7 +33,8 @@ float m2SolveRow(const m2JointRow* row, m2JointBodies* b, m2RowDrive drive, floa
     float old = *accumulated;
     float speed = m2RowSpeed(row, b);
     float next = old - mass * (drive.scale * speed + drive.bias) - drive.leak * old;
-    next = m2ClampF(next, lo, hi);
+    float bound = mass * M2_ROW_SPEED_BOUND;
+    next = m2ClampF(next, m2MaxF(lo, -bound), m2MinF(hi, bound));
     *accumulated = next;
     m2PushRow(row, b, next - old);
     return next - old;
@@ -56,8 +57,22 @@ static m2Vec2 PairImpulse(const m2JointRow rows[2], const m2JointBodies* b, m2Ve
     float x = drive.scale * m2RowSpeed(&rows[0], b) + bias.x;
     float y = drive.scale * m2RowSpeed(&rows[1], b) + bias.y;
     float inv = 1.0f / det;
-    return (m2Vec2){-inv * (k22 * x - k12 * y) - drive.leak * accumulated.x,
-                    -inv * (k11 * y - k12 * x) - drive.leak * accumulated.y};
+    m2Vec2 impulse = {-inv * (k22 * x - k12 * y) - drive.leak * accumulated.x,
+                      -inv * (k11 * y - k12 * x) - drive.leak * accumulated.y};
+    // Each row's share held within the speed bound at the row's own mass.
+    float boundX = M2_ROW_SPEED_BOUND / k11;
+    float boundY = M2_ROW_SPEED_BOUND / k22;
+    float nextX = accumulated.x + impulse.x;
+    float nextY = accumulated.y + impulse.y;
+    if (m2AbsF(nextX) > boundX)
+    {
+        impulse.x = m2ClampF(nextX, -boundX, boundX) - accumulated.x;
+    }
+    if (m2AbsF(nextY) > boundY)
+    {
+        impulse.y = m2ClampF(nextY, -boundY, boundY) - accumulated.y;
+    }
+    return impulse;
 }
 
 void m2SolveRowPair(const m2JointRow rows[2], m2JointBodies* b, m2Vec2 bias, m2RowDrive drive,
@@ -118,14 +133,14 @@ void m2SolvePointPair(m2Vec2 armA, m2Vec2 armB, m2PointMass mass, m2JointBodies*
     m2Vec2 old = *accumulated;
     m2Vec2 next = {old.x - (mass.xx * x + mass.xy * y) - drive.leak * old.x,
                    old.y - (mass.xy * x + mass.yy * y) - drive.leak * old.y};
-    if (budget < M2_ROW_FREE)
+    // The speed bound at the pair's largest axis mass joins the budget.
+    float bound = M2_ROW_SPEED_BOUND * m2MaxF(mass.xx, mass.yy);
+    float limit = m2MinF(budget, bound);
+    float length2 = next.x * next.x + next.y * next.y;
+    if (length2 > limit * limit)
     {
-        float length2 = next.x * next.x + next.y * next.y;
-        if (length2 > budget * budget)
-        {
-            float scale = budget / sqrtf(length2);
-            next = (m2Vec2){scale * next.x, scale * next.y};
-        }
+        float scale = limit / sqrtf(length2);
+        next = (m2Vec2){scale * next.x, scale * next.y};
     }
     *accumulated = next;
     m2PushPointPair(armA, armB, b, (m2Vec2){next.x - old.x, next.y - old.y});

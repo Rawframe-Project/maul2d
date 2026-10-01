@@ -16,6 +16,16 @@ snapshot and journal formats.
   THIRD_PARTY.md is gone: the library uses no outside code, and the
   testbed's raylib is credited in the README.
 
+### Fixed
+
+- Two joints that can never both hold (a wheel joint and a slider with
+  crossing axes on one body, say) no longer turn the world to NaN.
+  Their impulses fought without limit until they overflowed; every
+  joint row now holds its accumulated impulse within a bound no
+  ordinary scene reaches, so the results of existing scenes are
+  unchanged. Found by the weekly deep fuzz; the seed joins the
+  regression bank.
+
 ## [0.0.1] - 2026-09-24
 
 The first release of the reworked library.

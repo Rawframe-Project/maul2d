@@ -47,6 +47,14 @@ typedef struct m2RowDrive
 // No bound on an accumulated impulse.
 #define M2_ROW_FREE 3.0e38f
 
+// A safety bound, like the solver's speed caps: no accumulated impulse
+// may change its row's speed by more than this. Rows that contradict
+// each other (two joints that cannot both hold) fight through the
+// softness leak and grow their impulses without limit; this holds them
+// finite instead of letting them overflow into a NaN. Ordinary scenes
+// never come near it.
+#define M2_ROW_SPEED_BOUND 1.0e8f
+
 // B's point minus A's point moving along u, where u is fixed in the world
 // (leverA = A's arm) or turns with A (leverA = A's arm plus the gap).
 static inline m2JointRow m2LineRow(m2Vec2 leverA, m2Vec2 armB, m2Vec2 u)
@@ -90,8 +98,8 @@ static inline void m2PushRow(const m2JointRow* row, m2JointBodies* b, float impu
     b->wB += b->iB * impulse * row->angB;
 }
 
-// Solves one row with its accumulated impulse held in [lo, hi]. Returns
-// the impulse applied.
+// Solves one row with its accumulated impulse held in [lo, hi] and
+// within M2_ROW_SPEED_BOUND. Returns the impulse applied.
 float m2SolveRow(const m2JointRow* row, m2JointBodies* b, m2RowDrive drive, float* accumulated,
                  float lo, float hi);
 
