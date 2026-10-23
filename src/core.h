@@ -26,13 +26,8 @@
 // unless the handler returns nonzero.
 void m2AssertFail(const char* condition, const char* file, int line);
 
-typedef struct m2World m2World;
-
-// Refuses a caller's input: records the reason for m2LastResult on this
-// thread and, for an invalid argument against a live world, counts it in
-// m2Counters.misuse. world may be NULL.
-void m2Refuse(m2World* world, m2Result reason);
-uint64_t m2MisuseCount(const m2World* world);
+// Records the reason m2LastResult reports on this thread.
+void m2SetLastResult(m2Result reason);
 
 // All engine memory goes through the host's allocator hooks.
 void* m2AllocZeroed(size_t bytes);

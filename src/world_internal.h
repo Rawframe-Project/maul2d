@@ -369,4 +369,10 @@ typedef struct m2World
     uint16_t idWorld; // the world field of every id this world hands out
 } m2World;
 
+// Refuses a caller's input: records the reason for m2LastResult on this
+// thread and, for an invalid argument against a live world, counts it in
+// m2Counters.misuse. world may be NULL.
+void m2Refuse(m2World* world, m2Result reason);
+uint64_t m2MisuseCount(const m2World* world);
+
 #endif // MAUL2D_SRC_WORLD_INTERNAL_H

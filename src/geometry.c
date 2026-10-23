@@ -7,7 +7,7 @@
 
 #include "geometry.h"
 
-#include "world_internal.h"
+#include "core.h"
 
 #include "maul2d/base.h"
 #include "maul2d/core_math.h"
@@ -539,7 +539,7 @@ int32_t m2DecomposeOutline(const m2Vec2* points, int32_t count, m2Polygon* piece
 {
     if (points == NULL || count < 3 || count > M2_MAX_OUTLINE || capacity < 0)
     {
-        m2Refuse(NULL, m2_errorInvalid);
+        m2SetLastResult(m2_errorInvalid);
         return 0;
     }
     float area2 = 0.0f;
@@ -548,7 +548,7 @@ int32_t m2DecomposeOutline(const m2Vec2* points, int32_t count, m2Polygon* piece
         m2Vec2 p = points[i];
         if (!m2FiniteF(p.x) || !m2FiniteF(p.y))
         {
-            m2Refuse(NULL, m2_errorInvalid);
+            m2SetLastResult(m2_errorInvalid);
             return 0;
         }
         m2Vec2 q = points[(i + 1) % count];
@@ -556,7 +556,7 @@ int32_t m2DecomposeOutline(const m2Vec2* points, int32_t count, m2Polygon* piece
     }
     if (!(area2 > 0.0f))
     {
-        m2Refuse(NULL, m2_errorInvalid); // clockwise or degenerate outline
+        m2SetLastResult(m2_errorInvalid); // clockwise or degenerate outline
         return 0;
     }
     for (int32_t i = 0; i < count; ++i)
@@ -571,7 +571,7 @@ int32_t m2DecomposeOutline(const m2Vec2* points, int32_t count, m2Polygon* piece
             if (DecompSegmentsCross(points[i], points[(i + 1) % count], points[j],
                                     points[(j + 1) % count]))
             {
-                m2Refuse(NULL, m2_errorInvalid); // self-intersecting outline
+                m2SetLastResult(m2_errorInvalid); // self-intersecting outline
                 return 0;
             }
         }
@@ -627,7 +627,7 @@ int32_t m2DecomposeOutline(const m2Vec2* points, int32_t count, m2Polygon* piece
         }
         if (bestPos < 0)
         {
-            m2Refuse(NULL, m2_errorInvalid); // no ear: numerically hostile outline
+            m2SetLastResult(m2_errorInvalid); // no ear: numerically hostile outline
             return 0;
         }
         if (!degenerate)

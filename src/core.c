@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 
-#include "world_internal.h"
+#include "core.h"
 
 #include "maul2d/base.h"
-
-#if defined(_MSC_VER)
-#include <intrin.h> // interlocked counters
-#endif
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -26,7 +22,7 @@ void m2SetAllocator(m2AllocFn* allocFn, m2FreeFn* freeFn, void* context)
     // authority.
     if ((allocFn == NULL) != (freeFn == NULL))
     {
-        m2Refuse(NULL, m2_errorInvalid);
+        m2SetLastResult(m2_errorInvalid);
         return;
     }
     s_hookAlloc = allocFn;
@@ -81,28 +77,9 @@ m2Result m2LastResult(void)
     return s_lastResult;
 }
 
-void m2Refuse(m2World* world, m2Result reason)
+void m2SetLastResult(m2Result reason)
 {
     s_lastResult = reason;
-    if (world != NULL && reason == m2_errorInvalid)
-    {
-        // Reader-class calls refuse too, possibly on several threads at
-        // once, so the counter is bumped atomically.
-#if defined(_MSC_VER)
-        _InterlockedIncrement64(&world->misuseCount);
-#else
-        __atomic_fetch_add(&world->misuseCount, 1, __ATOMIC_RELAXED);
-#endif
-    }
-}
-
-uint64_t m2MisuseCount(const m2World* world)
-{
-#if defined(_MSC_VER)
-    return (uint64_t)_InterlockedCompareExchange64((volatile long long*)&world->misuseCount, 0, 0);
-#else
-    return (uint64_t)__atomic_load_n(&world->misuseCount, __ATOMIC_RELAXED);
-#endif
 }
 
 static m2AssertFn* s_assertHandler = NULL;

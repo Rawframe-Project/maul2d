@@ -55,7 +55,7 @@ m2World* m2WorldFromTag(uint16_t tag)
     m2World* world = slot < M2_MAX_WORLDS ? s_worlds[slot] : NULL;
     if (world == NULL || world->idWorld != tag)
     {
-        m2Refuse(NULL, m2_errorInvalid); // an id of a world that is gone
+        m2SetLastResult(m2_errorInvalid); // an id of a world that is gone
         return NULL;
     }
     return world;
@@ -219,12 +219,12 @@ m2WorldId m2CreateWorld(const m2WorldDef* def)
     // illegal-instruction trap on pre-Haswell hardware.
     if (m2CheckCpu(NULL) == 0)
     {
-        m2Refuse(NULL, m2_errorConfig);
+        m2SetLastResult(m2_errorConfig);
         return m2_nullWorldId;
     }
     if (!ValidWorldDef(def))
     {
-        m2Refuse(NULL, m2_errorInvalid);
+        m2SetLastResult(m2_errorInvalid);
         return m2_nullWorldId;
     }
     int32_t slot = -1;
@@ -235,13 +235,13 @@ m2WorldId m2CreateWorld(const m2WorldDef* def)
     m2World* world = slot < 0 ? NULL : m2AllocZeroed(sizeof(m2World));
     if (world == NULL)
     {
-        m2Refuse(NULL, m2_errorCapacity);
+        m2SetLastResult(m2_errorCapacity);
         return m2_nullWorldId;
     }
     ApplyWorldDef(world, def);
     if (!m2StateAllocate(world))
     {
-        m2Refuse(NULL, m2_errorCapacity); // out of memory
+        m2SetLastResult(m2_errorCapacity); // out of memory
         m2WorldId failed = {(uint16_t)(slot + 1), s_worldGenerations[slot]};
         s_worlds[slot] = world;
         m2DestroyWorld(failed);
