@@ -8,7 +8,7 @@
 #include "joint.h"
 #include "joint_solver.h"
 #include "journal.h"
-#include "solver.h"
+#include "solver_base.h"
 #include "world_internal.h"
 #include "world_registry.h"
 

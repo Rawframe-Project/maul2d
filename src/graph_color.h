@@ -6,7 +6,8 @@
 #ifndef MAUL2D_SRC_GRAPH_COLOR_H
 #define MAUL2D_SRC_GRAPH_COLOR_H
 
-#include "contact_solver.h"
+#include "contact_constraint.h"
+#include "world_internal.h"
 
 void m2ColorConstraints(m2World* world, m2ContactConstraint* constraints, int32_t count,
                         int32_t* colorStart);

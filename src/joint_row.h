@@ -12,7 +12,7 @@
 #ifndef MAUL2D_SRC_JOINT_ROW_H
 #define MAUL2D_SRC_JOINT_ROW_H
 
-#include "solver.h"
+#include "solver_base.h"
 
 // The two bodies of a joint as one pass sees them.
 typedef struct m2JointBodies

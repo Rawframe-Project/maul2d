@@ -7,7 +7,8 @@
 #ifndef MAUL2D_SRC_CONTACT_KERNEL_H
 #define MAUL2D_SRC_CONTACT_KERNEL_H
 
-#include "contact_solver.h"
+#include "contact_constraint.h"
+#include "world_internal.h"
 
 // Lane width is a layout constant, never a semantics knob: every lane
 // runs the same IEEE sequence, so how constraints are packed into lanes
