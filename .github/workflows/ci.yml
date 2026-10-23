@@ -74,6 +74,7 @@ jobs:
       - name: Build
         run: cmake --build build -j 4
       - name: Test
+        shell: bash
         run: ctest --test-dir build -V --output-on-failure | tee out.txt
       - name: Extract hashes
         run: grep -oE "${HASH_PREFIX}_[A-Z0-9_]+_HASH=[0-9a-f]{16}" out.txt | sort -u > hash-sanitize.txt
@@ -112,6 +113,7 @@ jobs:
       - name: Build
         run: cmake --build build -j 4
       - name: Test
+        shell: bash
         run: ctest --test-dir build -V --output-on-failure | tee out.txt
       - name: Extract hashes
         run: grep -oE "${HASH_PREFIX}_[A-Z0-9_]+_HASH=[0-9a-f]{16}" out.txt | sort -u > hash-wasm-node.txt
