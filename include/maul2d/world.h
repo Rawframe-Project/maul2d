@@ -118,6 +118,7 @@ extern "C"
     M2_API m2WorldId m2CreateWorld(const m2WorldDef* def);
 
     /// Destroy a world and everything in it. Ids into it become stale.
+    /// A null or stale id is ignored.
     /// Thread class: writer.
     M2_API void m2DestroyWorld(m2WorldId worldId);
 
