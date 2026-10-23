@@ -1,5 +1,5 @@
-# Formatting for the Maul family. Identical in maul2d and maul3d; CI pins the clang-format version.
-Language: Cpp
+# Formatting for the Maul family. Identical in every Maul library; CI pins the clang-format version.
+# The options below hold for C and for the Objective-C a driver may need.
 Standard: Latest
 IndentWidth: 4
 TabWidth: 4
@@ -18,9 +18,24 @@ AlignTrailingComments: true
 SpaceAfterCStyleCast: false
 SpacesInParentheses: false
 SortIncludes: CaseSensitive
-IncludeBlocks: Preserve
+IncludeBlocks: Regroup
+# The file's own header comes first (IncludeIsMainRegex), then internal
+# headers, then public headers, then system headers.
+IncludeCategories:
+  - Regex: '^"[^/]+\.h"$'
+    Priority: 1
+  - Regex: '^"[^"]+/[^"]+\.h"$'
+    Priority: 2
+  - Regex: '^<.*>$'
+    Priority: 3
+InsertBraces: true
+QualifierAlignment: Left
 MaxEmptyLinesToKeep: 1
 ReflowComments: true
 AlignAfterOpenBracket: Align
 BinPackArguments: true
 BinPackParameters: true
+---
+Language: Cpp
+---
+Language: ObjC

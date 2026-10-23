@@ -4,11 +4,10 @@
 // The pulley joint: two ropes over fixed ground anchors sharing one
 // total length, one side geared by a ratio.
 
-#include "joint_solver.h"
-
 #include "body.h"
 #include "broadphase.h"
 #include "joint.h"
+#include "joint_solver.h"
 #include "journal.h"
 #include "solver.h"
 #include "world.h"

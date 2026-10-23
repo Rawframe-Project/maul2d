@@ -7,6 +7,7 @@
 #define MAUL2D_SRC_GEOMETRY_H
 
 #include "dynamic_tree.h"
+
 #include "maul2d/shape.h"
 
 #include <math.h> // sqrtf: IEEE-exact, allowed

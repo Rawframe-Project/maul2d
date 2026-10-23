@@ -8,11 +8,11 @@
 // compared across CI cells as the 16th gated line.
 
 #include "test_harness.h"
+#include "test_task_pool.h"
 #include "world.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
-#include "test_task_pool.h"
 
 #include <stdio.h>
 #include <stdlib.h>

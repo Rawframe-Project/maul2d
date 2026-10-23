@@ -17,6 +17,7 @@
 // closes. Iteration caps are fixed and all arithmetic is plain IEEE.
 
 #include "distance.h"
+
 #include "world_internal.h"
 
 #include <math.h>

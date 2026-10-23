@@ -9,8 +9,9 @@
 // producing bytes (hash moves or the world legitimately sleeps),
 // and a mid-horizon snapshot replays the second half bit for bit.
 
-#include "maul2d/maul2d.h"
 #include "test_harness.h"
+
+#include "maul2d/maul2d.h"
 
 #include <stdio.h>
 #include <stdlib.h>

@@ -6,6 +6,7 @@
 // the non-zero-divisor preconditions the simulation relies on.
 
 #include "geometry.h"
+
 #include "world_internal.h"
 
 #include "maul2d/base.h"

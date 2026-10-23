@@ -19,9 +19,10 @@
 // randomized API calls. Hand-written tests walk the paths we thought
 // of; this walks the ones we did not.
 
-#include "maul2d/maul2d.h"
 #include "test_harness.h"
 #include "test_task_pool.h"
+
+#include "maul2d/maul2d.h"
 
 #include <stdio.h>
 #include <stdlib.h>

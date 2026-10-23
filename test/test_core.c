@@ -11,8 +11,9 @@
 //      Different bits anywhere = red build.
 
 #include "core.h"
-#include "maul2d/maul2d.h"
 #include "test_harness.h"
+
+#include "maul2d/maul2d.h"
 
 #include <math.h>
 #include <stdio.h>

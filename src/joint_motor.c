@@ -4,11 +4,10 @@
 // The motor joint: drives body B toward an offset pose relative to
 // body A within force and torque budgets, hard or as a spring.
 
-#include "joint_solver.h"
-
 #include "body.h"
 #include "broadphase.h"
 #include "joint.h"
+#include "joint_solver.h"
 #include "journal.h"
 #include "solver.h"
 #include "world.h"

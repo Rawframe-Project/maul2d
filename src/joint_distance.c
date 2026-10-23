@@ -4,11 +4,10 @@
 // The distance joint: a rest-length row, optionally soft, with an
 // optional hard length range.
 
-#include "joint_solver.h"
-
 #include "body.h"
 #include "broadphase.h"
 #include "joint.h"
+#include "joint_solver.h"
 #include "journal.h"
 #include "solver.h"
 #include "world.h"

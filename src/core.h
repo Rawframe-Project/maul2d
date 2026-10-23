@@ -12,14 +12,6 @@
 #include "maul2d/base.h"
 #include "maul2d/core_math.h"
 
-// Floating-point contraction breaks bit-identical results. The build
-// turns it off for GCC and Clang; for MSVC the pragma does it in every
-// source, including on arm64, where the /fp:contract- switch is not
-// available.
-#if defined(_MSC_VER)
-#pragma fp_contract(off)
-#endif
-
 #include <stddef.h>
 
 // Internal invariants only: states that cannot happen unless the engine
@@ -45,9 +37,6 @@ uint64_t m2MisuseCount(const m2World* world);
 // All engine memory goes through the host's allocator hooks.
 void* m2AllocZeroed(size_t bytes);
 void m2Free(void* memory);
-
-// 0 when the CPU cannot run the compiled SIMD backend (src/cpu.c).
-int m2VerifyCpuBackend(void);
 
 // Hands a message to the host's assert hook without aborting; returns
 // nonzero when the host handled it.

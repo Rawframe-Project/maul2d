@@ -14,8 +14,9 @@
 //   B           drop a box at the cursor
 //   arrows      drive (scenes with a car)
 
-#include "maul2d/maul2d.h"
 #include "raylib.h"
+
+#include "maul2d/maul2d.h"
 
 #include <math.h>
 #include <stdio.h>

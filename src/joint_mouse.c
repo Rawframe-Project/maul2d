@@ -4,11 +4,10 @@
 // The mouse joint: pulls one point of body B toward a target with a
 // soft spring and a force budget.
 
-#include "joint_solver.h"
-
 #include "body.h"
 #include "broadphase.h"
 #include "joint.h"
+#include "joint_solver.h"
 #include "journal.h"
 #include "solver.h"
 #include "world.h"

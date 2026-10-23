@@ -4,11 +4,10 @@
 // The prismatic joint: a slider along an axis fixed in body A, with
 // an optional motor and translation limits.
 
-#include "joint_solver.h"
-
 #include "body.h"
 #include "broadphase.h"
 #include "joint.h"
+#include "joint_solver.h"
 #include "journal.h"
 #include "solver.h"
 #include "world.h"

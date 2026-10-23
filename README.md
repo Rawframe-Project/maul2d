@@ -43,10 +43,10 @@ What the family shares:
   prefix changes: `m2CreateBody` and `m3CreateBody`,
   `m2World_StartJournal` and `m3World_StartJournal`,
   `m2World_GetContactEvents` and `m3World_GetContactEvents`.
-- **One set of rules.** The [conventions](docs/conventions.md), the
-  [design records](docs/adr/README.md), the build modules, the CI
-  workflow and the tools are the same files in both repositories,
-  and a check keeps them that way.
+- **One set of rules.** The
+  [conventions](docs/internals/maul-conventions.md), the build modules
+  and the tools are the same files in every Maul library, and a check
+  keeps them that way.
 - **One program.** Every symbol carries its engine's prefix, so both
   libraries link into the same game without a clash.
 
@@ -87,8 +87,9 @@ cmake --build build
 ctest --test-dir build
 ```
 
-A C17 compiler is required; with MSVC that means Visual Studio 2022 or
-newer, the first version that can turn off floating-point contraction.
+The library is C23: GCC 14 or Clang 19 and newer, Apple Clang, and on
+Windows clang-cl, which Visual Studio installs (`-T ClangCL`). The
+public headers stay C17 and C++17, so programs may use any of those.
 x64 builds use AVX2 and FMA (Haswell, 2013, and later); configure with
 `-DMAUL2D_SIMD=scalar` for a portable build that gives identical
 results. An AVX2 build started on a CPU without AVX2 refuses to create
@@ -124,20 +125,19 @@ ring.
 - One set of results from the AVX2, NEON and scalar kernels.
 - Canonical order on every path, and scheduling that never changes
   results.
-- CI compares the hashes the tests print across eleven cells: GCC,
-  Clang and MSVC on x64 and arm64 Linux and Windows, Clang on arm64
-  macOS, Debug builds, a sanitizer build on the scalar backend, and
-  WebAssembly. They must also match the values committed in
-  `test/hashes.txt`.
-- A fuzzer drives random sessions through journal replay, rollback
-  and threaded twins on every seed, and a weekly run adds a long soak.
+- Every CI cell checks the hashes the tests print against the values
+  committed in `test/hashes.txt`: GCC and Clang on x64 and arm64
+  Linux, clang-cl on x64 and arm64 Windows, Clang on arm64 macOS, a
+  Debug sanitizer build on the scalar backend, and WebAssembly.
+- A seeded API walk drives random sessions through journal replay,
+  rollback and threaded twins on every seed, and a nightly run adds
+  more seeds and a long soak.
 
 ## Benchmarks
 
 The scenes in `bench/` (two pyramids, hanging chains of 30 and 2000
 links, a joint farm and a water tank) print their timings and their
-final world hashes. The hashes are pinned in `bench/pins.txt`, and CI
-fails when one moves.
+final world hashes.
 
 ## Status
 
@@ -160,12 +160,11 @@ pattern.
   water, queries, the character mover and recipes.
 - [The API reference](docs/api.md): every public function with its
   documentation, generated from the headers.
-- [The conventions](docs/conventions.md): the rules both engines
-  follow, from naming to commits.
-- [Design records](docs/adr/README.md): the decisions behind the rules
-  and the architecture.
+- [The conventions](docs/internals/maul-conventions.md): the rules
+  every Maul library follows.
 - [The changelog](CHANGELOG.md): every release and what changed.
-- [CONTRIBUTING.md](CONTRIBUTING.md): how to contribute.
+- [Contributing](https://github.com/Rawframe-Project/.github/blob/main/CONTRIBUTING.md):
+  how to contribute.
 
 ## Acknowledgments
 

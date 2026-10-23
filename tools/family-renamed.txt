@@ -1,3 +1,0 @@
-src/cpu.c
-src/hash.c
-src/simd.h

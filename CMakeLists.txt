@@ -7,8 +7,12 @@ project(maul2d
     DESCRIPTION "Deterministic 2D physics with bit-exact rollback and record/replay"
     LANGUAGES C)
 
-# The family modules read their options through this prefix.
+# The family modules and tools read the library's names and option prefix.
 set(MAUL_PREFIX MAUL2D)
+set(MAUL_LIBRARY maul2d)
+set(MAUL_API_PREFIX m2)
+set(MAUL_MACRO_PREFIX M2)
+set(MAUL_TITLE "Maul2D")
 
 option(MAUL2D_BUILD_TESTS "Build the test suites" ${PROJECT_IS_TOP_LEVEL})
 option(MAUL2D_BUILD_SAMPLES "Build the samples" ${PROJECT_IS_TOP_LEVEL})
@@ -21,6 +25,7 @@ option(MAUL2D_WERROR "Treat compiler warnings as errors" OFF)
 option(MAUL2D_SANITIZE "Instrument with AddressSanitizer and UBSan" OFF)
 option(MAUL2D_TSAN "Instrument with ThreadSanitizer" OFF)
 option(MAUL2D_COVERAGE "Instrument for gcov coverage" OFF)
+option(MAUL2D_TEST_PACKAGE "Test the installed package by building samples/minimal against it" OFF)
 
 # Engine-specific options.
 set(MAUL2D_SIMD "auto" CACHE STRING "SIMD backend: auto or scalar")
@@ -112,6 +117,11 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/world.c
     src/world_state.c)
 maul_configure_library(maul2d)
+if(NOT MSVC)
+    # sqrt and floor are the only libm functions the library calls.
+    target_link_libraries(maul2d PUBLIC m)
+    set(MAUL_PKG_LIBS_PRIVATE "-lm")
+endif()
 
 # The CPU check must run on CPUs the backend does not support, so it is
 # compiled without the architecture flags and linked into the library.
@@ -130,6 +140,16 @@ target_sources(maul2d PRIVATE $<TARGET_OBJECTS:maul2d_cpu>)
 if(MAUL2D_BUILD_TESTS)
     enable_testing()
     add_subdirectory(test)
+    # Installs the build into the binary tree and builds and runs
+    # samples/minimal against it, as a consumer of the package would.
+    if(MAUL2D_TEST_PACKAGE AND MAUL2D_INSTALL)
+        add_test(NAME package
+                 COMMAND ${CMAKE_COMMAND} -DBINARY_DIR=${PROJECT_BINARY_DIR}
+                         -DSOURCE_DIR=${PROJECT_SOURCE_DIR} -DGENERATOR=${CMAKE_GENERATOR}
+                         -DC_COMPILER=${CMAKE_C_COMPILER} -DCONFIG=$<CONFIG>
+                         -P ${PROJECT_SOURCE_DIR}/cmake/PackageTest.cmake)
+        set_tests_properties(package PROPERTIES LABELS package)
+    endif()
 endif()
 if(MAUL2D_BUILD_SAMPLES)
     add_subdirectory(samples)

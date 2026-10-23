@@ -9,6 +9,7 @@
 // points; every recreated id must match the recording.
 
 #include "journal.h"
+
 #include "world.h"
 #include "world_internal.h"
 

@@ -6,8 +6,9 @@
 // to their serial twins. One writer per world stays the law;
 // create/destroy stay host-serialized. POSIX-only referee; the
 // contract holds everywhere.
-#include "maul2d/maul2d.h"
 #include "test_harness.h"
+
+#include "maul2d/maul2d.h"
 
 #include <pthread.h>
 #include <stdint.h>

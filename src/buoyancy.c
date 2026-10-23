@@ -21,6 +21,7 @@
 // have no area and do not float.
 
 #include "buoyancy.h"
+
 #include "journal.h"
 #include "world.h"
 #include "world_internal.h"

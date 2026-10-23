@@ -4,11 +4,10 @@
 // The weld joint: a pinned point plus an angle lock, either of them
 // optionally soft.
 
-#include "joint_solver.h"
-
 #include "body.h"
 #include "broadphase.h"
 #include "joint.h"
+#include "joint_solver.h"
 #include "journal.h"
 #include "solver.h"
 #include "world.h"

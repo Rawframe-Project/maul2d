@@ -1,0 +1,43 @@
+# CodeQL on every pull request and on main. An advanced setup in the
+# organization's CI image: the default one builds with the runner's GCC 13,
+# which cmake/CompilerFlags.cmake refuses for C23.
+name: codeql
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    - cron: "41 3 * * 2"
+
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  analyze:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    container: ghcr.io/rawframe-project/ci-cpp:2026.10.4@sha256:9715ff153db04ba0ed4f520b6d2528ff7860f803de61ab011ba60a4eed572836
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          languages: c-cpp
+          build-mode: manual
+      - name: Build
+        # The library, the tests, the samples and the benchmarks.
+        run: |
+          cmake -B out/codeql -G Ninja -DCMAKE_BUILD_TYPE=Debug -DCMAKE_C_COMPILER=gcc-14 \
+            -DCMAKE_CXX_COMPILER=g++-14 -DMAUL2D_BUILD_TESTS=ON
+          cmake --build out/codeql -j 4
+      - uses: github/codeql-action/analyze@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
+        with:
+          category: /language:c-cpp

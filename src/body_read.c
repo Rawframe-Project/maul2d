@@ -5,7 +5,6 @@
 // shapes and joints on a body. Pure readers.
 
 #include "body.h"
-
 #include "shape.h"
 #include "world.h"
 #include "world_internal.h"
