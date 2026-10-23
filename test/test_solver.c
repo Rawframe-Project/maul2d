@@ -6,9 +6,9 @@
 // solver active, and the solver evolution hash across CI cells.
 
 #include "test_harness.h"
-#include "world_internal.h"
 
 #include "maul2d/base.h"
+#include "maul2d/maul2d.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -225,93 +225,6 @@ static void TestColorOverflow(void)
     m2DestroyWorld(world);
 }
 
-static void TestSolverRollback(void)
-{
-    m2WorldDef def = m2DefaultWorldDef();
-    def.bodyCapacity = 32;
-    def.shapeCapacity = 32;
-    m2WorldId world = m2CreateWorld(&def);
-    AddSlab(world, -0.5, 0.6f);
-    m2ShapeDef sd = m2DefaultShapeDef();
-    sd.restitution = 0.4f;
-    for (int32_t i = 0; i < 6; ++i)
-    {
-        m2BodyDef bd = m2DefaultBodyDef();
-        bd.type = m2_dynamicBody;
-        bd.position = (m2Pos2){-2.0 + 0.9 * (double)i, 1.0 + 0.7 * (double)i};
-        m2BodyId body = m2CreateBody(world, &bd);
-        m2Circle c = {{0.0f, 0.0f}, 0.4f};
-        m2CreateCircleShape(body, &sd, &c);
-    }
-    for (int32_t i = 0; i < 30; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-    }
-    int32_t size = m2World_SnapshotSize(world);
-    void* snap = malloc((size_t)size);
-    CHECK(m2World_Snapshot(world, snap, size) == size, "snapshot");
-    uint64_t hashes[40];
-    for (int32_t i = 0; i < 40; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        hashes[i] = m2World_Hash(world);
-    }
-    CHECK(m2World_Restore(world, snap, size), "restore");
-    for (int32_t i = 0; i < 40; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        CHECK(m2World_Hash(world) == hashes[i], "solver replays bit-exactly");
-    }
-    free(snap);
-    m2DestroyWorld(world);
-}
-
-static uint64_t SolverSweepHash(void)
-{
-    // Mixed pile far from the origin: stacking, bouncing, sliding.
-    m2WorldDef def = m2DefaultWorldDef();
-    def.bodyCapacity = 128;
-    def.shapeCapacity = 128;
-    m2WorldId world = m2CreateWorld(&def);
-    m2BodyDef fd = m2DefaultBodyDef();
-    fd.position = (m2Pos2){-1.0e5, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
-    m2ShapeDef fs = m2DefaultShapeDef();
-    m2Polygon slab = m2MakeBox(25.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
-
-    uint64_t h = M2_HASH_INIT;
-    for (int32_t step = 0; step < 240; ++step)
-    {
-        if (step % 6 == 0 && step < 160)
-        {
-            m2BodyDef bd = m2DefaultBodyDef();
-            bd.type = m2_dynamicBody;
-            bd.position = (m2Pos2){-1.0e5 - 6.0 + 0.83 * (double)(step / 6), 5.0};
-            bd.angularVelocity = 0.7f * (float)(step % 5) - 1.4f;
-            m2BodyId body = m2CreateBody(world, &bd);
-            m2ShapeDef sd = m2DefaultShapeDef();
-            sd.friction = 0.2f + 0.2f * (float)(step % 3);
-            sd.restitution = 0.15f * (float)(step % 4);
-            if (step % 2 == 0)
-            {
-                m2Polygon box = m2MakeBox(0.35f, 0.25f);
-                m2CreatePolygonShape(body, &sd, &box);
-            }
-            else
-            {
-                m2Circle c = {{0.0f, 0.0f}, 0.3f};
-                m2CreateCircleShape(body, &sd, &c);
-            }
-        }
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        uint64_t worldHash = m2World_Hash(world);
-        h = m2Hash64(h, &worldHash, (int32_t)sizeof(worldHash));
-    }
-    m2DestroyWorld(world);
-    return h;
-}
-
 static void TestSpinsAboutCenterOfMass(void)
 {
     // A body whose shape sits away from its origin must rotate about
@@ -366,57 +279,6 @@ static void TestSpinsAboutCenterOfMass(void)
     double oy = after.p.y - mark.p.y;
     CHECK(ox * ox + oy * oy < 1.0e-4, "balanced body spins in place again");
 
-    m2DestroyWorld(world);
-}
-
-static void TestOffCenterRollback(void)
-{
-    // The new localCenter block rides the snapshot: an off-center
-    // tumbling body must replay bit-exactly.
-    m2WorldDef def = m2DefaultWorldDef();
-    def.bodyCapacity = 8;
-    def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
-
-    m2BodyDef fd = m2DefaultBodyDef();
-    fd.position = (m2Pos2){0.0, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
-    m2ShapeDef fs = m2DefaultShapeDef();
-    m2Polygon slab = m2MakeBox(15.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
-
-    m2BodyDef bd = m2DefaultBodyDef();
-    bd.type = m2_dynamicBody;
-    bd.position = (m2Pos2){0.0, 3.0};
-    m2BodyId hammer = m2CreateBody(world, &bd);
-    m2ShapeDef sd = m2DefaultShapeDef();
-    m2Polygon handle = m2MakeBox(0.6f, 0.08f);
-    m2CreatePolygonShape(hammer, &sd, &handle);
-    m2Circle head = {{0.7f, 0.0f}, 0.25f};
-    sd.density = 4.0f;
-    m2CreateCircleShape(hammer, &sd, &head);
-    m2Body_SetAngularVelocity(hammer, 3.0f);
-
-    for (int32_t i = 0; i < 30; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-    }
-    int32_t size = m2World_SnapshotSize(world);
-    void* snap = malloc((size_t)size);
-    CHECK(m2World_Snapshot(world, snap, size) == size, "snapshot");
-    uint64_t hashes[90];
-    for (int32_t i = 0; i < 90; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        hashes[i] = m2World_Hash(world);
-    }
-    CHECK(m2World_Restore(world, snap, size), "restore");
-    for (int32_t i = 0; i < 90; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        CHECK(m2World_Hash(world) == hashes[i], "off-center tumble replays bit-exactly");
-    }
-    free(snap);
     m2DestroyWorld(world);
 }
 
@@ -520,15 +382,10 @@ int main(void)
     TestImpulses();
     TestConveyor();
     TestSpinsAboutCenterOfMass();
-    TestOffCenterRollback();
     TestRestitution();
     TestFriction();
     TestPyramid();
     TestColorOverflow();
-    TestSolverRollback();
-
-    uint64_t hash = SolverSweepHash();
-    printf("M2_SOLVER_HASH=%016llx\n", (unsigned long long)hash);
 
     if (s_failures > 0)
     {

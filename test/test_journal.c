@@ -8,9 +8,9 @@
 // determinism contract.
 
 #include "test_harness.h"
-#include "world_internal.h"
 
 #include "maul2d/base.h"
+#include "maul2d/maul2d.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -341,31 +341,6 @@ static void TestOverflowIsLoud(void)
     free(journal);
 }
 
-static uint64_t JournalSweepHash(void)
-{
-    // The journal BYTES are the artifact here: bit-identical across
-    // platforms, or the wire format has a leak.
-    enum
-    {
-        CAPACITY = 1 << 20
-    };
-    uint8_t* journal = malloc(CAPACITY);
-    m2WorldDef def = TestDef();
-    m2WorldId world = m2CreateWorld(&def);
-    int32_t size = 0;
-    uint64_t worldHash = 0;
-    RunSession(world, journal, CAPACITY, &size, &worldHash);
-
-    uint64_t h = M2_HASH_INIT;
-    h = m2Hash64(h, journal, size);
-    h = m2Hash64(h, &size, (int32_t)sizeof(size));
-    h = m2Hash64(h, &worldHash, (int32_t)sizeof(worldHash));
-
-    m2DestroyWorld(world);
-    free(journal);
-    return h;
-}
-
 static void TestRollbackWhileRecording(void)
 {
     // The rollback-netcode flow, now first class: record, snapshot,
@@ -500,9 +475,6 @@ int main(void)
     TestRollbackWhileRecording();
     TestRecordReplay();
     TestOverflowIsLoud();
-
-    uint64_t hash = JournalSweepHash();
-    printf("M2_JOURNAL_HASH=%016llx\n", (unsigned long long)hash);
 
     if (s_failures > 0)
     {

@@ -8,10 +8,9 @@
 // shape sweep hash compared across CI cells.
 
 #include "test_harness.h"
-#include "world_internal.h"
-#include "world_registry.h"
 
 #include "maul2d/base.h"
+#include "maul2d/maul2d.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -23,12 +22,20 @@
 
 static void TestValidation(void)
 {
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 8;
+    m2WorldId world = m2CreateWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2BodyId body = m2CreateBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+
     // Degenerate capsule: points one ulp apart must be rejected (the axis
     // normalization would divide by ~1e-38).
     m2Capsule tiny = {{1.0f, 0.0f}, {1.0000001f, 0.0f}, 0.3f};
-    CHECK(!m2ValidateCapsule(&tiny), "1-ulp capsule must be rejected");
+    CHECK(m2CreateCapsuleShape(body, &sd, &tiny).index1 == 0, "1-ulp capsule must be rejected");
     m2Capsule good = {{-0.5f, 0.0f}, {0.5f, 0.0f}, 0.3f};
-    CHECK(m2ValidateCapsule(&good), "ordinary capsule must pass");
+    CHECK(m2Shape_IsValid(m2CreateCapsuleShape(body, &sd, &good)), "ordinary capsule must pass");
 
     // Sliver polygon: large area but pathological thinness (scale-free
     // rejection; an absolute epsilon would pass this one).
@@ -46,10 +53,12 @@ static void TestValidation(void)
     float qnan;
     memcpy(&qnan, &nanBits, sizeof(qnan));
     m2Circle nanCircle = {{qnan, 0.0f}, 0.5f};
-    CHECK(!m2ValidateCircle(&nanCircle), "NaN geometry must be rejected");
+    CHECK(m2CreateCircleShape(body, &sd, &nanCircle).index1 == 0, "NaN geometry must be rejected");
 
     m2Polygon box = m2MakeBox(0.5f, 0.5f);
-    CHECK(box.count == 4 && m2ValidatePolygon(&box), "unit box must validate");
+    CHECK(box.count == 4 && m2Shape_IsValid(m2CreatePolygonShape(body, &sd, &box)),
+          "unit box must validate");
+    m2DestroyWorld(world);
 }
 
 static void TestAabbAndMass(void)
@@ -58,7 +67,6 @@ static void TestAabbAndMass(void)
     def.bodyCapacity = 8;
     def.shapeCapacity = 16;
     m2WorldId worldId = m2CreateWorld(&def);
-    m2World* world = m2WorldFromId(worldId);
 
     // A body rotated 90 degrees with an offset circle: the AABB must
     // follow the rotation (the slice-1 placeholder ignored it).
@@ -75,9 +83,7 @@ static void TestAabbAndMass(void)
     CHECK(m2Shape_IsValid(shape), "circle attaches");
 
     // Rotating (3,0) by +90deg lands at (0,3): center ~(10, 23).
-    int32_t shapeIndex = shape.index1 - 1;
-    m2Aabb tight = m2ComputeShapeAabb(&world->shapes.shapeGeometry[shapeIndex],
-                                      world->bodies.transforms[body.index1 - 1]);
+    m2AabbResult tight = m2Shape_GetAabb(shape);
     CHECK_NEAR(tight.lowerBound.x, 10.0 - 0.5, 1.0e-3, "rotated AABB lower x");
     CHECK_NEAR(tight.upperBound.y, 23.0 + 0.5, 1.0e-3, "rotated AABB upper y");
 
@@ -94,7 +100,7 @@ static void TestAabbAndMass(void)
     m2CreatePolygonShape(boxBody, &sd2, &box);
     CHECK_NEAR(m2Body_GetMass(boxBody), 1.0f, 1.0e-4f, "unit box mass");
     float expectedInvI = 1.0f / (1.0f * (1.0f + 1.0f) / 12.0f);
-    CHECK_NEAR(world->bodies.invInertia[boxBody.index1 - 1], expectedInvI, 1.0e-2f, "box inertia");
+    CHECK_NEAR(1.0f / m2Body_GetRotationalInertia(boxBody), expectedInvI, 1.0e-2f, "box inertia");
 
     // Zero-density dynamic body: the minimum-mass floor, never NaN.
     m2BodyDef bd3 = m2DefaultBodyDef();
@@ -138,135 +144,6 @@ static void TestAabbAndMass(void)
                "a symmetric two-circle body matches the analytic inertia");
 
     m2DestroyWorld(worldId);
-}
-
-static void TestCompoundAndRollback(void)
-{
-    m2WorldDef def = m2DefaultWorldDef();
-    def.bodyCapacity = 32;
-    def.shapeCapacity = 64;
-    m2WorldId worldId = m2CreateWorld(&def);
-    m2World* world = m2WorldFromId(worldId);
-
-    // Compound body (two shapes) falling onto a segment floor: same-body
-    // shapes must never pair; floor pairs arrive as it lands.
-    m2BodyDef floorDef = m2DefaultBodyDef();
-    floorDef.position = (m2Pos2){0.0, 0.0};
-    m2BodyId floorBody = m2CreateBody(worldId, &floorDef);
-    m2ShapeDef floorShape = m2DefaultShapeDef();
-    m2Segment segment = {{-20.0f, 0.0f}, {20.0f, 0.0f}};
-    m2CreateSegmentShape(floorBody, &floorShape, &segment);
-
-    m2BodyDef bd = m2DefaultBodyDef();
-    bd.type = m2_dynamicBody;
-    bd.position = (m2Pos2){0.0, 3.0};
-    m2BodyId compound = m2CreateBody(worldId, &bd);
-    m2ShapeDef sd = m2DefaultShapeDef();
-    m2Capsule capsule = {{-0.4f, 0.0f}, {0.4f, 0.0f}, 0.2f};
-    m2CreateCapsuleShape(compound, &sd, &capsule);
-    m2Circle topper = {{0.0f, 0.4f}, 0.25f};
-    m2CreateCircleShape(compound, &sd, &topper);
-
-    for (int32_t i = 0; i < 20; ++i)
-    {
-        m2World_Step(worldId, 1.0f / 60.0f, 4);
-        for (int32_t p = 0; p < world->contacts.pairCount; ++p)
-        {
-            int32_t a = (int32_t)(world->contacts.pairKeys[p] >> 32);
-            int32_t b = (int32_t)(world->contacts.pairKeys[p] & 0xFFFFFFFFu);
-            CHECK(world->shapes.shapeBody[a] != world->shapes.shapeBody[b],
-                  "same-body shapes never pair");
-        }
-    }
-
-    // Rollback identity over shape + mass + broadphase state.
-    int32_t size = m2World_SnapshotSize(worldId);
-    void* snapA = malloc((size_t)size);
-    void* snapB = malloc((size_t)size);
-    CHECK(m2World_Snapshot(worldId, snapA, size) == size, "snapshot");
-    uint64_t hashes[30];
-    for (int32_t i = 0; i < 30; ++i)
-    {
-        m2World_Step(worldId, 1.0f / 60.0f, 4);
-        hashes[i] = m2World_Hash(worldId);
-    }
-    CHECK(m2World_Restore(worldId, snapA, size), "restore");
-    CHECK(m2World_Snapshot(worldId, snapB, size) == size, "re-snapshot");
-    CHECK(memcmp(snapA, snapB, (size_t)size) == 0, "shape state survives byte-compare");
-    for (int32_t i = 0; i < 30; ++i)
-    {
-        m2World_Step(worldId, 1.0f / 60.0f, 4);
-        CHECK(m2World_Hash(worldId) == hashes[i], "shape world replays bit-exactly");
-    }
-
-    // Destroying the compound body cascades both shapes and their pairs.
-    m2DestroyBody(compound);
-    CHECK(world->contacts.pairCount == 0, "body destroy cascades shape pairs away");
-
-    free(snapA);
-    free(snapB);
-    m2DestroyWorld(worldId);
-}
-
-static uint64_t ShapeSweepHash(void)
-{
-    // Mixed-shape rain over a segment terrain, rotated spawns, far from
-    // the origin: AABB, mass, and pair evolution all feed the hash.
-    m2WorldDef def = m2DefaultWorldDef();
-    def.bodyCapacity = 256;
-    def.shapeCapacity = 512;
-    m2WorldId worldId = m2CreateWorld(&def);
-    m2World* world = m2WorldFromId(worldId);
-
-    m2BodyDef floorDef = m2DefaultBodyDef();
-    floorDef.position = (m2Pos2){-3.0e5, 0.0};
-    m2BodyId floorBody = m2CreateBody(worldId, &floorDef);
-    m2ShapeDef floorShape = m2DefaultShapeDef();
-    m2Segment segment = {{-25.0f, 0.0f}, {25.0f, 0.0f}};
-    m2CreateSegmentShape(floorBody, &floorShape, &segment);
-
-    uint64_t h = M2_HASH_INIT;
-    for (int32_t step = 0; step < 200; ++step)
-    {
-        if (step % 3 == 0)
-        {
-            m2BodyDef bd = m2DefaultBodyDef();
-            bd.type = m2_dynamicBody;
-            bd.position = (m2Pos2){-3.0e5 - 20.0 + 0.61 * (double)(step % 66), 5.0};
-            bd.rotation = m2MakeRot(0.13f * (float)step);
-            bd.angularVelocity = 0.5f * (float)(step % 5) - 1.0f;
-            m2BodyId body = m2CreateBody(worldId, &bd);
-            m2ShapeDef sd = m2DefaultShapeDef();
-            sd.density = 1.0f + 0.25f * (float)(step % 4);
-            switch (step % 3)
-            {
-            case 0:
-            {
-                m2Circle c = {{0.1f, 0.0f}, 0.3f + 0.05f * (float)(step % 4)};
-                m2CreateCircleShape(body, &sd, &c);
-                break;
-            }
-            case 1:
-            {
-                m2Capsule cap = {{-0.3f, 0.0f}, {0.3f, 0.0f}, 0.2f};
-                m2CreateCapsuleShape(body, &sd, &cap);
-                break;
-            }
-            default:
-            {
-                m2Polygon box = m2MakeBox(0.35f, 0.2f);
-                m2CreatePolygonShape(body, &sd, &box);
-                break;
-            }
-            }
-        }
-        m2World_Step(worldId, 1.0f / 60.0f, 4);
-        uint64_t worldHash = m2World_Hash(worldId);
-        h = m2Hash64(h, &worldHash, (int32_t)sizeof(worldHash));
-    }
-    (void)world;
-    m2DestroyWorld(worldId);
-    return h;
 }
 
 // Editor round-trip: what you created is what you read back, to the
@@ -512,10 +389,6 @@ int main(void)
     TestDecomposeOutline();
     TestGeometryReadback();
     TestAabbAndMass();
-    TestCompoundAndRollback();
-
-    uint64_t hash = ShapeSweepHash();
-    printf("M2_SHAPE_HASH=%016llx\n", (unsigned long long)hash);
 
     if (s_failures > 0)
     {

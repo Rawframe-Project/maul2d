@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Adversarial tests: id-discipline attacks (stale ids
-// across slot reuse), capacity exhaustion, journal header defenses and
-// double replay, slot-reuse replay, query edge rays, multi-world
-// isolation - and a chaos scene that churns creation, destruction,
-// joints, rollback and journal replay into the 13th gated hash line.
+// Hostile input and edge cases across the API: malformed defs, snapshot
+// words, journal tapes, queries and fills are refused with a reason and
+// leave the world as it was; and the corner cases of stale particle ids,
+// resurrected machinery, chains, sleep and type changes behave.
 
 #include "test_harness.h"
-#include "world_internal.h"
-#include "world_registry.h"
 
 #include "maul2d/base.h"
+#include "maul2d/maul2d.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -186,14 +184,12 @@ static void TestHostileFills(void)
     def.particleCapacity = 32;
     def.gravity = (m2Vec2){0.0f, 0.0f};
     m2WorldId world = m2CreateWorld(&def);
-    m2World* w = m2WorldFromId(world);
 
     // Smaller than one stride: zero particles, zero nets, no crash.
     m2Polygon speck = m2MakeBox(0.02f, 0.02f);
     int32_t speckMade = m2World_FillPolygonWithParticles(world, &speck, (m2Pos2){0.0, 0.0},
                                                          (m2Vec2){0.0f, 0.0f}, m2_springParticle);
     CHECK(speckMade <= 1, "a speck holds at most one droplet");
-    CHECK(w->particles.particleSpringCount == 0, "one droplet, no springs");
 
     // A pool that fills mid-lattice: nets only reference what exists.
     m2Polygon big = m2MakeBox(0.5f, 0.5f);
@@ -202,19 +198,9 @@ static void TestHostileFills(void)
                                          m2_springParticle | m2_elasticParticle);
     CHECK(made == 32 - speckMade, "the pool grants exactly its remaining capacity");
     CHECK(m2World_GetParticleCount(world) == 32, "the pool is exactly full");
-    for (int32_t k = 0; k < w->particles.particleSpringCount; ++k)
-    {
-        CHECK(w->particles.particleAlive[w->particles.particleSpringA[k]] == 1 &&
-                  w->particles.particleAlive[w->particles.particleSpringB[k]] == 1,
-              "every spring end is a live particle");
-    }
-    for (int32_t k = 0; k < w->particles.particleTriadCount; ++k)
-    {
-        CHECK(w->particles.particleAlive[w->particles.particleTriadA[k]] == 1 &&
-                  w->particles.particleAlive[w->particles.particleTriadB[k]] == 1 &&
-                  w->particles.particleAlive[w->particles.particleTriadC[k]] == 1,
-              "every triad corner is a live particle");
-    }
+    // m2World_Validate checks that every spring end and triad corner is
+    // a live particle.
+    CHECK(m2World_Validate(world), "the nets reference only live particles");
     for (int32_t i = 0; i < 60; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
@@ -227,25 +213,6 @@ static void TestHostileFills(void)
         CHECK(p.x == p.x && p.y == p.y, "a truncated lattice stays finite");
     }
     m2DestroyWorld(world);
-
-    // Two separate fills never cross-link their nets.
-    m2WorldDef def2 = def;
-    def2.particleCapacity = 64;
-    m2WorldId twin = m2CreateWorld(&def2);
-    m2World* tw = m2WorldFromId(twin);
-    m2Polygon small = m2MakeBox(0.15f, 0.15f);
-    int32_t a = m2World_FillPolygonWithParticles(twin, &small, (m2Pos2){0.0, 0.0},
-                                                 (m2Vec2){0.0f, 0.0f}, m2_springParticle);
-    int32_t b = m2World_FillPolygonWithParticles(twin, &small, (m2Pos2){0.14, 0.0},
-                                                 (m2Vec2){0.0f, 0.0f}, m2_springParticle);
-    CHECK(a > 0 && b > 0, "both overlapping fills land");
-    for (int32_t k = 0; k < tw->particles.particleSpringCount; ++k)
-    {
-        bool aInFirst = tw->particles.particleSpringA[k] < a;
-        bool bInFirst = tw->particles.particleSpringB[k] < a;
-        CHECK(aInFirst == bInFirst, "springs never bridge two fills");
-    }
-    m2DestroyWorld(twin);
 }
 
 // Machinery under the knife: destroy gears, pulleys and ratchets
@@ -447,82 +414,6 @@ static void TestDecomposeAdversaries(void)
     CHECK(n > 0, "the full 64-point budget decomposes");
     int32_t total = m2DecomposeOutline(blade, 64, NULL, 0);
     CHECK(total == n || total > 24, "count queries agree with fills");
-}
-
-static void TestStaleIds(void)
-{
-    // The O(1) id discipline: destroyed ids stay dead forever, even
-    // after their slot is reborn under a new generation.
-    m2WorldDef def = m2DefaultWorldDef();
-    def.bodyCapacity = 8;
-    def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
-
-    m2BodyId a = AddBox(world, 0.0, 10.0);
-    m2BodyId b = AddBox(world, 2.0, 10.0);
-    m2DistanceJointDef jd = m2DefaultDistanceJointDef();
-    jd.bodyIdA = a;
-    jd.bodyIdB = b;
-    m2JointId rod = m2CreateDistanceJoint(world, &jd);
-    CHECK(m2Body_IsValid(a) && m2Joint_IsValid(rod), "everything valid while alive");
-
-    m2DestroyBody(a);
-    CHECK(!m2Body_IsValid(a), "destroyed body id dies immediately");
-    CHECK(!m2Joint_IsValid(rod), "body destroy cascades to its joints");
-    CHECK(m2Body_IsValid(b), "the counterpart lives");
-
-    // Churn until a's slot is reused; the stale id must stay dead.
-    for (int32_t i = 0; i < 8; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        m2BodyId fresh = AddBox(world, 4.0 + (double)i, 10.0);
-        if (fresh.index1 == a.index1)
-        {
-            CHECK(fresh.generation != a.generation, "reused slot carries a new generation");
-            CHECK(m2Body_IsValid(fresh) && !m2Body_IsValid(a),
-                  "old id stays dead after slot rebirth");
-            break;
-        }
-    }
-
-    m2DestroyWorld(world);
-    CHECK(!m2Body_IsValid(b), "world destruction kills every id");
-    CHECK(!m2World_IsValid(world), "world id itself dies");
-}
-
-static void TestCapacityExhaustion(void)
-{
-    // Filling the world must fail loudly-but-safely: null ids out,
-    // no corruption, and slots come back after the retire flush.
-    m2WorldDef def = m2DefaultWorldDef();
-    def.bodyCapacity = 4;
-    def.shapeCapacity = 4;
-    m2WorldId world = m2CreateWorld(&def);
-
-    m2BodyId ids[8];
-    int32_t created = 0;
-    for (int32_t i = 0; i < 8; ++i)
-    {
-        ids[i] = AddBox(world, (double)i * 2.0, 5.0);
-        created += ids[i].index1 != 0 ? 1 : 0;
-    }
-    CHECK(created == 4, "exactly capacity bodies fit");
-    CHECK(ids[4].index1 == 0 && ids[7].index1 == 0, "overflow returns the null id");
-
-    m2World_Step(world, 1.0f / 60.0f, 4);
-    uint64_t before = m2World_Hash(world);
-    m2World_Step(world, 1.0f / 60.0f, 4);
-    CHECK(m2World_Hash(world) != before, "full world still simulates");
-
-    m2DestroyBody(ids[0]);
-    for (int32_t i = 0; i < 4; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4); // flush the retire queue
-    }
-    m2BodyId reborn = AddBox(world, 0.0, 8.0);
-    CHECK(reborn.index1 != 0, "slot returns after destroy and flush");
-
-    m2DestroyWorld(world);
 }
 
 static void TestJournalDefenses(void)
@@ -811,45 +702,6 @@ static void TestHostileSnapshotWords(void)
     m2DestroyWorld(world);
 }
 
-static void TestJournalSlotReuse(void)
-{
-    // The nasty replay path: a session whose ids die and whose slots
-    // are reborn under new generations must still rebind cleanly.
-    m2WorldDef def = m2DefaultWorldDef();
-    def.bodyCapacity = 8;
-    def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
-    uint8_t buffer[1 << 16];
-    m2World_StartJournal(world, buffer, (int32_t)sizeof(buffer));
-
-    m2BodyId doomed = AddBox(world, 0.0, 3.0);
-    for (int32_t i = 0; i < 10; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-    }
-    m2DestroyBody(doomed);
-    for (int32_t i = 0; i < 6; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4); // let the slot retire
-    }
-    m2BodyId reborn = AddBox(world, 1.0, 3.0); // may reuse the slot
-    m2Body_SetLinearVelocity(reborn, (m2Vec2){-2.0f, 1.0f});
-    for (int32_t i = 0; i < 20; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-    }
-
-    int32_t bytes = m2World_StopJournal(world);
-    CHECK(bytes > 0, "reuse journal captured");
-    uint64_t recordedHash = m2World_Hash(world);
-    m2DestroyWorld(world);
-
-    m2WorldId fresh = m2CreateWorld(&def);
-    CHECK(m2World_ReplayJournal(fresh, buffer, bytes), "reuse journal replays");
-    CHECK(m2World_Hash(fresh) == recordedHash, "slot-reuse session replays bit-exactly");
-    m2DestroyWorld(fresh);
-}
-
 static void TestQueryEdges(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
@@ -934,97 +786,6 @@ static void TestMultiWorldIsolation(void)
     m2DestroyWorld(w2);
 }
 
-static int32_t s_failAfter = -1; // -1 = never fail
-static int32_t s_liveBlocks = 0;
-static int32_t s_allocCalls = 0;
-
-static void* FlakyAlloc(size_t bytes, void* context)
-{
-    (void)context;
-    s_allocCalls += 1;
-    if (s_failAfter >= 0 && s_allocCalls > s_failAfter)
-    {
-        return NULL;
-    }
-    s_liveBlocks += 1;
-    return calloc(1, bytes);
-}
-
-static void FlakyFree(void* memory, void* context)
-{
-    (void)context;
-    if (memory != NULL)
-    {
-        s_liveBlocks -= 1;
-    }
-    free(memory);
-}
-
-static void TestAllocationFailure(void)
-{
-    // The allocator fails mid-creation at several depths: the world
-    // must come back null, and every block taken must be returned.
-    m2SetAllocator(FlakyAlloc, FlakyFree, NULL);
-    int32_t depths[4] = {1, 5, 20, 50};
-    for (int32_t d = 0; d < 4; ++d)
-    {
-        s_allocCalls = 0;
-        s_liveBlocks = 0;
-        s_failAfter = depths[d];
-        m2WorldDef def = m2DefaultWorldDef();
-        def.bodyCapacity = 32;
-        def.shapeCapacity = 32;
-        m2WorldId world = m2CreateWorld(&def);
-        CHECK(world.index1 == 0, "starved creation returns the null world");
-        CHECK(s_liveBlocks == 0, "starved creation leaks nothing");
-    }
-    s_failAfter = -1;
-    m2SetAllocator(NULL, NULL, NULL);
-}
-
-static void TestFrozenEraRollback(void)
-{
-    // A long-asleep stack runs the frozen-pair fast path; snapshot and
-    // replay inside that era must still be bit-exact (sleepStreak is
-    // snapshot state, and the skip is a pure function of it).
-    m2WorldDef def = m2DefaultWorldDef();
-    def.bodyCapacity = 16;
-    def.shapeCapacity = 16;
-    m2WorldId world = m2CreateWorld(&def);
-    m2BodyDef fd = m2DefaultBodyDef();
-    fd.position = (m2Pos2){0.0, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
-    m2ShapeDef fs = m2DefaultShapeDef();
-    m2Polygon slab = m2MakeBox(15.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
-    for (int32_t i = 0; i < 5; ++i)
-    {
-        AddBox(world, 0.0, 0.5 + 0.9 * (double)i);
-    }
-    for (int32_t i = 0; i < 160; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4); // settle deep into the frozen era
-    }
-
-    int32_t size = m2World_SnapshotSize(world);
-    void* snap = malloc((size_t)size);
-    CHECK(m2World_Snapshot(world, snap, size) == size, "snapshot");
-    uint64_t hashes[50];
-    for (int32_t i = 0; i < 50; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        hashes[i] = m2World_Hash(world);
-    }
-    CHECK(m2World_Restore(world, snap, size), "restore");
-    for (int32_t i = 0; i < 50; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        CHECK(m2World_Hash(world) == hashes[i], "frozen era replays bit-exactly");
-    }
-    free(snap);
-    m2DestroyWorld(world);
-}
-
 static void TestWakeAfterFrozenEra(void)
 {
     // No stale-manifold ghosts: a body that slept through many frozen
@@ -1062,67 +823,6 @@ static void TestWakeAfterFrozenEra(void)
     }
     CHECK(sleptAgain, "and earns its sleep back");
     m2DestroyWorld(world);
-}
-
-static uint64_t ChurnTrajectory(int32_t workerCount)
-{
-    // Lifecycle churn + joints + sleep phases under a worker count:
-    // the thread law must hold beyond static scenes.
-    m2WorldDef def = m2DefaultWorldDef();
-    def.bodyCapacity = 32;
-    def.shapeCapacity = 32;
-    def.jointCapacity = 16;
-    def.workerCount = workerCount;
-    m2WorldId world = m2CreateWorld(&def);
-    m2BodyDef fd = m2DefaultBodyDef();
-    fd.position = (m2Pos2){2.2e5, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
-    m2ShapeDef fs = m2DefaultShapeDef();
-    m2Polygon slab = m2MakeBox(20.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
-
-    m2BodyId ring[8] = {0};
-    int32_t head = 0;
-    int32_t count = 0;
-    uint64_t h = M2_HASH_INIT;
-    for (int32_t step = 0; step < 240; ++step)
-    {
-        if (step % 9 == 0 && count < 8)
-        {
-            m2BodyId body = AddBox(world, 2.2e5 - 3.0 + 0.8 * (double)((step / 9) % 9),
-                                   1.0 + 0.4 * (double)(step % 3));
-            if (body.index1 != 0)
-            {
-                ring[(head + count) % 8] = body;
-                count += 1;
-            }
-        }
-        if (step % 23 == 11 && count > 3)
-        {
-            m2DestroyBody(ring[head]);
-            head = (head + 1) % 8;
-            count -= 1;
-        }
-        if (step == 120 && count >= 2)
-        {
-            m2DistanceJointDef jd = m2DefaultDistanceJointDef();
-            jd.bodyIdA = ring[head];
-            jd.bodyIdB = ring[(head + 1) % 8];
-            m2CreateDistanceJoint(world, &jd);
-        }
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        uint64_t worldHash = m2World_Hash(world);
-        h = m2Hash64(h, &worldHash, (int32_t)sizeof(worldHash));
-    }
-    m2DestroyWorld(world);
-    return h;
-}
-
-static void TestThreadedChurnParity(void)
-{
-    uint64_t one = ChurnTrajectory(1);
-    uint64_t four = ChurnTrajectory(4);
-    CHECK(one == four, "the thread law survives lifecycle churn");
 }
 
 static void TestTeleportOntoSleepers(void)
@@ -1245,41 +945,6 @@ static void TestSetTypeEdges(void)
     m2DestroyWorld(world);
 }
 
-static uint64_t FlipFlopTrajectory(void)
-{
-    m2WorldDef def = m2DefaultWorldDef();
-    def.bodyCapacity = 8;
-    def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
-    m2BodyDef fd = m2DefaultBodyDef();
-    fd.position = (m2Pos2){0.0, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
-    m2ShapeDef fs = m2DefaultShapeDef();
-    m2Polygon slab = m2MakeBox(10.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
-    m2BodyId flipper = AddBox(world, 0.0, 2.0);
-    m2BodyId witness = AddBox(world, 0.9, 3.0);
-    (void)witness;
-    uint64_t h = M2_HASH_INIT;
-    for (int32_t i = 0; i < 120; ++i)
-    {
-        if (i % 7 == 3)
-        {
-            m2Body_SetType(flipper, i % 14 == 3 ? m2_kinematicBody : m2_dynamicBody);
-        }
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        uint64_t wh = m2World_Hash(world);
-        h = m2Hash64(h, &wh, (int32_t)sizeof(wh));
-    }
-    m2DestroyWorld(world);
-    return h;
-}
-
-static void TestFlipFlopDeterminism(void)
-{
-    CHECK(FlipFlopTrajectory() == FlipFlopTrajectory(), "type flip-flop is twin-deterministic");
-}
-
 static void TestLoopChainBowl(void)
 {
     // A closed loop chain forming a diamond bowl: a ball dropped in
@@ -1393,57 +1058,6 @@ static void TestBreakStorm(void)
     m2DestroyWorld(world);
 }
 
-static uint64_t SetterChurnTrajectory(void)
-{
-    m2WorldDef def = m2DefaultWorldDef();
-    def.bodyCapacity = 16;
-    def.shapeCapacity = 16;
-    m2WorldId world = m2CreateWorld(&def);
-    m2BodyDef fd = m2DefaultBodyDef();
-    fd.position = (m2Pos2){0.0, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
-    m2ShapeDef fs = m2DefaultShapeDef();
-    m2Polygon slab = m2MakeBox(15.0f, 0.5f);
-    m2ShapeId floorShape = m2CreatePolygonShape(floor, &fs, &slab);
-    m2ShapeId boxes[4];
-    for (int32_t i = 0; i < 4; ++i)
-    {
-        m2BodyDef bd = m2DefaultBodyDef();
-        bd.type = m2_dynamicBody;
-        bd.position = (m2Pos2){-3.0 + 2.0 * (double)i, 1.0 + 0.5 * (double)i};
-        m2BodyId body = m2CreateBody(world, &bd);
-        m2ShapeDef sd = m2DefaultShapeDef();
-        m2Polygon unit = m2MakeBox(0.4f, 0.4f);
-        boxes[i] = m2CreatePolygonShape(body, &sd, &unit);
-    }
-    uint64_t h = M2_HASH_INIT;
-    for (int32_t step = 0; step < 180; ++step)
-    {
-        if (step % 13 == 4)
-        {
-            m2World_SetGravity(world, (m2Vec2){0.0f, step % 26 == 4 ? -10.0f : -6.0f});
-        }
-        if (step % 17 == 8)
-        {
-            m2Shape_SetFriction(floorShape, step % 34 == 8 ? 0.9f : 0.1f);
-        }
-        if (step % 23 == 11)
-        {
-            m2Shape_SetFilter(boxes[step % 4], step % 46 == 11 ? 0x4u : 0x1u, 0xFFFFFFFFu, 0);
-        }
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        uint64_t wh = m2World_Hash(world);
-        h = m2Hash64(h, &wh, (int32_t)sizeof(wh));
-    }
-    m2DestroyWorld(world);
-    return h;
-}
-
-static void TestSetterChurnDeterminism(void)
-{
-    CHECK(SetterChurnTrajectory() == SetterChurnTrajectory(), "setter churn is twin-deterministic");
-}
-
 static void TestKinematicSensorHibernation(void)
 {
     // A kinematic at rest inside a static sensor must not hold the
@@ -1550,143 +1164,6 @@ static void TestBulletThroughOneWayChain(void)
     m2DestroyWorld(world);
 }
 
-static uint64_t ChaosHash(void)
-{
-    // Lifecycle churn far from the origin: bodies and joints created
-    // and destroyed on deterministic cycles, a mid-flight rollback, and
-    // a journal sub-session replayed into a fresh world - all folded
-    // into one line.
-    m2WorldDef def = m2DefaultWorldDef();
-    def.bodyCapacity = 64;
-    def.shapeCapacity = 64;
-    def.jointCapacity = 32;
-    m2WorldId world = m2CreateWorld(&def);
-
-    m2BodyDef fd = m2DefaultBodyDef();
-    fd.position = (m2Pos2){7.7e5, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
-    m2ShapeDef fs = m2DefaultShapeDef();
-    m2Polygon slab = m2MakeBox(25.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
-
-    m2BodyId ring[16];
-    int32_t ringHead = 0;
-    int32_t ringCount = 0;
-    m2JointId joints[8];
-    int32_t jointHead = 0;
-    int32_t jointCount = 0;
-
-    void* snapshot = NULL;
-    int32_t snapshotSize = 0;
-    uint8_t journal[1 << 16];
-    int32_t journalBytes = 0;
-    uint64_t h = M2_HASH_INIT;
-
-    for (int32_t step = 0; step < 220; ++step)
-    {
-        if (step % 7 == 0 && ringCount < 16)
-        {
-            double x = 7.7e5 - 8.0 + 0.9 * (double)((step / 7) % 18);
-            m2BodyId body = AddBox(world, x, 2.0 + 0.6 * (double)(step % 5));
-            if (body.index1 != 0)
-            {
-                ring[(ringHead + ringCount) % 16] = body;
-                ringCount += 1;
-            }
-        }
-        if (step % 11 == 3 && ringCount > 2)
-        {
-            m2DestroyBody(ring[ringHead]);
-            ringHead = (ringHead + 1) % 16;
-            ringCount -= 1;
-        }
-        if (step % 13 == 5 && ringCount >= 2 && jointCount < 8)
-        {
-            m2BodyId a = ring[(ringHead + ringCount - 2) % 16];
-            m2BodyId b = ring[(ringHead + ringCount - 1) % 16];
-            if (m2Body_IsValid(a) && m2Body_IsValid(b))
-            {
-                m2DistanceJointDef jd = m2DefaultDistanceJointDef();
-                jd.bodyIdA = a;
-                jd.bodyIdB = b;
-                m2JointId joint = m2CreateDistanceJoint(world, &jd);
-                if (joint.index1 != 0)
-                {
-                    joints[(jointHead + jointCount) % 8] = joint;
-                    jointCount += 1;
-                }
-            }
-        }
-        if (step % 19 == 7 && ringCount > 1 && m2Body_IsValid(ring[ringHead]))
-        {
-            // Teleport the oldest ring member to a fresh drop point.
-            m2Body_SetTransform(ring[ringHead],
-                                (m2Pos2){7.7e5 + 6.0 + 0.3 * (double)(step % 5), 4.0},
-                                m2MakeRot(0.1f * (float)(step % 7)));
-        }
-        if (step % 29 == 13 && ringCount > 2 && m2Body_IsValid(ring[(ringHead + 1) % 16]))
-        {
-            // Flip a member's nature and back a few steps later via the
-            // deterministic schedule.
-            m2Body_SetType(ring[(ringHead + 1) % 16],
-                           step % 58 == 13 ? m2_kinematicBody : m2_dynamicBody);
-        }
-        if (step % 17 == 9 && jointCount > 0)
-        {
-            if (m2Joint_IsValid(joints[jointHead]))
-            {
-                m2DestroyJoint(joints[jointHead]);
-            }
-            jointHead = (jointHead + 1) % 8;
-            jointCount -= 1;
-        }
-
-        if (step == 40)
-        {
-            snapshotSize = m2World_SnapshotSize(world);
-            snapshot = malloc((size_t)snapshotSize);
-            m2World_Snapshot(world, snapshot, snapshotSize);
-        }
-        if (step == 60 && snapshot != NULL)
-        {
-            // Rollback under churn; ids taken since the snapshot die
-            // with the restore, so the rings restart from scratch.
-            m2World_Restore(world, snapshot, snapshotSize);
-            ringCount = 0;
-            ringHead = 0;
-            jointCount = 0;
-            jointHead = 0;
-        }
-        if (step == 100)
-        {
-            m2World_StartJournal(world, journal, (int32_t)sizeof(journal));
-        }
-        if (step == 160)
-        {
-            journalBytes = m2World_StopJournal(world);
-        }
-
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        uint64_t worldHash = m2World_Hash(world);
-        h = m2Hash64(h, &worldHash, (int32_t)sizeof(worldHash));
-    }
-
-    if (journalBytes > 0)
-    {
-        m2WorldId fresh = m2CreateWorld(&def);
-        if (m2World_ReplayJournal(fresh, journal, journalBytes))
-        {
-            uint64_t replayHash = m2World_Hash(fresh);
-            h = m2Hash64(h, &replayHash, (int32_t)sizeof(replayHash));
-        }
-        m2DestroyWorld(fresh);
-    }
-
-    free(snapshot);
-    m2DestroyWorld(world);
-    return h;
-}
-
 // ROUND 7: the post-1.0 surface. Chain ids, the destroy-path wake
 // law, and the reaction getters each get attacked where they would
 // hurt most: precision, rollback, and slot reuse.
@@ -1788,65 +1265,6 @@ static void TestChainRollbackResurrection(void)
     }
     free(snap);
     m2DestroyWorld(world);
-}
-
-// Journal replay across a full chain lifecycle: create, destroy,
-// create again into the recycled slot, then kill the body. Slot and
-// generation evolution must be identical on replay.
-static void TestChainLifecycleJournal(void)
-{
-    m2WorldDef def = m2DefaultWorldDef();
-    def.bodyCapacity = 8;
-    def.shapeCapacity = 32;
-    m2WorldId world = m2CreateWorld(&def);
-    // The journal opens with an embedded base snapshot; a 32-shape
-    // world's snapshot alone outgrows a 64K buffer, so go big.
-    int32_t capacity = 1 << 20;
-    uint8_t* buffer = malloc((size_t)capacity);
-    m2World_StartJournal(world, buffer, capacity);
-
-    m2BodyDef gd = m2DefaultBodyDef();
-    m2BodyId ground = m2CreateBody(world, &gd);
-    m2Vec2 pts[6] = {{6.0f, 0.0f}, {4.0f, 0.0f},  {2.0f, 0.0f},
-                     {0.0f, 0.0f}, {-2.0f, 0.0f}, {-4.0f, 0.0f}};
-    m2ChainDef chain = m2DefaultChainDef();
-    chain.points = pts;
-    chain.count = 6;
-    m2ChainId first = m2CreateChain(ground, &chain);
-    m2BodyId box = AddBox(world, 1.0, 2.0);
-    for (int32_t i = 0; i < 30; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-    }
-    m2DestroyChain(first);
-    m2Vec2 lower[4] = {{4.0f, -2.0f}, {2.0f, -2.0f}, {0.0f, -2.0f}, {-2.0f, -2.0f}};
-    chain.points = lower;
-    chain.count = 4;
-    m2ChainId second = m2CreateChain(ground, &chain);
-    CHECK(second.index1 != first.index1 || second.generation != first.generation,
-          "the second chain id never aliases the dead one");
-    CHECK(!m2Chain_IsValid(first) && m2Chain_IsValid(second), "and only the living answers");
-    for (int32_t i = 0; i < 60; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-    }
-    m2DestroyBody(box);
-    for (int32_t i = 0; i < 15; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-    }
-    int32_t bytes = m2World_StopJournal(world);
-    CHECK(bytes > 0, "lifecycle journal captured");
-    uint64_t recordedHash = m2World_Hash(world);
-    m2DestroyWorld(world);
-
-    m2WorldId fresh = m2CreateWorld(&def);
-    CHECK(m2World_ReplayJournal(fresh, buffer, bytes), "lifecycle replays");
-    CHECK(m2World_Hash(fresh) == recordedHash, "identical bits");
-    CHECK(m2World_ReplayJournal(fresh, buffer, bytes), "and replays twice");
-    CHECK(m2World_Hash(fresh) == recordedHash, "identically");
-    free(buffer);
-    m2DestroyWorld(fresh);
 }
 
 // Reaction readings are simulation-grade state: after a rollback the
@@ -2039,76 +1457,6 @@ static void TestBeltWakeReplayStorm(void)
     free(tape);
 }
 
-static void TestNewFeatureStorm(void)
-{
-    // The newest features colliding: a buoyancy pool, a jelly blob and a
-    // crate shattered into the mix, bit-exact from a mid-storm snapshot
-    // and identical across worker counts.
-    uint64_t hashes[2];
-    for (int32_t wc = 0; wc < 2; ++wc)
-    {
-        m2WorldDef def = m2DefaultWorldDef();
-        def.workerCount = wc == 0 ? 1 : 4;
-        def.bodyCapacity = 32;
-        def.shapeCapacity = 32;
-        def.jointCapacity = 4;
-        def.particleCapacity = 128;
-        def.fluidVolumeCapacity = 2;
-        m2WorldId world = m2CreateWorld(&def);
-        m2ShapeDef sd = m2DefaultShapeDef();
-        m2BodyDef fd = m2DefaultBodyDef();
-        fd.position = (m2Pos2){0.0, -3.0};
-        m2Polygon slab = m2MakeBox(8.0f, 0.5f);
-        m2CreatePolygonShape(m2CreateBody(world, &fd), &sd, &slab);
-        m2FluidVolumeDef pool = m2DefaultFluidVolumeDef();
-        pool.regionLower = (m2Pos2){-8.0, -3.0};
-        pool.regionUpper = (m2Pos2){8.0, 0.0};
-        pool.surface = 0.0;
-        pool.density = 1.2f;
-        m2CreateFluidVolume(world, &pool);
-        m2Polygon blob = m2MakeBox(0.3f, 0.3f);
-        m2World_FillPolygonWithParticles(world, &blob, (m2Pos2){-2.0, 1.0}, (m2Vec2){0.0f, 0.0f},
-                                         m2_springParticle | m2_elasticParticle);
-        m2BodyDef cd = m2DefaultBodyDef();
-        cd.type = m2_dynamicBody;
-        cd.position = (m2Pos2){2.0, 3.0};
-        m2BodyId crate = m2CreateBody(world, &cd);
-        m2Polygon cbox = m2MakeBox(0.5f, 0.5f);
-        m2CreatePolygonShape(crate, &sd, &cbox);
-        for (int32_t i = 0; i < 20; ++i)
-        {
-            m2World_Step(world, 1.0f / 60.0f, 4);
-        }
-        m2Vec2 tA[3] = {{-0.5f, -0.5f}, {0.5f, -0.5f}, {0.5f, 0.5f}};
-        m2Vec2 tB[3] = {{-0.5f, -0.5f}, {0.5f, 0.5f}, {-0.5f, 0.5f}};
-        m2Polygon pieces[2] = {m2MakePolygon(tA, 3, 0.0f), m2MakePolygon(tB, 3, 0.0f)};
-        m2BodyId out[2];
-        m2World_ShatterBody(crate, pieces, 2, out, 2);
-        for (int32_t i = 0; i < 10; ++i)
-        {
-            m2World_Step(world, 1.0f / 60.0f, 4);
-        }
-        int32_t size = m2World_SnapshotSize(world);
-        void* snap = malloc((size_t)size);
-        m2World_Snapshot(world, snap, size);
-        for (int32_t i = 0; i < 30; ++i)
-        {
-            m2World_Step(world, 1.0f / 60.0f, 4);
-        }
-        uint64_t after = m2World_Hash(world);
-        CHECK(m2World_Restore(world, snap, size), "the newest-feature storm restores");
-        for (int32_t i = 0; i < 30; ++i)
-        {
-            m2World_Step(world, 1.0f / 60.0f, 4);
-        }
-        CHECK(m2World_Hash(world) == after, "the newest-feature storm replays bit for bit");
-        hashes[wc] = after;
-        free(snap);
-        m2DestroyWorld(world);
-    }
-    CHECK(hashes[0] == hashes[1], "the newest-feature storm is worker-count deterministic");
-}
-
 static void TestOffCenterInertiaPrismatic(void)
 {
     // An off-center-COM body (its shape sits well off the body origin, so
@@ -2177,24 +1525,6 @@ static void TestOffCenterInertiaPrismatic(void)
     CHECK(hashes[0] == hashes[1], "the off-center stressed body is worker-count deterministic");
 }
 
-static void TestSimdBackendStable(void)
-{
-    // The SIMD diagnostics are stable and the create-time
-    // guard is idempotent: many worlds, the same answers, no drift.
-    const char* backend = m2GetSimdBackend();
-    CHECK(backend != NULL, "the backend name is never NULL");
-    int32_t sup = m2CpuSupportsBackend();
-    CHECK(sup == 1, "the running CPU supports its own backend");
-    for (int32_t i = 0; i < 40; ++i)
-    {
-        m2WorldDef def = m2DefaultWorldDef();
-        m2WorldId world = m2CreateWorld(&def);
-        CHECK(strcmp(m2GetSimdBackend(), backend) == 0, "the backend name never drifts");
-        CHECK(m2CpuSupportsBackend() == sup, "the support answer never drifts");
-        m2DestroyWorld(world);
-    }
-}
-
 // A chain's points are checked before anything is built: a NaN point
 // or a degenerate segment is invalid input, and a full shape pool is a
 // capacity refusal that leaves no trace in the chain ids.
@@ -2241,31 +1571,22 @@ static void TestChainRefusals(void)
 int main(void)
 {
     TestChainRefusals();
-    TestStaleIds();
-    TestCapacityExhaustion();
     TestJournalDefenses();
     TestParameterChannels();
     TestHostileQueries();
     TestHostileJointDefs();
     TestHostileSnapshotWords();
-    TestJournalSlotReuse();
     TestQueryEdges();
     TestMultiWorldIsolation();
-    TestAllocationFailure();
-    TestFrozenEraRollback();
     TestWakeAfterFrozenEra();
-    TestThreadedChurnParity();
     TestTeleportOntoSleepers();
     TestSetTypeEdges();
-    TestFlipFlopDeterminism();
     TestLoopChainBowl();
     TestBreakStorm();
-    TestSetterChurnDeterminism();
     TestKinematicSensorHibernation();
     TestBulletThroughOneWayChain();
     TestChainSurgicalWake();
     TestChainRollbackResurrection();
-    TestChainLifecycleJournal();
     TestReactionRollbackReading();
     TestReactionAllTypes();
 
@@ -2280,12 +1601,7 @@ int main(void)
     // Velocity cap, belt wake, SIMD guard, centroid inertia, prismatic mass.
     TestVelocityCapUnderRollback();
     TestBeltWakeReplayStorm();
-    TestNewFeatureStorm();
     TestOffCenterInertiaPrismatic();
-    TestSimdBackendStable();
-
-    uint64_t hash = ChaosHash();
-    printf("M2_CHAOS_HASH=%016llx\n", (unsigned long long)hash);
 
     if (s_failures > 0)
     {

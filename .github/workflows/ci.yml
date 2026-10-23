@@ -190,11 +190,11 @@ jobs:
       - name: Build
         run: |
           cmake --preset linux-clang-20 >/dev/null
-          cmake --build --preset linux-clang-20 --target test_soak test_fuzz
+          cmake --build --preset linux-clang-20 --target test_soak test_walk
       - name: Long soak
         run: ./out/linux-clang-20/test_soak 300000
       - name: Deep API walk
-        run: ./out/linux-clang-20/test_fuzz 200
+        run: ./out/linux-clang-20/test_walk 200
 
   # The one check the ruleset requires: it passes when every job above
   # passed or was skipped for a documentation-only change, so adding or

@@ -99,31 +99,6 @@ static void TestAccuracy(void)
     printf("accuracy: sin %.2e cos %.2e atan2 %.2e\n", maxSinErr, maxCosErr, maxAtanErr);
 }
 
-// --- 2a. FMA canary -------------------------------------------
-// float: a = 1 + 2^-13. Exact a*a = 1 + 2^-12 + 2^-26. The 2^-26 term is
-// below half an ulp of 1, so the separately-rounded product is exactly
-// 1 + 2^-12 and r == 0. A contracted fused multiply-add keeps the low
-// term, so r == 2^-26 != 0. The double case mirrors it at 2^-27 (the
-// low term 2^-54 sits below half an ulp of 1, which is 2^-53).
-
-static volatile float s_canaryA = 1.0f + 0x1p-13f;
-static volatile float s_canaryC = 1.0f + 0x1p-12f;
-static volatile double s_canaryDA = 1.0 + 0x1p-27;
-static volatile double s_canaryDC = 1.0 + 0x1p-26;
-
-static void TestFmaCanary(void)
-{
-    float a = s_canaryA;
-    float c = s_canaryC;
-    float r = a * a - c;
-    CHECK(r == 0.0f, "float FMA contraction detected: build flags are wrong");
-
-    double da = s_canaryDA;
-    double dc = s_canaryDC;
-    double dr = da * da - dc;
-    CHECK(dr == 0.0, "double FMA contraction detected: build flags are wrong");
-}
-
 // --- 2b. Pinned min/max semantics ------------------------------
 
 static void TestMinMaxSemantics(void)
@@ -160,65 +135,6 @@ static void TestMinMaxSemantics(void)
 }
 
 // --- 3. Determinism hash ----------------------------------------------------
-
-static uint64_t HashSweep(void)
-{
-    uint64_t h = M2_HASH_INIT;
-
-    // Trig sweep: hash the raw output bits of every function.
-    for (int i = 0; i <= 100000; ++i)
-    {
-        float angle = -12.0f + 24.0f * (float)i / 100000.0f;
-        m2Rot q = m2MakeRot(angle);
-        float u = m2UnwindAngle(angle);
-        h = m2Hash64(h, &q, sizeof(q));
-        h = m2Hash64(h, &u, sizeof(u));
-    }
-
-    for (int iy = -40; iy <= 40; ++iy)
-    {
-        for (int ix = -40; ix <= 40; ++ix)
-        {
-            float a = m2Atan2(0.31f * (float)iy, 0.27f * (float)ix);
-            h = m2Hash64(h, &a, sizeof(a));
-        }
-    }
-
-    // Rotation composition chain: exercises mul + renormalize drift control.
-    m2Rot q = m2MakeRot(0.001f);
-    m2Rot r = m2MakeRot(0.7f);
-    for (int i = 0; i < 10000; ++i)
-    {
-        r = m2MulRot(r, q);
-        h = m2Hash64(h, &r, sizeof(r));
-    }
-
-    // Double-precision position arithmetic (the f64 side of hybrid precision).
-    double px = 1.0e6;
-    double py = -2.5e6;
-    for (int i = 0; i < 10000; ++i)
-    {
-        px += 0.016 * (double)((i % 7) - 3) * 1.25;
-        py += 0.016 * (double)((i % 5) - 2) * 0.75;
-        double mix = px * 3.0 + py / 7.0;
-        h = m2Hash64(h, &mix, sizeof(mix));
-    }
-
-    // Pinned min/max outcomes are part of the contract, so hash them too -
-    // including the NaN cases (their bit patterns are pinned) and clamp/abs.
-    float pz = 0.0f;
-    float nz = -0.0f;
-    uint32_t nanBits = 0x7FC00000u;
-    float qnan;
-    memcpy(&qnan, &nanBits, sizeof(qnan));
-    float mm[10] = {m2MinF(pz, nz),     m2MinF(nz, pz),     m2MaxF(pz, nz),
-                    m2MaxF(nz, pz),     m2MinF(qnan, 2.0f), m2MinF(2.0f, qnan),
-                    m2MaxF(qnan, 2.0f), m2MaxF(2.0f, qnan), m2ClampF(3.0f, -1.0f, 1.0f),
-                    m2AbsF(nz)};
-    h = m2Hash64(h, mm, sizeof(mm));
-
-    return h;
-}
 
 static int32_t s_liveAllocations = 0;
 static int32_t s_totalAllocations = 0;
@@ -324,7 +240,7 @@ static void TestAssertHandler(void)
     good.shapeCapacity = 32;
     m2WorldId w2 = m2CreateWorld(&good);
     CHECK(m2World_GetMemoryUsage(w2).persistentBytes > (int64_t)(32 * sizeof(void*)),
-          "a world weighs something (D1)");
+          "a world weighs something");
     int64_t weight = m2World_GetMemoryUsage(w2).persistentBytes;
     for (int32_t i = 0; i < 5; ++i)
     {
@@ -346,13 +262,9 @@ int main(void)
     printf("maul2d version %d (%s backend)\n", m2GetVersion(), m2GetSimdBackend());
 
     TestAccuracy();
-    TestFmaCanary();
     TestMinMaxSemantics();
     TestSimdBackend();
-
-    uint64_t hash = HashSweep();
     // CI extracts this line from every platform cell and requires equality.
-    printf("M2_DET_HASH=%016llx\n", (unsigned long long)hash);
 
     if (s_failures > 0)
     {

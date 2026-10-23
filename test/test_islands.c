@@ -8,9 +8,9 @@
 // wake cycle hash crosses CI cells.
 
 #include "test_harness.h"
-#include "world_internal.h"
 
 #include "maul2d/base.h"
+#include "maul2d/maul2d.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -128,7 +128,7 @@ static void TestKinematicWakesSleepers(void)
             break;
         }
     }
-    CHECK(woke, "kinematic sweep wakes the sleeping stack (RT1-STAB-1)");
+    CHECK(woke, "kinematic sweep wakes the sleeping stack");
     for (int32_t i = 0; i < 60; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
@@ -187,50 +187,6 @@ static void TestSleepRollback(void)
 
     free(snap);
     m2DestroyWorld(world);
-}
-
-static uint64_t IslandSweepHash(void)
-{
-    // Sleep/wake churn far from the origin: piles doze, a patrolling
-    // kinematic wakes them on a cycle.
-    m2WorldDef def = m2DefaultWorldDef();
-    def.bodyCapacity = 128;
-    def.shapeCapacity = 128;
-    m2WorldId world = m2CreateWorld(&def);
-
-    m2BodyDef fd = m2DefaultBodyDef();
-    fd.position = (m2Pos2){3.3e5, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
-    m2ShapeDef fs = m2DefaultShapeDef();
-    m2Polygon slab = m2MakeBox(25.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
-
-    for (int32_t i = 0; i < 24; ++i)
-    {
-        AddBox(world, 3.3e5 - 10.0 + 0.9 * (double)i, 0.55 + 1.1 * (double)(i % 3));
-    }
-
-    m2BodyDef kd = m2DefaultBodyDef();
-    kd.type = m2_kinematicBody;
-    kd.position = (m2Pos2){3.3e5 - 16.0, 0.5};
-    m2BodyId patrol = m2CreateBody(world, &kd);
-    m2ShapeDef ps = m2DefaultShapeDef();
-    m2Polygon blade = m2MakeBox(0.4f, 0.3f);
-    m2CreatePolygonShape(patrol, &ps, &blade);
-
-    uint64_t h = M2_HASH_INIT;
-    for (int32_t step = 0; step < 420; ++step)
-    {
-        if (step == 200)
-        {
-            m2Body_SetLinearVelocity(patrol, (m2Vec2){6.0f, 0.0f}); // start the sweep
-        }
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        uint64_t worldHash = m2World_Hash(world);
-        h = m2Hash64(h, &worldHash, (int32_t)sizeof(worldHash));
-    }
-    m2DestroyWorld(world);
-    return h;
 }
 
 static void TestTowerSleeps(void)
@@ -316,9 +272,6 @@ int main(void)
     TestPyramidSleeps();
     TestKinematicWakesSleepers();
     TestSleepRollback();
-
-    uint64_t hash = IslandSweepHash();
-    printf("M2_ISLAND_HASH=%016llx\n", (unsigned long long)hash);
 
     if (s_failures > 0)
     {

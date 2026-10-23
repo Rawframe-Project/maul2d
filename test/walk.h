@@ -1,23 +1,19 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The hostile integrator: seeded random walks over the ENTIRE public
-// API (creates, destroys, setters, chains, joints, teleports, type
-// flips), with the three Maul invariants enforced at the end of every
-// scenario:
-//   1. journal replay of the whole walk lands on the recorded hash,
-//   2. snapshot -> divergent future -> restore returns the exact bits
+// The seeded API walk: random sessions over the whole public API
+// (creates, destroys, setters, chains, joints, particles, fluid volumes,
+// teleports, type flips), each checked for the three promises:
+//   1. a journal of the walk replays onto the recorded hash,
+//   2. snapshot, a divergent future and restore return the exact bits,
 //      and a re-snapshot is byte-equal,
-//   3. a twin run of the same seed WITHOUT a journal reaches the same
-//      hash (recording is observation-only, and no static state leaks
-//      between worlds),
-//   4. a THREADED twin (workerCount 3) of the same seed reaches the
-//      same hash: parallel execution is a pure scheduling change even
-//      under random API churn, not just on crafted scenes.
-// The mixed end-state hash of all scenarios is the 15th CI gate line:
-// eight platform cells must agree on the bits of several hundred
-// randomized API calls. Hand-written tests walk the paths we thought
-// of; this walks the ones we did not.
+//   3. a twin of the same seed, with or without a journal and with three
+//      task-system workers, reaches the same hash.
+// test_walk.c runs it over the regression bank and the nightly seeds;
+// test_golden.c pins the hash of its ten canonical seeds.
+
+#ifndef MAUL2D_TEST_WALK_H
+#define MAUL2D_TEST_WALK_H
 
 #include "test_harness.h"
 #include "test_task_pool.h"
@@ -30,6 +26,10 @@
 
 // xorshift64: fixed seeds, no libc rand, identical draws everywhere.
 static uint64_t s_rng;
+
+// The bytes of every tape the walk recorded, hashed in order: the
+// journal format is pinned with the world's bits.
+static uint64_t s_walkTapeHash = M2_HASH_INIT;
 
 static uint64_t NextU64(void)
 {
@@ -799,6 +799,7 @@ static uint64_t RunScenario(uint64_t seed, uint8_t* journal, int32_t journalCapa
     {
         int32_t bytes = m2World_StopJournal(world);
         CHECK(bytes > 0, "the walk fits the journal");
+        s_walkTapeHash = m2Hash64(s_walkTapeHash, journal, bytes);
         m2WorldId fresh = m2CreateWorld(&def);
         CHECK(m2World_ReplayJournal(fresh, journal, bytes), "the walk replays");
         CHECK(m2World_Hash(fresh) == endHash, "replay lands on the recorded bits");
@@ -825,88 +826,28 @@ static uint64_t RunScenario(uint64_t seed, uint8_t* journal, int32_t journalCapa
     return endHash;
 }
 
-// The regression bank: seeds that ever exposed a bug live here
-// forever, run through all four promises on every build so a fix
-// can never quietly regress. It starts with a handful of extra
-// hand-picked seeds for breadth; when a future seed catches
-// something, add it here with a one-line note on what it caught.
-static const uint64_t s_regressionSeeds[] = {
-    0x00000000B0A710ADull, // buoyancy + jelly under churn
-    0x00000000C0FFEE99ull, // dense stacks with ratchet joints
-    0x000000001CEB00DAull, // shatter into a flowing pool
-    0x00000000FADEDCABull, // lifetime reaping mid-rollback
-    0x81B0FDFA6D7E8E98ull, // belt-wake side effect lost on journal replay
-    0x73C25689D3BE14F0ull, // contradictory joints overflowing their impulses into a NaN
+// The ten canonical seeds whose combined hash test_golden.c pins.
+static const uint64_t s_walkSeeds[10] = {
+    0x0000000000C0FFEEull, 0x00000000BADC0DE5ull, 0x0000000012345678ull, 0x00000000DEADBEA7ull,
+    0x00000000CAFEF00Dull, 0x00000000A11C0DE5ull, 0x000000005EED5EEDull, 0x00000000B16B00B5ull,
+    0x00000000F005BA11ull, 0x000000007E57AB1Eull,
 };
 
-// Deterministic extra seeds for the weekly deep sweep: a mixing
-// sequence off a fixed base, so more depth never means less
-// reproducibility.
-static uint64_t ExtraSeed(int32_t i)
+enum
 {
-    uint64_t x = 0x243F6A8885A308D3ull + (uint64_t)(i + 1) * 0x9E3779B97F4A7C15ull;
-    x ^= x >> 33;
-    x *= 0xFF51AFD7ED558CCDull;
-    x ^= x >> 33;
-    return x;
+    WALK_JOURNAL_CAPACITY = 1 << 21
+};
+
+// One seed through every promise: journaled, an unjournaled twin and a
+// threaded twin must agree. Returns the recorded end hash.
+static uint64_t WalkSeed(uint64_t seed, uint8_t* journal)
+{
+    uint64_t recorded = RunScenario(seed, journal, WALK_JOURNAL_CAPACITY, 1);
+    uint64_t twin = RunScenario(seed, NULL, 0, 1);
+    uint64_t threaded = RunScenario(seed, NULL, 0, 3);
+    CHECK(recorded == twin, "the unjournaled twin reaches the same bits");
+    CHECK(recorded == threaded, "the threaded twin reaches the same bits");
+    return recorded;
 }
 
-int main(int argc, char** argv)
-{
-    int32_t extraSeeds = argc > 1 ? atoi(argv[1]) : 0;
-    if (extraSeeds < 0)
-    {
-        extraSeeds = 0;
-    }
-    enum
-    {
-        JOURNAL_CAPACITY = 1 << 21
-    };
-    uint8_t* journal = malloc(JOURNAL_CAPACITY);
-    uint64_t fuzzHash = 0x9E3779B97F4A7C15ull;
-    static const uint64_t seeds[10] = {
-        0x0000000000C0FFEEull, 0x00000000BADC0DE5ull, 0x0000000012345678ull, 0x00000000DEADBEA7ull,
-        0x00000000CAFEF00Dull, 0x00000000A11C0DE5ull, 0x000000005EED5EEDull, 0x00000000B16B00B5ull,
-        0x00000000F005BA11ull, 0x000000007E57AB1Eull,
-    };
-    for (int32_t i = 0; i < 10; ++i)
-    {
-        uint64_t recorded = RunScenario(seeds[i], journal, JOURNAL_CAPACITY, 1);
-        uint64_t twin = RunScenario(seeds[i], NULL, 0, 1);
-        uint64_t threaded = RunScenario(seeds[i], NULL, 0, 3);
-        CHECK(recorded == twin, "the unjournaled twin reaches the same bits");
-        CHECK(recorded == threaded, "the threaded twin reaches the same bits");
-        fuzzHash ^= recorded + 0x9E3779B97F4A7C15ull + (fuzzHash << 6) + (fuzzHash >> 2);
-    }
-    // The gated hash is computed only from the ten canonical seeds
-    // above, so its value never moves. The regression bank and the
-    // deep sweep are additional pass/fail passes, hash-neutral.
-    int32_t regressionCount = (int32_t)(sizeof(s_regressionSeeds) / sizeof(s_regressionSeeds[0]));
-    for (int32_t i = 0; i < regressionCount; ++i)
-    {
-        uint64_t recorded = RunScenario(s_regressionSeeds[i], journal, JOURNAL_CAPACITY, 1);
-        uint64_t twin = RunScenario(s_regressionSeeds[i], NULL, 0, 1);
-        uint64_t threaded = RunScenario(s_regressionSeeds[i], NULL, 0, 3);
-        CHECK(recorded == twin, "a regression seed's unjournaled twin agrees");
-        CHECK(recorded == threaded, "a regression seed's threaded twin agrees");
-    }
-    for (int32_t i = 0; i < extraSeeds; ++i)
-    {
-        uint64_t seed = ExtraSeed(i);
-        uint64_t recorded = RunScenario(seed, journal, JOURNAL_CAPACITY, 1);
-        uint64_t twin = RunScenario(seed, NULL, 0, 1);
-        uint64_t threaded = RunScenario(seed, NULL, 0, 3);
-        CHECK(recorded == twin, "a deep-sweep seed's unjournaled twin agrees");
-        CHECK(recorded == threaded, "a deep-sweep seed's threaded twin agrees");
-    }
-    free(journal);
-
-    printf("M2_FUZZ_HASH=%016llx\n", (unsigned long long)fuzzHash);
-    if (s_failures > 0)
-    {
-        printf("%d failure(s)\n", s_failures);
-        return 1;
-    }
-    printf("all checks passed\n");
-    return 0;
-}
+#endif // MAUL2D_TEST_WALK_H

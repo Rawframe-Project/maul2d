@@ -7,10 +7,11 @@
 // and the event stream hash across CI cells.
 
 #include "test_harness.h"
-#include "world_internal.h"
 
 #include "maul2d/base.h"
+#include "maul2d/maul2d.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -108,7 +109,7 @@ static void TestDestroyBookending(void)
     m2DestroyBody(box);
     m2World_Step(world, 1.0f / 60.0f, 4);
     m2ContactEvents ev = m2World_GetContactEvents(world);
-    CHECK(ev.endCount == 1, "destroy-while-touching emits the end event (M19)");
+    CHECK(ev.endCount == 1, "destroy-while-touching emits the end event");
     if (ev.endCount == 1)
     {
         bool namesBox = ev.endEvents[0].shapeIdA.index1 == boxShape.index1 ||
@@ -176,56 +177,6 @@ static void TestRestoreClearsAndReplays(void)
     m2DestroyWorld(world);
 }
 
-static uint64_t EventSweepHash(void)
-{
-    // Bouncy churn far from the origin: begins and ends every few steps,
-    // a destroy wave in the middle (bookended ends included).
-    m2WorldDef def = m2DefaultWorldDef();
-    def.bodyCapacity = 128;
-    def.shapeCapacity = 128;
-    m2WorldId world = m2CreateWorld(&def);
-    m2BodyDef fd = m2DefaultBodyDef();
-    fd.position = (m2Pos2){5.5e5, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
-    m2ShapeDef fs = m2DefaultShapeDef();
-    m2Polygon slab = m2MakeBox(25.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
-
-    m2BodyId spawned[64];
-    int32_t spawnCount = 0;
-    uint64_t h = M2_HASH_INIT;
-    for (int32_t step = 0; step < 240; ++step)
-    {
-        if (step % 8 == 0 && spawnCount < 24)
-        {
-            m2BodyDef bd = m2DefaultBodyDef();
-            bd.type = m2_dynamicBody;
-            bd.position = (m2Pos2){5.5e5 - 8.0 + 0.71 * (double)spawnCount, 3.0};
-            m2BodyId b = m2CreateBody(world, &bd);
-            m2ShapeDef sd = m2DefaultShapeDef();
-            sd.restitution = 0.5f;
-            m2Circle c = {{0.0f, 0.0f}, 0.3f};
-            m2CreateCircleShape(b, &sd, &c);
-            spawned[spawnCount++] = b;
-        }
-        if (step == 150)
-        {
-            for (int32_t d = 0; d < spawnCount; d += 2)
-            {
-                m2DestroyBody(spawned[d]); // between-step destroy wave
-            }
-        }
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        m2ContactEvents ev = m2World_GetContactEvents(world);
-        h = m2Hash64(h, ev.beginEvents, ev.beginCount * (int32_t)sizeof(m2ContactBeginEvent));
-        h = m2Hash64(h, ev.endEvents, ev.endCount * (int32_t)sizeof(m2ContactEndEvent));
-        h = m2Hash64(h, &ev.beginCount, (int32_t)sizeof(int32_t));
-        h = m2Hash64(h, &ev.endCount, (int32_t)sizeof(int32_t));
-    }
-    m2DestroyWorld(world);
-    return h;
-}
-
 static void TestDestroyShapeBookends(void)
 {
     // Destroying one shape of a
@@ -272,7 +223,7 @@ static void TestDestroyShapeBookends(void)
         sawEnd = sawEnd || events.endEvents[i].shapeIdA.index1 == footId.index1 ||
                  events.endEvents[i].shapeIdB.index1 == footId.index1;
     }
-    CHECK(sawEnd, "destroying a touching shape emits its end event (M19)");
+    CHECK(sawEnd, "destroying a touching shape emits its end event");
 
     m2DestroyWorld(world);
 }
@@ -320,7 +271,7 @@ static void TestTypeChangeBookends(void)
                     events.endEvents[i].shapeIdB.index1 == shapeB.index1;
         sawEnd = sawEnd || (hasA && hasB);
     }
-    CHECK(sawEnd, "a pair that stops making sense emits its end (M19)");
+    CHECK(sawEnd, "a pair that stops making sense emits its end");
 
     m2DestroyWorld(world);
 }
@@ -432,7 +383,7 @@ static void TestSensors(void)
     {
         sawDestroyEnd = true;
     }
-    CHECK(sawDestroyEnd, "destroying an overlapped sensor emits its end (M19)");
+    CHECK(sawDestroyEnd, "destroying an overlapped sensor emits its end");
 
     m2DestroyWorld(world);
 }
@@ -546,9 +497,6 @@ int main(void)
     TestLifecycleSymmetry();
     TestDestroyBookending();
     TestRestoreClearsAndReplays();
-
-    uint64_t hash = EventSweepHash();
-    printf("M2_EVENT_HASH=%016llx\n", (unsigned long long)hash);
 
     if (s_failures > 0)
     {
