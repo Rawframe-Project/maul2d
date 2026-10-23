@@ -23,7 +23,6 @@
 void m2UnlinkJoint(m2World* world, int32_t joint);
 void m2RebuildJointEdges(m2World* world);
 bool m2JointsForbidPair(const m2World* world, int32_t bodyA, int32_t bodyB);
-float m2RelativeJointAngle(m2Rot qA, m2Rot qB);
 
 // Def checks shared by the kinds: a finite value, and a finite value that
 // is not negative (stiffness, damping, budgets).

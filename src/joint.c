@@ -8,6 +8,7 @@
 
 #include "body.h"
 #include "broadphase.h"
+#include "joint_row.h"
 #include "joint_solver.h"
 #include "journal.h"
 #include "world_internal.h"
@@ -238,15 +239,6 @@ int32_t m2AllocateJoint(m2World* world)
         world->joints.maxJointIndex = index + 1;
     }
     return index;
-}
-
-// Relative angle of B vs A from their rotations, through the engine's own
-// deterministic atan2.
-float m2RelativeJointAngle(m2Rot qA, m2Rot qB)
-{
-    float sin = qA.c * qB.s - qA.s * qB.c;
-    float cos = qA.c * qB.c + qA.s * qB.s;
-    return m2Atan2(sin, cos);
 }
 
 m2JointId m2FinishJoint(m2World* world, int32_t index, uint8_t type, int32_t bodyA, int32_t bodyB,

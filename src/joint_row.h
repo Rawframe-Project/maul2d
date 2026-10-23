@@ -154,4 +154,8 @@ static inline m2RowDrive m2LimitDrive(m2Softness soft, float C, float invH, bool
     return C > 0.0f ? m2RigidDrive(C * invH) : m2HeldDrive(soft, C, biased);
 }
 
+// Relative angle of B against A from their rotations, through the
+// engine's own deterministic atan2.
+float m2RelativeJointAngle(m2Rot qA, m2Rot qB);
+
 #endif // MAUL2D_SRC_JOINT_ROW_H

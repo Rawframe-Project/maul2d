@@ -6,6 +6,7 @@
 #include "body.h"
 #include "broadphase.h"
 #include "joint.h"
+#include "joint_row.h"
 #include "journal.h"
 #include "world_internal.h"
 

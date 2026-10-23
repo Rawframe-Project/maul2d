@@ -145,3 +145,12 @@ void m2SolvePointPair(m2Vec2 armA, m2Vec2 armB, m2PointMass mass, m2JointBodies*
     *accumulated = next;
     m2PushPointPair(armA, armB, b, (m2Vec2){next.x - old.x, next.y - old.y});
 }
+
+// Relative angle of B vs A from their rotations, through the engine's own
+// deterministic atan2.
+float m2RelativeJointAngle(m2Rot qA, m2Rot qB)
+{
+    float sin = qA.c * qB.s - qA.s * qB.c;
+    float cos = qA.c * qB.c + qA.s * qB.s;
+    return m2Atan2(sin, cos);
+}

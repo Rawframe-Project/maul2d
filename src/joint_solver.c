@@ -9,7 +9,6 @@
 
 #include "joint_solver.h"
 
-#include "joint.h"
 #include "solver_base.h"
 #include "world_internal.h"
 
