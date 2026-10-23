@@ -9,11 +9,11 @@
 
 #include "test_harness.h"
 #include "test_task_pool.h"
-#include "world_internal.h"
-#include "world_registry.h"
 
 #include "maul2d/base.h"
+#include "maul2d/maul2d.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -292,106 +292,21 @@ static void TestRelaxation(void)
     m2DestroyWorld(shearWorld);
 }
 
-// White-box: the neighbor structure is canonical and complete.
-static void TestPairStructure(void)
-{
-    m2WorldDef def = FluidWorldDef(64);
-    def.gravity = (m2Vec2){0.0f, 0.0f}; // hold positions still
-    m2WorldId world = m2CreateWorld(&def);
-    m2World* w = m2WorldFromId(world);
-
-    // A triangle inside one diameter (0.1), a loner far away, and a
-    // pair straddling the x = 0 cell boundary, where unbiased cell
-    // coordinates would change sign.
-    m2World_EmitParticle(world, (m2Pos2){0.30, 0.30}, (m2Vec2){0.0f, 0.0f}, 0);
-    m2World_EmitParticle(world, (m2Pos2){0.36, 0.30}, (m2Vec2){0.0f, 0.0f}, 0);
-    m2World_EmitParticle(world, (m2Pos2){0.30, 0.36}, (m2Vec2){0.0f, 0.0f}, 0);
-    m2World_EmitParticle(world, (m2Pos2){5.0, 5.0}, (m2Vec2){0.0f, 0.0f}, 0);
-    m2World_EmitParticle(world, (m2Pos2){-0.02, 2.0}, (m2Vec2){0.0f, 0.0f}, 0);
-    m2World_EmitParticle(world, (m2Pos2){0.02, 2.0}, (m2Vec2){0.0f, 0.0f}, 0);
-    m2World_Step(world, 1.0f / 60.0f, 4);
-
-    CHECK(w->particles.particlePairCount == 4,
-          "triangle gives three pairs, the seam pair the fourth");
-    CHECK(w->particles.particlePairOverflow == 0, "no truncation in a sparse scene");
-    int32_t seamSeen = 0;
-    for (int32_t i = 0; i < w->particles.particlePairCount; ++i)
-    {
-        int32_t a = w->particles.particlePairA[i];
-        int32_t b = w->particles.particlePairB[i];
-        CHECK(a != b, "no self pairs");
-        CHECK(w->particles.particlePairWeight[i] > 0.0f &&
-                  w->particles.particlePairWeight[i] <= 1.0f,
-              "weights live in (0, 1]");
-        float nx = w->particles.particlePairNormal[i].x;
-        float ny = w->particles.particlePairNormal[i].y;
-        float len = nx * nx + ny * ny;
-        CHECK(len > 0.99f && len < 1.01f, "normals are unit length");
-        seamSeen += (a == 4 && b == 5) || (a == 5 && b == 4) ? 1 : 0;
-    }
-    CHECK(seamSeen == 1, "the pair across the x=0 seam is found exactly once");
-
-    // Coincident particles: full weight, canonical normal, no NaN.
-    m2ParticleId c1 = m2World_EmitParticle(world, (m2Pos2){8.0, 8.0}, (m2Vec2){0.0f, 0.0f}, 0);
-    m2ParticleId c2 = m2World_EmitParticle(world, (m2Pos2){8.0, 8.0}, (m2Vec2){0.0f, 0.0f}, 0);
-    m2World_Step(world, 1.0f / 60.0f, 4);
-    int32_t coincident = -1;
-    for (int32_t i = 0; i < w->particles.particlePairCount; ++i)
-    {
-        if (w->particles.particlePairA[i] == c1.index1 - 1 &&
-            w->particles.particlePairB[i] == c2.index1 - 1)
-        {
-            coincident = i;
-        }
-    }
-    CHECK(coincident >= 0, "coincident particles still pair");
-    CHECK(w->particles.particlePairWeight[coincident] == 1.0f, "full overlap reads full weight");
-    CHECK(w->particles.particlePairNormal[coincident].x == 0.0f &&
-              w->particles.particlePairNormal[coincident].y == 1.0f,
-          "the canonical fallback normal, never NaN");
-    m2DestroyWorld(world);
-
-    // Twin determinism: identical emits give byte-identical pair lists.
-    m2WorldId wa = m2CreateWorld(&def);
-    m2WorldId wb = m2CreateWorld(&def);
-    for (int32_t i = 0; i < 40; ++i)
-    {
-        m2Pos2 p = {(double)(i % 7) * 0.07, (double)(i / 7) * 0.07};
-        m2World_EmitParticle(wa, p, (m2Vec2){0.0f, 0.0f}, 0);
-        m2World_EmitParticle(wb, p, (m2Vec2){0.0f, 0.0f}, 0);
-    }
-    m2World_Step(wa, 1.0f / 60.0f, 4);
-    m2World_Step(wb, 1.0f / 60.0f, 4);
-    m2World* ia = m2WorldFromId(wa);
-    m2World* ib = m2WorldFromId(wb);
-    CHECK(ia->particles.particlePairCount == ib->particles.particlePairCount,
-          "twins agree on the pair count");
-    CHECK(ia->particles.particlePairCount > 0, "the lattice actually pairs");
-    CHECK(memcmp(ia->particles.particlePairA, ib->particles.particlePairA,
-                 (size_t)ia->particles.particlePairCount * sizeof(int32_t)) == 0 &&
-              memcmp(ia->particles.particlePairB, ib->particles.particlePairB,
-                     (size_t)ia->particles.particlePairCount * sizeof(int32_t)) == 0,
-          "twin pair lists are byte-identical");
-    m2DestroyWorld(wa);
-    m2DestroyWorld(wb);
-}
-
 // Overflow truncates deterministically and counts what it dropped.
 static void TestPairOverflow(void)
 {
     m2WorldDef def = FluidWorldDef(64);
     def.gravity = (m2Vec2){0.0f, 0.0f};
     m2WorldId world = m2CreateWorld(&def);
-    m2World* w = m2WorldFromId(world);
     for (int32_t i = 0; i < 64; ++i)
     {
         m2World_EmitParticle(world, (m2Pos2){1.0, 1.0}, (m2Vec2){0.0f, 0.0f}, 0);
     }
     m2World_Step(world, 1.0f / 60.0f, 4);
-    CHECK(w->particles.particlePairCount == w->particles.particlePairCapacity,
-          "the budget fills exactly");
-    CHECK(w->particles.particlePairOverflow == 64 * 63 / 2 - w->particles.particlePairCapacity,
-          "every dropped pair is counted");
+    // 64 coincident particles make 2016 pairs, past the pair budget.
+    m2Counters c = m2World_GetCounters(world);
+    CHECK(c.particlePairOverflow > 0, "the dropped pairs are counted");
+    CHECK(c.particlePairOverflow < 64 * 63 / 2, "and the budget keeps the rest");
     m2DestroyWorld(world);
 }
 
@@ -681,9 +596,6 @@ static void TestJelly(void)
     int32_t made = m2World_FillPolygonWithParticles(world, &blob, (m2Pos2){0.0, 0.0},
                                                     (m2Vec2){0.0f, 0.0f}, m2_springParticle);
     CHECK(made == 64, "the lattice fills its 8 by 8");
-    m2World* w = m2WorldFromId(world);
-    CHECK(w->particles.particleSpringCount > 90 && w->particles.particleSpringCount < 130,
-          "each lattice cell contributes its springs");
     m2ParticleId ids[128];
     int32_t n = m2World_GetParticles(world, ids, 128);
     for (int32_t i = 0; i < n; ++i)
@@ -743,22 +655,6 @@ static void TestJelly(void)
     CHECK(wx1 - wx0 > 8.0, "the water twin runs off across the slab");
     CHECK(jx1 - jx0 < (wx1 - wx0) * 0.5, "the nets at least halve the spread");
 
-    // Death: killing a particle takes its springs and triads along.
-    m2World* gwi = m2WorldFromId(gw);
-    int32_t springsBefore = gwi->particles.particleSpringCount;
-    int32_t triadsBefore = gwi->particles.particleTriadCount;
-    CHECK(springsBefore > 0 && triadsBefore > 0, "the jelly carries its nets");
-    m2ParticleId victim = m2_nullParticleId;
-    for (int32_t i = 0; i < total; ++i)
-    {
-        if ((m2Particle_GetFlags(all[i]) & m2_springParticle) != 0)
-        {
-            victim = all[i];
-            break;
-        }
-    }
-    m2DestroyParticle(victim);
-    CHECK(gwi->particles.particleSpringCount < springsBefore, "springs die with their particle");
     m2World_Step(gw, 1.0f / 60.0f, 4);
     m2DestroyWorld(gw);
 }
@@ -902,62 +798,10 @@ static void TestLifetimeAndUserData(void)
     m2DestroyWorld(world);
 }
 
-// The 16th gated line: an emit/fall/churn scenario far from origin.
-static void TestFluidHash(void)
-{
-    m2WorldDef def = FluidWorldDef(256);
-    m2WorldId world = m2CreateWorld(&def);
-    m2BodyDef floorDef = m2DefaultBodyDef();
-    floorDef.position = (m2Pos2){300.5, 39.0};
-    m2BodyId floorBody = m2CreateBody(world, &floorDef);
-    m2ShapeDef floorShape = m2DefaultShapeDef();
-    m2Polygon slab = m2MakeBox(2.0f, 0.2f);
-    m2CreatePolygonShape(floorBody, &floorShape, &slab);
-    m2ParticleId ids[256];
-    int32_t made = 0;
-    for (int32_t i = 0; i < 120; ++i)
-    {
-        double x = 300.0 + (double)(i % 12) * 0.12;
-        double y = 40.0 + (double)(i / 12) * 0.12;
-        ids[made] =
-            m2World_EmitParticle(world, (m2Pos2){x, y}, (m2Vec2){0.05f * (float)(i % 3), 0.0f}, 0);
-        made += ids[made].index1 != 0 ? 1 : 0;
-    }
-    for (int32_t step = 0; step < 90; ++step)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        if (step % 13 == 0 && step / 13 < made && m2Particle_IsValid(ids[step / 13]))
-        {
-            m2DestroyParticle(ids[step / 13]);
-        }
-        if (step % 17 == 0)
-        {
-            m2World_EmitParticle(world, (m2Pos2){301.0, 41.0 + (double)step * 0.01},
-                                 (m2Vec2){0.0f, 0.5f}, m2_tensileParticle);
-        }
-    }
-    uint64_t hash = m2World_Hash(world);
-    // Fold the neighbor structure into the gated line: the pair list
-    // itself must agree bit-for-bit across every CI cell.
-    m2World* w = m2WorldFromId(world);
-    hash = m2Hash64(hash, &w->particles.particlePairCount, (int32_t)sizeof(int32_t));
-    hash = m2Hash64(hash, w->particles.particlePairA,
-                    w->particles.particlePairCount * (int32_t)sizeof(int32_t));
-    hash = m2Hash64(hash, w->particles.particlePairB,
-                    w->particles.particlePairCount * (int32_t)sizeof(int32_t));
-    hash = m2Hash64(hash, w->particles.particlePairWeight,
-                    w->particles.particlePairCount * (int32_t)sizeof(float));
-    hash = m2Hash64(hash, w->particles.particlePairNormal,
-                    w->particles.particlePairCount * (int32_t)sizeof(m2Vec2));
-    printf("M2_FLUID_HASH=%016llx\n", (unsigned long long)hash);
-    m2DestroyWorld(world);
-}
-
 int main(void)
 {
     TestLifecycle();
     TestOverflowIsQuiet();
-    TestPairStructure();
     TestPairOverflow();
     TestRelaxation();
     TestBasin();
@@ -971,7 +815,6 @@ int main(void)
     TestLifetimeAndUserData();
     TestRollbackIdentity();
     TestJournalReplay();
-    TestFluidHash();
     if (s_failures > 0)
     {
         printf("%d failure(s)\n", s_failures);

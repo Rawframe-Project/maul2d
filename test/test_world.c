@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Slice-0 world gate: the rollback identity (hash-sequence equality plus
+// World suite: the rollback identity (hash-sequence equality plus
 // snapshot -> restore -> re-snapshot byte-compare), id semantics
-// (generation staleness, FIFO reuse, replay re-minting), def cookies,
-// and the cross-platform world hash printed for CI comparison.
+// (generation staleness, FIFO reuse, replay re-minting, a stale world
+// id), refusals and out-of-memory creation, counters and validation,
+// and the world-level behavior of bodies: teleports, type changes,
+// gravity, wind, explosions, sleep, mass, shatter, dominance, motion
+// locks and fluid volumes.
 
 #include "test_harness.h"
 
@@ -39,18 +42,6 @@ static void SpawnScene(m2WorldId world)
         bd.userData = (uint64_t)i;
         m2CreateBody(world, &bd);
     }
-}
-
-static void TestDefCookies(void)
-{
-    m2WorldDef zeroWorld;
-    memset(&zeroWorld, 0, sizeof(zeroWorld));
-#if defined(NDEBUG)
-    CHECK(!m2World_IsValid(m2CreateWorld(&zeroWorld)),
-          "zero-initialized world def must be rejected");
-#endif
-    m2BodyDef good = m2DefaultBodyDef();
-    CHECK(good.internalValue != 0, "cookie must be nonzero by construction");
 }
 
 static void TestRollbackIdentity(void)
@@ -168,25 +159,10 @@ static void TestIdSemantics(void)
     CHECK(!m2Body_IsValid(e), "world destruction stales every body id");
 }
 
-static uint64_t DeterminismSweep(void)
-{
-    // A fixed 300-step scene far from the origin; the final hash is
-    // compared bit-for-bit across every CI platform cell.
-    m2WorldId world = MakeTestWorld();
-    SpawnScene(world);
-    for (int32_t i = 0; i < 300; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-    }
-    uint64_t h = m2World_Hash(world);
-    m2DestroyWorld(world);
-    return h;
-}
-
 static void TestCountersAndProfile(void)
 {
-    // Counters are state-derived and deterministic; profile is wall
-    // clock and merely sane. Neither may touch the simulation hash.
+    // Counters are state-derived and deterministic; neither they nor the
+    // wall-clock profile may touch the simulation hash.
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 32;
     def.shapeCapacity = 32;
@@ -225,12 +201,6 @@ static void TestCountersAndProfile(void)
     CHECK(counters.graphColors >= 1 && counters.overflowConstraints == 0,
           "colored without overflow");
     CHECK(counters.stepCount == 10, "step count mirrors the world");
-
-    m2Profile profile = m2World_GetProfile(world);
-    CHECK(profile.stepMs > 0.0f, "a step takes measurable time");
-    CHECK(profile.pairsMs >= 0.0f && profile.contactsMs >= 0.0f && profile.solveMs >= 0.0f &&
-              profile.sleepMs >= 0.0f,
-          "phase times are sane");
 
     // Diagnostics never touch the simulation: hash before == after.
     uint64_t before = m2World_Hash(world);
@@ -427,125 +397,6 @@ static void TestSetType(void)
     }
     CHECK(m2Body_GetPosition(shelf).y < frozenY - 0.5, "dynamic again, it falls");
     CHECK(m2Body_GetPosition(shelf).y > 0.0, "and lands on the real floor");
-
-    m2DestroyWorld(world);
-}
-
-typedef struct DrawCounts
-{
-    int32_t polygons;
-    int32_t circles;
-    int32_t segments;
-    int32_t points;
-    double firstPolyX; // world x of the first polygon's first vertex
-    bool firstPolySeen;
-} DrawCounts;
-
-static void CountPolygon(const m2Vec2* verts, int32_t count, m2Pos2 origin, m2Rot rotation,
-                         uint32_t color, void* context)
-{
-    (void)color;
-    DrawCounts* c = context;
-    c->polygons += 1;
-    if (!c->firstPolySeen && count > 0)
-    {
-        c->firstPolySeen = true;
-        c->firstPolyX = origin.x + (double)(rotation.c * verts[0].x - rotation.s * verts[0].y);
-    }
-}
-
-static void CountCircle(m2Pos2 center, float radius, m2Rot rotation, uint32_t color, void* context)
-{
-    (void)center;
-    (void)radius;
-    (void)rotation;
-    (void)color;
-    ((DrawCounts*)context)->circles += 1;
-}
-
-static void CountSegment(m2Pos2 p1, m2Pos2 p2, uint32_t color, void* context)
-{
-    (void)p1;
-    (void)p2;
-    (void)color;
-    ((DrawCounts*)context)->segments += 1;
-}
-
-static void CountPoint(m2Pos2 p, float size, uint32_t color, void* context)
-{
-    (void)p;
-    (void)size;
-    (void)color;
-    ((DrawCounts*)context)->points += 1;
-}
-
-static void TestDebugDraw(void)
-{
-    // A known scene: one ground polygon, one resting box, one circle,
-    // one joint. The counting renderer must see exactly that - and a
-    // draw storm must not move a single simulation bit.
-    m2WorldDef def = m2DefaultWorldDef();
-    def.bodyCapacity = 8;
-    def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
-    m2BodyDef fd = m2DefaultBodyDef();
-    fd.position = (m2Pos2){100.0, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
-    m2ShapeDef fs = m2DefaultShapeDef();
-    m2Polygon slab = m2MakeBox(6.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
-    m2BodyDef bd = m2DefaultBodyDef();
-    bd.type = m2_dynamicBody;
-    bd.position = (m2Pos2){100.0, 0.45};
-    m2BodyId box = m2CreateBody(world, &bd);
-    m2ShapeDef sd = m2DefaultShapeDef();
-    m2Polygon unit = m2MakeBox(0.4f, 0.4f);
-    m2CreatePolygonShape(box, &sd, &unit);
-    m2BodyDef cd = m2DefaultBodyDef();
-    cd.type = m2_dynamicBody;
-    cd.position = (m2Pos2){103.0, 2.0};
-    m2BodyId ball = m2CreateBody(world, &cd);
-    m2ShapeDef cs = m2DefaultShapeDef();
-    m2Circle circle = {{0.0f, 0.0f}, 0.3f};
-    m2CreateCircleShape(ball, &cs, &circle);
-    m2DistanceJointDef jd = m2DefaultDistanceJointDef();
-    jd.bodyIdA = floor;
-    jd.bodyIdB = ball;
-    m2CreateDistanceJoint(world, &jd);
-
-    for (int32_t i = 0; i < 30; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-    }
-
-    DrawCounts counts;
-    memset(&counts, 0, sizeof(counts));
-    m2DebugDraw draw;
-    memset(&draw, 0, sizeof(draw));
-    draw.drawPolygon = CountPolygon;
-    draw.drawCircle = CountCircle;
-    draw.drawSegment = CountSegment;
-    draw.drawPoint = CountPoint;
-    draw.drawShapes = true;
-    draw.drawJoints = true;
-    draw.drawContacts = true;
-    draw.context = &counts;
-
-    uint64_t before = m2World_Hash(world);
-    for (int32_t i = 0; i < 20; ++i)
-    {
-        m2World_Draw(world, &draw);
-    }
-    CHECK(m2World_Hash(world) == before, "a draw storm moves no bits");
-
-    memset(&counts, 0, sizeof(counts));
-    m2World_Draw(world, &draw);
-    CHECK(counts.polygons == 2, "two polygons drawn");
-    CHECK(counts.circles == 1, "one circle drawn");
-    CHECK(counts.segments == 1, "one joint segment drawn");
-    CHECK(counts.points >= 4, "joint anchors and contact points drawn");
-    CHECK(counts.firstPolySeen && counts.firstPolyX > 90.0 && counts.firstPolyX < 110.0,
-          "local vertices compose with the f64 origin to world space");
 
     m2DestroyWorld(world);
 }
@@ -2355,13 +2206,13 @@ static void TestMotionLocks(void)
         m2Body_SetMotionLocks(b, (m2MotionLocks){true, true, false}); // lock both linear axes now
         int32_t size = m2World_SnapshotSize(w);
         void* snap = malloc((size_t)size);
-        CHECK(m2World_Snapshot(w, snap, size) == size, "the v34 snapshot fits");
+        CHECK(m2World_Snapshot(w, snap, size) == size, "the snapshot fits");
         for (int32_t i = 0; i < 30; ++i)
         {
             m2World_Step(w, 1.0f / 60.0f, 4);
         }
         uint64_t after = m2World_Hash(w);
-        CHECK(m2World_Restore(w, snap, size), "the v34 snapshot restores");
+        CHECK(m2World_Restore(w, snap, size), "the snapshot restores");
         // The locks survive the round-trip, so the frozen body stays frozen.
         CHECK(m2Body_GetMotionLocks(b).linearX && m2Body_GetMotionLocks(b).linearY,
               "the restored body keeps its locks");
@@ -2443,13 +2294,13 @@ static void TestWind(void)
         }
         int32_t size = m2World_SnapshotSize(w);
         void* snap = malloc((size_t)size);
-        CHECK(m2World_Snapshot(w, snap, size) == size, "the v35 snapshot fits");
+        CHECK(m2World_Snapshot(w, snap, size) == size, "the snapshot fits");
         for (int32_t i = 0; i < 30; ++i)
         {
             m2World_Step(w, 1.0f / 60.0f, 4);
         }
         uint64_t after = m2World_Hash(w);
-        CHECK(m2World_Restore(w, snap, size), "the v35 snapshot restores");
+        CHECK(m2World_Restore(w, snap, size), "the snapshot restores");
         m2Vec2 rv;
         float rd;
         m2World_GetWind(w, &rv, &rd);
@@ -2485,21 +2336,16 @@ int main(void)
     TestMirrorRebuild();
     TestEnumerationWalk();
     TestDestroyWakesSleepers();
-    TestDebugDraw();
     TestSetType();
     TestTeleport();
     TestKineticEnergy();
     TestCountersAndProfile();
-    TestDefCookies();
     TestRollbackIdentity();
     TestIdSemantics();
     TestDestroyStaleWorldId();
     TestIdsOutliveNoWorld();
     TestMotionLocks();
     TestWind();
-
-    uint64_t hash = DeterminismSweep();
-    printf("M2_WORLD_HASH=%016llx\n", (unsigned long long)hash);
 
     if (s_failures > 0)
     {

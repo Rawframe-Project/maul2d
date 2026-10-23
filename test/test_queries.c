@@ -9,9 +9,9 @@
 // identically across CI cells.
 
 #include "test_harness.h"
-#include "world_internal.h"
 
 #include "maul2d/base.h"
+#include "maul2d/maul2d.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -512,80 +512,6 @@ static void TestQueriesAreReadOnly(void)
     m2DestroyWorld(world);
 }
 
-static uint64_t QuerySweepHash(void)
-{
-    // A debris field far from the origin, swept by a fan of rays and a
-    // sliding overlap window; the answers themselves are the gated
-    // bytes.
-    m2WorldDef def = m2DefaultWorldDef();
-    def.bodyCapacity = 64;
-    def.shapeCapacity = 64;
-    m2WorldId world = m2CreateWorld(&def);
-
-    m2BodyDef fd = m2DefaultBodyDef();
-    fd.position = (m2Pos2){-4.4e5, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
-    m2ShapeDef fs = m2DefaultShapeDef();
-    m2Polygon slab = m2MakeBox(30.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
-
-    for (int32_t i = 0; i < 24; ++i)
-    {
-        m2BodyDef bd = m2DefaultBodyDef();
-        bd.type = m2_dynamicBody;
-        bd.position = (m2Pos2){-4.4e5 - 10.0 + 0.9 * (double)i, 0.6 + 0.8 * (double)(i % 4)};
-        m2BodyId body = m2CreateBody(world, &bd);
-        m2ShapeDef sd = m2DefaultShapeDef();
-        if (i % 3 == 0)
-        {
-            m2Circle circle = {{0.0f, 0.0f}, 0.25f + 0.02f * (float)(i % 5)};
-            m2CreateCircleShape(body, &sd, &circle);
-        }
-        else if (i % 3 == 1)
-        {
-            m2Polygon box = m2MakeBox(0.3f, 0.2f);
-            m2CreatePolygonShape(body, &sd, &box);
-        }
-        else
-        {
-            m2Capsule capsule = {{-0.2f, 0.0f}, {0.2f, 0.0f}, 0.15f};
-            m2CreateCapsuleShape(body, &sd, &capsule);
-        }
-    }
-
-    uint64_t h = M2_HASH_INIT;
-    m2ShapeId results[64];
-    for (int32_t step = 0; step < 120; ++step)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        // Ray fan.
-        for (int32_t r = 0; r < 8; ++r)
-        {
-            m2RayCastResult hit = m2World_CastRayClosest(
-                world, (m2Pos2){-4.4e5 - 12.0 + 3.0 * (double)r, 4.0},
-                (m2Vec2){0.5f * (float)(r - 4), -8.0f}, m2DefaultQueryFilter());
-            h = m2Hash64(h, &hit.hit, 1);
-            if (hit.hit)
-            {
-                h = m2Hash64(h, &hit.shapeId.index1, (int32_t)sizeof(int32_t));
-                h = m2Hash64(h, &hit.fraction, (int32_t)sizeof(float));
-                h = m2Hash64(h, &hit.normal, (int32_t)sizeof(m2Vec2));
-            }
-        }
-        // Sliding overlap window.
-        double x = -4.4e5 - 12.0 + 0.2 * (double)step;
-        int32_t total = m2World_OverlapAabb(world, (m2Pos2){x, -1.0}, (m2Pos2){x + 4.0, 3.0},
-                                            results, 64, m2DefaultQueryFilter());
-        h = m2Hash64(h, &total, (int32_t)sizeof(int32_t));
-        for (int32_t i = 0; i < total && i < 64; ++i)
-        {
-            h = m2Hash64(h, &results[i].index1, (int32_t)sizeof(int32_t));
-        }
-    }
-    m2DestroyWorld(world);
-    return h;
-}
-
 static void TestQueryFilters(void)
 {
     // A filtered ray sees only what its mask allows; the overlap list
@@ -749,9 +675,6 @@ int main(void)
     TestRayFarFromOrigin();
     TestOverlap();
     TestQueriesAreReadOnly();
-
-    uint64_t hash = QuerySweepHash();
-    printf("M2_QUERY_HASH=%016llx\n", (unsigned long long)hash);
 
     if (s_failures > 0)
     {

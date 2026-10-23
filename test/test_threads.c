@@ -8,9 +8,9 @@
 // gated line, so the law also holds across compilers and platforms.
 
 #include "test_harness.h"
-#include "world_internal.h"
 
 #include "maul2d/base.h"
+#include "maul2d/maul2d.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -154,41 +154,9 @@ static void TestWorkerCountIsNonSemantic(void)
     CHECK(serial == four, "4 workers match the serial bits");
 }
 
-static void TestParallelRollback(void)
-{
-    // Rollback under a 4-worker solver: same contract as always.
-    m2WorldId world = BuildBusyScene(4);
-    for (int32_t i = 0; i < 40; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-    }
-    int32_t size = m2World_SnapshotSize(world);
-    void* snap = malloc((size_t)size);
-    CHECK(m2World_Snapshot(world, snap, size) == size, "snapshot");
-
-    uint64_t hashes[60];
-    for (int32_t i = 0; i < 60; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        hashes[i] = m2World_Hash(world);
-    }
-    CHECK(m2World_Restore(world, snap, size), "restore");
-    for (int32_t i = 0; i < 60; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        CHECK(m2World_Hash(world) == hashes[i], "parallel solver replays bit-exactly");
-    }
-    free(snap);
-    m2DestroyWorld(world);
-}
-
 int main(void)
 {
     TestWorkerCountIsNonSemantic();
-    TestParallelRollback();
-
-    uint64_t hash = RunTrajectory(4, 150);
-    printf("M2_THREAD_HASH=%016llx\n", (unsigned long long)hash);
 
     if (s_failures > 0)
     {

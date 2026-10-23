@@ -7,9 +7,9 @@
 // and the bullet spray hash crosses CI cells.
 
 #include "test_harness.h"
-#include "world_internal.h"
 
 #include "maul2d/base.h"
+#include "maul2d/maul2d.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -151,57 +151,12 @@ static void TestCcdRollback(void)
     m2DestroyWorld(world);
 }
 
-static uint64_t CcdSweepHash(void)
-{
-    // Bullet spray into pillars far from the origin.
-    m2WorldDef def = m2DefaultWorldDef();
-    def.bodyCapacity = 128;
-    def.shapeCapacity = 128;
-    m2WorldId world = m2CreateWorld(&def);
-    for (int32_t i = 0; i < 5; ++i)
-    {
-        AddWall(world, -7.7e5 + 3.0 * (double)i, 0.08f, 6.0f);
-    }
-    m2BodyDef fd = m2DefaultBodyDef();
-    fd.position = (m2Pos2){-7.7e5, -6.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
-    m2ShapeDef fs = m2DefaultShapeDef();
-    m2Polygon slab = m2MakeBox(30.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
-
-    uint64_t h = M2_HASH_INIT;
-    for (int32_t step = 0; step < 200; ++step)
-    {
-        if (step % 10 == 0 && step < 120)
-        {
-            m2BodyDef bd = m2DefaultBodyDef();
-            bd.type = m2_dynamicBody;
-            bd.position = (m2Pos2){-7.7e5 - 12.0, -4.0 + 0.8 * (double)((step / 10) % 9)};
-            bd.linearVelocity = (m2Vec2){90.0f + 15.0f * (float)(step % 3), 0.0f};
-            bd.isBullet = true;
-            m2BodyId b = m2CreateBody(world, &bd);
-            m2ShapeDef sd = m2DefaultShapeDef();
-            sd.restitution = 0.3f;
-            m2Circle c = {{0.0f, 0.0f}, 0.08f + 0.02f * (float)(step % 4)};
-            m2CreateCircleShape(b, &sd, &c);
-        }
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        uint64_t worldHash = m2World_Hash(world);
-        h = m2Hash64(h, &worldHash, (int32_t)sizeof(worldHash));
-    }
-    m2DestroyWorld(world);
-    return h;
-}
-
 int main(void)
 {
     TestThinWall();
     TestEarliestWallWins();
     TestBulletsIgnoreEachOther();
     TestCcdRollback();
-
-    uint64_t hash = CcdSweepHash();
-    printf("M2_CCD_HASH=%016llx\n", (unsigned long long)hash);
 
     if (s_failures > 0)
     {

@@ -60,11 +60,12 @@ preset() {
 labels_for() {
     case "$1" in
     *.md | LICENSE | .github/* | tools/*.py | tools/*.txt | tools/check.sh) ;;
-    test/test_harness.h | test/test_task_pool.h | test/hashes.txt) echo all ;;
+    test/test_harness.h | test/test_task_pool.h | test/walk.h | test/hashes.txt) echo all ;;
     test/test_*.c)
         name=${1#test/test_}
         echo "${name%.c} golden"
         ;;
+    bench/scenes.*) echo golden ;;
     bench/* | samples/* | testbed/*) ;;
     *) echo all ;;
     esac
@@ -144,6 +145,6 @@ cmake --build --preset linux-testbed -j "$jobs" >>"$out/linux-testbed.log"
 
 step "the nightly simulation"
 "$out/linux-clang-20/test_soak" 300000
-"$out/linux-clang-20/test_fuzz" 200
+"$out/linux-clang-20/test_walk" 200
 
 step "all checks passed"

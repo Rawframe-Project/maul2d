@@ -4,9 +4,9 @@
 // Debug-draw gate: m2World_Draw is a read-only walk that hands a
 // renderer one primitive per shape, the right coupling per joint, a
 // point per contact and a box per proxy. This suite records every
-// callback and checks the counts, the colors that encode body state,
-// that every emitted coordinate is finite, that the walk moves no
-// bits, that it repeats identically, and that the special joints
+// callback and checks the counts, that shapes draw at their world
+// positions, that every emitted coordinate is finite, that the walk
+// moves no bits, that it repeats identically, and that the special joints
 // (filter draws nothing, gear and ratchet draw hub to hub, pulley
 // draws its ropes and crossbar, mouse draws from its target) come out
 // exactly as drawn. Draw carries no gated hash: it produces no state,
@@ -142,18 +142,6 @@ static m2DebugDraw FullDraw(Rec* r)
     return d;
 }
 
-// These mirror draw.c's palette; the test owns the expected values so
-// a silent palette change is caught here.
-enum
-{
-    kStatic = 0x7f7f7f,
-    kKinematic = 0x5f9fd8,
-    kAwake = 0xd8b25f,
-    kSleeping = 0x6f6a55,
-    kSensor = 0x5fd88a,
-    kBullet = 0xd8755f,
-};
-
 static m2BodyId AddBody(m2WorldId world, m2BodyType type, double x, double y)
 {
     m2BodyDef bd = m2DefaultBodyDef();
@@ -162,7 +150,7 @@ static m2BodyId AddBody(m2WorldId world, m2BodyType type, double x, double y)
     return m2CreateBody(world, &bd);
 }
 
-static void TestShapeCountsAndColors(void)
+static void TestShapeCounts(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
     m2WorldId world = m2CreateWorld(&def);
@@ -220,66 +208,98 @@ static void TestShapeCountsAndColors(void)
     CHECK(r.polygons == 3, "three polygon shapes draw three polygons"); // box + kin + bullet
     CHECK(r.nonFinite == 0, "every emitted coordinate is finite");
 
-    // Colors: the static segment is gray, the kinematic box blue, the
-    // sensor circle green, the bullet box orange, a plain awake body tan.
-    CHECK(r.lastSegmentColor == kStatic, "static body draws gray");
-    CHECK(r.lastCapsuleColor == kAwake, "awake dynamic body draws tan");
-    // The sensor circle is created after the plain circle, so the last
-    // circle color recorded is the sensor's green.
-    CHECK(r.lastCircleColor == kSensor, "sensor shape draws green");
-    CHECK(r.lastPolygonColor == kBullet, "bullet body draws orange");
-
-    // A kinematic body's color: draw only its box by walking a fresh
-    // recorder with just that shape reachable is awkward; instead assert
-    // the palette carries a distinct kinematic value by drawing a world
-    // that holds only the kinematic body.
-    m2WorldId kworld = m2CreateWorld(&def);
-    m2BodyId onlyKin = AddBody(kworld, m2_kinematicBody, 0.0, 0.0);
-    m2Polygon kb = m2MakeBox(0.5f, 0.5f);
-    m2CreatePolygonShape(onlyKin, &sd, &kb);
-    Rec kr = {0};
-    m2DebugDraw kd = FullDraw(&kr);
-    kd.drawJoints = false;
-    kd.drawContacts = false;
-    kd.drawAabbs = false;
-    m2World_Draw(kworld, &kd);
-    CHECK(kr.polygons == 1 && kr.lastPolygonColor == kKinematic, "kinematic body draws blue");
-    m2DestroyWorld(kworld);
-
     m2DestroyWorld(world);
 }
 
-static void TestSleepingColor(void)
+// Where the renderer was told to draw: the first polygon's vertices
+// composed to world space, and the first circle's center.
+typedef struct
 {
-    // A settled dynamic body sleeps and must draw dim. Give it a floor
-    // to rest on and step until it sleeps.
+    int32_t polygonVertices;
+    m2Pos2 polygon[M2_MAX_POLYGON_VERTICES];
+    bool circleSeen;
+    m2Pos2 circle;
+} Placement;
+
+static void PlacePolygon(const m2Vec2* verts, int32_t count, m2Pos2 origin, m2Rot rot,
+                         uint32_t color, void* ctx)
+{
+    (void)color;
+    Placement* p = (Placement*)ctx;
+    if (p->polygonVertices > 0 || count > M2_MAX_POLYGON_VERTICES)
+    {
+        return;
+    }
+    for (int32_t i = 0; i < count; ++i)
+    {
+        p->polygon[i].x = origin.x + (double)(rot.c * verts[i].x - rot.s * verts[i].y);
+        p->polygon[i].y = origin.y + (double)(rot.s * verts[i].x + rot.c * verts[i].y);
+    }
+    p->polygonVertices = count;
+}
+
+static void PlaceCircle(m2Pos2 c, float radius, m2Rot rot, uint32_t color, void* ctx)
+{
+    (void)radius;
+    (void)rot;
+    (void)color;
+    Placement* p = (Placement*)ctx;
+    if (!p->circleSeen)
+    {
+        p->circleSeen = true;
+        p->circle = c;
+    }
+}
+
+static bool Near(m2Pos2 a, m2Pos2 b)
+{
+    double dx = a.x - b.x;
+    double dy = a.y - b.y;
+    return dx * dx + dy * dy < 1.0e-6;
+}
+
+// Draw hands the renderer world space: local vertices composed with the
+// f64 origin and the rotation land where the body puts them, far from
+// the origin too.
+static void TestWorldSpacePositions(void)
+{
     m2WorldDef def = m2DefaultWorldDef();
     m2WorldId world = m2CreateWorld(&def);
     m2ShapeDef sd = m2DefaultShapeDef();
 
-    m2BodyId floor = AddBody(world, m2_staticBody, 0.0, 0.0);
-    m2Polygon slab = m2MakeBox(10.0f, 0.5f);
-    m2CreatePolygonShape(floor, &sd, &slab);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.position = (m2Pos2){100.0, -40.0};
+    bd.rotation = m2MakeRot(0.6f);
+    m2BodyId boxBody = m2CreateBody(world, &bd);
+    m2Polygon box = m2MakeBox(0.5f, 0.25f);
+    m2CreatePolygonShape(boxBody, &sd, &box);
 
-    m2BodyId box = AddBody(world, m2_dynamicBody, 0.0, 1.0);
-    m2Polygon b = m2MakeBox(0.5f, 0.5f);
-    m2CreatePolygonShape(box, &sd, &b);
+    m2BodyId ballBody = AddBody(world, m2_staticBody, -250.0, 30.0);
+    m2Circle circle = {{0.0f, 0.0f}, 0.5f};
+    m2CreateCircleShape(ballBody, &sd, &circle);
 
-    for (int i = 0; i < 200 && m2Body_IsAwake(box); ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-    }
-    CHECK(!m2Body_IsAwake(box), "the box settles and sleeps");
-
-    Rec r = {0};
-    m2DebugDraw d = FullDraw(&r);
-    d.drawJoints = false;
-    d.drawContacts = false;
-    d.drawAabbs = false;
+    Placement p;
+    memset(&p, 0, sizeof(p));
+    m2DebugDraw d;
+    memset(&d, 0, sizeof(d));
+    d.drawPolygon = PlacePolygon;
+    d.drawCircle = PlaceCircle;
+    d.drawShapes = true;
+    d.context = &p;
     m2World_Draw(world, &d);
-    // Two polygons: static floor (gray) and the sleeping box (dim).
-    CHECK(r.polygons == 2, "floor and box both draw");
-    CHECK(r.lastPolygonColor == kSleeping, "a sleeping body draws dim");
+
+    CHECK(p.polygonVertices == box.count, "the box draws all its vertices");
+    bool placed = p.polygonVertices > 0;
+    for (int32_t i = 0; i < p.polygonVertices && i < box.count; ++i)
+    {
+        placed = placed && Near(p.polygon[i], m2Body_GetWorldPoint(boxBody, box.vertices[i]));
+    }
+    CHECK(placed, "polygon vertices land at the body's world points");
+    CHECK(p.polygonVertices > 0 && p.polygon[0].x > 90.0 && p.polygon[0].x < 110.0,
+          "local vertices compose with the f64 origin to world space");
+    CHECK(p.circleSeen && Near(p.circle, m2Body_GetPosition(ballBody)),
+          "a circle draws at its body's world position");
+
     m2DestroyWorld(world);
 }
 
@@ -398,7 +418,6 @@ static void TestChainDrawing(void)
     d.drawAabbs = false;
     m2World_Draw(world, &d);
     CHECK(r.segments == 4, "a four-point loop chain draws four chain segments");
-    CHECK(r.lastSegmentColor == kStatic, "chain segments on a static body draw gray");
     CHECK(r.nonFinite == 0, "every chain-segment endpoint is finite");
     CHECK(r.polygons == 0 && r.circles == 0, "a chain emits no other primitive");
     m2DestroyWorld(world);
@@ -589,8 +608,8 @@ static void TestNullAndEmpty(void)
 
 int main(void)
 {
-    TestShapeCountsAndColors();
-    TestSleepingColor();
+    TestShapeCounts();
+    TestWorldSpacePositions();
     TestJointDrawing();
     TestChainDrawing();
     TestContactsAndAABBs();

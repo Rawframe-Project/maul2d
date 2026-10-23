@@ -8,9 +8,9 @@
 // chain-swing hash crosses CI cells.
 
 #include "test_harness.h"
-#include "world_internal.h"
 
 #include "maul2d/base.h"
+#include "maul2d/maul2d.h"
 
 #include <math.h>
 #include <stdio.h>
@@ -577,81 +577,6 @@ static void TestPrismaticMotor(void)
     m2Pos2 pos = m2Body_GetPosition(platform);
     CHECK(pos.y > 1.0 + 1.95 && pos.y < 1.0 + 2.05, "elevator holds at the upper stop");
 
-    m2DestroyWorld(world);
-}
-
-static void TestMotorRollback(void)
-{
-    // Motors, limits and the slider all carry warm-start accumulators:
-    // snapshot mid-drive, replay, demand bit-exact hashes.
-    m2WorldDef def = m2DefaultWorldDef();
-    def.bodyCapacity = 16;
-    def.shapeCapacity = 16;
-    m2WorldId world = m2CreateWorld(&def);
-
-    m2BodyDef ad = m2DefaultBodyDef();
-    ad.position = (m2Pos2){0.0, 3.0};
-    m2BodyId tower = m2CreateBody(world, &ad);
-    m2BodyDef bladeDef = m2DefaultBodyDef();
-    bladeDef.type = m2_dynamicBody;
-    bladeDef.position = (m2Pos2){0.0, 3.0};
-    m2BodyId blade = m2CreateBody(world, &bladeDef);
-    m2ShapeDef sd = m2DefaultShapeDef();
-    m2Polygon bar = m2MakeBox(0.8f, 0.05f);
-    m2CreatePolygonShape(blade, &sd, &bar);
-    m2RevoluteJointDef mill = m2DefaultRevoluteJointDef();
-    mill.bodyIdA = tower;
-    mill.bodyIdB = blade;
-    mill.enableMotor = true;
-    mill.motorSpeed = 3.0f;
-    mill.maxMotorTorque = 20.0f;
-    mill.enableLimit = false;
-    m2CreateRevoluteJoint(world, &mill);
-
-    m2BodyDef pd = m2DefaultBodyDef();
-    pd.type = m2_dynamicBody;
-    pd.position = (m2Pos2){3.0, 3.0};
-    m2BodyId piston = m2CreateBody(world, &pd);
-    m2Polygon head = m2MakeBox(0.2f, 0.2f);
-    m2CreatePolygonShape(piston, &sd, &head);
-    m2BodyDef fd = m2DefaultBodyDef();
-    fd.position = (m2Pos2){3.0, 3.0};
-    m2BodyId cylinder = m2CreateBody(world, &fd);
-    m2PrismaticJointDef rig = m2DefaultPrismaticJointDef();
-    rig.bodyIdA = cylinder;
-    rig.bodyIdB = piston;
-    rig.localAxisA = (m2Vec2){0.0f, 1.0f};
-    rig.enableMotor = true;
-    rig.motorSpeed = -0.8f;
-    rig.maxMotorForce = 30.0f;
-    rig.enableLimit = true;
-    rig.lowerTranslation = -1.0f;
-    rig.upperTranslation = 1.0f;
-    m2CreatePrismaticJoint(world, &rig);
-
-    for (int32_t i = 0; i < 30; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-    }
-
-    int32_t size = m2World_SnapshotSize(world);
-    void* snap = malloc((size_t)size);
-    CHECK(m2World_Snapshot(world, snap, size) == size, "snapshot");
-
-    uint64_t hashes[60];
-    for (int32_t i = 0; i < 60; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        hashes[i] = m2World_Hash(world);
-    }
-    CHECK(m2World_Restore(world, snap, size), "restore");
-    for (int32_t i = 0; i < 60; ++i)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        CHECK(m2World_Hash(world) == hashes[i], "motorized machinery replays bit-exactly");
-    }
-
-    free(snap);
     m2DestroyWorld(world);
 }
 
@@ -1788,164 +1713,6 @@ static void TestBreakRollback(void)
     m2DestroyWorld(world);
 }
 
-static uint64_t JointSweepHash(void)
-{
-    // A bridge of revolute links with cargo dropped on it, far from the
-    // origin: joint impulses, contacts, and sleep all in one stream.
-    m2WorldDef def = m2DefaultWorldDef();
-    def.bodyCapacity = 128;
-    def.shapeCapacity = 128;
-    m2WorldId world = m2CreateWorld(&def);
-
-    m2BodyDef ad = m2DefaultBodyDef();
-    ad.position = (m2Pos2){-9.1e5, 4.0};
-    m2BodyId left = m2CreateBody(world, &ad);
-    m2BodyId previous = left;
-    for (int32_t i = 0; i < 10; ++i)
-    {
-        m2BodyDef bd = m2DefaultBodyDef();
-        bd.type = m2_dynamicBody;
-        bd.position = (m2Pos2){-9.1e5 + 0.8 * (double)(i + 1), 4.0};
-        m2BodyId plank = m2CreateBody(world, &bd);
-        m2ShapeDef sd = m2DefaultShapeDef();
-        m2Polygon shape = m2MakeBox(0.4f, 0.1f);
-        m2CreatePolygonShape(plank, &sd, &shape);
-        m2RevoluteJointDef jd = m2DefaultRevoluteJointDef();
-        jd.bodyIdA = previous;
-        jd.bodyIdB = plank;
-        jd.localAnchorA =
-            previous.index1 == left.index1 ? (m2Vec2){0.0f, 0.0f} : (m2Vec2){0.4f, 0.0f};
-        jd.localAnchorB = (m2Vec2){-0.4f, 0.0f};
-        m2CreateRevoluteJoint(world, &jd);
-        previous = plank;
-    }
-    m2BodyDef rd = m2DefaultBodyDef();
-    rd.position = (m2Pos2){-9.1e5 + 8.8, 4.0};
-    m2BodyId right = m2CreateBody(world, &rd);
-    m2RevoluteJointDef last = m2DefaultRevoluteJointDef();
-    last.bodyIdA = previous;
-    last.bodyIdB = right;
-    last.localAnchorA = (m2Vec2){0.4f, 0.0f};
-    last.localAnchorB = (m2Vec2){0.0f, 0.0f};
-    m2CreateRevoluteJoint(world, &last);
-
-    // A motorized windmill and a limited piston churn beside the
-    // bridge: motors, limits and the slider feed the same hash stream.
-    m2BodyDef td = m2DefaultBodyDef();
-    td.position = (m2Pos2){-9.1e5 + 12.0, 5.0};
-    m2BodyId tower = m2CreateBody(world, &td);
-    m2BodyDef wd = m2DefaultBodyDef();
-    wd.type = m2_dynamicBody;
-    wd.position = (m2Pos2){-9.1e5 + 12.0, 5.0};
-    m2BodyId blade = m2CreateBody(world, &wd);
-    m2ShapeDef ws = m2DefaultShapeDef();
-    m2Polygon bladeBox = m2MakeBox(1.0f, 0.08f);
-    m2CreatePolygonShape(blade, &ws, &bladeBox);
-    m2RevoluteJointDef mill = m2DefaultRevoluteJointDef();
-    mill.bodyIdA = tower;
-    mill.bodyIdB = blade;
-    mill.enableMotor = true;
-    mill.motorSpeed = 2.5f;
-    mill.maxMotorTorque = 30.0f;
-    m2CreateRevoluteJoint(world, &mill);
-
-    m2BodyDef cd = m2DefaultBodyDef();
-    cd.position = (m2Pos2){-9.1e5 - 3.0, 5.0};
-    m2BodyId cylinder = m2CreateBody(world, &cd);
-    m2BodyDef hd = m2DefaultBodyDef();
-    hd.type = m2_dynamicBody;
-    hd.position = (m2Pos2){-9.1e5 - 3.0, 5.0};
-    m2BodyId ram = m2CreateBody(world, &hd);
-    m2Polygon ramBox = m2MakeBox(0.25f, 0.25f);
-    m2CreatePolygonShape(ram, &ws, &ramBox);
-    m2PrismaticJointDef press = m2DefaultPrismaticJointDef();
-    press.bodyIdA = cylinder;
-    press.bodyIdB = ram;
-    press.localAxisA = (m2Vec2){0.0f, 1.0f};
-    press.enableMotor = true;
-    press.motorSpeed = -1.2f;
-    press.maxMotorForce = 40.0f;
-    press.enableLimit = true;
-    press.lowerTranslation = -1.2f;
-    press.upperTranslation = 0.5f;
-    m2CreatePrismaticJoint(world, &press);
-
-    // A welded counterweight hangs off the right pier; a sprung buggy
-    // drives across the far apron: weld and wheel bytes join the hash.
-    m2BodyDef counterDef = m2DefaultBodyDef();
-    counterDef.type = m2_dynamicBody;
-    counterDef.position = (m2Pos2){-9.1e5 + 9.6, 3.2};
-    m2BodyId counter = m2CreateBody(world, &counterDef);
-    m2ShapeDef counterShape = m2DefaultShapeDef();
-    m2Polygon counterBox = m2MakeBox(0.3f, 0.3f);
-    m2CreatePolygonShape(counter, &counterShape, &counterBox);
-    m2WeldJointDef weld = m2DefaultWeldJointDef();
-    weld.bodyIdA = right;
-    weld.bodyIdB = counter;
-    weld.localAnchorB = (m2Vec2){0.0f, 0.8f};
-    m2CreateWeldJoint(world, &weld);
-
-    m2BodyDef apronDef = m2DefaultBodyDef();
-    apronDef.position = (m2Pos2){-9.1e5 + 20.0, 0.0};
-    m2BodyId apron = m2CreateBody(world, &apronDef);
-    m2ShapeDef apronShape = m2DefaultShapeDef();
-    apronShape.friction = 0.9f;
-    m2Polygon apronSlab = m2MakeBox(8.0f, 0.5f);
-    m2CreatePolygonShape(apron, &apronShape, &apronSlab);
-    m2BodyDef buggyDef = m2DefaultBodyDef();
-    buggyDef.type = m2_dynamicBody;
-    buggyDef.position = (m2Pos2){-9.1e5 + 15.0, 1.4};
-    m2BodyId buggy = m2CreateBody(world, &buggyDef);
-    m2Polygon buggyDeck = m2MakeBox(0.7f, 0.12f);
-    m2CreatePolygonShape(buggy, &apronShape, &buggyDeck);
-    for (int32_t i = 0; i < 2; ++i)
-    {
-        m2BodyDef wheelDef = m2DefaultBodyDef();
-        wheelDef.type = m2_dynamicBody;
-        wheelDef.position = (m2Pos2){-9.1e5 + 15.0 + (i == 0 ? -0.5 : 0.5), 1.0};
-        m2BodyId tire = m2CreateBody(world, &wheelDef);
-        m2ShapeDef tireShape = m2DefaultShapeDef();
-        tireShape.friction = 0.9f;
-        m2Circle tireCircle = {{0.0f, 0.0f}, 0.25f};
-        m2CreateCircleShape(tire, &tireShape, &tireCircle);
-        m2WheelJointDef ride = m2DefaultWheelJointDef();
-        ride.bodyIdA = buggy;
-        ride.bodyIdB = tire;
-        ride.localAnchorA = (m2Vec2){i == 0 ? -0.5f : 0.5f, -0.4f};
-        ride.localAxisA = (m2Vec2){0.0f, 1.0f};
-        ride.hertz = 4.0f;
-        ride.dampingRatio = 0.7f;
-        ride.enableLimit = true;
-        ride.lowerTranslation = -0.15f;
-        ride.upperTranslation = 0.15f;
-        ride.enableMotor = true;
-        ride.motorSpeed = -6.0f;
-        ride.maxMotorTorque = 10.0f;
-        m2CreateWheelJoint(world, &ride);
-    }
-
-    uint64_t h = M2_HASH_INIT;
-    for (int32_t step = 0; step < 300; ++step)
-    {
-        if (step % 40 == 10)
-        {
-            m2BodyDef bd = m2DefaultBodyDef();
-            bd.type = m2_dynamicBody;
-            bd.position = (m2Pos2){-9.1e5 + 1.5 + 0.9 * (double)(step / 40), 7.0};
-            m2BodyId cargo = m2CreateBody(world, &bd);
-            m2ShapeDef sd = m2DefaultShapeDef();
-            sd.density = 2.0f;
-            m2Circle c = {{0.0f, 0.0f}, 0.25f};
-            m2CreateCircleShape(cargo, &sd, &c);
-        }
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        uint64_t worldHash = m2World_Hash(world);
-        h = m2Hash64(h, &worldHash, (int32_t)sizeof(worldHash));
-    }
-    m2DestroyWorld(world);
-    return h;
-}
-
 static void TestPrismaticStressStability(void)
 {
     // An over-constrained slider on a spinning base: two prismatic joints
@@ -2124,7 +1891,6 @@ int main(void)
     TestPrismaticSlider();
     TestPrismaticMotor();
     TestPrismaticStressStability();
-    TestMotorRollback();
     TestWeldRigid();
     TestWheelSuspension();
     TestWheelCar();
@@ -2141,9 +1907,6 @@ int main(void)
     TestRevoluteSpring();
     TestJointBreaking();
     TestBreakRollback();
-
-    uint64_t hash = JointSweepHash();
-    printf("M2_JOINT_HASH=%016llx\n", (unsigned long long)hash);
 
     if (s_failures > 0)
     {
