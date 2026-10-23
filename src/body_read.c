@@ -6,7 +6,6 @@
 
 #include "body.h"
 #include "shape.h"
-#include "world.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"

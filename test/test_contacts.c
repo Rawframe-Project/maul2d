@@ -7,8 +7,8 @@
 // rollback over the contact block, and the manifold evolution hash.
 
 #include "test_harness.h"
-#include "world.h"
 #include "world_internal.h"
+#include "world_registry.h"
 
 #include "maul2d/base.h"
 

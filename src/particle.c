@@ -7,8 +7,8 @@
 #include "particle.h"
 
 #include "journal.h"
-#include "world.h"
 #include "world_internal.h"
+#include "world_registry.h"
 
 #include "maul2d/base.h"
 

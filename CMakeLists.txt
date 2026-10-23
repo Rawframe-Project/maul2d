@@ -103,6 +103,7 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/manifold.c
     src/math_functions.c
     src/mover.c
+    src/parallel.c
     src/particle.c
     src/particle_contacts.c
     src/particle_pairs.c
@@ -116,6 +117,7 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/solver.c
     src/world.c
     src/world_internal.c
+    src/world_registry.c
     src/world_state.c)
 maul_configure_library(maul2d)
 if(NOT MSVC)

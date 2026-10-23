@@ -9,8 +9,8 @@
 
 #include "test_harness.h"
 #include "test_task_pool.h"
-#include "world.h"
 #include "world_internal.h"
+#include "world_registry.h"
 
 #include "maul2d/base.h"
 

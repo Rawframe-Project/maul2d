@@ -7,7 +7,6 @@
 #include "broadphase.h"
 #include "joint.h"
 #include "journal.h"
-#include "world.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
