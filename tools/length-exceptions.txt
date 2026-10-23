@@ -4,10 +4,10 @@
 # shrinks: nothing may grow past its ceiling, and an entry that is back
 # under its limit must go.
 
-broadphase.c m2UpdatePairs 215 numeric kernel: one pass in a fixed operation order
-geometry.c Decompose 208 numeric kernel: one pass in a fixed operation order
-ccd.c SweepBullet 134 numeric kernel: one pass in a fixed operation order
-contact.c UpdateContactsRange 102 numeric kernel: one pass in a fixed operation order
-query.c CastProxyClosest 95 numeric kernel: one pass in a fixed operation order
-island.c m2UpdateIslandsAndWake 94 numeric kernel: one pass in a fixed operation order
-mover.c m2World_CollideMover 92 numeric kernel: one pass in a fixed operation order
+broadphase.c m2UpdatePairs 215 pair rebuild: query, merge and event diff share one stash of old pairs
+geometry.c Decompose 208 one algorithm: clip ears, merge pieces and validate them on one ring
+ccd.c SweepBullet 134 one bullet sweep: gather, sort and advance share the candidate list
+contact.c UpdateContactsRange 102 per-pair manifold kernel: frozen copy or recompute, one slot per pair
+query.c CastProxyClosest 95 one tree walk: cull, cast and keep the closest hit
+island.c m2UpdateIslandsAndWake 94 one island graph pass: union, fold to roots, wake, in body order
+mover.c m2World_CollideMover 92 one tree walk: a distance query and a plane per nearby shape

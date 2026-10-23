@@ -24,7 +24,7 @@
 // Planes for a posed capsule: one distance query per nearby shape. A
 // collar of four linear slops lets a controller see a wall before it
 // reaches it.
-// NOLINTNEXTLINE(readability-function-cognitive-complexity): numeric kernel, fixed order
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): one tree walk, a plane per shape
 int32_t m2World_CollideMover(const m2World* world, const m2Capsule* mover, m2Transform origin,
                              m2MoverPlane* results, int32_t capacity, m2QueryFilter filter)
 {

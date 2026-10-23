@@ -1767,6 +1767,150 @@ static void TestHostCodeCannotWrite(void)
     m2DestroyWorld(in.world);
 }
 
+// The allocator is host code too: one that tries to change the world it
+// serves, from inside alloc or free, is refused, during a replay's scratch
+// allocations and a destroy's frees alike.
+typedef struct Meddler
+{
+    m2World* target;
+    m2BodyId body;
+    int32_t allocTries;
+    int32_t allocRefused;
+    int32_t freeTries;
+    int32_t freeRefused;
+} Meddler;
+
+static void* MeddlingAlloc(size_t size, size_t alignment, void* context)
+{
+    (void)alignment;
+    Meddler* m = (Meddler*)context;
+    if (m->target != NULL)
+    {
+        m->allocTries += 1;
+        m2BodyDef bd = m2DefaultBodyDef();
+        m2BodyId made = m2_nullBodyId;
+        m->allocRefused += m2CreateBody(m->target, &bd, &made) == m2_errorState ? 1 : 0;
+    }
+    return malloc(size);
+}
+
+static void MeddlingFree(void* memory, size_t size, size_t alignment, void* context)
+{
+    (void)size;
+    (void)alignment;
+    Meddler* m = (Meddler*)context;
+    if (m->target != NULL)
+    {
+        m->freeTries += 1;
+        m->freeRefused += m2DestroyBody(m->target, m->body) == m2_errorState ? 1 : 0;
+    }
+    free(memory);
+}
+
+static void TestAllocatorCannotWrite(void)
+{
+    Meddler quiet = {NULL, m2_nullBodyId, 0, 0, 0, 0};
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 16;
+    def.shapeCapacity = 32;
+    def.allocator.alloc = MeddlingAlloc;
+    def.allocator.free = MeddlingFree;
+    def.allocator.context = &quiet;
+    m2World* world = NewWorld(&def);
+
+    // A tape whose replay allocates scratch: a chain and a shatter.
+    int32_t capacity = m2World_GetJournalBaseSize(world) + (1 << 14);
+    void* tape = malloc((size_t)capacity);
+    CHECK(StartJournal(world, tape, capacity), "the journal starts");
+    m2BodyDef gd = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(world, &gd);
+    m2Vec2 ledge[4] = {{-4.0f, 0.0f}, {-2.0f, 0.0f}, {2.0f, 0.0f}, {4.0f, 0.0f}};
+    m2ChainDef cd = m2DefaultChainDef();
+    cd.points = ledge;
+    cd.count = 4;
+    CHECK(NewChain(world, ground, &cd).index1 != 0, "the chain is recorded");
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    bd.position = (m2Pos2){0.0, 2.0};
+    m2BodyId crate = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon box = m2MakeBox(0.5f, 0.5f);
+    NewPolygonShape(world, crate, &sd, &box);
+    m2Vec2 left[4] = {{-0.5f, -0.5f}, {0.0f, -0.5f}, {0.0f, 0.5f}, {-0.5f, 0.5f}};
+    m2Vec2 right[4] = {{0.0f, -0.5f}, {0.5f, -0.5f}, {0.5f, 0.5f}, {0.0f, 0.5f}};
+    m2Polygon halves[2] = {MakePolygon(left, 4, 0.0f), MakePolygon(right, 4, 0.0f)};
+    CHECK(m2World_ShatterBody(world, crate, halves, 2, NULL, 0) == 2, "the shatter is recorded");
+    int32_t bytes = StopJournal(world);
+    CHECK(bytes > 0, "the journal stops");
+
+    Meddler meddler = {NULL, m2_nullBodyId, 0, 0, 0, 0};
+    def.allocator.context = &meddler;
+    m2World* fresh = NewWorld(&def);
+    meddler.body = NewBody(fresh, &gd);
+    meddler.target = fresh;
+    uint64_t misuse = m2World_GetCounters(fresh).misuse;
+    CHECK(ReplayJournal(fresh, tape, bytes), "the tape replays");
+    CHECK(meddler.allocTries >= 3, "the replay allocated its backup, the chain and the pieces");
+    CHECK(meddler.allocRefused == meddler.allocTries, "every create from inside alloc refused");
+    CHECK(meddler.freeTries >= 3 && meddler.freeRefused == meddler.freeTries,
+          "every destroy from inside free refused");
+    CHECK(m2World_GetCounters(fresh).misuse ==
+              misuse + (uint64_t)(meddler.allocTries + meddler.freeTries),
+          "host code calling back counts as misuse, mid-replay too");
+    CHECK(m2World_Hash(fresh) == m2World_Hash(world), "and the replay is untouched by it");
+
+    // Destroying the world frees through the same allocator.
+    meddler.freeTries = 0;
+    meddler.freeRefused = 0;
+    m2DestroyWorld(fresh);
+    CHECK(meddler.freeTries > 1 && meddler.freeRefused == meddler.freeTries,
+          "a destroy's frees cannot change the world either");
+    m2DestroyWorld(world);
+    free(tape);
+}
+
+// Untrusted bytes are refused with a status and count no misuse: a
+// corrupt snapshot, a corrupt tape, and a tape op whose value the setter
+// refuses during the replay.
+static void TestCorruptInputIsNotMisuse(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 8;
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    m2BodyId box = NewBody(world, &bd);
+
+    int32_t size = m2World_SnapshotSize(world);
+    uint8_t* snap = malloc((size_t)size);
+    CHECK(Snapshot(world, snap, size) == size, "a snapshot is taken");
+    int32_t capacity = m2World_GetJournalBaseSize(world) + 256;
+    uint8_t* tape = malloc((size_t)capacity);
+    CHECK(StartJournal(world, tape, capacity), "the journal starts");
+    m2Body_SetLinearDamping(world, box, 0.25f);
+    int32_t bytes = StopJournal(world);
+
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    snap[0] ^= 0xFF;
+    CHECK(m2World_Restore(world, snap, size) == m2_errorInvalid, "a corrupt snapshot refuses");
+    CHECK(m2World_Restore(world, snap, 3) == m2_errorInvalid, "so does a truncated one");
+    // The last record is the body-param op; its channel byte sits four
+    // bytes from the end. An unknown channel is refused by the setter the
+    // replay calls.
+    tape[bytes - 4] = 200;
+    CHECK(m2World_ReplayJournal(world, tape, bytes) == m2_errorInvalid, "a corrupt tape refuses");
+    tape[0] ^= 0xFF;
+    CHECK(m2World_ReplayJournal(world, tape, bytes) == m2_errorInvalid,
+          "and so does one with a broken header");
+    CHECK(m2World_GetCounters(world).misuse == misuse, "none of it counts as misuse");
+
+    CHECK(m2World_Restore(world, NULL, size) == m2_errorInvalid, "a null buffer refuses");
+    CHECK(m2World_GetCounters(world).misuse == misuse + 1, "and that is misuse");
+    free(tape);
+    free(snap);
+    m2DestroyWorld(world);
+}
+
 // A call that returns a status reports a stale id as m2_errorStale and
 // counts it; a getter returns the zeroed value and counts it.
 static void TestStaleIdsInStatusCalls(void)
@@ -2467,6 +2611,8 @@ int main(void)
     TestInfiniteInputIsRefused();
     TestEveryRefusalHasAReason();
     TestHostCodeCannotWrite();
+    TestAllocatorCannotWrite();
+    TestCorruptInputIsNotMisuse();
     TestStaleIdsInStatusCalls();
     TestRuntimeGravity();
     TestDominance();

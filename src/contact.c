@@ -327,7 +327,7 @@ typedef struct m2UpdateContactsCtx
 
 // Each pair writes only its own manifold slot, so the range splits
 // freely across workers without touching the arithmetic.
-// NOLINTNEXTLINE(readability-function-cognitive-complexity): numeric kernel, fixed order
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): per-pair manifold kernel
 static void UpdateContactsRange(int32_t begin, int32_t end, void* userCtx)
 {
     m2World* world = ((m2UpdateContactsCtx*)userCtx)->world;

@@ -10,7 +10,6 @@
 
 #include "journal.h"
 
-#include "allocator.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -261,7 +260,7 @@ m2Result m2World_ReplayJournal(m2World* world, const void* data, int32_t size)
     {
         return writer;
     }
-    if (data == NULL || size < (int32_t)sizeof(m2JournalHeader))
+    if (data == NULL)
     {
         return m2Refuse(world, m2_errorInvalid);
     }
@@ -269,11 +268,17 @@ m2Result m2World_ReplayJournal(m2World* world, const void* data, int32_t size)
     {
         return m2Refuse(world, m2_errorState);
     }
+    // From here on the tape is untrusted input: refusing it is no misuse
+    // of the API, so nothing is counted.
+    if (size < (int32_t)sizeof(m2JournalHeader))
+    {
+        return m2_errorInvalid;
+    }
     // Atomic: the world takes the whole tape or none of it. A snapshot
     // taken first backs out a replay that fails part way, so a corrupt
     // or truncated tape never leaves a half-built world behind.
     int32_t backupSize = m2World_SnapshotSize(world);
-    void* backup = m2AllocZeroed(&world->allocator, (size_t)backupSize);
+    void* backup = m2WorldAlloc(world, (size_t)backupSize);
     if (backup == NULL)
     {
         return m2Refuse(world, m2_errorCapacity); // no memory for the guarantee means no replay
@@ -282,14 +287,18 @@ m2Result m2World_ReplayJournal(m2World* world, const void* data, int32_t size)
     m2Result snapshot = m2World_Snapshot(world, backup, backupSize, &written);
     M2_ASSERT(snapshot == m2_success && written == backupSize); // sized just above
     (void)snapshot;
+    // The ops re-enter the public calls with the tape's values; a value
+    // they refuse is the tape's fault, not the caller's, and counts nothing
+    // (m2Refuse). Host code calling back into the world still counts.
+    world->replaying = 1;
     m2Result result = ReplayOps(world, data, size);
     if (result != m2_success)
     {
         m2Result restored = m2World_Restore(world, backup, backupSize);
         M2_ASSERT(restored == m2_success); // our own snapshot must restore: invariant
         (void)restored;
-        m2Refuse(world, result);
     }
-    m2Free(&world->allocator, backup, (size_t)backupSize);
+    world->replaying = 0;
+    m2WorldFree(world, backup, (size_t)backupSize);
     return result;
 }

@@ -124,9 +124,15 @@ m2Result m2World_Restore(m2World* world, const void* buffer, int32_t size)
     {
         return writer;
     }
-    if (buffer == NULL || size < (int32_t)sizeof(m2SnapshotHeader))
+    if (buffer == NULL)
     {
         return m2Refuse(world, m2_errorInvalid);
+    }
+    // From here on the bytes are untrusted input: refusing them is no
+    // misuse of the API, so nothing is counted.
+    if (size < (int32_t)sizeof(m2SnapshotHeader))
+    {
+        return m2_errorInvalid;
     }
     m2SnapshotHeader header;
     memcpy(&header, buffer, sizeof(header));
@@ -136,7 +142,7 @@ m2Result m2World_Restore(m2World* world, const void* buffer, int32_t size)
         header.configHash != ConfigHash() ||
         memcmp(header.capacities, capacities, sizeof(capacities)) != 0)
     {
-        return m2Refuse(world, m2_errorInvalid); // another build or another world shape
+        return m2_errorInvalid; // another build or another world shape
     }
     // Hostile bytes are checked before any of them land: every row the
     // table describes, cursors included.
@@ -144,7 +150,7 @@ m2Result m2World_Restore(m2World* world, const void* buffer, int32_t size)
     if (size != (int32_t)sizeof(header) + BlockBytes(world) ||
         !m2StateValidate(world, in + sizeof(header)))
     {
-        return m2Refuse(world, m2_errorInvalid);
+        return m2_errorInvalid;
     }
 
     int32_t cursor = (int32_t)sizeof(header) + m2StateWalk(world, NULL, in + sizeof(header), 1);

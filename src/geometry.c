@@ -310,61 +310,76 @@ static m2Pos2 WorldPoint(m2Transform xf, m2Vec2 local)
     return (m2Pos2){xf.p.x + (double)x, xf.p.y + (double)y};
 }
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity): numeric kernel, fixed order
-m2Aabb m2ComputeShapeAabb(const m2ShapeGeometry* geometry, m2Transform xf)
+static m2Aabb CircleAabb(const m2Circle* circle, m2Transform xf)
+{
+    m2Pos2 c = WorldPoint(xf, circle->center);
+    double r = (double)circle->radius;
+    m2Aabb aabb;
+    aabb.lowerBound = (m2Pos2){c.x - r, c.y - r};
+    aabb.upperBound = (m2Pos2){c.x + r, c.y + r};
+    return aabb;
+}
+
+static m2Aabb CapsuleAabb(const m2Capsule* capsule, m2Transform xf)
+{
+    m2Pos2 p1 = WorldPoint(xf, capsule->point1);
+    m2Pos2 p2 = WorldPoint(xf, capsule->point2);
+    double r = (double)capsule->radius;
+    m2Aabb aabb;
+    aabb.lowerBound = (m2Pos2){(p1.x < p2.x ? p1.x : p2.x) - r, (p1.y < p2.y ? p1.y : p2.y) - r};
+    aabb.upperBound = (m2Pos2){(p1.x > p2.x ? p1.x : p2.x) + r, (p1.y > p2.y ? p1.y : p2.y) + r};
+    return aabb;
+}
+
+// A segment's box has no radius to grow by.
+static m2Aabb SegmentAabb(const m2Segment* segment, m2Transform xf)
+{
+    m2Pos2 p1 = WorldPoint(xf, segment->point1);
+    m2Pos2 p2 = WorldPoint(xf, segment->point2);
+    m2Aabb aabb;
+    aabb.lowerBound = (m2Pos2){p1.x < p2.x ? p1.x : p2.x, p1.y < p2.y ? p1.y : p2.y};
+    aabb.upperBound = (m2Pos2){p1.x > p2.x ? p1.x : p2.x, p1.y > p2.y ? p1.y : p2.y};
+    return aabb;
+}
+
+static m2Aabb PolygonAabb(const m2Polygon* polygon, m2Transform xf)
 {
     m2Aabb aabb;
+    m2Pos2 first = WorldPoint(xf, polygon->vertices[0]);
+    aabb.lowerBound = first;
+    aabb.upperBound = first;
+    for (int32_t i = 1; i < polygon->count; ++i)
+    {
+        m2Pos2 p = WorldPoint(xf, polygon->vertices[i]);
+        aabb.lowerBound.x = p.x < aabb.lowerBound.x ? p.x : aabb.lowerBound.x;
+        aabb.lowerBound.y = p.y < aabb.lowerBound.y ? p.y : aabb.lowerBound.y;
+        aabb.upperBound.x = p.x > aabb.upperBound.x ? p.x : aabb.upperBound.x;
+        aabb.upperBound.y = p.y > aabb.upperBound.y ? p.y : aabb.upperBound.y;
+    }
+    double r = (double)polygon->radius;
+    aabb.lowerBound.x -= r;
+    aabb.lowerBound.y -= r;
+    aabb.upperBound.x += r;
+    aabb.upperBound.y += r;
+    return aabb;
+}
+
+m2Aabb m2ComputeShapeAabb(const m2ShapeGeometry* geometry, m2Transform xf)
+{
     switch (geometry->type)
     {
     case m2_circleShape:
-    {
-        m2Pos2 c = WorldPoint(xf, geometry->circle.center);
-        double r = (double)geometry->circle.radius;
-        aabb.lowerBound = (m2Pos2){c.x - r, c.y - r};
-        aabb.upperBound = (m2Pos2){c.x + r, c.y + r};
-        return aabb;
-    }
+        return CircleAabb(&geometry->circle, xf);
     case m2_capsuleShape:
-    {
-        m2Pos2 p1 = WorldPoint(xf, geometry->capsule.point1);
-        m2Pos2 p2 = WorldPoint(xf, geometry->capsule.point2);
-        double r = (double)geometry->capsule.radius;
-        aabb.lowerBound =
-            (m2Pos2){(p1.x < p2.x ? p1.x : p2.x) - r, (p1.y < p2.y ? p1.y : p2.y) - r};
-        aabb.upperBound =
-            (m2Pos2){(p1.x > p2.x ? p1.x : p2.x) + r, (p1.y > p2.y ? p1.y : p2.y) + r};
-        return aabb;
-    }
+        return CapsuleAabb(&geometry->capsule, xf);
     case m2_polygonShape:
-    {
-        m2Pos2 first = WorldPoint(xf, geometry->polygon.vertices[0]);
-        aabb.lowerBound = first;
-        aabb.upperBound = first;
-        for (int32_t i = 1; i < geometry->polygon.count; ++i)
-        {
-            m2Pos2 p = WorldPoint(xf, geometry->polygon.vertices[i]);
-            aabb.lowerBound.x = p.x < aabb.lowerBound.x ? p.x : aabb.lowerBound.x;
-            aabb.lowerBound.y = p.y < aabb.lowerBound.y ? p.y : aabb.lowerBound.y;
-            aabb.upperBound.x = p.x > aabb.upperBound.x ? p.x : aabb.upperBound.x;
-            aabb.upperBound.y = p.y > aabb.upperBound.y ? p.y : aabb.upperBound.y;
-        }
-        double r = (double)geometry->polygon.radius;
-        aabb.lowerBound.x -= r;
-        aabb.lowerBound.y -= r;
-        aabb.upperBound.x += r;
-        aabb.upperBound.y += r;
-        return aabb;
-    }
+        return PolygonAabb(&geometry->polygon, xf);
     default:
     {
         M2_ASSERT(geometry->type == m2_segmentShape || geometry->type == m2_chainSegmentShape);
-        const m2Segment* seg = geometry->type == m2_segmentShape ? &geometry->segment
-                                                                 : &geometry->chainSegment.segment;
-        m2Pos2 p1 = WorldPoint(xf, seg->point1);
-        m2Pos2 p2 = WorldPoint(xf, seg->point2);
-        aabb.lowerBound = (m2Pos2){p1.x < p2.x ? p1.x : p2.x, p1.y < p2.y ? p1.y : p2.y};
-        aabb.upperBound = (m2Pos2){p1.x > p2.x ? p1.x : p2.x, p1.y > p2.y ? p1.y : p2.y};
-        return aabb;
+        return SegmentAabb(geometry->type == m2_segmentShape ? &geometry->segment
+                                                             : &geometry->chainSegment.segment,
+                           xf);
     }
     }
 }
@@ -564,7 +579,7 @@ static bool DecompSegmentsCross(m2Vec2 a, m2Vec2 b, m2Vec2 c, m2Vec2 d)
 
 // The decomposition behind m2DecomposeOutline: the true piece total, or
 // -1 for an outline it refuses.
-// NOLINTNEXTLINE(readability-function-cognitive-complexity): numeric kernel, fixed order
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): one ring: clip ears, merge, validate
 static int32_t Decompose(const m2Vec2* points, int32_t count, m2Polygon* pieces, int32_t capacity)
 {
     if (points == NULL || count < 3 || count > M2_MAX_OUTLINE || capacity < 0)

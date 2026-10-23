@@ -6,7 +6,6 @@
 
 #include "world_state.h"
 
-#include "allocator.h"
 #include "contact_solver.h"
 #include "world_internal.h"
 
@@ -452,7 +451,7 @@ bool m2StateAllocate(m2World* world)
         {
             continue;
         }
-        void* memory = m2AllocZeroed(&world->allocator, bytes);
+        void* memory = m2WorldAlloc(world, bytes);
         *FieldPointer(world, array) = memory;
         world->memoryBytes += (int64_t)bytes;
         ok = ok && memory != NULL;
@@ -476,7 +475,7 @@ void m2StateFree(m2World* world)
             bool sized = ArrayBytes(world, array, &bytes);
             M2_ASSERT(sized); // it was allocated with this size
             (void)sized;
-            m2Free(&world->allocator, *field, bytes);
+            m2WorldFree(world, *field, bytes);
             *field = NULL;
         }
     }

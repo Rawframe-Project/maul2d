@@ -2,9 +2,12 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // Refusals against a world: the world's misuse counter, the host code
-// bracket, and the check every mutating call makes first.
+// bracket and the bracketed allocator, and the check every mutating call
+// makes first.
 
 #include "world_internal.h"
+
+#include "allocator.h"
 
 #if defined(_MSC_VER)
 #include <intrin.h> // interlocked counters
@@ -12,7 +15,9 @@
 
 m2Result m2Refuse(const m2World* world, m2Result reason)
 {
-    if (world != NULL && reason != m2_errorCapacity)
+    bool misuse = world != NULL && reason != m2_errorCapacity &&
+                  (world->replaying == 0 || reason == m2_errorState);
+    if (misuse)
     {
         // Reader calls refuse too, possibly on several threads at once, so
         // the counter is bumped atomically. It is the one field a reader
@@ -54,6 +59,21 @@ void m2LeaveHostCode(const m2World* world)
 #else
     __atomic_fetch_sub(&counted->busy, 1, __ATOMIC_RELAXED);
 #endif
+}
+
+void* m2WorldAlloc(const m2World* world, size_t bytes)
+{
+    m2EnterHostCode(world);
+    void* memory = m2AllocZeroed(&world->allocator, bytes);
+    m2LeaveHostCode(world);
+    return memory;
+}
+
+void m2WorldFree(const m2World* world, void* memory, size_t bytes)
+{
+    m2EnterHostCode(world);
+    m2Free(&world->allocator, memory, bytes);
+    m2LeaveHostCode(world);
 }
 
 m2Result m2CheckWriter(const m2World* world)

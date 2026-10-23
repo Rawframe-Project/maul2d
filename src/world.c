@@ -218,6 +218,9 @@ void m2DestroyWorld(m2World* world)
     {
         return;
     }
+    // The frees are host code, and nothing may change a world being
+    // destroyed: its writers refuse from here on.
+    m2EnterHostCode(world);
     m2Allocator allocator = world->allocator;
     m2StateFree(world);
     m2Free(&allocator, world, sizeof(m2World));
@@ -799,51 +802,51 @@ int32_t m2World_GetChains(const m2World* world, m2ChainId* ids, int32_t capacity
         }                                                                                          \
     } while (0)
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity): one invariant per line
+static bool ValidBody(const m2World* world, int32_t i)
+{
+    m2Transform xf = world->bodies.transforms[i];
+    M2_CHECK_INVARIANT(m2FinitePos2(xf.p));
+    M2_CHECK_INVARIANT(m2FiniteF(xf.q.c) && m2FiniteF(xf.q.s));
+    m2Vec2 v = world->bodies.linearVelocities[i];
+    M2_CHECK_INVARIANT(m2FiniteVec2(v));
+    M2_CHECK_INVARIANT(m2FiniteF(world->bodies.angularVelocities[i]));
+    M2_CHECK_INVARIANT(world->bodies.types[i] <= 2);
+    return true;
+}
+
 static bool ValidBodies(const m2World* world)
 {
     for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
-        if (world->bodies.alive[i] == 0)
-        {
-            continue;
-        }
-        m2Transform xf = world->bodies.transforms[i];
-        M2_CHECK_INVARIANT(m2FinitePos2(xf.p));
-        M2_CHECK_INVARIANT(m2FiniteF(xf.q.c) && m2FiniteF(xf.q.s));
-        m2Vec2 v = world->bodies.linearVelocities[i];
-        M2_CHECK_INVARIANT(m2FiniteVec2(v));
-        M2_CHECK_INVARIANT(m2FiniteF(world->bodies.angularVelocities[i]));
-        M2_CHECK_INVARIANT(world->bodies.types[i] <= 2);
+        M2_CHECK_INVARIANT(world->bodies.alive[i] == 0 || ValidBody(world, i));
     }
     return true;
 }
 
+static bool LiveBody(const m2World* world, int32_t body)
+{
+    return body >= 0 && body < world->bodies.bodyCapacity && world->bodies.alive[body] != 0;
+}
+
+static bool ValidJoint(const m2World* world, int32_t i)
+{
+    M2_CHECK_INVARIANT(world->joints.jointType[i] <= 10);
+    M2_CHECK_INVARIANT(LiveBody(world, world->joints.jointBodyA[i]));
+    M2_CHECK_INVARIANT(LiveBody(world, world->joints.jointBodyB[i]));
+    return true;
+}
+
 // Shapes and joints point at live bodies; contact pairs stay in key order.
-// NOLINTNEXTLINE(readability-function-cognitive-complexity): one invariant per line
 static bool ValidLinks(const m2World* world)
 {
     for (int32_t i = 0; i < world->shapes.maxShapeIndex; ++i)
     {
-        if (world->shapes.shapeAlive[i] == 0)
-        {
-            continue;
-        }
-        int32_t body = world->shapes.shapeBody[i];
-        M2_CHECK_INVARIANT(body >= 0 && body < world->bodies.bodyCapacity &&
-                           world->bodies.alive[body] != 0);
+        M2_CHECK_INVARIANT(world->shapes.shapeAlive[i] == 0 ||
+                           LiveBody(world, world->shapes.shapeBody[i]));
     }
     for (int32_t i = 0; i < world->joints.maxJointIndex; ++i)
     {
-        if (world->joints.jointAlive[i] == 0)
-        {
-            continue;
-        }
-        M2_CHECK_INVARIANT(world->joints.jointType[i] <= 10);
-        int32_t a = world->joints.jointBodyA[i];
-        int32_t b = world->joints.jointBodyB[i];
-        M2_CHECK_INVARIANT(a >= 0 && a < world->bodies.bodyCapacity && world->bodies.alive[a] != 0);
-        M2_CHECK_INVARIANT(b >= 0 && b < world->bodies.bodyCapacity && world->bodies.alive[b] != 0);
+        M2_CHECK_INVARIANT(world->joints.jointAlive[i] == 0 || ValidJoint(world, i));
     }
     for (int32_t i = 1; i < world->contacts.pairCount; ++i)
     {
@@ -853,7 +856,24 @@ static bool ValidLinks(const m2World* world)
     return true;
 }
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity): one invariant per line
+// Springs and triads join live particles only.
+static bool ValidParticleLinks(const m2World* world)
+{
+    const uint8_t* alive = world->particles.particleAlive;
+    for (int32_t k = 0; k < world->particles.particleSpringCount; ++k)
+    {
+        M2_CHECK_INVARIANT(alive[world->particles.particleSpringA[k]] != 0 &&
+                           alive[world->particles.particleSpringB[k]] != 0);
+    }
+    for (int32_t k = 0; k < world->particles.particleTriadCount; ++k)
+    {
+        M2_CHECK_INVARIANT(alive[world->particles.particleTriadA[k]] != 0 &&
+                           alive[world->particles.particleTriadB[k]] != 0 &&
+                           alive[world->particles.particleTriadC[k]] != 0);
+    }
+    return true;
+}
+
 static bool ValidParticles(const m2World* world)
 {
     if (world->particles.particleCapacity == 0)
@@ -868,26 +888,11 @@ static bool ValidParticles(const m2World* world)
             continue;
         }
         alive += 1;
-        m2Pos2 p = world->particles.particlePositions[i];
-        M2_CHECK_INVARIANT(m2FinitePos2(p));
-        m2Vec2 v = world->particles.particleVelocities[i];
-        M2_CHECK_INVARIANT(m2FiniteVec2(v));
+        M2_CHECK_INVARIANT(m2FinitePos2(world->particles.particlePositions[i]));
+        M2_CHECK_INVARIANT(m2FiniteVec2(world->particles.particleVelocities[i]));
     }
     M2_CHECK_INVARIANT(alive == world->particles.particleCount);
-    for (int32_t k = 0; k < world->particles.particleSpringCount; ++k)
-    {
-        M2_CHECK_INVARIANT(
-            world->particles.particleAlive[world->particles.particleSpringA[k]] != 0 &&
-            world->particles.particleAlive[world->particles.particleSpringB[k]] != 0);
-    }
-    for (int32_t k = 0; k < world->particles.particleTriadCount; ++k)
-    {
-        M2_CHECK_INVARIANT(
-            world->particles.particleAlive[world->particles.particleTriadA[k]] != 0 &&
-            world->particles.particleAlive[world->particles.particleTriadB[k]] != 0 &&
-            world->particles.particleAlive[world->particles.particleTriadC[k]] != 0);
-    }
-    return true;
+    return ValidParticleLinks(world);
 }
 
 #undef M2_CHECK_INVARIANT

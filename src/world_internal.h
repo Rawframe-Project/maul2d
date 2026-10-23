@@ -366,13 +366,17 @@ typedef struct m2World
         misuseCount;     // cumulative misuse; atomic access only (m2Refuse, m2MisuseCount)
     int64_t memoryBytes; // persistent footprint, from create
     volatile long busy;  // host code running: a step's tasks, debug draws; atomic access only
+    uint8_t replaying;   // applying a journal tape, whose refused values count no misuse
 } m2World;
 
 // Refuses a caller's call against a world and returns the reason, so a
 // status function can return it directly. Misuse (an invalid argument, a
 // stale id, a call while the world is busy) counts one in
 // m2Counters.misuse; a full pool is a runtime fact and counts nothing.
-// world may be NULL, which counts nothing.
+// Untrusted bytes refused by a restore or a replay are not misuse either:
+// those paths return their status without calling this, and a value a
+// tape's op refuses while the world replays counts nothing. world may be
+// NULL, which counts nothing.
 m2Result m2Refuse(const m2World* world, m2Result reason);
 uint64_t m2MisuseCount(const m2World* world);
 
@@ -381,6 +385,12 @@ uint64_t m2MisuseCount(const m2World* world);
 // several threads at once, so the count is atomic.
 void m2EnterHostCode(const m2World* world);
 void m2LeaveHostCode(const m2World* world);
+
+// The world's allocator, called as host code: an allocator that calls
+// back into the world it serves is refused like a task hook. Every
+// allocation and free a live world makes goes through these.
+void* m2WorldAlloc(const m2World* world, size_t bytes);
+void m2WorldFree(const m2World* world, void* memory, size_t bytes);
 
 // The check every mutating call makes before anything else: a null world
 // is invalid, and a world running host code (a step's tasks, a debug draw

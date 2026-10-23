@@ -108,6 +108,14 @@ extern "C"
     /// (m2Body_IsValid and the others) count nothing. An id carries no
     /// world: one passed to another world names whatever that world holds
     /// in the same slot and generation, and the library cannot tell.
+    ///
+    /// MISUSE. m2Counters.misuse counts the bugs of the calling code: an
+    /// argument a correct program never passes, a stale id, a writer called
+    /// from host code the world is running. Untrusted input is not misuse:
+    /// a snapshot or journal tape that fails its checks, and a value one of
+    /// a tape's ops refuses while it replays, return m2_errorInvalid and
+    /// count nothing, so bytes from outside cannot inflate the counter. A
+    /// full pool counts nothing either.
 
     /// The library's default world def, with the version left zero. Use
     /// m2DefaultWorldDef, which stamps the version of the program's
@@ -291,7 +299,8 @@ extern "C"
     /// non-finite state refuse with m2_errorInvalid, and the world is left
     /// as it was. The checks make every index safe to use; they do not
     /// re-derive every structural invariant (tree shape, list links), so
-    /// restore only snapshots this engine wrote. Thread class: writer.
+    /// restore only snapshots this engine wrote. Refused bytes count no
+    /// misuse; a null buffer does. Thread class: writer.
     M2_NODISCARD M2_API m2Result m2World_Restore(m2World* world, const void* buffer, int32_t size);
 
     /// Deterministic state hash (alive bodies in index order + globals).
@@ -396,9 +405,9 @@ extern "C"
     M2_NODISCARD M2_API m2Result m2World_StopJournal(m2World* world, int32_t* bytesOut);
 
     /// Replays a tape: m2_errorInvalid for a tape that fails its checks,
-    /// m2_errorState while the world is recording, m2_errorCapacity when
-    /// the allocator cannot give replay its scratch memory. On failure the
-    /// world is as it was. Thread class: writer.
+    /// which counts no misuse, m2_errorState while the world is recording,
+    /// m2_errorCapacity when the allocator cannot give replay its scratch
+    /// memory. On failure the world is as it was. Thread class: writer.
     M2_NODISCARD M2_API m2Result m2World_ReplayJournal(m2World* world, const void* data,
                                                        int32_t size);
 

@@ -37,8 +37,8 @@ joint_row: solver_base
 joint_solver: joint_row solver_base world_internal
 joint_weld: body broadphase joint joint_solver journal object_ids solver_base world_internal
 joint_wheel: body broadphase joint joint_solver journal object_ids solver_base world_internal
-journal: allocator geometry world_internal
-journal_replay: allocator body joint journal shape world_internal
+journal: geometry world_internal
+journal_replay: body joint journal shape world_internal
 manifold: core geometry
 mass: geometry world_internal
 math_functions: core rotation
@@ -60,5 +60,5 @@ snapshot: joint joint_edges journal world_internal world_state
 solver: ccd contact_solver joint joint_solver rotation world_internal
 solver_base:
 world: allocator broadphase buoyancy contact cpu island journal parallel particle solver world_internal world_state
-world_internal: core dynamic_tree geometry
-world_state: allocator contact_solver world_internal
+world_internal: allocator core dynamic_tree geometry
+world_state: contact_solver world_internal

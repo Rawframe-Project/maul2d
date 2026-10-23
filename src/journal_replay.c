@@ -8,7 +8,6 @@
 // recorded destroy must succeed again; anything else means the tape does
 // not belong to this world's history.
 
-#include "allocator.h"
 #include "body.h"
 #include "joint.h"
 #include "journal.h"
@@ -248,7 +247,7 @@ static bool ApplyCreateChain(m2ReplayCursor* r, const m2OpPayload* p)
     }
     int32_t pointBytes = op->count * (int32_t)sizeof(m2Vec2);
     // The stream is unaligned; the points are copied out before use.
-    m2Vec2* points = m2AllocZeroed(&r->world->allocator, (size_t)pointBytes);
+    m2Vec2* points = m2WorldAlloc(r->world, (size_t)pointBytes);
     if (points == NULL)
     {
         return false;
@@ -267,7 +266,7 @@ static bool ApplyCreateChain(m2ReplayCursor* r, const m2OpPayload* p)
     def.userData = op->userData;
     m2ChainId chain = m2_nullChainId;
     m2Result made = m2CreateChain(r->world, op->body, &def, &chain);
-    m2Free(&r->world->allocator, points, (size_t)pointBytes);
+    m2WorldFree(r->world, points, (size_t)pointBytes);
     return made == m2_success && m2Chain_GetSegmentCount(r->world, chain) == op->createdCount;
 }
 
@@ -454,7 +453,7 @@ static bool ApplyShatterBody(m2ReplayCursor* r, const m2OpPayload* p)
     }
     int32_t pieceBytes = op->pieceCount * (int32_t)sizeof(m2Polygon);
     // The stream is unaligned; the pieces are copied out before use.
-    m2Polygon* pieces = m2AllocZeroed(&r->world->allocator, (size_t)pieceBytes);
+    m2Polygon* pieces = m2WorldAlloc(r->world, (size_t)pieceBytes);
     if (pieces == NULL)
     {
         return false;
@@ -463,7 +462,7 @@ static bool ApplyShatterBody(m2ReplayCursor* r, const m2OpPayload* p)
     r->offset += pieceBytes;
     m2BodyId first[1] = {m2_nullBodyId};
     int32_t made = m2World_ShatterBody(r->world, op->body, pieces, op->pieceCount, first, 1);
-    m2Free(&r->world->allocator, pieces, (size_t)pieceBytes);
+    m2WorldFree(r->world, pieces, (size_t)pieceBytes);
     return made == op->pieceCount && first[0].index1 == (uint32_t)op->expectedFirst;
 }
 

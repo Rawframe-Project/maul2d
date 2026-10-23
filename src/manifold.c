@@ -100,7 +100,38 @@ m2Manifold m2CollideCircles(const m2Circle* a, const m2Circle* b, m2RelativePose
     return manifold;
 }
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity): numeric kernel, fixed order
+// The point of a's core boundary nearest c, over every edge that faces c,
+// first edge first on ties. Returns its squared distance; closest and id
+// name the point and its feature.
+static float NearestFacingEdgePoint(const m2Polygon* a, const float* separations, m2Vec2 c,
+                                    m2Vec2* closest, uint16_t* id)
+{
+    float best = 3.4e38f;
+    *closest = a->vertices[0];
+    *id = 0;
+    for (int32_t i = 0; i < a->count; ++i)
+    {
+        if (separations[i] <= 0.0f)
+        {
+            continue;
+        }
+        int32_t j = i + 1 < a->count ? i + 1 : 0;
+        m2Vec2 e = Sub(a->vertices[j], a->vertices[i]);
+        float t = m2ClampF(Dot(Sub(c, a->vertices[i]), e) / Dot(e, e), 0.0f, 1.0f);
+        m2Vec2 q = MulAdd(a->vertices[i], t, e);
+        m2Vec2 r = Sub(c, q);
+        if (Dot(r, r) < best)
+        {
+            best = Dot(r, r);
+            *closest = q;
+            *id = t == 0.0f   ? (uint16_t)(M2_FEATURE_VERTEX | (uint32_t)i)
+                  : t == 1.0f ? (uint16_t)(M2_FEATURE_VERTEX | (uint32_t)j)
+                              : (uint16_t)i;
+        }
+    }
+    return best;
+}
+
 m2Manifold m2CollidePolygonAndCircle(const m2Polygon* a, const m2Circle* b, m2RelativePose pose)
 {
     m2Manifold manifold = EmptyManifold();
@@ -130,32 +161,8 @@ m2Manifold m2CollidePolygonAndCircle(const m2Polygon* a, const m2Circle* b, m2Re
     }
     else
     {
-        // Outside: the nearest boundary point over every edge that faces
-        // the center, first edge first on ties.
-        float best = 3.4e38f;
-        closest = a->vertices[0];
-        id = 0;
-        for (int32_t i = 0; i < a->count; ++i)
-        {
-            if (separations[i] <= 0.0f)
-            {
-                continue;
-            }
-            int32_t j = i + 1 < a->count ? i + 1 : 0;
-            m2Vec2 e = Sub(a->vertices[j], a->vertices[i]);
-            float t = m2ClampF(Dot(Sub(c, a->vertices[i]), e) / Dot(e, e), 0.0f, 1.0f);
-            m2Vec2 q = MulAdd(a->vertices[i], t, e);
-            m2Vec2 r = Sub(c, q);
-            if (Dot(r, r) < best)
-            {
-                best = Dot(r, r);
-                closest = q;
-                id = t == 0.0f   ? (uint16_t)(M2_FEATURE_VERTEX | (uint32_t)i)
-                     : t == 1.0f ? (uint16_t)(M2_FEATURE_VERTEX | (uint32_t)j)
-                                 : (uint16_t)i;
-            }
-        }
-        distance = sqrtf(best);
+        // Outside: the nearest boundary point of an edge facing the center.
+        distance = sqrtf(NearestFacingEdgePoint(a, separations, c, &closest, &id));
         if (distance > radius + M2_SPECULATIVE_DISTANCE)
         {
             return manifold;

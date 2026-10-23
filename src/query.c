@@ -309,7 +309,7 @@ int32_t m2World_OverlapAabb(const m2World* world, m2Pos2 lower, m2Pos2 upper, m2
 // both proxies meet in the TARGET's body-local frame (the same single
 // f64 crossing as rays).
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity): numeric kernel, fixed order
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): one tree walk keeping the closest
 static m2RayCastResult CastProxyClosest(const m2World* world, const m2DistanceProxy* castLocal,
                                         m2Transform pose, m2Vec2 translation, m2QueryFilter filter)
 {
@@ -594,7 +594,30 @@ static int32_t InsertHitSorted(m2RayHit* hits, int32_t kept, int32_t capacity, m
     return kept < capacity ? kept + 1 : kept;
 }
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity): numeric kernel, fixed order
+// One tree leaf of m2World_CastRayAll: false when the shape is dead,
+// filtered out or missed, else the hit in world space.
+static bool RayHitOnShape(const m2World* world, int32_t shapeIndex, m2Pos2 origin,
+                          m2Vec2 translation, m2QueryFilter filter, m2RayHit* out)
+{
+    if (world->shapes.shapeAlive[shapeIndex] == 0 || !m2QueryShouldSee(world, shapeIndex, filter))
+    {
+        return false;
+    }
+    m2CastHit hit = RayCastShape(world, shapeIndex, origin, translation, 1.0f);
+    if (!hit.hit)
+    {
+        return false;
+    }
+    bool initialOverlap = hit.normal.x == 0.0f && hit.normal.y == 0.0f;
+    out->shapeId.index1 = shapeIndex + 1;
+    out->shapeId.generation = world->shapes.shapeGenerations[shapeIndex];
+    out->fraction = initialOverlap ? 0.0f : hit.fraction;
+    out->normal = hit.normal;
+    out->point = (m2Pos2){origin.x + (double)out->fraction * (double)translation.x,
+                          origin.y + (double)out->fraction * (double)translation.y};
+    return true;
+}
+
 int32_t m2World_CastRayAll(const m2World* world, m2Pos2 origin, m2Vec2 translation, m2RayHit* hits,
                            int32_t capacity, m2QueryFilter filter)
 {
@@ -641,25 +664,11 @@ int32_t m2World_CastRayAll(const m2World* world, m2Pos2 origin, m2Vec2 translati
                 stack[top++] = nodes[index].child1;
                 continue;
             }
-            int32_t shapeIndex = nodes[index].userData;
-            if (world->shapes.shapeAlive[shapeIndex] == 0 ||
-                !m2QueryShouldSee(world, shapeIndex, filter))
-            {
-                continue;
-            }
-            m2CastHit hit = RayCastShape(world, shapeIndex, origin, translation, 1.0f);
-            if (!hit.hit)
-            {
-                continue;
-            }
-            bool initialOverlap = hit.normal.x == 0.0f && hit.normal.y == 0.0f;
             m2RayHit out;
-            out.shapeId.index1 = shapeIndex + 1;
-            out.shapeId.generation = world->shapes.shapeGenerations[shapeIndex];
-            out.fraction = initialOverlap ? 0.0f : hit.fraction;
-            out.normal = hit.normal;
-            out.point = (m2Pos2){origin.x + (double)out.fraction * (double)translation.x,
-                                 origin.y + (double)out.fraction * (double)translation.y};
+            if (!RayHitOnShape(world, nodes[index].userData, origin, translation, filter, &out))
+            {
+                continue;
+            }
             total += 1;
             if (cap > 0)
             {
@@ -670,7 +679,50 @@ int32_t m2World_CastRayAll(const m2World* world, m2Pos2 origin, m2Vec2 translati
     return total;
 }
 
-// NOLINTNEXTLINE(readability-function-cognitive-complexity): numeric kernel, fixed order
+// One candidate of CastProxyAll: false when the shape is dead, filtered
+// out, behind a chain's ghost side or missed, else the hit in world space.
+static bool ProxyHitOnShape(const m2World* world, int32_t shapeIndex, const m2ProxyQuery* q,
+                            m2Transform pose, m2QueryFilter filter, m2RayHit* out)
+{
+    if (world->shapes.shapeAlive[shapeIndex] == 0 || !m2QueryShouldSee(world, shapeIndex, filter))
+    {
+        return false;
+    }
+    m2DistanceProxy target;
+    m2DistanceProxy cast;
+    m2Vec2 translationLocal;
+    m2Vec2 startLocal;
+    m2ProxiesInBodyFrame(world, shapeIndex, q, &target, &cast, &translationLocal, &startLocal);
+    if (m2ChainGhostSide(world, shapeIndex, startLocal))
+    {
+        return false;
+    }
+    m2CastResult hit = m2ShapeCastProxy(&target, &cast, translationLocal, 1.0f);
+    if (!hit.hit)
+    {
+        return false;
+    }
+    int32_t body = world->shapes.shapeBody[shapeIndex];
+    m2Transform xf = world->bodies.transforms[body];
+    bool initialOverlap = hit.normal.x == 0.0f && hit.normal.y == 0.0f;
+    out->shapeId.index1 = shapeIndex + 1;
+    out->shapeId.generation = world->shapes.shapeGenerations[shapeIndex];
+    out->fraction = initialOverlap ? 0.0f : hit.fraction;
+    if (initialOverlap)
+    {
+        out->normal = (m2Vec2){0.0f, 0.0f};
+        out->point = pose.p;
+    }
+    else
+    {
+        out->normal = (m2Vec2){xf.q.c * hit.normal.x - xf.q.s * hit.normal.y,
+                               xf.q.s * hit.normal.x + xf.q.c * hit.normal.y};
+        out->point = (m2Pos2){xf.p.x + (double)(xf.q.c * hit.pointA.x - xf.q.s * hit.pointA.y),
+                              xf.p.y + (double)(xf.q.s * hit.pointA.x + xf.q.c * hit.pointA.y)};
+    }
+    return true;
+}
+
 static int32_t CastProxyAll(const m2World* world, const m2DistanceProxy* castLocal,
                             m2Transform pose, m2Vec2 translation, m2RayHit* hits, int32_t capacity,
                             m2QueryFilter filter)
@@ -706,45 +758,10 @@ static int32_t CastProxyAll(const m2World* world, const m2DistanceProxy* castLoc
         int32_t shapeIndex;
         while (m2TreeNextQuery(&cursor, &shapeIndex))
         {
-            if (world->shapes.shapeAlive[shapeIndex] == 0 ||
-                !m2QueryShouldSee(world, shapeIndex, filter))
-            {
-                continue;
-            }
-            m2DistanceProxy target;
-            m2DistanceProxy cast;
-            m2Vec2 translationLocal;
-            m2Vec2 startLocal;
-            m2ProxiesInBodyFrame(world, shapeIndex, &q, &target, &cast, &translationLocal,
-                                 &startLocal);
-            if (m2ChainGhostSide(world, shapeIndex, startLocal))
-            {
-                continue;
-            }
-            m2CastResult hit = m2ShapeCastProxy(&target, &cast, translationLocal, 1.0f);
-            if (!hit.hit)
-            {
-                continue;
-            }
-            int32_t body = world->shapes.shapeBody[shapeIndex];
-            m2Transform xf = world->bodies.transforms[body];
-            bool initialOverlap = hit.normal.x == 0.0f && hit.normal.y == 0.0f;
             m2RayHit out;
-            out.shapeId.index1 = shapeIndex + 1;
-            out.shapeId.generation = world->shapes.shapeGenerations[shapeIndex];
-            out.fraction = initialOverlap ? 0.0f : hit.fraction;
-            if (initialOverlap)
+            if (!ProxyHitOnShape(world, shapeIndex, &q, pose, filter, &out))
             {
-                out.normal = (m2Vec2){0.0f, 0.0f};
-                out.point = pose.p;
-            }
-            else
-            {
-                out.normal = (m2Vec2){xf.q.c * hit.normal.x - xf.q.s * hit.normal.y,
-                                      xf.q.s * hit.normal.x + xf.q.c * hit.normal.y};
-                out.point =
-                    (m2Pos2){xf.p.x + (double)(xf.q.c * hit.pointA.x - xf.q.s * hit.pointA.y),
-                             xf.p.y + (double)(xf.q.s * hit.pointA.x + xf.q.c * hit.pointA.y)};
+                continue;
             }
             total += 1;
             if (cap > 0)

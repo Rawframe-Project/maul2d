@@ -60,6 +60,13 @@ returns zero, a setter changes nothing, a call with a status returns
 names whatever that world holds in the same slot. Handles are values:
 copy them, store them, send them over the network.
 
+`m2Counters.misuse` counts the bugs of your code: an argument a correct
+program never passes, a dead id, a change from inside code the world is
+running. Read it in release builds to find them. Bytes from outside are
+not misuse: a snapshot or journal tape that fails its checks is refused
+with `m2_errorInvalid` and counts nothing, so a corrupt file or a
+hostile peer cannot inflate the counter.
+
 ## Positions are doubles
 
 World positions are f64 (`m2Pos2`); everything else is f32. Play
