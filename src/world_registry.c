@@ -69,7 +69,17 @@ m2WorldId m2PublishWorld(m2World* world, int32_t slot)
     return (m2WorldId){(uint16_t)(slot + 1), world->worldGeneration};
 }
 
-void m2RetireWorld(const m2World* world)
+m2World* m2WorldInSlot(uint16_t index1)
 {
-    s_worlds[world->slot] = NULL;
+    return index1 >= 1 && index1 <= M2_MAX_WORLDS ? s_worlds[index1 - 1] : NULL;
+}
+
+uint16_t m2WorldSlotGeneration(int32_t slot)
+{
+    return s_worldGenerations[slot];
+}
+
+void m2OccupyWorldSlot(int32_t slot, m2World* world)
+{
+    s_worlds[slot] = world;
 }

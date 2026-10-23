@@ -185,8 +185,9 @@ m2WorldId m2CreateWorld(const m2WorldDef* def)
     if (!m2StateAllocate(world))
     {
         m2SetLastResult(m2_errorCapacity); // out of memory
-        m2StateFree(world);
-        m2Free(world);
+        m2WorldId failed = {(uint16_t)(slot + 1), m2WorldSlotGeneration(slot)};
+        m2OccupyWorldSlot(slot, world);
+        m2DestroyWorld(failed);
         return m2_nullWorldId;
     }
     SeedFreeLists(world);
@@ -200,11 +201,15 @@ void m2DestroyWorld(m2WorldId worldId)
     m2World* world = m2GetWorld(worldId);
     if (world == NULL)
     {
+        world = m2WorldInSlot(worldId.index1); // failed-allocation path
+    }
+    if (world == NULL)
+    {
         return;
     }
-    m2RetireWorld(world);
     m2StateFree(world);
     m2Free(world);
+    m2OccupyWorldSlot(worldId.index1 - 1, NULL);
 }
 
 bool m2World_IsValid(m2WorldId worldId)

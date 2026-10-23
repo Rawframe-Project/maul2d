@@ -26,7 +26,14 @@ int32_t m2FreeWorldSlot(void);
 // generation of that slot and returns its id.
 m2WorldId m2PublishWorld(m2World* world, int32_t slot);
 
-// Frees the slot of a world that is being destroyed.
-void m2RetireWorld(const m2World* world);
+// The world in a 1-based slot whatever its generation, or NULL.
+m2World* m2WorldInSlot(uint16_t index1);
+
+// The generation a slot handed out last.
+uint16_t m2WorldSlotGeneration(int32_t slot);
+
+// Puts a world into a slot, or empties it with NULL, keeping the slot's
+// generation.
+void m2OccupyWorldSlot(int32_t slot, m2World* world);
 
 #endif // MAUL2D_SRC_WORLD_REGISTRY_H
