@@ -4,11 +4,10 @@
 // The revolute joint: a pinned point with optional angular spring,
 // motor and angle limits.
 
-#include "joint_solver.h"
-
 #include "body.h"
 #include "broadphase.h"
 #include "joint.h"
+#include "joint_solver.h"
 #include "journal.h"
 #include "solver.h"
 #include "world.h"

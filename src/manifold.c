@@ -18,9 +18,8 @@
 // Every contact point sits halfway between the two surfaces. Kernels are
 // pure functions of their inputs.
 
-#include "geometry.h"
-
 #include "core.h"
+#include "geometry.h"
 
 #include "maul2d/base.h"
 #include "maul2d/core_math.h"

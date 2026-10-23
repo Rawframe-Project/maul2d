@@ -4,11 +4,10 @@
 // The wheel joint: a slider with a suspension spring and free
 // rotation, driven by a rotational motor.
 
-#include "joint_solver.h"
-
 #include "body.h"
 #include "broadphase.h"
 #include "joint.h"
+#include "joint_solver.h"
 #include "journal.h"
 #include "solver.h"
 #include "world.h"

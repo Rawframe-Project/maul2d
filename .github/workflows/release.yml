@@ -1,101 +1,138 @@
-# A pushed tag vX.Y.Z builds the release: the installed library tree
-# (library, headers, CMake package, pkg-config file) for each platform,
-# and the testbed. The same file serves both engines.
 name: release
+
+# release-please keeps a release pull request open from conventional commits.
+# Merging it tags vX.Y.Z and creates the GitHub release; the binaries job
+# then builds the installed library tree for each platform, and the assets
+# job adds the source archive, writes the checksums and an SBOM, attests
+# where everything was built, and attaches all of it to the release.
+# docs/operations/release.md has the steps.
 
 on:
   push:
-    tags: ['v*']
+    branches: [main]
+  # Runs again by hand after a failed push run, without a new commit.
+  workflow_dispatch:
 
-permissions:
-  contents: write
+permissions: {}
 
-env:
-  LIB: maul2d
-  PREFIX: MAUL2D
+defaults:
+  run:
+    shell: bash
 
 jobs:
-  package:
-    name: package ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { name: linux-x64, os: ubuntu-latest, archive: tar }
-          - { name: linux-arm64, os: ubuntu-24.04-arm, archive: tar }
-          - { name: macos-arm64, os: macos-latest, archive: tar }
-          - { name: windows-x64, os: windows-latest, archive: zip }
+  release-please:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    # Both steps act with the app token, so github.token needs no permissions here.
+    permissions: {}
+    outputs:
+      created: ${{ steps.release.outputs.release_created }}
+      tag: ${{ steps.release.outputs.tag_name }}
     steps:
-      - uses: actions/checkout@v4
-      - name: Build and install
-        shell: bash
-        env:
-          TAG: ${{ github.ref_name }}
-        run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -D${PREFIX}_BUILD_TESTS=OFF \
-            -D${PREFIX}_BUILD_SAMPLES=OFF -D${PREFIX}_BUILD_BENCH=OFF
-          cmake --build build --config Release -j 4
-          cmake --install build --config Release --prefix "stage/$LIB-$TAG-${{ matrix.name }}"
-      - name: Archive
-        shell: bash
-        env:
-          TAG: ${{ github.ref_name }}
-        working-directory: stage
-        run: |
-          if [ "${{ matrix.archive }}" = "zip" ]; then
-            7z a "../$LIB-$TAG-${{ matrix.name }}.zip" "$LIB-$TAG-${{ matrix.name }}"
-          else
-            tar czf "../$LIB-$TAG-${{ matrix.name }}.tar.gz" "$LIB-$TAG-${{ matrix.name }}"
-          fi
-      - name: Upload
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          awk -v v="${TAG#v}" '/^## \[/ { keep = index($0, "[" v "]") > 0; next } keep' CHANGELOG.md > notes.md
-          gh release view "$TAG" || gh release create "$TAG" --title "$TAG" --notes-file notes.md || true
-          gh release upload "$TAG" $(ls "$LIB-$TAG-${{ matrix.name }}".*) --clobber
+      # The Rawframe Release app's token, not github.token, so the release pull
+      # request runs CI: GitHub starts no workflows for pull requests github.token opens.
+      - id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          # Only what release-please uses: the release commit and tag, the
+          # release pull request, and its labels.
+          permission-contents: write
+          permission-pull-requests: write
+          permission-issues: write
+      - id: release
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ steps.app.outputs.token }}
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
 
-  testbed:
-    name: testbed ${{ matrix.name }}
-    runs-on: ${{ matrix.os }}
+  # The installed tree (library, headers, CMake package, pkg-config file)
+  # for each platform, built from the tag with its release preset.
+  binaries:
+    needs: release-please
+    if: needs.release-please.outputs.created == 'true'
     strategy:
       fail-fast: false
       matrix:
         include:
-          - { name: linux-x64, os: ubuntu-latest }
-          - { name: windows-x64, os: windows-latest }
+          - { name: linux-x64, runner: ubuntu-24.04, preset: linux-clang-20 }
+          - { name: linux-arm64, runner: ubuntu-24.04-arm, preset: linux-arm64-clang-20 }
+          - { name: macos-arm64, runner: macos-15, preset: macos-clang }
+          - { name: windows-x64, runner: windows-2025, preset: windows-clang-cl }
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - name: Dependencies
-        if: runner.os == 'Linux'
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag }}
+          persist-credentials: false
+      - name: Build and install
+        env:
+          PRESET: ${{ matrix.preset }}
+          NAME: ${{ matrix.name }}
+          TAG: ${{ needs.release-please.outputs.tag }}
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev libgl1-mesa-dev
-      - name: Build
-        shell: bash
+          cmake --preset "$PRESET" -DMAUL2D_BUILD_TESTS=OFF -DMAUL2D_BUILD_SAMPLES=OFF \
+            -DMAUL2D_BUILD_BENCH=OFF
+          cmake --build --preset "$PRESET"
+          cmake --install "out/$PRESET" --config Release --prefix "stage/maul2d-${TAG#v}-$NAME"
+          mkdir -p dist
+          if [ "$RUNNER_OS" = Windows ]; then
+            (cd stage && 7z a "../dist/maul2d-${TAG#v}-$NAME.zip" "maul2d-${TAG#v}-$NAME")
+          else
+            tar -C stage -czf "dist/maul2d-${TAG#v}-$NAME.tar.gz" "maul2d-${TAG#v}-$NAME"
+          fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: binaries-${{ matrix.name }}
+          path: dist/
+          retention-days: 1
+
+  assets:
+    needs: [release-please, binaries]
+    if: needs.release-please.outputs.created == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-please.outputs.tag }}
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          path: dist
+          pattern: binaries-*
+          merge-multiple: true
+      - name: The source archive
+        # GitHub's own source archives are not promised byte-stable; this one
+        # is checksummed and attested.
         run: |
-          cmake -B build -DCMAKE_BUILD_TYPE=Release -D${PREFIX}_BUILD_TESTBED=ON
-          cmake --build build --config Release --target testbed -j 4
-      - name: Archive and upload
-        shell: bash
+          mkdir -p dist
+          git archive --format=tar.gz --prefix="${GITHUB_REPOSITORY#*/}-${TAG#v}/" -o "dist/${GITHUB_REPOSITORY#*/}-${TAG#v}.tar.gz" HEAD
+        env:
+          TAG: ${{ needs.release-please.outputs.tag }}
+      - uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        with:
+          path: .
+          format: spdx-json
+          output-file: dist/sbom.spdx.json
+          upload-artifact: false
+          upload-release-assets: false
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: dist/*
+      - name: Attach to the release
         env:
           GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          mkdir -p stage
-          NAME="$LIB-testbed-$TAG-${{ matrix.name }}"
-          if [ "${{ runner.os }}" = "Windows" ]; then
-            cp build/testbed/Release/testbed.exe "stage/$LIB-testbed.exe"
-            (cd stage && 7z a "../$NAME.zip" .)
-            FILE="$NAME.zip"
-          else
-            cp build/testbed/testbed "stage/$LIB-testbed"
-            (cd stage && tar czf "../$NAME.tar.gz" .)
-            FILE="$NAME.tar.gz"
-          fi
-          awk -v v="${TAG#v}" '/^## \[/ { keep = index($0, "[" v "]") > 0; next } keep' CHANGELOG.md > notes.md
-          gh release view "$TAG" || gh release create "$TAG" --title "$TAG" --notes-file notes.md || true
-          gh release upload "$TAG" "$FILE" --clobber
+          TAG: ${{ needs.release-please.outputs.tag }}
+        run: gh release upload "$TAG" dist/* --clobber

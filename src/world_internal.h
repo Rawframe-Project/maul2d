@@ -12,6 +12,7 @@
 #include "core.h"
 #include "dynamic_tree.h"
 #include "geometry.h"
+
 #include "maul2d/base.h"
 #include "maul2d/body.h"
 #include "maul2d/events.h"

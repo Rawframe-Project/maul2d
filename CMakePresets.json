@@ -1,0 +1,154 @@
+{
+  "version": 6,
+  "cmakeMinimumRequired": { "major": 3, "minor": 25, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "binaryDir": "${sourceDir}/out/${presetName}",
+      "cacheVariables": { "MAUL2D_WERROR": "ON" }
+    },
+    {
+      "name": "linux",
+      "hidden": true,
+      "inherits": "base",
+      "generator": "Ninja",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Linux" }
+    },
+    {
+      "name": "gcc",
+      "hidden": true,
+      "cacheVariables": { "CMAKE_C_COMPILER": "gcc-14", "CMAKE_CXX_COMPILER": "g++-14" }
+    },
+    {
+      "name": "clang",
+      "hidden": true,
+      "cacheVariables": { "CMAKE_C_COMPILER": "clang-20", "CMAKE_CXX_COMPILER": "clang++-20" }
+    },
+    {
+      "name": "linux-gcc-14",
+      "displayName": "GCC 14, Release",
+      "inherits": ["linux", "gcc"],
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "linux-clang-20",
+      "displayName": "Clang 20, Release",
+      "inherits": ["linux", "clang"],
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "linux-clang-20-asan",
+      "displayName": "Clang 20, AddressSanitizer and UBSan, scalar backend, assertions and world validation on",
+      "inherits": ["linux", "clang"],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "MAUL2D_SANITIZE": "ON",
+        "MAUL2D_VALIDATE": "ON",
+        "MAUL2D_SIMD": "scalar"
+      }
+    },
+    {
+      "name": "linux-clang-20-tsan",
+      "displayName": "Clang 20, ThreadSanitizer, assertions on",
+      "inherits": ["linux", "clang"],
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug", "MAUL2D_TSAN": "ON" }
+    },
+    {
+      "name": "linux-shared",
+      "displayName": "Clang 20, shared library, installed and used by samples/minimal",
+      "inherits": ["linux", "clang"],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "MAUL2D_BUILD_SHARED": "ON",
+        "MAUL2D_TEST_PACKAGE": "ON"
+      }
+    },
+    {
+      "name": "linux-testbed",
+      "displayName": "GCC 14, the testbed on raylib, built without tests",
+      "inherits": ["linux", "gcc"],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "MAUL2D_BUILD_TESTBED": "ON",
+        "MAUL2D_BUILD_TESTS": "OFF"
+      }
+    },
+    {
+      "name": "linux-arm64-gcc-14",
+      "displayName": "GCC 14 on arm64, NEON backend, Release",
+      "inherits": "linux-gcc-14"
+    },
+    {
+      "name": "linux-arm64-clang-20",
+      "displayName": "Clang 20 on arm64, NEON backend, Release",
+      "inherits": "linux-clang-20"
+    },
+    {
+      "name": "web-emscripten",
+      "displayName": "Emscripten with threads, tests under Node",
+      "inherits": "linux",
+      "toolchainFile": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_FLAGS": "-pthread",
+        "CMAKE_EXE_LINKER_FLAGS": "-pthread -sPTHREAD_POOL_SIZE=8 -sINITIAL_MEMORY=536870912 -sSTACK_SIZE=8388608 -sDEFAULT_PTHREAD_STACK_SIZE=8388608 -sENVIRONMENT=node -sEXIT_RUNTIME=1",
+        "MAUL2D_BUILD_SAMPLES": "OFF",
+        "MAUL2D_BUILD_BENCH": "OFF",
+        "MAUL2D_BUILD_TOOLS": "OFF"
+      }
+    },
+    {
+      "name": "macos-clang",
+      "displayName": "Apple Clang on arm64, NEON backend, Release",
+      "inherits": "base",
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Darwin" },
+      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+    },
+    {
+      "name": "windows-clang-cl",
+      "displayName": "clang-cl through Visual Studio's ClangCL toolset, x64, AVX2 backend",
+      "inherits": "base",
+      "toolset": { "value": "ClangCL", "strategy": "set" },
+      "condition": { "type": "equals", "lhs": "${hostSystemName}", "rhs": "Windows" }
+    },
+    {
+      "name": "windows-arm64-clang-cl",
+      "displayName": "clang-cl through Visual Studio's ClangCL toolset, arm64, NEON backend",
+      "inherits": "windows-clang-cl"
+    }
+  ],
+  "buildPresets": [
+    { "name": "linux-gcc-14", "configurePreset": "linux-gcc-14" },
+    { "name": "linux-clang-20", "configurePreset": "linux-clang-20" },
+    { "name": "linux-clang-20-asan", "configurePreset": "linux-clang-20-asan" },
+    { "name": "linux-clang-20-tsan", "configurePreset": "linux-clang-20-tsan" },
+    { "name": "linux-shared", "configurePreset": "linux-shared" },
+    { "name": "linux-testbed", "configurePreset": "linux-testbed" },
+    { "name": "linux-arm64-gcc-14", "configurePreset": "linux-arm64-gcc-14" },
+    { "name": "linux-arm64-clang-20", "configurePreset": "linux-arm64-clang-20" },
+    { "name": "web-emscripten", "configurePreset": "web-emscripten" },
+    { "name": "macos-clang", "configurePreset": "macos-clang" },
+    { "name": "windows-clang-cl", "configurePreset": "windows-clang-cl", "configuration": "Release" },
+    { "name": "windows-arm64-clang-cl", "configurePreset": "windows-arm64-clang-cl", "configuration": "Release" }
+  ],
+  "testPresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "output": { "outputOnFailure": true },
+      "execution": { "noTestsAction": "error", "timeout": 300, "jobs": 4 }
+    },
+    { "name": "linux-gcc-14", "inherits": "base", "configurePreset": "linux-gcc-14" },
+    { "name": "linux-clang-20", "inherits": "base", "configurePreset": "linux-clang-20" },
+    { "name": "linux-clang-20-asan", "inherits": "base", "configurePreset": "linux-clang-20-asan" },
+    { "name": "linux-clang-20-tsan", "inherits": "base", "configurePreset": "linux-clang-20-tsan" },
+    { "name": "linux-shared", "inherits": "base", "configurePreset": "linux-shared" },
+    { "name": "linux-arm64-gcc-14", "inherits": "base", "configurePreset": "linux-arm64-gcc-14" },
+    { "name": "linux-arm64-clang-20", "inherits": "base", "configurePreset": "linux-arm64-clang-20" },
+    { "name": "web-emscripten", "inherits": "base", "configurePreset": "web-emscripten" },
+    { "name": "macos-clang", "inherits": "base", "configurePreset": "macos-clang" },
+    { "name": "windows-clang-cl", "inherits": "base", "configurePreset": "windows-clang-cl", "configuration": "Release" },
+    { "name": "windows-arm64-clang-cl", "inherits": "base", "configurePreset": "windows-arm64-clang-cl", "configuration": "Release" }
+  ]
+}

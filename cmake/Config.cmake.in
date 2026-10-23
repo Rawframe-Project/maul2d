@@ -1,4 +1,8 @@
 @PACKAGE_INIT@
 
+# A library that depends on another package sets MAUL_PACKAGE_DEPENDENCIES
+# to its find_dependency calls before including Install.cmake.
+include(CMakeFindDependencyMacro)
+@MAUL_PACKAGE_DEPENDENCIES@
 include("${CMAKE_CURRENT_LIST_DIR}/@PROJECT_NAME@Targets.cmake")
 check_required_components(@PROJECT_NAME@)

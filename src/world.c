@@ -6,16 +6,16 @@
 
 #include "world.h"
 
+#include "broadphase.h"
 #include "buoyancy.h"
+#include "contact.h"
+#include "cpu.h"
 #include "island.h"
+#include "journal.h"
 #include "particle.h"
 #include "solver.h"
-#include "world_state.h"
-
-#include "broadphase.h"
-#include "contact.h"
-#include "journal.h"
 #include "world_internal.h"
+#include "world_state.h"
 
 #include "maul2d/base.h"
 
@@ -217,7 +217,7 @@ m2WorldId m2CreateWorld(const m2WorldDef* def)
     // Before any solver kernel runs, make sure this CPU can execute the
     // backend the binary was built for: a typed refusal beats a bare
     // illegal-instruction trap on pre-Haswell hardware.
-    if (m2VerifyCpuBackend() == 0)
+    if (m2CheckCpu(NULL) == 0)
     {
         m2Refuse(NULL, m2_errorConfig);
         return m2_nullWorldId;

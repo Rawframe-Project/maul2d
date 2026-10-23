@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// Copyright (c) 2026 Sirac Ozmen
+//
 // The ten-minute Maul2D: a ground, a tower, one journal, one
 // rollback. Build against an installed maul2d (see README.md here).
 #include "maul2d/maul2d.h"

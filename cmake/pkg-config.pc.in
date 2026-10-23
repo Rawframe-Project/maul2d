@@ -8,5 +8,6 @@ Name: @PROJECT_NAME@
 Description: @PROJECT_DESCRIPTION@
 Version: @PROJECT_VERSION@
 Libs: -L${libdir} -l@PROJECT_NAME@
-Libs.private: -lm
+Libs.private: @MAUL_PKG_LIBS_PRIVATE@
+Requires.private: @MAUL_PKG_REQUIRES_PRIVATE@
 Cflags: -I${includedir} @MAUL_PKG_CFLAGS@

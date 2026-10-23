@@ -4,7 +4,7 @@
 cmake_minimum_required(VERSION 3.22)
 project(maul2d_minimal LANGUAGES C)
 
-find_package(maul2d 0.0 REQUIRED CONFIG)
+find_package(maul2d REQUIRED CONFIG)
 
 add_executable(minimal main.c)
 target_link_libraries(minimal PRIVATE maul2d::maul2d)

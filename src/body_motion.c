@@ -4,7 +4,6 @@
 // Body motion: velocities, impulses, forces and teleports.
 
 #include "body.h"
-
 #include "broadphase.h"
 #include "joint.h"
 #include "journal.h"

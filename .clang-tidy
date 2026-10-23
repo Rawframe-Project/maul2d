@@ -1,4 +1,4 @@
-# Static analysis for the Maul family. Identical in maul2d and maul3d;
+# Static analysis for the Maul family. Identical in every Maul library;
 # CI runs it on src/ and fails on any finding.
 Checks: >
   -*,
@@ -10,12 +10,17 @@ Checks: >
   -bugprone-switch-missing-default-case,
   clang-analyzer-*,
   -clang-analyzer-optin.performance.Padding,
+  -clang-analyzer-optin.core.EnumCastOutOfRange,
   -clang-analyzer-security.insecureAPI.DeprecatedOrUnsafeBufferHandling,
   misc-redundant-expression,
   misc-misplaced-const,
   readability-misleading-indentation,
   readability-duplicate-include,
   readability-redundant-declaration,
-  performance-no-int-to-ptr
-WarningsAsErrors: ''
+  performance-no-int-to-ptr,
+  readability-function-cognitive-complexity
+WarningsAsErrors: '*'
+CheckOptions:
+  readability-function-cognitive-complexity.Threshold: 25
+  readability-function-cognitive-complexity.DescribeBasicIncrements: false
 HeaderFilterRegex: '(src|include)/.*'

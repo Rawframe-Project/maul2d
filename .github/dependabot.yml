@@ -1,0 +1,16 @@
+# Keeps the pinned action commits current: one grouped pull request a
+# week, titled as a conventional commit. A release is proposed only once
+# it is a week old, so a compromised one has time to be noticed.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: ci

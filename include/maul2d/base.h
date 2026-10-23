@@ -31,9 +31,15 @@ extern "C"
 {
 #endif
 
+// x-release-please-start-major
 #define M2_VERSION_MAJOR 0
+// x-release-please-end
+// x-release-please-start-minor
 #define M2_VERSION_MINOR 0
+// x-release-please-end
+// x-release-please-start-patch
 #define M2_VERSION_PATCH 1
+    // x-release-please-end
 
     /// Library version, encoded as major * 10000 + minor * 100 + patch.
     /// Thread class: reader (callable from any thread, no world required).

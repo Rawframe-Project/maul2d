@@ -1,6 +1,7 @@
-# Publishes the documentation site to GitHub Pages, plus the
-# WebAssembly testbed when the engine has a web shell for it. The same
-# file serves both engines.
+# Publishes the documentation site to GitHub Pages: the README, the user
+# documentation, the API reference generated from the headers and the
+# changelog, built by tools/build_docs.py, and the testbed compiled to
+# WebAssembly at testbed/.
 name: pages
 
 on:
@@ -8,56 +9,59 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+permissions: {}
+
+defaults:
+  run:
+    shell: bash
 
 concurrency:
   group: pages
   cancel-in-progress: true
 
-env:
-  PREFIX: MAUL2D
-
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
       - name: Documentation
         run: |
           pip install markdown==3.6
           python tools/build_docs.py
-      - uses: mymindstorm/setup-emsdk@v14
-        if: hashFiles('testbed/web/shell.html') != ''
-        with:
-          version: 6.0.2
-      # Single-threaded on purpose: Pages sends no COOP/COEP headers,
-      # so SharedArrayBuffer is unavailable in the browser.
+      - uses: emscripten-core/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984 # v16
+      # Single-threaded on purpose: Pages sends no COOP/COEP headers, so
+      # SharedArrayBuffer is unavailable in the browser.
       - name: WebAssembly testbed
-        if: hashFiles('testbed/web/shell.html') != ''
         run: |
-          emcmake cmake -B build-web -DCMAKE_BUILD_TYPE=Release -D${PREFIX}_BUILD_TESTBED=ON \
-            -D${PREFIX}_BUILD_TESTS=OFF -D${PREFIX}_BUILD_SAMPLES=OFF -D${PREFIX}_BUILD_BENCH=OFF \
-            -D${PREFIX}_BUILD_TOOLS=OFF
-          cmake --build build-web --target testbed -j 4
+          emcmake cmake -B out/web-testbed -DCMAKE_BUILD_TYPE=Release -DMAUL2D_BUILD_TESTBED=ON \
+            -DMAUL2D_BUILD_TESTS=OFF -DMAUL2D_BUILD_SAMPLES=OFF -DMAUL2D_BUILD_BENCH=OFF \
+            -DMAUL2D_BUILD_TOOLS=OFF
+          cmake --build out/web-testbed --target testbed -j 4
           mkdir -p _site/testbed
-          cp build-web/testbed/testbed.html _site/testbed/index.html
-          cp build-web/testbed/testbed.js build-web/testbed/testbed.wasm _site/testbed/
-      - uses: actions/upload-pages-artifact@v3
+          cp out/web-testbed/testbed/testbed.html _site/testbed/index.html
+          cp out/web-testbed/testbed/testbed.js out/web-testbed/testbed/testbed.wasm _site/testbed/
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: _site
 
   deploy:
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

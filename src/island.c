@@ -13,6 +13,7 @@
 // their body directly, and the island coupling spreads it next step.
 
 #include "island.h"
+
 #include "world_internal.h"
 
 #include "maul2d/base.h"

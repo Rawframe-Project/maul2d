@@ -4,13 +4,13 @@
 // The SIMD backend report and the CPU check. This file is compiled
 // without the backend's architecture flags, so the check itself runs on
 // any CPU of the target architecture; the build tells it which backend
-// the rest of the library was compiled for.
+// the rest of the library was compiled for. It reports and prints
+// nothing: a library with a world refuses it on a mismatch, one without
+// returns the mismatch from its own entry point.
 
-#include "core.h"
+#include "cpu.h"
 
-#include "maul2d/base.h"
-
-#include <stdio.h>
+#include <stddef.h>
 
 #if defined(MAUL2D_BUILT_FOR_AVX2) && defined(_MSC_VER)
 #include <intrin.h> // __cpuid, __cpuidex, _xgetbv
@@ -64,27 +64,11 @@ int32_t m2CpuSupportsBackend(void)
 #endif
 }
 
-int m2VerifyCpuBackend(void)
+int32_t m2CheckCpu(const char** backend)
 {
-    // An unsupported CPU refuses the world instead of trapping on the
-    // first wide instruction. The host's assert hook hears about it
-    // first; without one, the reason is printed.
-    static int32_t checked = 0;
-    static int32_t supported = 1;
-    if (checked == 0)
+    if (backend != NULL)
     {
-        checked = 1;
-        supported = m2CpuSupportsBackend() != 0;
-        if (!supported &&
-            !m2ReportToHost("CPU does not support the built SIMD backend; rebuild with "
-                            "-DMAUL2D_SIMD=scalar",
-                            "m2CreateWorld"))
-        {
-            fprintf(stderr,
-                    "maul2d: built for the '%s' SIMD backend, but this CPU does not support "
-                    "it. Rebuild with -DMAUL2D_SIMD=scalar for a portable binary.\n",
-                    m2GetSimdBackend());
-        }
+        *backend = m2GetSimdBackend();
     }
-    return supported;
+    return m2CpuSupportsBackend();
 }

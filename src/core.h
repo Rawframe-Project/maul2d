@@ -46,9 +46,6 @@ uint64_t m2MisuseCount(const m2World* world);
 void* m2AllocZeroed(size_t bytes);
 void m2Free(void* memory);
 
-// 0 when the CPU cannot run the compiled SIMD backend (src/cpu.c).
-int m2VerifyCpuBackend(void);
-
 // Hands a message to the host's assert hook without aborting; returns
 // nonzero when the host handled it.
 int m2ReportToHost(const char* message, const char* where);

@@ -14,6 +14,7 @@
 // sweep is ignored.
 
 #include "ccd.h"
+
 #include "world_internal.h"
 
 #include "maul2d/base.h"

@@ -12,8 +12,9 @@
 // exactly as drawn. Draw carries no gated hash: it produces no state,
 // so it is a pure pass/fail suite.
 
-#include "maul2d/maul2d.h"
 #include "test_harness.h"
+
+#include "maul2d/maul2d.h"
 
 #include <stdio.h>
 #include <stdlib.h>

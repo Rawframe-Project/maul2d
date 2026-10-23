@@ -6,8 +6,9 @@
 // (generation staleness, FIFO reuse, replay re-minting), def cookies,
 // and the cross-platform world hash printed for CI comparison.
 
-#include "maul2d/maul2d.h"
 #include "test_harness.h"
+
+#include "maul2d/maul2d.h"
 
 #include <math.h>
 #include <stdio.h>

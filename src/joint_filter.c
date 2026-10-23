@@ -4,11 +4,10 @@
 // The filter joint: no rows at all; it only stops its two bodies from
 // colliding.
 
-#include "joint_solver.h"
-
 #include "body.h"
 #include "broadphase.h"
 #include "joint.h"
+#include "joint_solver.h"
 #include "journal.h"
 #include "solver.h"
 #include "world.h"

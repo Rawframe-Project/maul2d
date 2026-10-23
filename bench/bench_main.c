@@ -2,9 +2,8 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // Benchmarks. Wall time is not deterministic, so timings are reported,
-// never gated. Each scene also prints its final world hash; the hashes
-// are pinned in bench/pins.txt and CI fails when one moves, because a
-// moved hash means the scene's physics changed, not just the clock.
+// never gated. Each scene also prints its final world hash, so two runs
+// can be compared for the same physics, not just the clock.
 // Pass a step count to run every scene longer than its default.
 
 #ifndef _WIN32
