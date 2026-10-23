@@ -8,3 +8,5 @@ find_package(maul2d REQUIRED CONFIG)
 
 add_executable(minimal main.c)
 target_link_libraries(minimal PRIVATE maul2d::maul2d)
+# The public headers are C17, so a consumer may stay on C17.
+set_target_properties(minimal PROPERTIES C_STANDARD 17 C_STANDARD_REQUIRED ON)

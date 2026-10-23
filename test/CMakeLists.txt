@@ -22,8 +22,8 @@ maul_add_test(perf MANUAL)
 maul_add_test(soak MANUAL)
 maul_add_header_tests()
 
-# The determinism hashes the suites print, checked against test/hashes.txt
-# in every cell (cmake/GoldenHashes.cmake).
+# The determinism hashes the suites and the benchmark scenes print,
+# checked against test/hashes.txt in every cell (cmake/GoldenHashes.cmake).
 set(golden_suites "")
 foreach(name broadphase ccd contacts core events fluid fuzz islands joints journal queries redteam
         shapes solver threads world)
@@ -31,6 +31,11 @@ foreach(name broadphase ccd contacts core events fluid fuzz islands joints journ
         list(APPEND golden_suites $<TARGET_FILE:test_${name}>)
     endif()
 endforeach()
+# bench/ is added after test/, so its target is named by the option.
+set(golden_bench "")
+if(MAUL2D_BUILD_BENCH)
+    set(golden_bench $<TARGET_FILE:${PROJECT_NAME}_bench>)
+endif()
 if(MAUL2D_BUILD_SHARED)
     set(golden_all OFF)
 else()
@@ -38,7 +43,7 @@ else()
 endif()
 add_test(NAME golden
          COMMAND ${CMAKE_COMMAND} "-DSUITES=${golden_suites}"
-                 -DHASHES=${PROJECT_SOURCE_DIR}/test/hashes.txt
+                 -DHASHES=${PROJECT_SOURCE_DIR}/test/hashes.txt "-DBENCH=${golden_bench}"
                  "-DEMULATOR=${CMAKE_CROSSCOMPILING_EMULATOR}" -DALL=${golden_all}
                  -P ${PROJECT_SOURCE_DIR}/cmake/GoldenHashes.cmake)
 set_tests_properties(golden PROPERTIES LABELS golden)

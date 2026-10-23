@@ -146,7 +146,8 @@ if(MAUL2D_BUILD_TESTS)
         add_test(NAME package
                  COMMAND ${CMAKE_COMMAND} -DBINARY_DIR=${PROJECT_BINARY_DIR}
                          -DSOURCE_DIR=${PROJECT_SOURCE_DIR} -DGENERATOR=${CMAKE_GENERATOR}
-                         -DC_COMPILER=${CMAKE_C_COMPILER} -P ${PROJECT_SOURCE_DIR}/cmake/PackageTest.cmake)
+                         -DC_COMPILER=${CMAKE_C_COMPILER} -DCONFIG=$<CONFIG>
+                         -P ${PROJECT_SOURCE_DIR}/cmake/PackageTest.cmake)
         set_tests_properties(package PROPERTIES LABELS package)
     endif()
 endif()

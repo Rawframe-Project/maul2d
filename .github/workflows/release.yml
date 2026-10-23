@@ -49,7 +49,10 @@ jobs:
           manifest-file: .release-please-manifest.json
 
   # The installed tree (library, headers, CMake package, pkg-config file)
-  # for each platform, built from the tag with its release preset.
+  # for each platform, built from the tag with the preset of the CI cell
+  # that checks it, Linux in the same pinned CI image. The whole suite runs
+  # first, the golden hashes and the package test included, so what ships
+  # is what was checked.
   binaries:
     needs: release-please
     if: needs.release-please.outputs.created == 'true'
@@ -62,7 +65,10 @@ jobs:
           - { name: macos-arm64, runner: macos-15, preset: macos-clang }
           - { name: windows-x64, runner: windows-2025, preset: windows-clang-cl }
     runs-on: ${{ matrix.runner }}
-    timeout-minutes: 20
+    timeout-minutes: 30
+    # The CI image, pinned by digest, as cpp.yml uses it. zizmor reads the
+    # null of the macOS and Windows branch as an unpinned image.
+    container: ${{ startsWith(matrix.runner, 'ubuntu') && 'ghcr.io/rawframe-project/ci-cpp:2026.10.4@sha256:9715ff153db04ba0ed4f520b6d2528ff7860f803de61ab011ba60a4eed572836' || null }} # zizmor: ignore[unpinned-images]
     permissions:
       contents: read
     steps:
@@ -70,15 +76,28 @@ jobs:
         with:
           ref: ${{ needs.release-please.outputs.tag }}
           persist-credentials: false
-      - name: Build and install
+      - name: Build
+        env:
+          PRESET: ${{ matrix.preset }}
+        run: |
+          cmake --preset "$PRESET"
+          cmake --build --preset "$PRESET"
+      - name: Test
+        env:
+          PRESET: ${{ matrix.preset }}
+        run: |
+          ctest --preset "$PRESET" --no-tests=error | tee "$RUNNER_TEMP/ctest.log"
+          if grep -E '\*\*\*(Skipped|Not Run)' "$RUNNER_TEMP/ctest.log"; then
+            echo "::error::a test did not run"; exit 1
+          fi
+          grep -E 'golden .*Passed' "$RUNNER_TEMP/ctest.log"
+          grep -E 'package .*Passed' "$RUNNER_TEMP/ctest.log"
+      - name: Install and archive
         env:
           PRESET: ${{ matrix.preset }}
           NAME: ${{ matrix.name }}
           TAG: ${{ needs.release-please.outputs.tag }}
         run: |
-          cmake --preset "$PRESET" -DMAUL2D_BUILD_TESTS=OFF -DMAUL2D_BUILD_SAMPLES=OFF \
-            -DMAUL2D_BUILD_BENCH=OFF
-          cmake --build --preset "$PRESET"
           cmake --install "out/$PRESET" --config Release --prefix "stage/maul2d-${TAG#v}-$NAME"
           mkdir -p dist
           if [ "$RUNNER_OS" = Windows ]; then
