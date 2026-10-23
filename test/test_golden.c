@@ -64,6 +64,9 @@
 #ifndef M2_GOLDEN_BENCH_WATER
 #define M2_GOLDEN_BENCH_WATER 0
 #endif
+#ifndef M2_GOLDEN_LINES
+#define M2_GOLDEN_LINES 0
+#endif
 
 #define DT (1.0f / 60.0f)
 
@@ -72,10 +75,18 @@ static uint64_t Mix(uint64_t hash, uint64_t value)
     return m2Hash64(hash, &value, (int32_t)sizeof(value));
 }
 
+static int32_t s_expected = 0;
+
 static void Expect(const char* name, uint64_t actual, uint64_t expected)
 {
+    s_expected += 1;
     printf("M2_%s_HASH=%016llx\n", name, (unsigned long long)actual);
-    if (actual != expected)
+    if (expected == 0)
+    {
+        printf("FAIL: %s has no line in test/hashes.txt\n", name);
+        s_failures += 1;
+    }
+    else if (actual != expected)
     {
         printf("FAIL: %s moved from %016llx; if the change is meant, regenerate test/hashes.txt\n",
                name, (unsigned long long)expected);
@@ -541,6 +552,14 @@ int main(void)
     SceneRollback();
     SceneJournal();
     SceneBench();
+    // Every checked value is present (a missing one reads as zero and
+    // fails), so equal counts mean no line of test/hashes.txt is stale.
+    if (s_expected != M2_GOLDEN_LINES)
+    {
+        printf("FAIL: test/hashes.txt has %d lines and the scenes check %d values; regenerate it\n",
+               (int)M2_GOLDEN_LINES, (int)s_expected);
+        s_failures += 1;
+    }
     if (s_failures > 0)
     {
         printf("%d failure(s)\n", s_failures);

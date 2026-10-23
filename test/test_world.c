@@ -1,10 +1,13 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Slice-0 world gate: the rollback identity (hash-sequence equality plus
+// World suite: the rollback identity (hash-sequence equality plus
 // snapshot -> restore -> re-snapshot byte-compare), id semantics
-// (generation staleness, FIFO reuse, replay re-minting), def cookies,
-// and the cross-platform world hash printed for CI comparison.
+// (generation staleness, FIFO reuse, replay re-minting, a stale world
+// id), refusals and out-of-memory creation, counters and validation,
+// and the world-level behavior of bodies: teleports, type changes,
+// gravity, wind, explosions, sleep, mass, shatter, dominance, motion
+// locks and fluid volumes.
 
 #include "test_harness.h"
 

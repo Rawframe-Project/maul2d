@@ -23,12 +23,24 @@ maul_add_header_tests()
 
 # The golden scenes check the benchmark scenes too, and take their
 # committed values from test/hashes.txt: each line M2_<NAME>_HASH=<hex>
-# becomes the definition M2_GOLDEN_<NAME>.
+# becomes the definition M2_GOLDEN_<NAME>, and M2_GOLDEN_LINES counts
+# them, so the test fails when a line names no scene.
 target_sources(test_golden PRIVATE ${PROJECT_SOURCE_DIR}/bench/scenes.c)
-file(STRINGS ${CMAKE_CURRENT_SOURCE_DIR}/hashes.txt golden_lines REGEX "^M2_[A-Z0-9_]+_HASH=[0-9a-f]+$")
+file(STRINGS ${CMAKE_CURRENT_SOURCE_DIR}/hashes.txt golden_lines)
+set(golden_names)
 foreach(line IN LISTS golden_lines)
-    string(REGEX REPLACE "^M2_([A-Z0-9_]+)_HASH=([0-9a-f]+)$" "M2_GOLDEN_\\1=0x\\2ull" definition
-           "${line}")
-    target_compile_definitions(test_golden PRIVATE ${definition})
+    if(line STREQUAL "")
+        continue()
+    endif()
+    if(NOT line MATCHES "^M2_([A-Z0-9_]+)_HASH=([0-9a-f]+)$")
+        message(FATAL_ERROR "test/hashes.txt: '${line}' is not a line M2_<NAME>_HASH=<hex>")
+    endif()
+    if(CMAKE_MATCH_1 IN_LIST golden_names)
+        message(FATAL_ERROR "test/hashes.txt: ${CMAKE_MATCH_1} appears twice")
+    endif()
+    list(APPEND golden_names ${CMAKE_MATCH_1})
+    target_compile_definitions(test_golden PRIVATE M2_GOLDEN_${CMAKE_MATCH_1}=0x${CMAKE_MATCH_2}ull)
 endforeach()
+list(LENGTH golden_names golden_count)
+target_compile_definitions(test_golden PRIVATE M2_GOLDEN_LINES=${golden_count})
 set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/hashes.txt)
