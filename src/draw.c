@@ -8,7 +8,6 @@
 // camera before dropping to floats.
 
 #include "world_internal.h"
-#include "world_registry.h"
 
 #include "maul2d/base.h"
 
@@ -230,13 +229,24 @@ static void DrawAabbs(const m2World* world, const m2DebugDraw* draw)
     }
 }
 
-void m2World_Draw(m2WorldId worldId, const m2DebugDraw* draw)
+static void DrawWorld(const m2World* world, const m2DebugDraw* draw);
+
+void m2World_Draw(const m2World* world, const m2DebugDraw* draw)
 {
-    m2World* world = m2WorldFromId(worldId);
     if (world == NULL || draw == NULL)
     {
         return;
     }
+    // The callbacks are host code: while they run, the world's writers
+    // refuse.
+    m2EnterHostCode(world);
+    DrawWorld(world, draw);
+    m2LeaveHostCode(world);
+}
+
+// The walk itself: shapes, joints, contacts and proxies.
+static void DrawWorld(const m2World* world, const m2DebugDraw* draw)
+{
     for (int32_t i = 0; draw->drawShapes && i < world->shapes.maxShapeIndex; ++i)
     {
         if (world->shapes.shapeAlive[i] != 0)

@@ -30,7 +30,7 @@ static inline bool m2JointGain(float x)
 // Slot lookups: the live slot of a joint id, or -1. The typed lookup
 // also demands a joint type and refuses (world may be NULL) on a miss.
 int32_t m2JointSlotChecked(const m2World* world, m2JointId jointId);
-int32_t m2TypedJointSlot(m2World* world, m2JointId jointId, uint8_t type);
+int32_t m2TypedJointSlot(const m2World* world, m2JointId jointId, uint8_t type);
 
 // Creation: a free slot (or -1), then the fields every joint starts
 // with, linked into both bodies' lists, both bodies awake.
@@ -39,7 +39,7 @@ m2JointId m2FinishJoint(m2World* world, int32_t index, uint8_t type, int32_t bod
                         m2Vec2 anchorA, m2Vec2 anchorB, float length, float hertz, float damping);
 
 // The rope length on one side of a pulley (0 = A, 1 = B) right now.
-float m2PulleyLiveLength(m2World* world, int32_t index, int32_t side);
+float m2PulleyLiveLength(const m2World* world, int32_t index, int32_t side);
 
 // A def is valid only when its internalValue matches its cookie.
 #define M2_DJOINT_COOKIE  (M2_COOKIE ^ ((int32_t)sizeof(m2DistanceJointDef) << 8) ^ 4)

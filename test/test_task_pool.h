@@ -109,4 +109,16 @@ static void TpFinish(void* userTask, void* userContext)
     }
 }
 
+// Steps a world from def on *workers of this pool; 1 leaves it serial.
+// The count must outlive the world.
+static inline void TpUseWorkers(m2WorldDef* def, int32_t* workers)
+{
+    if (*workers > 1)
+    {
+        def->enqueueTask = TpEnqueue;
+        def->finishTask = TpFinish;
+        def->userTaskContext = workers;
+    }
+}
+
 #endif

@@ -31,9 +31,8 @@ extern "C"
 
     typedef struct m2JointId
     {
-        int32_t index1; // 1-based, 0 = null
-        uint16_t world;
-        uint16_t generation;
+        uint32_t index1; // 1-based slot, 0 = null
+        uint32_t generation;
     } m2JointId;
 
     /// Keeps two local anchor points at a fixed distance. hertz = 0 uses
@@ -273,36 +272,55 @@ extern "C"
     M2_API m2MotorJointDef m2DefaultMotorJointDef(void);
     M2_API m2MouseJointDef m2DefaultMouseJointDef(void);
 
-    /// Joints join their bodies' sleep island: connected bodies sleep and
-    /// wake together. Destroying either body destroys the joint.
-    /// Thread class: writer.
-    M2_API m2JointId m2CreateDistanceJoint(m2WorldId worldId, const m2DistanceJointDef* def);
-    M2_API m2JointId m2CreateRevoluteJoint(m2WorldId worldId, const m2RevoluteJointDef* def);
-    M2_API m2JointId m2CreatePrismaticJoint(m2WorldId worldId, const m2PrismaticJointDef* def);
-    M2_API m2JointId m2CreateWeldJoint(m2WorldId worldId, const m2WeldJointDef* def);
-    M2_API m2JointId m2CreateWheelJoint(m2WorldId worldId, const m2WheelJointDef* def);
-    M2_API m2JointId m2CreateFilterJoint(m2WorldId worldId, const m2FilterJointDef* def);
-    M2_API m2JointId m2CreateGearJoint(m2WorldId worldId, const m2GearJointDef* def);
-    M2_API m2JointId m2CreatePulleyJoint(m2WorldId worldId, const m2PulleyJointDef* def);
-    M2_API m2JointId m2CreateRatchetJoint(m2WorldId worldId, const m2RatchetJointDef* def);
-    M2_API m2JointId m2CreateMotorJoint(m2WorldId worldId, const m2MotorJointDef* def);
-    M2_API m2JointId m2CreateMouseJoint(m2WorldId worldId, const m2MouseJointDef* def);
-    M2_API void m2DestroyJoint(m2JointId jointId);
+    /// Creates a joint: m2_errorStale when a body it names is gone,
+    /// m2_errorInvalid for a bad def, m2_errorCapacity when the joint pool
+    /// is full. On failure *jointOut is the null id. Joints join their
+    /// bodies' sleep island: connected bodies sleep and wake together.
+    /// Destroying either body destroys the joint. Thread class: writer.
+    M2_NODISCARD M2_API m2Result m2CreateDistanceJoint(m2World* world,
+                                                       const m2DistanceJointDef* def,
+                                                       m2JointId* jointOut);
+    M2_NODISCARD M2_API m2Result m2CreateRevoluteJoint(m2World* world,
+                                                       const m2RevoluteJointDef* def,
+                                                       m2JointId* jointOut);
+    M2_NODISCARD M2_API m2Result m2CreatePrismaticJoint(m2World* world,
+                                                        const m2PrismaticJointDef* def,
+                                                        m2JointId* jointOut);
+    M2_NODISCARD M2_API m2Result m2CreateWeldJoint(m2World* world, const m2WeldJointDef* def,
+                                                   m2JointId* jointOut);
+    M2_NODISCARD M2_API m2Result m2CreateWheelJoint(m2World* world, const m2WheelJointDef* def,
+                                                    m2JointId* jointOut);
+    M2_NODISCARD M2_API m2Result m2CreateFilterJoint(m2World* world, const m2FilterJointDef* def,
+                                                     m2JointId* jointOut);
+    M2_NODISCARD M2_API m2Result m2CreateGearJoint(m2World* world, const m2GearJointDef* def,
+                                                   m2JointId* jointOut);
+    M2_NODISCARD M2_API m2Result m2CreatePulleyJoint(m2World* world, const m2PulleyJointDef* def,
+                                                     m2JointId* jointOut);
+    M2_NODISCARD M2_API m2Result m2CreateRatchetJoint(m2World* world, const m2RatchetJointDef* def,
+                                                      m2JointId* jointOut);
+    M2_NODISCARD M2_API m2Result m2CreateMotorJoint(m2World* world, const m2MotorJointDef* def,
+                                                    m2JointId* jointOut);
+    M2_NODISCARD M2_API m2Result m2CreateMouseJoint(m2World* world, const m2MouseJointDef* def,
+                                                    m2JointId* jointOut);
+    /// Destroys a joint and wakes its bodies; m2_errorStale when it is
+    /// already gone. Thread class: writer.
+    M2_NODISCARD M2_API m2Result m2DestroyJoint(m2World* world, m2JointId jointId);
 
     /// Runtime joint tuning. Motor speed is rad/s on revolute and
     /// wheel joints, m/s on prismatic; max motor is a torque or force
     /// budget accordingly. Every change wakes both bodies and is
     /// journaled. Distance joints ignore motor and limit parameters.
-    M2_API void m2Joint_SetMotorSpeed(m2JointId jointId, float speed);
-    M2_API void m2Joint_SetMaxMotor(m2JointId jointId, float maxTorqueOrForce);
-    M2_API void m2Joint_EnableMotor(m2JointId jointId, bool enable);
-    M2_API void m2Joint_EnableLimit(m2JointId jointId, bool enable);
-    M2_API void m2Joint_SetLimits(m2JointId jointId, float lower, float upper);
+    M2_API void m2Joint_SetMotorSpeed(m2World* world, m2JointId jointId, float speed);
+    M2_API void m2Joint_SetMaxMotor(m2World* world, m2JointId jointId, float maxTorqueOrForce);
+    M2_API void m2Joint_EnableMotor(m2World* world, m2JointId jointId, bool enable);
+    M2_API void m2Joint_EnableLimit(m2World* world, m2JointId jointId, bool enable);
+    M2_API void m2Joint_SetLimits(m2World* world, m2JointId jointId, float lower, float upper);
 
     /// Break thresholds: reaction force or torque beyond these snaps
     /// the joint during the step, deterministically, and reports it in
     /// m2World_GetJointEvents. Zero (the default) means unbreakable.
-    M2_API void m2Joint_SetBreakLimits(m2JointId jointId, float maxForce, float maxTorque);
+    M2_API void m2Joint_SetBreakLimits(m2World* world, m2JointId jointId, float maxForce,
+                                       float maxTorque);
 
     /// Runtime softness: the main row's spring (weld: linear row;
     /// mouse: the drag spring). Motor and filter joints have no
@@ -310,12 +328,15 @@ extern "C"
     /// Distance extras: retarget the rod length or clamp it into a
     /// hard range (accumulated impulses reset);
     /// read the range back through m2Joint_GetLimits. All journaled.
-    M2_API void m2Joint_SetSpringHertz(m2JointId jointId, float hertz);
-    M2_API void m2Joint_SetSpringDampingRatio(m2JointId jointId, float dampingRatio);
-    M2_API void m2Joint_SetAngularSpringHertz(m2JointId jointId, float hertz);
-    M2_API void m2Joint_SetAngularSpringDampingRatio(m2JointId jointId, float dampingRatio);
-    M2_API void m2DistanceJoint_SetLength(m2JointId jointId, float length);
-    M2_API void m2DistanceJoint_SetLengthRange(m2JointId jointId, float minLength, float maxLength);
+    M2_API void m2Joint_SetSpringHertz(m2World* world, m2JointId jointId, float hertz);
+    M2_API void m2Joint_SetSpringDampingRatio(m2World* world, m2JointId jointId,
+                                              float dampingRatio);
+    M2_API void m2Joint_SetAngularSpringHertz(m2World* world, m2JointId jointId, float hertz);
+    M2_API void m2Joint_SetAngularSpringDampingRatio(m2World* world, m2JointId jointId,
+                                                     float dampingRatio);
+    M2_API void m2DistanceJoint_SetLength(m2World* world, m2JointId jointId, float length);
+    M2_API void m2DistanceJoint_SetLengthRange(m2World* world, m2JointId jointId, float minLength,
+                                               float maxLength);
 
     /// Reaction load the joint carried on the last step, from the
     /// stored impulses times that step's inverse substep dt. This is
@@ -323,88 +344,93 @@ extern "C"
     /// limits, bit for bit, so tuning break thresholds against these
     /// readings is exact. Newtons and newton meters; zero before the
     /// first step and for invalid ids. Thread class: reader.
-    M2_API float m2Joint_GetReactionForce(m2JointId jointId);
-    M2_API float m2Joint_GetReactionTorque(m2JointId jointId);
-    M2_API bool m2Joint_IsValid(m2JointId jointId);
-    M2_API m2JointType m2Joint_GetType(m2JointId jointId);
+    M2_API float m2Joint_GetReactionForce(const m2World* world, m2JointId jointId);
+    M2_API float m2Joint_GetReactionTorque(const m2World* world, m2JointId jointId);
+    M2_API bool m2Joint_IsValid(const m2World* world, m2JointId jointId);
+    M2_API m2JointType m2Joint_GetType(const m2World* world, m2JointId jointId);
 
     /// Parameter readback, completing the integrator surface: a world
     /// can be reconstructed from public getters alone (the mirror test
     /// proves it). Type-specific getters are loud on the wrong type;
     /// motor and limit reads on a distance joint return zero quietly,
     /// mirroring the setters that ignore them.
-    M2_API m2Vec2 m2Joint_GetLocalAnchorA(m2JointId jointId);
-    M2_API m2Vec2 m2Joint_GetLocalAnchorB(m2JointId jointId);
-    M2_API m2Vec2 m2Joint_GetLocalAxisA(m2JointId jointId); // prismatic, wheel
-    M2_API float m2Joint_GetLength(m2JointId jointId);      // distance
+    M2_API m2Vec2 m2Joint_GetLocalAnchorA(const m2World* world, m2JointId jointId);
+    M2_API m2Vec2 m2Joint_GetLocalAnchorB(const m2World* world, m2JointId jointId);
+    M2_API m2Vec2 m2Joint_GetLocalAxisA(const m2World* world,
+                                        m2JointId jointId);                  // prismatic, wheel
+    M2_API float m2Joint_GetLength(const m2World* world, m2JointId jointId); // distance
     /// Spring-named getter aliases, symmetric with the setters; the
     /// short names remain and read the same registry slots.
-    M2_API float m2Joint_GetSpringHertz(m2JointId jointId);
-    M2_API float m2Joint_GetSpringDampingRatio(m2JointId jointId);
-    M2_API float m2Joint_GetAngularSpringHertz(m2JointId jointId);
-    M2_API float m2Joint_GetAngularSpringDampingRatio(m2JointId jointId);
+    M2_API float m2Joint_GetSpringHertz(const m2World* world, m2JointId jointId);
+    M2_API float m2Joint_GetSpringDampingRatio(const m2World* world, m2JointId jointId);
+    M2_API float m2Joint_GetAngularSpringHertz(const m2World* world, m2JointId jointId);
+    M2_API float m2Joint_GetAngularSpringDampingRatio(const m2World* world, m2JointId jointId);
 
-    M2_API float m2Joint_GetHertz(m2JointId jointId); // weld: linear row
-    M2_API float m2Joint_GetDampingRatio(m2JointId jointId);
-    M2_API float m2Joint_GetAngularHertz(m2JointId jointId); // weld, revolute spring
-    M2_API float m2Joint_GetAngularDampingRatio(m2JointId jointId);
-    M2_API float m2Joint_GetMotorSpeed(m2JointId jointId);
-    M2_API float m2Joint_GetMaxMotor(m2JointId jointId);
-    M2_API bool m2Joint_IsMotorEnabled(m2JointId jointId);
-    M2_API bool m2Joint_IsLimitEnabled(m2JointId jointId);
-    M2_API bool m2Joint_IsSpringEnabled(m2JointId jointId); // wheel
-    M2_API void m2Joint_GetLimits(m2JointId jointId, float* lower, float* upper);
-    M2_API void m2Joint_GetBreakLimits(m2JointId jointId, float* maxForce, float* maxTorque);
-    M2_API m2BodyId m2Joint_GetBodyA(m2JointId jointId);
-    M2_API m2BodyId m2Joint_GetBodyB(m2JointId jointId);
-    M2_API bool m2Joint_GetCollideConnected(m2JointId jointId);
-    M2_API uint64_t m2Joint_GetUserData(m2JointId jointId);
-    M2_API void m2Joint_SetUserData(m2JointId jointId, uint64_t userData); // journaled
-    M2_API m2WorldId m2Joint_GetWorld(m2JointId jointId);
+    M2_API float m2Joint_GetHertz(const m2World* world, m2JointId jointId); // weld: linear row
+    M2_API float m2Joint_GetDampingRatio(const m2World* world, m2JointId jointId);
+    M2_API float m2Joint_GetAngularHertz(const m2World* world,
+                                         m2JointId jointId); // weld, revolute spring
+    M2_API float m2Joint_GetAngularDampingRatio(const m2World* world, m2JointId jointId);
+    M2_API float m2Joint_GetMotorSpeed(const m2World* world, m2JointId jointId);
+    M2_API float m2Joint_GetMaxMotor(const m2World* world, m2JointId jointId);
+    M2_API bool m2Joint_IsMotorEnabled(const m2World* world, m2JointId jointId);
+    M2_API bool m2Joint_IsLimitEnabled(const m2World* world, m2JointId jointId);
+    M2_API bool m2Joint_IsSpringEnabled(const m2World* world, m2JointId jointId); // wheel
+    M2_API void m2Joint_GetLimits(const m2World* world, m2JointId jointId, float* lowerOut,
+                                  float* upperOut);
+    M2_API void m2Joint_GetBreakLimits(const m2World* world, m2JointId jointId, float* maxForceOut,
+                                       float* maxTorqueOut);
+    M2_API m2BodyId m2Joint_GetBodyA(const m2World* world, m2JointId jointId);
+    M2_API m2BodyId m2Joint_GetBodyB(const m2World* world, m2JointId jointId);
+    M2_API bool m2Joint_GetCollideConnected(const m2World* world, m2JointId jointId);
+    M2_API uint64_t m2Joint_GetUserData(const m2World* world, m2JointId jointId);
+    M2_API void m2Joint_SetUserData(m2World* world, m2JointId jointId,
+                                    uint64_t userData); // journaled
 
     /// Constraint drift right now: how far the joint currently is
     /// from what it pins. Point constraints report the anchor gap,
     /// the distance joint its length error, sliders their off-axis
     /// gap; angular drift is the unwound angle error where an angle
     /// is pinned and zero elsewhere. Thread class: reader.
-    M2_API float m2Joint_GetLinearSeparation(m2JointId jointId);
-    M2_API float m2Joint_GetAngularSeparation(m2JointId jointId);
+    M2_API float m2Joint_GetLinearSeparation(const m2World* world, m2JointId jointId);
+    M2_API float m2Joint_GetAngularSeparation(const m2World* world, m2JointId jointId);
 
     /// Motor joint runtime control (platforms retarget every frame)
     /// and readback; max torque rides m2Joint_SetMaxMotor/GetMaxMotor.
     /// Mouse joints retarget with SetTarget. All journaled.
-    M2_API void m2MotorJoint_SetOffsets(m2JointId jointId, m2Vec2 linearOffset,
+    M2_API void m2MotorJoint_SetOffsets(m2World* world, m2JointId jointId, m2Vec2 linearOffset,
                                         float angularOffset);
-    M2_API m2Vec2 m2MotorJoint_GetLinearOffset(m2JointId jointId);
-    M2_API float m2MotorJoint_GetAngularOffset(m2JointId jointId);
-    M2_API float m2MotorJoint_GetMaxForce(m2JointId jointId);
-    M2_API float m2MotorJoint_GetCorrectionFactor(m2JointId jointId);
-    M2_API void m2GearJoint_SetRatio(m2JointId jointId, float ratio); // journaled
-    M2_API float m2GearJoint_GetRatio(m2JointId jointId);
+    M2_API m2Vec2 m2MotorJoint_GetLinearOffset(const m2World* world, m2JointId jointId);
+    M2_API float m2MotorJoint_GetAngularOffset(const m2World* world, m2JointId jointId);
+    M2_API float m2MotorJoint_GetMaxForce(const m2World* world, m2JointId jointId);
+    M2_API float m2MotorJoint_GetCorrectionFactor(const m2World* world, m2JointId jointId);
+    M2_API void m2GearJoint_SetRatio(m2World* world, m2JointId jointId, float ratio); // journaled
+    M2_API float m2GearJoint_GetRatio(const m2World* world, m2JointId jointId);
 
     /// Retuning a pulley recaptures the rope total from the current
     /// geometry so the machine does not snap; accumulated impulse is
     /// dropped like a distance retarget. Lengths read live.
-    M2_API void m2PulleyJoint_SetRatio(m2JointId jointId, float ratio); // journaled
-    M2_API float m2PulleyJoint_GetRatio(m2JointId jointId);
-    M2_API float m2PulleyJoint_GetLengthA(m2JointId jointId);
-    M2_API float m2PulleyJoint_GetLengthB(m2JointId jointId);
-    M2_API m2Pos2 m2PulleyJoint_GetGroundAnchorA(m2JointId jointId);
-    M2_API m2Pos2 m2PulleyJoint_GetGroundAnchorB(m2JointId jointId);
+    M2_API void m2PulleyJoint_SetRatio(m2World* world, m2JointId jointId, float ratio); // journaled
+    M2_API float m2PulleyJoint_GetRatio(const m2World* world, m2JointId jointId);
+    M2_API float m2PulleyJoint_GetLengthA(const m2World* world, m2JointId jointId);
+    M2_API float m2PulleyJoint_GetLengthB(const m2World* world, m2JointId jointId);
+    M2_API m2Pos2 m2PulleyJoint_GetGroundAnchorA(const m2World* world, m2JointId jointId);
+    M2_API m2Pos2 m2PulleyJoint_GetGroundAnchorB(const m2World* world, m2JointId jointId);
 
-    M2_API float m2RatchetJoint_GetRatchet(m2JointId jointId);
-    M2_API float m2RatchetJoint_GetPhase(m2JointId jointId);
-    M2_API void m2MouseJoint_SetTarget(m2JointId jointId, m2Pos2 target);
-    M2_API m2Pos2 m2MouseJoint_GetTarget(m2JointId jointId);
-    M2_API float m2MouseJoint_GetMaxForce(m2JointId jointId);
+    M2_API float m2RatchetJoint_GetRatchet(const m2World* world, m2JointId jointId);
+    M2_API float m2RatchetJoint_GetPhase(const m2World* world, m2JointId jointId);
+    M2_API void m2MouseJoint_SetTarget(m2World* world, m2JointId jointId, m2Pos2 target);
+    M2_API m2Pos2 m2MouseJoint_GetTarget(const m2World* world, m2JointId jointId);
+    M2_API float m2MouseJoint_GetMaxForce(const m2World* world, m2JointId jointId);
 
     /// Editor and integration walk: ascending slot order, truthful
     /// total (same contract as m2World_GetBodies). Thread class:
     /// reader.
-    M2_API int32_t m2World_GetJoints(m2WorldId worldId, m2JointId* ids, int32_t capacity);
-    M2_API int32_t m2Body_GetJoints(m2BodyId bodyId, m2JointId* ids, int32_t capacity);
+    M2_API int32_t m2World_GetJoints(const m2World* world, m2JointId* ids, int32_t capacity);
+    M2_API int32_t m2Body_GetJoints(const m2World* world, m2BodyId bodyId, m2JointId* ids,
+                                    int32_t capacity);
 
-    static const m2JointId m2_nullJointId = {0, 0, 0};
+    static const m2JointId m2_nullJointId = {0, 0};
 
 #ifdef __cplusplus
 }

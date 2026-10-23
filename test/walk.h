@@ -15,6 +15,7 @@
 #ifndef MAUL2D_TEST_WALK_H
 #define MAUL2D_TEST_WALK_H
 
+#include "helpers.h"
 #include "test_harness.h"
 #include "test_task_pool.h"
 
@@ -58,7 +59,7 @@ static double PickCoord(void)
     return ((double)Pick(241) - 120.0) * 0.1;
 }
 
-static m2BodyId RandomBody(m2WorldId world)
+static m2BodyId RandomBody(m2World* world)
 {
     m2BodyId ids[16];
     int32_t n = m2World_GetBodies(world, ids, 16);
@@ -70,13 +71,13 @@ static m2BodyId RandomBody(m2WorldId world)
     }
     if (n == 0)
     {
-        m2BodyId nil = {0, 0, 0};
+        m2BodyId nil = {0, 0};
         return nil;
     }
     return ids[Pick((uint32_t)n)];
 }
 
-static m2JointId RandomJoint(m2WorldId world)
+static m2JointId RandomJoint(m2World* world)
 {
     m2JointId ids[8];
     int32_t n = m2World_GetJoints(world, ids, 8);
@@ -86,22 +87,22 @@ static m2JointId RandomJoint(m2WorldId world)
     }
     if (n == 0)
     {
-        m2JointId nil = {0, 0, 0};
+        m2JointId nil = {0, 0};
         return nil;
     }
     return ids[Pick((uint32_t)n)];
 }
 
-static m2ShapeId RandomShape(m2WorldId world)
+static m2ShapeId RandomShape(m2World* world)
 {
     m2BodyId body = RandomBody(world);
-    m2ShapeId nil = {0, 0, 0};
+    m2ShapeId nil = {0, 0};
     if (body.index1 == 0)
     {
         return nil;
     }
     m2ShapeId ids[16];
-    int32_t n = m2Body_GetShapes(body, ids, 16);
+    int32_t n = m2Body_GetShapes(world, body, ids, 16);
     if (n > 16)
     {
         n = 16; // a chain body can hold more shapes than the buffer
@@ -113,7 +114,7 @@ static m2ShapeId RandomShape(m2WorldId world)
     return ids[Pick((uint32_t)n)];
 }
 
-static void DoRandomOp(m2WorldId world)
+static void DoRandomOp(m2World* world)
 {
     m2Counters counters = m2World_GetCounters(world);
     uint32_t roll = Pick(100);
@@ -157,7 +158,7 @@ static void DoRandomOp(m2WorldId world)
             uint32_t flags =
                 kind == 0 ? m2_tensileParticle
                           : (kind == 1 ? m2_viscousParticle : (kind == 2 ? m2_powderParticle : 0));
-            m2World_EmitParticle(world, (m2Pos2){px, py}, (m2Vec2){vx, vy}, flags);
+            EmitParticle(world, (m2Pos2){px, py}, (m2Vec2){vx, vy}, flags);
             return;
         }
         m2ParticleId targets[128];
@@ -171,10 +172,10 @@ static void DoRandomOp(m2WorldId world)
         {
             float vx = (float)((int32_t)Pick(9) - 4);
             float vy = (float)((int32_t)Pick(9) - 4);
-            m2Particle_SetVelocity(targets[victim], (m2Vec2){vx, vy});
+            m2Particle_SetVelocity(world, targets[victim], (m2Vec2){vx, vy});
             return;
         }
-        m2DestroyParticle(targets[victim]);
+        DestroyParticle(world, targets[victim]);
         return;
     }
     if (roll < 35)
@@ -200,7 +201,7 @@ static void DoRandomOp(m2WorldId world)
             float vy = (float)((int32_t)Pick(9) - 4);
             bd.linearVelocity = (m2Vec2){vx, vy};
         }
-        m2CreateBody(world, &bd);
+        NewBody(world, &bd);
         return;
     }
     if (roll < 45)
@@ -229,20 +230,20 @@ static void DoRandomOp(m2WorldId world)
             float cy = (float)((int32_t)Pick(11) - 5) * 0.1f;
             float radius = 0.2f + (float)Pick(25) * 0.01f;
             m2Circle circle = {{cx, cy}, radius};
-            m2CreateCircleShape(body, &sd, &circle);
+            NewCircleShape(world, body, &sd, &circle);
         }
         else if (kind == 1)
         {
             float half = 0.15f + (float)Pick(30) * 0.01f;
             m2Capsule capsule = {{-half, 0.0f}, {half, 0.0f}, 0.1f + (float)Pick(20) * 0.01f};
-            m2CreateCapsuleShape(body, &sd, &capsule);
+            NewCapsuleShape(world, body, &sd, &capsule);
         }
         else
         {
             float halfW = 0.15f + (float)Pick(40) * 0.01f;
             float halfH = 0.15f + (float)Pick(40) * 0.01f;
             m2Polygon box = m2MakeBox(halfW, halfH);
-            m2CreatePolygonShape(body, &sd, &box);
+            NewPolygonShape(world, body, &sd, &box);
         }
         return;
     }
@@ -264,7 +265,7 @@ static void DoRandomOp(m2WorldId world)
         float aby = (float)((int32_t)Pick(5) - 2) * 0.1f;
         m2Vec2 anchorA = {aax, aay};
         m2Vec2 anchorB = {abx, aby};
-        m2JointId made = {0, 0, 0};
+        m2JointId made = {0, 0};
         bool collide = Pick(4) == 0;
         uint32_t type = Pick(11);
         if (type == 10)
@@ -275,7 +276,7 @@ static void DoRandomOp(m2WorldId world)
             jd.collideConnected = collide;
             float tooth = 0.2f + (float)Pick(5) * 0.1f;
             jd.ratchet = Pick(2) == 0 ? tooth : -tooth;
-            m2CreateRatchetJoint(world, &jd);
+            NewRatchetJoint(world, &jd);
             return;
         }
         if (type == 9)
@@ -284,8 +285,8 @@ static void DoRandomOp(m2WorldId world)
             jd.bodyIdA = a;
             jd.bodyIdB = b;
             jd.collideConnected = collide;
-            m2Pos2 pa = m2Body_GetPosition(a);
-            m2Pos2 pb = m2Body_GetPosition(b);
+            m2Pos2 pa = m2Body_GetPosition(world, a);
+            m2Pos2 pb = m2Body_GetPosition(world, b);
             float sideA = (float)Pick(5) - 2.0f;
             float riseA = 2.0f + (float)Pick(4);
             float sideB = (float)Pick(5) - 2.0f;
@@ -293,7 +294,7 @@ static void DoRandomOp(m2WorldId world)
             jd.groundAnchorA = (m2Pos2){pa.x + (double)sideA, pa.y + (double)riseA};
             jd.groundAnchorB = (m2Pos2){pb.x + (double)sideB, pb.y + (double)riseB};
             jd.ratio = 0.5f + (float)Pick(4) * 0.5f;
-            m2CreatePulleyJoint(world, &jd);
+            NewPulleyJoint(world, &jd);
             return;
         }
         if (type == 8)
@@ -304,7 +305,7 @@ static void DoRandomOp(m2WorldId world)
             jd.collideConnected = collide;
             float ratio = 0.5f + (float)Pick(4) * 0.5f;
             jd.ratio = Pick(2) == 0 ? ratio : -ratio;
-            m2CreateGearJoint(world, &jd);
+            NewGearJoint(world, &jd);
             return;
         }
         if (type == 6)
@@ -319,7 +320,7 @@ static void DoRandomOp(m2WorldId world)
             jd.angularOffset = (float)((int32_t)Pick(5) - 2) * 0.2f;
             jd.maxForce = 10.0f + (float)Pick(50);
             jd.maxTorque = 5.0f + (float)Pick(20);
-            m2CreateMotorJoint(world, &jd);
+            NewMotorJoint(world, &jd);
             return;
         }
         if (type == 7)
@@ -328,12 +329,12 @@ static void DoRandomOp(m2WorldId world)
             jd.bodyIdA = a;
             jd.bodyIdB = b;
             jd.collideConnected = collide;
-            m2Pos2 bp = m2Body_GetPosition(b);
+            m2Pos2 bp = m2Body_GetPosition(world, b);
             double tx = (double)((int32_t)Pick(9) - 4) * 0.5;
             double ty = (double)((int32_t)Pick(9) - 4) * 0.5;
             jd.target = (m2Pos2){bp.x + tx, bp.y + ty};
             jd.maxForce = 20.0f + (float)Pick(60);
-            m2CreateMouseJoint(world, &jd);
+            NewMouseJoint(world, &jd);
             return;
         }
         if (type == 5)
@@ -341,7 +342,7 @@ static void DoRandomOp(m2WorldId world)
             m2FilterJointDef jd = m2DefaultFilterJointDef();
             jd.bodyIdA = a;
             jd.bodyIdB = b;
-            m2CreateFilterJoint(world, &jd);
+            NewFilterJoint(world, &jd);
             return;
         }
         if (type == 0)
@@ -354,7 +355,7 @@ static void DoRandomOp(m2WorldId world)
             jd.localAnchorB = anchorB;
             jd.hertz = (float)Pick(3) * 2.0f;
             jd.dampingRatio = PickUnit();
-            made = m2CreateDistanceJoint(world, &jd);
+            made = NewDistanceJoint(world, &jd);
         }
         else if (type == 1)
         {
@@ -373,7 +374,7 @@ static void DoRandomOp(m2WorldId world)
             jd.enableLimit = Pick(2) == 0;
             jd.lowerAngle = -0.1f - (float)Pick(10) * 0.05f;
             jd.upperAngle = 0.1f + (float)Pick(10) * 0.05f;
-            made = m2CreateRevoluteJoint(world, &jd);
+            made = NewRevoluteJoint(world, &jd);
         }
         else if (type == 2)
         {
@@ -387,7 +388,7 @@ static void DoRandomOp(m2WorldId world)
             jd.enableLimit = true;
             jd.lowerTranslation = -0.5f - (float)Pick(10) * 0.1f;
             jd.upperTranslation = 0.5f + (float)Pick(10) * 0.1f;
-            made = m2CreatePrismaticJoint(world, &jd);
+            made = NewPrismaticJoint(world, &jd);
         }
         else if (type == 3)
         {
@@ -401,7 +402,7 @@ static void DoRandomOp(m2WorldId world)
             jd.linearDampingRatio = PickUnit();
             jd.angularHertz = (float)Pick(3) * 3.0f;
             jd.angularDampingRatio = PickUnit();
-            made = m2CreateWeldJoint(world, &jd);
+            made = NewWeldJoint(world, &jd);
         }
         else
         {
@@ -418,13 +419,13 @@ static void DoRandomOp(m2WorldId world)
             jd.enableMotor = Pick(3) == 0;
             jd.motorSpeed = (float)((int32_t)Pick(9) - 4);
             jd.maxMotorTorque = 5.0f + (float)Pick(15);
-            made = m2CreateWheelJoint(world, &jd);
+            made = NewWheelJoint(world, &jd);
         }
         if (made.index1 != 0 && Pick(5) == 0)
         {
             float bf = 10.0f + (float)Pick(60);
             float bt = 5.0f + (float)Pick(30);
-            m2Joint_SetBreakLimits(made, bf, bt);
+            m2Joint_SetBreakLimits(world, made, bf, bt);
         }
         return;
     }
@@ -449,14 +450,14 @@ static void DoRandomOp(m2WorldId world)
             cd.points = loop;
             cd.count = 4;
             cd.isLoop = true;
-            m2CreateChain(body, &cd);
+            NewChain(world, body, &cd);
         }
         else
         {
             m2Vec2 open[5] = {{x + 4.0f, y}, {x + 2.0f, y}, {x, y}, {x - 2.0f, y}, {x - 4.0f, y}};
             cd.points = open;
             cd.count = 5;
-            m2CreateChain(body, &cd);
+            NewChain(world, body, &cd);
         }
         return;
     }
@@ -465,7 +466,7 @@ static void DoRandomOp(m2WorldId world)
         m2BodyId body = RandomBody(world);
         if (body.index1 != 0)
         {
-            m2DestroyBody(body);
+            DestroyBody(world, body);
         }
         return;
     }
@@ -474,7 +475,7 @@ static void DoRandomOp(m2WorldId world)
         m2ShapeId shape = RandomShape(world);
         if (shape.index1 != 0)
         {
-            m2DestroyShape(shape); // chain links included: partial chains must survive
+            DestroyShape(world, shape); // chain links included: partial chains must survive
         }
         return;
     }
@@ -483,7 +484,7 @@ static void DoRandomOp(m2WorldId world)
         m2JointId joint = RandomJoint(world);
         if (joint.index1 != 0)
         {
-            m2DestroyJoint(joint);
+            DestroyJoint(world, joint);
         }
         return;
     }
@@ -493,7 +494,7 @@ static void DoRandomOp(m2WorldId world)
         int32_t n = m2World_GetChains(world, ids, 8);
         if (n > 0)
         {
-            m2DestroyChain(ids[Pick((uint32_t)n)]);
+            DestroyChain(world, ids[Pick((uint32_t)n)]);
         }
         return;
     }
@@ -509,20 +510,20 @@ static void DoRandomOp(m2WorldId world)
         {
             float vx = (float)((int32_t)Pick(9) - 4);
             float vy = (float)((int32_t)Pick(9) - 4);
-            m2Body_SetLinearVelocity(body, (m2Vec2){vx, vy});
+            m2Body_SetLinearVelocity(world, body, (m2Vec2){vx, vy});
         }
         else if (which == 1)
         {
-            m2Body_SetAngularVelocity(body, (float)((int32_t)Pick(9) - 4));
+            m2Body_SetAngularVelocity(world, body, (float)((int32_t)Pick(9) - 4));
         }
         else if (which == 2)
         {
-            if (m2Body_GetType(body) == m2_dynamicBody)
+            if (m2Body_GetType(world, body) == m2_dynamicBody)
             {
-                m2Pos2 at = m2Body_GetPosition(body);
+                m2Pos2 at = m2Body_GetPosition(world, body);
                 float jx = (float)((int32_t)Pick(5) - 2);
                 float jy = (float)((int32_t)Pick(5) - 2);
-                m2Body_ApplyLinearImpulseAtPoint(body, (m2Vec2){jx, jy}, at);
+                m2Body_ApplyLinearImpulseAtPoint(world, body, (m2Vec2){jx, jy}, at);
             }
         }
         else if (which == 3)
@@ -530,55 +531,55 @@ static void DoRandomOp(m2WorldId world)
             m2Rot identity = {1.0f, 0.0f};
             double tx = PickCoord();
             double ty = (double)Pick(60) * 0.1;
-            m2Body_SetTransform(body, (m2Pos2){tx, ty}, identity);
+            m2Body_SetTransform(world, body, (m2Pos2){tx, ty}, identity);
         }
         else if (which == 4)
         {
-            m2Body_SetType(body, (m2BodyType)Pick(3));
+            m2Body_SetType(world, body, (m2BodyType)Pick(3));
         }
         else if (which == 5)
         {
-            if (m2Body_GetType(body) == m2_dynamicBody)
+            if (m2Body_GetType(world, body) == m2_dynamicBody)
             {
                 float fx = (float)((int32_t)Pick(9) - 4) * 3.0f;
                 float fy = (float)((int32_t)Pick(9) - 4) * 3.0f;
-                m2Body_ApplyForce(body, (m2Vec2){fx, fy});
+                m2Body_ApplyForce(world, body, (m2Vec2){fx, fy});
             }
         }
         else if (which == 6)
         {
-            if (m2Body_GetType(body) == m2_dynamicBody)
+            if (m2Body_GetType(world, body) == m2_dynamicBody)
             {
                 float torque = (float)((int32_t)Pick(9) - 4) * 2.0f;
-                m2Body_ApplyTorque(body, torque);
+                m2Body_ApplyTorque(world, body, torque);
             }
         }
         else if (which == 7)
         {
-            m2Body_SetFixedRotation(body, Pick(2) == 0);
+            m2Body_SetFixedRotation(world, body, Pick(2) == 0);
         }
         else if (which == 8)
         {
             float damping = (float)Pick(6) * 0.1f;
-            m2Body_SetLinearDamping(body, damping);
+            m2Body_SetLinearDamping(world, body, damping);
         }
         else if (which == 9)
         {
-            m2Body_EnableSleep(body, Pick(4) != 0);
+            m2Body_EnableSleep(world, body, Pick(4) != 0);
         }
         else if (which == 10)
         {
-            m2Body_SetAwake(body, Pick(3) != 0);
+            m2Body_SetAwake(world, body, Pick(3) != 0);
         }
         else if (which == 11)
         {
             int8_t dom = (int8_t)((int32_t)Pick(5) - 2);
-            m2Body_SetDominance(body, dom);
+            m2Body_SetDominance(world, body, dom);
         }
         else
         {
             uint64_t data = (uint64_t)Pick(1000);
-            m2Body_SetUserData(body, data);
+            m2Body_SetUserData(world, body, data);
         }
         return;
     }
@@ -589,11 +590,11 @@ static void DoRandomOp(m2WorldId world)
         {
             if (Pick(2) == 0)
             {
-                m2Body_Disable(body);
+                m2Body_Disable(world, body);
             }
             else
             {
-                m2Body_Enable(body);
+                m2Body_Enable(world, body);
             }
         }
         return;
@@ -627,45 +628,45 @@ static void DoRandomOp(m2WorldId world)
         uint32_t which = Pick(4);
         if (which == 0)
         {
-            m2Shape_SetFriction(shape, PickUnit() * 0.9f);
+            m2Shape_SetFriction(world, shape, PickUnit() * 0.9f);
             float belt = (float)((int32_t)Pick(5) - 2) * 0.5f;
-            m2Shape_SetTangentSpeed(shape, belt);
+            m2Shape_SetTangentSpeed(world, shape, belt);
         }
         else if (which == 1)
         {
-            m2Shape_SetRestitution(shape, PickUnit() * 0.8f);
+            m2Shape_SetRestitution(world, shape, PickUnit() * 0.8f);
         }
         else if (which == 3)
         {
             float density = 0.5f + (float)Pick(4) * 0.5f;
-            m2Shape_SetDensity(shape, density);
+            m2Shape_SetDensity(world, shape, density);
         }
         else
         {
             uint64_t category = 1ull << Pick(4);
             uint64_t mask = Pick(4) == 0 ? 0x3u : UINT64_MAX;
             int32_t group = (int32_t)Pick(5) - 2;
-            m2Shape_SetFilter(shape, category, mask, group);
+            m2Shape_SetFilter(world, shape, category, mask, group);
         }
         return;
     }
     if (roll == 90)
     {
         m2ShapeId shape = RandomShape(world);
-        if (shape.index1 != 0 && m2Shape_GetType(shape) != m2_chainSegmentShape)
+        if (shape.index1 != 0 && m2Shape_GetType(world, shape) != m2_chainSegmentShape)
         {
             if (Pick(2) == 0)
             {
                 float radius = 0.2f + (float)Pick(25) * 0.01f;
                 m2Circle c = {{0.0f, 0.0f}, radius};
-                m2Shape_SetCircle(shape, &c);
+                m2Shape_SetCircle(world, shape, &c);
             }
             else
             {
                 float halfW = 0.15f + (float)Pick(30) * 0.01f;
                 float halfH = 0.15f + (float)Pick(30) * 0.01f;
                 m2Polygon box = m2MakeBox(halfW, halfH);
-                m2Shape_SetPolygon(shape, &box);
+                m2Shape_SetPolygon(world, shape, &box);
             }
         }
         return;
@@ -679,64 +680,64 @@ static void DoRandomOp(m2WorldId world)
         uint32_t which = Pick(9);
         if (which == 0)
         {
-            m2Joint_SetMotorSpeed(joint, (float)((int32_t)Pick(9) - 4));
+            m2Joint_SetMotorSpeed(world, joint, (float)((int32_t)Pick(9) - 4));
         }
         else if (which == 1)
         {
-            m2Joint_EnableMotor(joint, Pick(2) == 0);
+            m2Joint_EnableMotor(world, joint, Pick(2) == 0);
         }
         else if (which == 2)
         {
             float lower = -0.2f - (float)Pick(8) * 0.1f;
-            m2Joint_SetLimits(joint, lower, lower + 0.4f + (float)Pick(8) * 0.1f);
+            m2Joint_SetLimits(world, joint, lower, lower + 0.4f + (float)Pick(8) * 0.1f);
         }
         else if (which == 3)
         {
             float bf = 20.0f + (float)Pick(80);
             float bt = 10.0f + (float)Pick(40);
-            m2Joint_SetBreakLimits(joint, bf, bt);
+            m2Joint_SetBreakLimits(world, joint, bf, bt);
         }
         else if (which == 4)
         {
             float ox = (float)((int32_t)Pick(7) - 3) * 0.5f;
             float oy = (float)((int32_t)Pick(7) - 3) * 0.5f;
             float oa = (float)((int32_t)Pick(5) - 2) * 0.2f;
-            if (m2Joint_GetType(joint) == m2_motorJoint)
+            if (m2Joint_GetType(world, joint) == m2_motorJoint)
             {
-                m2MotorJoint_SetOffsets(joint, (m2Vec2){ox, oy}, oa);
+                m2MotorJoint_SetOffsets(world, joint, (m2Vec2){ox, oy}, oa);
             }
         }
         else if (which == 5)
         {
             double tx = (double)((int32_t)Pick(9) - 4) * 0.5;
             double ty = (double)((int32_t)Pick(9) - 4) * 0.5;
-            if (m2Joint_GetType(joint) == m2_mouseJoint)
+            if (m2Joint_GetType(world, joint) == m2_mouseJoint)
             {
-                m2Pos2 base = m2Body_GetPosition(m2Joint_GetBodyB(joint));
-                m2MouseJoint_SetTarget(joint, (m2Pos2){base.x + tx, base.y + ty});
+                m2Pos2 base = m2Body_GetPosition(world, m2Joint_GetBodyB(world, joint));
+                m2MouseJoint_SetTarget(world, joint, (m2Pos2){base.x + tx, base.y + ty});
             }
         }
         else if (which == 6)
         {
             uint64_t data = (uint64_t)Pick(1000);
-            m2Joint_SetUserData(joint, data);
+            m2Joint_SetUserData(world, joint, data);
         }
         else if (which == 7)
         {
             float hertz = (float)Pick(30) * 0.5f;
-            m2JointType type = m2Joint_GetType(joint);
+            m2JointType type = m2Joint_GetType(world, joint);
             if (type != m2_motorJoint && type != m2_filterJoint)
             {
-                m2Joint_SetSpringHertz(joint, hertz);
+                m2Joint_SetSpringHertz(world, joint, hertz);
             }
         }
         else
         {
             float lo = 0.2f + (float)Pick(10) * 0.1f;
             float hi = lo + 0.2f + (float)Pick(15) * 0.1f;
-            if (m2Joint_GetType(joint) == m2_distanceJoint)
+            if (m2Joint_GetType(world, joint) == m2_distanceJoint)
             {
-                m2DistanceJoint_SetLengthRange(joint, lo, hi);
+                m2DistanceJoint_SetLengthRange(world, joint, lo, hi);
             }
         }
     }
@@ -754,7 +755,6 @@ static uint64_t RunScenario(uint64_t seed, uint8_t* journal, int32_t journalCapa
     def.jointCapacity = 8;
     def.particleCapacity = 128; // the walks drive water too
     def.fluidVolumeCapacity = 2;
-    def.workerCount = workerCount;
     static int32_t s_fuzzWorkers;
     s_fuzzWorkers = workerCount;
     if (workerCount > 1)
@@ -763,19 +763,19 @@ static uint64_t RunScenario(uint64_t seed, uint8_t* journal, int32_t journalCapa
         def.finishTask = TpFinish;
         def.userTaskContext = &s_fuzzWorkers;
     }
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     if (journal != NULL)
     {
-        m2World_StartJournal(world, journal, journalCapacity);
+        StartJournal(world, journal, journalCapacity);
     }
 
     // A floor first, so the chaos has something to land on.
     m2BodyDef fd = m2DefaultBodyDef();
     fd.position = (m2Pos2){0.0, -2.0};
-    m2BodyId floor = m2CreateBody(world, &fd);
+    m2BodyId floor = NewBody(world, &fd);
     m2ShapeDef fs = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(14.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
+    NewPolygonShape(world, floor, &fs, &slab);
 
     // A pool the chaos falls into, so buoyancy rides every promise.
     m2FluidVolumeDef pool = m2DefaultFluidVolumeDef();
@@ -783,7 +783,7 @@ static uint64_t RunScenario(uint64_t seed, uint8_t* journal, int32_t journalCapa
     pool.regionUpper = (m2Pos2){14.0, 2.0};
     pool.surface = 0.0;
     pool.flow = (m2Vec2){0.3f, 0.0f};
-    m2CreateFluidVolume(world, &pool);
+    NewFluidVolume(world, &pool);
 
     for (int32_t i = 0; i < 300; ++i)
     {
@@ -797,11 +797,11 @@ static uint64_t RunScenario(uint64_t seed, uint8_t* journal, int32_t journalCapa
 
     if (journal != NULL)
     {
-        int32_t bytes = m2World_StopJournal(world);
+        int32_t bytes = StopJournal(world);
         CHECK(bytes > 0, "the walk fits the journal");
         s_walkTapeHash = m2Hash64(s_walkTapeHash, journal, bytes);
-        m2WorldId fresh = m2CreateWorld(&def);
-        CHECK(m2World_ReplayJournal(fresh, journal, bytes), "the walk replays");
+        m2World* fresh = NewWorld(&def);
+        CHECK(ReplayJournal(fresh, journal, bytes), "the walk replays");
         CHECK(m2World_Hash(fresh) == endHash, "replay lands on the recorded bits");
         m2DestroyWorld(fresh);
     }
@@ -811,14 +811,14 @@ static uint64_t RunScenario(uint64_t seed, uint8_t* journal, int32_t journalCapa
     int32_t size = m2World_SnapshotSize(world);
     void* snapA = malloc((size_t)size);
     void* snapB = malloc((size_t)size);
-    CHECK(m2World_Snapshot(world, snapA, size) == size, "snapshot");
+    CHECK(Snapshot(world, snapA, size) == size, "snapshot");
     for (int32_t i = 0; i < 15; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4); // a future to roll back from
     }
-    CHECK(m2World_Restore(world, snapA, size), "restore");
+    CHECK(Restore(world, snapA, size), "restore");
     CHECK(m2World_Hash(world) == endHash, "restore returns the exact bits");
-    CHECK(m2World_Snapshot(world, snapB, size) == size, "re-snapshot");
+    CHECK(Snapshot(world, snapB, size) == size, "re-snapshot");
     CHECK(memcmp(snapA, snapB, (size_t)size) == 0, "re-snapshot is byte-equal");
     free(snapA);
     free(snapB);

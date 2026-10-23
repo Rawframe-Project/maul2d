@@ -16,9 +16,12 @@
 
 #include <string.h>
 
-void m2Body_SetLinearVelocity(m2BodyId bodyId, m2Vec2 velocity)
+void m2Body_SetLinearVelocity(m2World* world, m2BodyId bodyId, m2Vec2 velocity)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0 || !m2FiniteVec2(velocity))
     {
@@ -38,9 +41,12 @@ void m2Body_SetLinearVelocity(m2BodyId bodyId, m2Vec2 velocity)
     }
 }
 
-void m2Body_SetAngularVelocity(m2BodyId bodyId, float velocity)
+void m2Body_SetAngularVelocity(m2World* world, m2BodyId bodyId, float velocity)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0 || !m2FiniteF(velocity))
     {
@@ -60,9 +66,13 @@ void m2Body_SetAngularVelocity(m2BodyId bodyId, float velocity)
     }
 }
 
-void m2Body_ApplyLinearImpulseAtPoint(m2BodyId bodyId, m2Vec2 impulse, m2Pos2 worldPoint)
+void m2Body_ApplyLinearImpulseAtPoint(m2World* world, m2BodyId bodyId, m2Vec2 impulse,
+                                      m2Pos2 worldPoint)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0 || world->bodies.types[index] != (uint8_t)m2_dynamicBody ||
         !m2FiniteVec2(impulse) || !m2FinitePos2(worldPoint))
@@ -94,9 +104,12 @@ void m2Body_ApplyLinearImpulseAtPoint(m2BodyId bodyId, m2Vec2 impulse, m2Pos2 wo
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_ApplyForceAtPoint(m2BodyId bodyId, m2Vec2 force, m2Pos2 worldPoint)
+void m2Body_ApplyForceAtPoint(m2World* world, m2BodyId bodyId, m2Vec2 force, m2Pos2 worldPoint)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0 || world->bodies.types[index] != (uint8_t)m2_dynamicBody ||
         !m2FiniteVec2(force) || !m2FinitePos2(worldPoint))
@@ -127,9 +140,12 @@ void m2Body_ApplyForceAtPoint(m2BodyId bodyId, m2Vec2 force, m2Pos2 worldPoint)
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_ApplyForce(m2BodyId bodyId, m2Vec2 force)
+void m2Body_ApplyForce(m2World* world, m2BodyId bodyId, m2Vec2 force)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0 || world->bodies.types[index] != (uint8_t)m2_dynamicBody || !m2FiniteVec2(force))
     {
@@ -150,9 +166,12 @@ void m2Body_ApplyForce(m2BodyId bodyId, m2Vec2 force)
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_ApplyTorque(m2BodyId bodyId, float torque)
+void m2Body_ApplyTorque(m2World* world, m2BodyId bodyId, float torque)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0 || world->bodies.types[index] != (uint8_t)m2_dynamicBody || !m2FiniteF(torque))
     {
@@ -172,9 +191,12 @@ void m2Body_ApplyTorque(m2BodyId bodyId, float torque)
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_ApplyAngularImpulse(m2BodyId bodyId, float impulse)
+void m2Body_ApplyAngularImpulse(m2World* world, m2BodyId bodyId, float impulse)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0 || world->bodies.types[index] != (uint8_t)m2_dynamicBody || !m2FiniteF(impulse))
     {
@@ -194,9 +216,12 @@ void m2Body_ApplyAngularImpulse(m2BodyId bodyId, float impulse)
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_ApplyLinearImpulse(m2BodyId bodyId, m2Vec2 impulse)
+void m2Body_ApplyLinearImpulse(m2World* world, m2BodyId bodyId, m2Vec2 impulse)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0 || world->bodies.types[index] != (uint8_t)m2_dynamicBody ||
         !m2FiniteVec2(impulse))
@@ -218,9 +243,12 @@ void m2Body_ApplyLinearImpulse(m2BodyId bodyId, m2Vec2 impulse)
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_SetTransform(m2BodyId bodyId, m2Pos2 position, m2Rot rotation)
+void m2Body_SetTransform(m2World* world, m2BodyId bodyId, m2Pos2 position, m2Rot rotation)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0 || !m2FinitePos2(position) || !m2UnitRot(rotation))
     {
@@ -279,9 +307,13 @@ void m2Body_SetTransform(m2BodyId bodyId, m2Pos2 position, m2Rot rotation)
     }
 }
 
-void m2Body_SetTargetTransform(m2BodyId bodyId, m2Pos2 position, m2Rot rotation, float dt)
+void m2Body_SetTargetTransform(m2World* world, m2BodyId bodyId, m2Pos2 position, m2Rot rotation,
+                               float dt)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0 || !(dt > 0.0f) || !m2FinitePos2(position) || !m2UnitRot(rotation) ||
         !m2FiniteF(dt))
@@ -295,6 +327,6 @@ void m2Body_SetTargetTransform(m2BodyId bodyId, m2Pos2 position, m2Rot rotation,
     m2Transform xf = world->bodies.transforms[index];
     m2Vec2 v = {(float)(position.x - xf.p.x) * invDt, (float)(position.y - xf.p.y) * invDt};
     float w = m2UnwindAngle(m2RelativeJointAngle(xf.q, rotation)) * invDt;
-    m2Body_SetLinearVelocity(bodyId, v);
-    m2Body_SetAngularVelocity(bodyId, w);
+    m2Body_SetLinearVelocity(world, bodyId, v);
+    m2Body_SetAngularVelocity(world, bodyId, w);
 }

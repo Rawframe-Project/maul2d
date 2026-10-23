@@ -357,22 +357,34 @@ typedef struct m2World
     m2Recorder recorder;
 
     // Host hooks and diagnostics (never snapshot state).
+    m2Allocator allocator;        // the def's, or the C library's; kept for the world's life
     m2EnqueueTaskFn* enqueueTask; // host executor; both NULL =
     m2FinishTaskFn* finishTask;   // serial; never snapshot state
     void* userTaskContext;
     m2Profile profile; // diagnostics only (never walked/hashed)
     volatile long long
-        misuseCount;     // cumulative refusals; atomic access only (m2Refuse, m2MisuseCount)
+        misuseCount;     // cumulative misuse; atomic access only (m2Refuse, m2MisuseCount)
     int64_t memoryBytes; // persistent footprint, from create
-    uint16_t worldGeneration;
-    uint16_t slot;    // 0-based registry slot
-    uint16_t idWorld; // the world field of every id this world hands out
+    volatile long busy;  // host code running: a step's tasks, debug draws; atomic access only
 } m2World;
 
-// Refuses a caller's input: records the reason for m2LastResult on this
-// thread and, for an invalid argument against a live world, counts it in
-// m2Counters.misuse. world may be NULL.
-void m2Refuse(m2World* world, m2Result reason);
+// Refuses a caller's call against a world and returns the reason, so a
+// status function can return it directly. Misuse (an invalid argument, a
+// stale id, a call while the world is busy) counts one in
+// m2Counters.misuse; a full pool is a runtime fact and counts nothing.
+// world may be NULL, which counts nothing.
+m2Result m2Refuse(const m2World* world, m2Result reason);
 uint64_t m2MisuseCount(const m2World* world);
+
+// Brackets host code the world runs (a step's tasks, a debug draw's
+// callbacks); in between, the world's writers refuse. Readers may draw on
+// several threads at once, so the count is atomic.
+void m2EnterHostCode(const m2World* world);
+void m2LeaveHostCode(const m2World* world);
+
+// The check every mutating call makes before anything else: a null world
+// is invalid, and a world running host code (a step's tasks, a debug draw
+// callback) refuses with m2_errorState. Returns m2_success otherwise.
+m2Result m2CheckWriter(const m2World* world);
 
 #endif // MAUL2D_SRC_WORLD_INTERNAL_H

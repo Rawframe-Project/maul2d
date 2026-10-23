@@ -1,64 +1,64 @@
 # The internal module graph: each module and the modules it may use.
 # tools/check_modules.py enforces it.
-body: broadphase chain island joint_edges journal mass object_ids shape world_internal world_registry
+allocator:
+body: broadphase chain island joint_edges journal mass object_ids shape world_internal
 body_motion: body broadphase island joint joint_row journal object_ids world_internal
 body_read: body object_ids shape world_internal
 broadphase: contact island joint_edges world_internal
-buoyancy: journal world_internal world_registry
+buoyancy: journal world_internal
 ccd: world_internal
-chain: geometry island journal mass object_ids shape world_internal world_registry
-contact: object_ids parallel world_internal world_registry
+chain: geometry island journal mass object_ids shape world_internal
+contact: object_ids parallel world_internal
 contact_constraint: solver_base
 contact_kernel: contact_constraint simd world_internal
 contact_solver: contact_constraint contact_kernel graph_color joint_solver parallel solver_base world_internal
 core:
 cpu:
-destruction: body distance geometry journal object_ids world_internal world_registry
+destruction: body distance geometry journal object_ids world_internal
 distance: world_internal
-draw: world_internal world_registry
+draw: world_internal
 dynamic_tree: core
 geometry: core dynamic_tree
 graph_color: contact_constraint solver_base world_internal
 hash:
 island: world_internal
-joint: broadphase island joint_edges joint_row joint_solver journal world_internal world_registry
-joint_distance: body broadphase joint joint_solver journal object_ids solver_base world_internal world_registry
+joint: broadphase island joint_edges joint_row joint_solver journal world_internal
+joint_distance: body broadphase joint joint_solver journal object_ids solver_base world_internal
 joint_edges: world_internal
-joint_filter: body broadphase joint joint_solver journal object_ids solver_base world_internal world_registry
-joint_gear: body broadphase joint joint_solver journal object_ids solver_base world_internal world_registry
-joint_motor: body broadphase island joint joint_solver journal object_ids solver_base world_internal world_registry
-joint_mouse: body broadphase island joint joint_solver journal object_ids solver_base world_internal world_registry
-joint_prismatic: body broadphase joint joint_solver journal object_ids solver_base world_internal world_registry
-joint_pulley: body broadphase joint joint_solver journal object_ids solver_base world_internal world_registry
-joint_ratchet: body broadphase joint joint_solver journal object_ids solver_base world_internal world_registry
-joint_revolute: body broadphase joint joint_solver journal object_ids solver_base world_internal world_registry
+joint_filter: body broadphase joint joint_solver journal object_ids solver_base world_internal
+joint_gear: body broadphase joint joint_solver journal object_ids solver_base world_internal
+joint_motor: body broadphase island joint joint_solver journal object_ids solver_base world_internal
+joint_mouse: body broadphase island joint joint_solver journal object_ids solver_base world_internal
+joint_prismatic: body broadphase joint joint_solver journal object_ids solver_base world_internal
+joint_pulley: body broadphase joint joint_solver journal object_ids solver_base world_internal
+joint_ratchet: body broadphase joint joint_solver journal object_ids solver_base world_internal
+joint_revolute: body broadphase joint joint_solver journal object_ids solver_base world_internal
 joint_row: solver_base
 joint_solver: joint_row solver_base world_internal
-joint_weld: body broadphase joint joint_solver journal object_ids solver_base world_internal world_registry
-joint_wheel: body broadphase joint joint_solver journal object_ids solver_base world_internal world_registry
-journal: geometry world_internal world_registry
-journal_replay: body joint journal shape world_internal
+joint_weld: body broadphase joint joint_solver journal object_ids solver_base world_internal
+joint_wheel: body broadphase joint joint_solver journal object_ids solver_base world_internal
+journal: allocator geometry world_internal
+journal_replay: allocator body joint journal shape world_internal
 manifold: core geometry
 mass: geometry world_internal
 math_functions: core rotation
-mover: core query world_registry
-object_ids: world_internal world_registry
+mover: core query
+object_ids: world_internal
 parallel: world_internal
-particle: journal world_internal world_registry
+particle: journal world_internal
 particle_contacts: body distance dynamic_tree island parallel particle world_internal
 particle_pairs: particle world_internal
 particle_solver: body dynamic_tree particle query world_internal
 platform_time: world_internal
-query: distance world_internal world_registry
+query: distance world_internal
 query_proxy: query
 ray_cast: query
 rotation:
-shape: broadphase distance island journal mass object_ids world_internal world_registry
+shape: broadphase distance island journal mass object_ids world_internal
 simd:
-snapshot: joint joint_edges journal world_internal world_registry world_state
+snapshot: joint joint_edges journal world_internal world_state
 solver: ccd contact_solver joint joint_solver rotation world_internal
 solver_base:
-world: broadphase buoyancy contact cpu island journal parallel particle solver world_internal world_registry world_state
+world: allocator broadphase buoyancy contact cpu island journal parallel particle solver world_internal world_state
 world_internal: core dynamic_tree geometry
-world_registry: world_internal
-world_state: contact_solver world_internal
+world_state: allocator contact_solver world_internal

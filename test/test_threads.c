@@ -7,7 +7,9 @@
 // hold under a parallel solver. The 4-worker trajectory is the 14th
 // gated line, so the law also holds across compilers and platforms.
 
+#include "helpers.h"
 #include "test_harness.h"
+#include "test_task_pool.h"
 
 #include "maul2d/base.h"
 #include "maul2d/maul2d.h"
@@ -16,22 +18,24 @@
 #include <stdlib.h>
 #include <string.h>
 
-static m2WorldId BuildBusyScene(int32_t workerCount)
+static m2World* BuildBusyScene(int32_t workerCount)
 {
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 128;
     def.shapeCapacity = 128;
     def.jointCapacity = 32;
-    def.workerCount = workerCount;
-    m2WorldId world = m2CreateWorld(&def);
+    static int32_t s_workers[TP_MAX_WORKERS + 1];
+    s_workers[workerCount] = workerCount;
+    TpUseWorkers(&def, &s_workers[workerCount]);
+    m2World* world = NewWorld(&def);
 
     m2BodyDef fd = m2DefaultBodyDef();
     fd.position = (m2Pos2){5.5e5, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
+    m2BodyId floor = NewBody(world, &fd);
     m2ShapeDef fs = m2DefaultShapeDef();
     fs.friction = 0.8f;
     m2Polygon slab = m2MakeBox(40.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
+    NewPolygonShape(world, floor, &fs, &slab);
 
     // A pyramid: plenty of contacts sharing bodies = many colors.
     m2ShapeDef bs = m2DefaultShapeDef();
@@ -46,15 +50,15 @@ static m2WorldId BuildBusyScene(int32_t workerCount)
             bd.type = m2_dynamicBody;
             bd.position =
                 (m2Pos2){5.5e5 + (double)j - 0.5 * (double)(rows + i), 0.55 + 1.05 * (double)i};
-            m2BodyId body = m2CreateBody(world, &bd);
-            m2CreatePolygonShape(body, &bs, &unit);
+            m2BodyId body = NewBody(world, &bd);
+            NewPolygonShape(world, body, &bs, &unit);
         }
     }
 
     // A revolute chain off a tower.
     m2BodyDef ad = m2DefaultBodyDef();
     ad.position = (m2Pos2){5.5e5 - 14.0, 8.0};
-    m2BodyId anchor = m2CreateBody(world, &ad);
+    m2BodyId anchor = NewBody(world, &ad);
     m2BodyId prev = anchor;
     m2Polygon link = m2MakeBox(0.4f, 0.1f);
     for (int32_t i = 0; i < 6; ++i)
@@ -62,15 +66,15 @@ static m2WorldId BuildBusyScene(int32_t workerCount)
         m2BodyDef bd = m2DefaultBodyDef();
         bd.type = m2_dynamicBody;
         bd.position = (m2Pos2){5.5e5 - 14.0 + 0.8 * (double)(i + 1), 8.0};
-        m2BodyId linkBody = m2CreateBody(world, &bd);
-        m2CreatePolygonShape(linkBody, &bs, &link);
+        m2BodyId linkBody = NewBody(world, &bd);
+        NewPolygonShape(world, linkBody, &bs, &link);
         m2RevoluteJointDef jd = m2DefaultRevoluteJointDef();
         jd.bodyIdA = prev;
         jd.bodyIdB = linkBody;
         jd.localAnchorA =
             prev.index1 == anchor.index1 ? (m2Vec2){0.0f, 0.0f} : (m2Vec2){0.4f, 0.0f};
         jd.localAnchorB = (m2Vec2){-0.4f, 0.0f};
-        m2CreateRevoluteJoint(world, &jd);
+        NewRevoluteJoint(world, &jd);
         prev = linkBody;
     }
 
@@ -78,19 +82,19 @@ static m2WorldId BuildBusyScene(int32_t workerCount)
     m2BodyDef cd = m2DefaultBodyDef();
     cd.type = m2_dynamicBody;
     cd.position = (m2Pos2){5.5e5 - 20.0, 1.0};
-    m2BodyId chassis = m2CreateBody(world, &cd);
+    m2BodyId chassis = NewBody(world, &cd);
     m2Polygon deck = m2MakeBox(0.9f, 0.15f);
-    m2CreatePolygonShape(chassis, &bs, &deck);
+    NewPolygonShape(world, chassis, &bs, &deck);
     for (int32_t i = 0; i < 2; ++i)
     {
         m2BodyDef wd = m2DefaultBodyDef();
         wd.type = m2_dynamicBody;
         wd.position = (m2Pos2){5.5e5 - 20.0 + (i == 0 ? -0.6 : 0.6), 0.55};
-        m2BodyId wheel = m2CreateBody(world, &wd);
+        m2BodyId wheel = NewBody(world, &wd);
         m2ShapeDef ws = m2DefaultShapeDef();
         ws.friction = 0.9f;
         m2Circle tire = {{0.0f, 0.0f}, 0.3f};
-        m2CreateCircleShape(wheel, &ws, &tire);
+        NewCircleShape(world, wheel, &ws, &tire);
         m2WheelJointDef ride = m2DefaultWheelJointDef();
         ride.bodyIdA = chassis;
         ride.bodyIdB = wheel;
@@ -104,32 +108,32 @@ static m2WorldId BuildBusyScene(int32_t workerCount)
         ride.enableMotor = true;
         ride.motorSpeed = -12.0f;
         ride.maxMotorTorque = 20.0f;
-        m2CreateWheelJoint(world, &ride);
+        NewWheelJoint(world, &ride);
     }
 
     return world;
 }
 
-static void FireBullet(m2WorldId world, int32_t step)
+static void FireBullet(m2World* world, int32_t step)
 {
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.isBullet = true;
     bd.position = (m2Pos2){5.5e5 + 25.0, 2.0 + 0.5 * (double)(step % 3)};
     bd.linearVelocity = (m2Vec2){-90.0f, 0.0f};
-    m2BodyId bullet = m2CreateBody(world, &bd);
+    m2BodyId bullet = NewBody(world, &bd);
     if (bullet.index1 != 0)
     {
         m2ShapeDef sd = m2DefaultShapeDef();
         sd.density = 3.0f;
         m2Circle ball = {{0.0f, 0.0f}, 0.15f};
-        m2CreateCircleShape(bullet, &sd, &ball);
+        NewCircleShape(world, bullet, &sd, &ball);
     }
 }
 
 static uint64_t RunTrajectory(int32_t workerCount, int32_t steps)
 {
-    m2WorldId world = BuildBusyScene(workerCount);
+    m2World* world = BuildBusyScene(workerCount);
     uint64_t h = M2_HASH_INIT;
     for (int32_t i = 0; i < steps; ++i)
     {

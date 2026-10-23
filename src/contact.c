@@ -9,7 +9,6 @@
 #include "object_ids.h"
 #include "parallel.h"
 #include "world_internal.h"
-#include "world_registry.h"
 
 #include "maul2d/base.h"
 
@@ -328,6 +327,7 @@ typedef struct m2UpdateContactsCtx
 
 // Each pair writes only its own manifold slot, so the range splits
 // freely across workers without touching the arithmetic.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): numeric kernel, fixed order
 static void UpdateContactsRange(int32_t begin, int32_t end, void* userCtx)
 {
     m2World* world = ((m2UpdateContactsCtx*)userCtx)->world;
@@ -440,10 +440,9 @@ void m2UpdateContacts(m2World* world)
     m2RunParallel(world, UpdateContactsRange, &ctx, world->contacts.pairCount, 16);
 }
 
-m2ContactEvents m2World_GetContactEvents(m2WorldId worldId)
+m2ContactEvents m2World_GetContactEvents(const m2World* world)
 {
     m2ContactEvents events = {NULL, NULL, 0, 0};
-    m2World* world = m2GetWorld(worldId);
     if (world == NULL)
     {
         return events;
@@ -455,10 +454,9 @@ m2ContactEvents m2World_GetContactEvents(m2WorldId worldId)
     return events;
 }
 
-m2SensorEvents m2World_GetSensorEvents(m2WorldId worldId)
+m2SensorEvents m2World_GetSensorEvents(const m2World* world)
 {
     m2SensorEvents events = {NULL, NULL, 0, 0};
-    m2World* world = m2GetWorld(worldId);
     if (world == NULL)
     {
         return events;
@@ -470,10 +468,9 @@ m2SensorEvents m2World_GetSensorEvents(m2WorldId worldId)
     return events;
 }
 
-m2JointEvents m2World_GetJointEvents(m2WorldId worldId)
+m2JointEvents m2World_GetJointEvents(const m2World* world)
 {
     m2JointEvents events = {NULL, 0};
-    m2World* world = m2GetWorld(worldId);
     if (world == NULL)
     {
         return events;
@@ -483,14 +480,14 @@ m2JointEvents m2World_GetJointEvents(m2WorldId worldId)
     return events;
 }
 
-int32_t m2Shape_GetSensorOverlaps(m2ShapeId sensorShapeId, m2ShapeId* overlaps, int32_t capacity)
+int32_t m2Shape_GetSensorOverlaps(const m2World* world, m2ShapeId sensorShapeId,
+                                  m2ShapeId* overlaps, int32_t capacity)
 {
-    m2World* world = m2WorldFromTag(sensorShapeId.world);
     if (world == NULL)
     {
         return 0;
     }
-    int32_t sensor = sensorShapeId.index1 - 1;
+    int32_t sensor = (int32_t)sensorShapeId.index1 - 1;
     if (sensor < 0 || sensor >= world->shapes.shapeCapacity ||
         world->shapes.shapeAlive[sensor] == 0 ||
         world->shapes.shapeGenerations[sensor] != sensorShapeId.generation ||
@@ -520,9 +517,8 @@ int32_t m2Shape_GetSensorOverlaps(m2ShapeId sensorShapeId, m2ShapeId* overlaps, 
     return total;
 }
 
-int32_t m2World_GetContactData(m2WorldId worldId, m2ContactData* data, int32_t capacity)
+int32_t m2World_GetContactData(const m2World* world, m2ContactData* data, int32_t capacity)
 {
-    m2World* world = m2GetWorld(worldId);
     if (world == NULL)
     {
         return 0;

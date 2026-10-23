@@ -9,6 +9,7 @@
 // producing bytes (hash moves or the world legitimately sleeps),
 // and a mid-horizon snapshot replays the second half bit for bit.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul2d/maul2d.h"
@@ -30,7 +31,7 @@ int main(int argc, char** argv)
     def.shapeCapacity = 512;
     def.jointCapacity = 64;
     def.particleCapacity = 512;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
 
     // The floor is a conveyor: the pyramid's rubble keeps drifting.
     m2BodyDef floorDef = m2DefaultBodyDef();
@@ -38,15 +39,15 @@ int main(int argc, char** argv)
     m2ShapeDef beltShape = m2DefaultShapeDef();
     beltShape.tangentSpeed = 0.4f;
     m2Polygon slab = m2MakeBox(24.0f, 0.2f);
-    m2CreatePolygonShape(m2CreateBody(world, &floorDef), &beltShape, &slab);
+    NewPolygonShape(world, NewBody(world, &floorDef), &beltShape, &slab);
     m2BodyDef wallDefL = m2DefaultBodyDef();
     wallDefL.position = (m2Pos2){-24.0, 3.0};
     m2ShapeDef wallShape = m2DefaultShapeDef();
     m2Polygon wall = m2MakeBox(0.2f, 3.2f);
-    m2CreatePolygonShape(m2CreateBody(world, &wallDefL), &wallShape, &wall);
+    NewPolygonShape(world, NewBody(world, &wallDefL), &wallShape, &wall);
     m2BodyDef wallDefR = m2DefaultBodyDef();
     wallDefR.position = (m2Pos2){24.0, 3.0};
-    m2CreatePolygonShape(m2CreateBody(world, &wallDefR), &wallShape, &wall);
+    NewPolygonShape(world, NewBody(world, &wallDefR), &wallShape, &wall);
 
     // A pyramid to grind along the belt.
     m2Polygon crate = m2MakeBox(0.25f, 0.25f);
@@ -59,7 +60,7 @@ int main(int argc, char** argv)
             bd.position =
                 (m2Pos2){-8.0 + (double)col * 0.52 - (double)row * 0.26, 4.2 - (double)row * 0.5};
             m2ShapeDef sd = m2DefaultShapeDef();
-            m2CreatePolygonShape(m2CreateBody(world, &bd), &sd, &crate);
+            NewPolygonShape(world, NewBody(world, &bd), &sd, &crate);
         }
     }
 
@@ -71,13 +72,13 @@ int main(int argc, char** argv)
     {
         m2BodyDef pd = m2DefaultBodyDef();
         pd.position = (m2Pos2){6.0 + (double)i * 1.8, 3.0};
-        m2BodyId post = m2CreateBody(world, &pd);
+        m2BodyId post = NewBody(world, &pd);
         m2BodyDef wd = m2DefaultBodyDef();
         wd.type = m2_dynamicBody;
         wd.position = (m2Pos2){6.0 + (double)i * 1.8, 3.0};
-        wheels[i] = m2CreateBody(world, &wd);
+        wheels[i] = NewBody(world, &wd);
         m2ShapeDef sd = m2DefaultShapeDef();
-        m2CreateCircleShape(wheels[i], &sd, &disc);
+        NewCircleShape(world, wheels[i], &sd, &disc);
         m2RevoluteJointDef rj = m2DefaultRevoluteJointDef();
         rj.bodyIdA = post;
         rj.bodyIdB = wheels[i];
@@ -87,13 +88,13 @@ int main(int argc, char** argv)
             rj.motorSpeed = 1.5f;
             rj.maxMotorTorque = 60.0f;
         }
-        m2CreateRevoluteJoint(world, &rj);
+        NewRevoluteJoint(world, &rj);
     }
     m2GearJointDef gd = m2DefaultGearJointDef();
     gd.bodyIdA = wheels[0];
     gd.bodyIdB = wheels[1];
     gd.ratio = 2.0f;
-    m2CreateGearJoint(world, &gd);
+    NewGearJoint(world, &gd);
 
     // Water in the left corner, a jelly blob dropped on the pile.
     m2Polygon pool = m2MakeBox(1.6f, 0.4f);
@@ -109,7 +110,7 @@ int main(int argc, char** argv)
     }
     int32_t size = m2World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
-    CHECK(m2World_Snapshot(world, snap, size) == size, "the mid-horizon snapshot lands");
+    CHECK(Snapshot(world, snap, size) == size, "the mid-horizon snapshot lands");
 
     for (int32_t i = half; i < steps; ++i)
     {
@@ -121,7 +122,7 @@ int main(int argc, char** argv)
             int32_t got = m2World_GetBodies(world, probe, 8);
             for (int32_t k = 0; k < (got < 8 ? got : 8); ++k)
             {
-                m2Pos2 p = m2Body_GetPosition(probe[k]);
+                m2Pos2 p = m2Body_GetPosition(world, probe[k]);
                 CHECK(p.x == p.x && p.y == p.y, "positions stay finite at horizon");
             }
         }
@@ -129,7 +130,7 @@ int main(int argc, char** argv)
     uint64_t first = m2World_Hash(world);
 
     // Replay the second half from the snapshot: identical bits.
-    CHECK(m2World_Restore(world, snap, size), "the mid-horizon restore lands");
+    CHECK(Restore(world, snap, size), "the mid-horizon restore lands");
     for (int32_t i = half; i < steps; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);

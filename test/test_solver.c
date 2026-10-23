@@ -5,6 +5,7 @@
 // pyramid settling without explosion or NaN, rollback replay with the
 // solver active, and the solver evolution hash across CI cells.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul2d/base.h"
@@ -14,15 +15,15 @@
 #include <stdlib.h>
 #include <string.h>
 
-static m2BodyId AddSlab(m2WorldId world, double y, float friction)
+static m2BodyId AddSlab(m2World* world, double y, float friction)
 {
     m2BodyDef fd = m2DefaultBodyDef();
     fd.position = (m2Pos2){0.0, y};
-    m2BodyId body = m2CreateBody(world, &fd);
+    m2BodyId body = NewBody(world, &fd);
     m2ShapeDef sd = m2DefaultShapeDef();
     sd.friction = friction;
     m2Polygon slab = m2MakeBox(20.0f, 0.5f);
-    m2CreatePolygonShape(body, &sd, &slab);
+    NewPolygonShape(world, body, &sd, &slab);
     return body;
 }
 
@@ -31,17 +32,17 @@ static void TestRestitution(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     AddSlab(world, -0.5, 0.6f);
 
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){0.0, 4.0};
-    m2BodyId ball = m2CreateBody(world, &bd);
+    m2BodyId ball = NewBody(world, &bd);
     m2ShapeDef sd = m2DefaultShapeDef();
     sd.restitution = 0.8f;
     m2Circle circle = {{0.0f, 0.0f}, 0.5f};
-    m2CreateCircleShape(ball, &sd, &circle);
+    NewCircleShape(world, ball, &sd, &circle);
 
     // Drop, bounce, find the apex after the first bounce.
     double apex = 0.0;
@@ -51,7 +52,7 @@ static void TestRestitution(void)
     for (int32_t i = 0; i < 400; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
-        double y = m2Body_GetPosition(ball).y;
+        double y = m2Body_GetPosition(world, ball).y;
         if (descending && y > previousY + 1.0e-6)
         {
             descending = false;
@@ -83,37 +84,37 @@ static void TestFriction(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     AddSlab(world, -0.5, 1.0f);
 
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){-10.0, 0.55};
     bd.linearVelocity = (m2Vec2){4.0f, 0.0f};
-    m2BodyId gripBox = m2CreateBody(world, &bd);
+    m2BodyId gripBox = NewBody(world, &bd);
     m2ShapeDef gripShape = m2DefaultShapeDef();
     gripShape.friction = 0.9f;
     m2Polygon unit = m2MakeBox(0.5f, 0.5f);
-    m2CreatePolygonShape(gripBox, &gripShape, &unit);
+    NewPolygonShape(world, gripBox, &gripShape, &unit);
 
     m2BodyDef bd2 = m2DefaultBodyDef();
     bd2.type = m2_dynamicBody;
     bd2.position = (m2Pos2){10.0, 0.55};
     bd2.linearVelocity = (m2Vec2){4.0f, 0.0f};
-    m2BodyId iceBox = m2CreateBody(world, &bd2);
+    m2BodyId iceBox = NewBody(world, &bd2);
     m2ShapeDef iceShape = m2DefaultShapeDef();
     iceShape.friction = 0.0f;
-    m2CreatePolygonShape(iceBox, &iceShape, &unit);
+    NewPolygonShape(world, iceBox, &iceShape, &unit);
 
     for (int32_t i = 0; i < 180; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    double gripTravel = m2Body_GetPosition(gripBox).x - (-10.0);
-    double iceTravel = m2Body_GetPosition(iceBox).x - 10.0;
+    double gripTravel = m2Body_GetPosition(world, gripBox).x - (-10.0);
+    double iceTravel = m2Body_GetPosition(world, iceBox).x - 10.0;
     CHECK(gripTravel < 3.0, "high friction stops the box");
     CHECK(iceTravel > 8.0, "frictionless box keeps sliding");
-    m2Vec2 gripVel = m2Body_GetLinearVelocity(gripBox);
+    m2Vec2 gripVel = m2Body_GetLinearVelocity(world, gripBox);
     CHECK(gripVel.x * gripVel.x + gripVel.y * gripVel.y < 1.0e-2f, "gripped box at rest");
 
     m2DestroyWorld(world);
@@ -124,7 +125,7 @@ static void TestPyramid(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 64;
     def.shapeCapacity = 64;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     AddSlab(world, -0.5, 0.6f);
 
     enum
@@ -143,8 +144,8 @@ static void TestPyramid(void)
             bd.type = m2_dynamicBody;
             bd.position =
                 (m2Pos2){(double)col - 0.5 * (double)(ROWS + row) + 0.5, 0.55 + 1.02 * (double)row};
-            boxes[count] = m2CreateBody(world, &bd);
-            m2CreatePolygonShape(boxes[count], &sd, &unit);
+            boxes[count] = NewBody(world, &bd);
+            NewPolygonShape(world, boxes[count], &sd, &unit);
             count += 1;
         }
     }
@@ -158,10 +159,10 @@ static void TestPyramid(void)
     double minY = 100.0;
     for (int32_t i = 0; i < count; ++i)
     {
-        m2Vec2 v = m2Body_GetLinearVelocity(boxes[i]);
+        m2Vec2 v = m2Body_GetLinearVelocity(world, boxes[i]);
         float speed = v.x * v.x + v.y * v.y;
         maxSpeed = m2MaxF(maxSpeed, speed);
-        double y = m2Body_GetPosition(boxes[i]).y;
+        double y = m2Body_GetPosition(world, boxes[i]).y;
         CHECK(y == y, "no NaN positions in the pyramid");
         minY = y < minY ? y : minY;
     }
@@ -179,16 +180,16 @@ static void TestColorOverflow(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 64;
     def.shapeCapacity = 64;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     AddSlab(world, -0.5, 0.6f);
 
     m2BodyDef pd = m2DefaultBodyDef();
     pd.type = m2_dynamicBody;
     pd.position = (m2Pos2){0.0, 0.25};
-    m2BodyId plank = m2CreateBody(world, &pd);
+    m2BodyId plank = NewBody(world, &pd);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Polygon board = m2MakeBox(16.0f, 0.25f);
-    m2CreatePolygonShape(plank, &sd, &board);
+    NewPolygonShape(world, plank, &sd, &board);
 
     enum
     {
@@ -201,8 +202,8 @@ static void TestColorOverflow(void)
         m2BodyDef bd = m2DefaultBodyDef();
         bd.type = m2_dynamicBody;
         bd.position = (m2Pos2){-15.6 + 0.8 * (double)i, 0.85};
-        boxes[i] = m2CreateBody(world, &bd);
-        m2CreatePolygonShape(boxes[i], &sd, &small);
+        boxes[i] = NewBody(world, &bd);
+        NewPolygonShape(world, boxes[i], &sd, &small);
     }
 
     int32_t overflow = 0;
@@ -216,8 +217,8 @@ static void TestColorOverflow(void)
     bool resting = true;
     for (int32_t i = 0; i < BOXES; ++i)
     {
-        double y = m2Body_GetPosition(boxes[i]).y;
-        m2Vec2 v = m2Body_GetLinearVelocity(boxes[i]);
+        double y = m2Body_GetPosition(world, boxes[i]).y;
+        m2Vec2 v = m2Body_GetLinearVelocity(world, boxes[i]);
         resting = resting && y > 0.78 && y < 0.81 && v.x * v.x + v.y * v.y < 1e-4f;
     }
     CHECK(resting, "every box rests on the plank");
@@ -233,16 +234,16 @@ static void TestSpinsAboutCenterOfMass(void)
     def.gravity = (m2Vec2){0.0f, 0.0f};
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
 
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){0.0, 0.0};
-    m2BodyId body = m2CreateBody(world, &bd);
+    m2BodyId body = NewBody(world, &bd);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Circle offset = {{2.0f, 0.0f}, 0.5f}; // COM at local (2, 0)
-    m2CreateCircleShape(body, &sd, &offset);
-    m2Body_SetAngularVelocity(body, 4.0f);
+    NewCircleShape(world, body, &sd, &offset);
+    m2Body_SetAngularVelocity(world, body, 4.0f);
 
     double comX0 = 2.0;
     double comY0 = 0.0;
@@ -251,7 +252,7 @@ static void TestSpinsAboutCenterOfMass(void)
     for (int32_t i = 0; i < 240; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
-        m2Transform xf = m2Body_GetTransform(body);
+        m2Transform xf = m2Body_GetTransform(world, body);
         double comX = xf.p.x + (double)(xf.q.c * 2.0f);
         double comY = xf.p.y + (double)(xf.q.s * 2.0f);
         double dx = comX - comX0;
@@ -263,18 +264,18 @@ static void TestSpinsAboutCenterOfMass(void)
     }
     CHECK(maxComDrift < 1.0e-4, "the center of mass holds still while spinning");
     CHECK(maxOriginTravel > 1.0, "the origin orbits the center of mass");
-    float w = m2Body_GetAngularVelocity(body);
+    float w = m2Body_GetAngularVelocity(world, body);
     CHECK(w > 3.99f && w < 4.01f, "free spin keeps its rate");
 
     // Counterweight at (-2, 0) pulls the COM back onto the origin.
     m2Circle balance = {{-2.0f, 0.0f}, 0.5f};
-    m2CreateCircleShape(body, &sd, &balance);
-    m2Transform mark = m2Body_GetTransform(body);
+    NewCircleShape(world, body, &sd, &balance);
+    m2Transform mark = m2Body_GetTransform(world, body);
     for (int32_t i = 0; i < 120; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    m2Transform after = m2Body_GetTransform(body);
+    m2Transform after = m2Body_GetTransform(world, body);
     double ox = after.p.x - mark.p.x;
     double oy = after.p.y - mark.p.y;
     CHECK(ox * ox + oy * oy < 1.0e-4, "balanced body spins in place again");
@@ -291,52 +292,52 @@ static void TestConveyor(void)
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
     def.jointCapacity = 4;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyDef beltBody = m2DefaultBodyDef();
     beltBody.position = (m2Pos2){0.0, -0.2};
     m2ShapeDef beltShape = m2DefaultShapeDef();
     beltShape.tangentSpeed = 2.0f;
     m2Polygon beltBox = m2MakeBox(10.0f, 0.2f);
-    m2ShapeId belt = m2CreatePolygonShape(m2CreateBody(world, &beltBody), &beltShape, &beltBox);
+    m2ShapeId belt = NewPolygonShape(world, NewBody(world, &beltBody), &beltShape, &beltBox);
     m2BodyDef crateBody = m2DefaultBodyDef();
     crateBody.type = m2_dynamicBody;
     crateBody.position = (m2Pos2){0.0, 0.31};
-    m2BodyId crate = m2CreateBody(world, &crateBody);
+    m2BodyId crate = NewBody(world, &crateBody);
     m2ShapeDef crateShape = m2DefaultShapeDef();
     m2Polygon crateBox = m2MakeBox(0.3f, 0.3f);
-    m2CreatePolygonShape(crate, &crateShape, &crateBox);
+    NewPolygonShape(world, crate, &crateShape, &crateBox);
 
     for (int32_t i = 0; i < 180; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    float vx = m2Body_GetLinearVelocity(crate).x;
+    float vx = m2Body_GetLinearVelocity(world, crate).x;
     CHECK(vx > 1.9f && vx < 2.1f, "the belt carries the crate to belt speed");
-    CHECK(m2Shape_GetTangentSpeed(belt) == 2.0f, "the belt speed reads back");
+    CHECK(m2Shape_GetTangentSpeed(world, belt) == 2.0f, "the belt speed reads back");
 
-    m2Shape_SetTangentSpeed(belt, -2.0f);
+    m2Shape_SetTangentSpeed(world, belt, -2.0f);
     for (int32_t i = 0; i < 240; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    vx = m2Body_GetLinearVelocity(crate).x;
+    vx = m2Body_GetLinearVelocity(world, crate).x;
     CHECK(vx < -1.9f && vx > -2.1f, "a live reversal turns the crate around");
 
-    m2Shape_SetTangentSpeed(belt, 0.0f);
+    m2Shape_SetTangentSpeed(world, belt, 0.0f);
     for (int32_t i = 0; i < 240; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    vx = m2Body_GetLinearVelocity(crate).x;
+    vx = m2Body_GetLinearVelocity(world, crate).x;
     CHECK(vx > -0.05f && vx < 0.05f, "a stopped belt stops its rider");
-    CHECK(!m2Body_IsAwake(crate), "the rider sleeps on the stopped belt");
+    CHECK(!m2Body_IsAwake(world, crate), "the rider sleeps on the stopped belt");
 
-    m2Shape_SetTangentSpeed(belt, 1.5f);
+    m2Shape_SetTangentSpeed(world, belt, 1.5f);
     for (int32_t i = 0; i < 120; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m2Body_GetLinearVelocity(crate).x > 1.0f, "restarting the belt wakes the sleeper");
+    CHECK(m2Body_GetLinearVelocity(world, crate).x > 1.0f, "restarting the belt wakes the sleeper");
     m2DestroyWorld(world);
 }
 
@@ -348,31 +349,31 @@ static void TestImpulses(void)
     def.gravity = (m2Vec2){0.0f, 0.0f};
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
 
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){0.0, 0.0};
-    m2BodyId ball = m2CreateBody(world, &bd);
+    m2BodyId ball = NewBody(world, &bd);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Circle circle = {{0.0f, 0.0f}, 0.5f};
-    m2CreateCircleShape(ball, &sd, &circle);
+    NewCircleShape(world, ball, &sd, &circle);
 
     float mass = 3.14159265f * 0.25f; // rho=1, r=0.5
-    m2Body_ApplyLinearImpulseAtPoint(ball, (m2Vec2){mass, 0.0f}, (m2Pos2){0.0, 0.0});
-    m2Vec2 v = m2Body_GetLinearVelocity(ball);
+    m2Body_ApplyLinearImpulseAtPoint(world, ball, (m2Vec2){mass, 0.0f}, (m2Pos2){0.0, 0.0});
+    m2Vec2 v = m2Body_GetLinearVelocity(world, ball);
     CHECK(v.x > 0.99f && v.x < 1.01f, "COM impulse gives J/m");
-    CHECK(m2Body_GetAngularVelocity(ball) == 0.0f, "COM impulse does not spin");
+    CHECK(m2Body_GetAngularVelocity(world, ball) == 0.0f, "COM impulse does not spin");
 
     // Arm (0, 0.5): J=(mass,0) -> torque = -0.5*mass, w = -0.5*mass*invI.
-    m2Body_ApplyLinearImpulseAtPoint(ball, (m2Vec2){mass, 0.0f}, (m2Pos2){0.0, 0.5});
-    float w = m2Body_GetAngularVelocity(ball);
+    m2Body_ApplyLinearImpulseAtPoint(world, ball, (m2Vec2){mass, 0.0f}, (m2Pos2){0.0, 0.5});
+    float w = m2Body_GetAngularVelocity(world, ball);
     CHECK(w < -0.1f, "offset impulse spins the ball");
 
-    m2Body_ApplyAngularImpulse(ball, -w / m2Body_GetAngularVelocity(ball) * 0.0f);
-    float before = m2Body_GetAngularVelocity(ball);
-    m2Body_ApplyAngularImpulse(ball, 0.5f);
-    CHECK(m2Body_GetAngularVelocity(ball) > before, "angular impulse adds spin");
+    m2Body_ApplyAngularImpulse(world, ball, -w / m2Body_GetAngularVelocity(world, ball) * 0.0f);
+    float before = m2Body_GetAngularVelocity(world, ball);
+    m2Body_ApplyAngularImpulse(world, ball, 0.5f);
+    CHECK(m2Body_GetAngularVelocity(world, ball) > before, "angular impulse adds spin");
 
     m2DestroyWorld(world);
 }

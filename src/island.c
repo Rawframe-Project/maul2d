@@ -57,6 +57,7 @@ static bool BodySlow(const m2World* world, int32_t i)
 
 // Pre-solve: build islands over touching contacts, wake islands that
 // have any awake member or a moving-kinematic toucher.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): one island graph pass
 void m2UpdateIslandsAndWake(m2World* world)
 {
     int32_t* parent = world->solver.islandParent;
@@ -158,6 +159,7 @@ void m2UpdateIslandsAndWake(m2World* world)
 // Post-solve: island-coupled sleep accounting. An island sleeps only
 // when every member has stayed under tolerance for the full window; one
 // fast member resets the whole island.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): one island graph pass
 void m2UpdateSleep(m2World* world, float dt)
 {
     int32_t* parent = world->solver.islandParent;

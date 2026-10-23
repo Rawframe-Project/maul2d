@@ -10,7 +10,6 @@
 #include "joint_edges.h"
 #include "journal.h"
 #include "world_internal.h"
-#include "world_registry.h"
 #include "world_state.h"
 
 #include "maul2d/base.h"
@@ -50,8 +49,10 @@ static uint64_t ConfigHash(void)
     // Everything that changes what the serialized bytes MEAN, and
     // nothing that does not (SIMD backend and worker count are
     // deliberately absent: the format is portable across them).
+    // The format's own number, never the library version: a release that
+    // keeps the format reads the snapshots of the one before.
     uint64_t h = 0xCBF29CE484222325ull;
-    int32_t version = m2GetVersion();
+    int32_t version = (int32_t)M2_SNAPSHOT_VERSION;
     int32_t realSize = (int32_t)sizeof(float);
     int32_t posSize = (int32_t)sizeof(double);
     const char* fpPolicy = "contract-off;no-fast-math;explicit-fma";
@@ -70,9 +71,8 @@ static int32_t BlockBytes(const m2World* world)
     return m2StateWalk((m2World*)world, NULL, NULL, 2);
 }
 
-int32_t m2World_SnapshotSize(m2WorldId worldId)
+int32_t m2World_SnapshotSize(const m2World* world)
 {
-    m2World* world = m2GetWorld(worldId);
     if (world == NULL)
     {
         return 0;
@@ -83,13 +83,22 @@ int32_t m2World_SnapshotSize(m2WorldId worldId)
 // The block walk is shared by Snapshot and Restore so the layouts can
 // never drift apart (direction 0 = write, 1 = read).
 
-int32_t m2World_Snapshot(m2WorldId worldId, void* buffer, int32_t capacity)
+m2Result m2World_Snapshot(const m2World* world, void* buffer, int32_t capacity, int32_t* bytesOut)
 {
-    m2World* world = m2GetWorld(worldId);
-    int32_t size = m2World_SnapshotSize(worldId);
-    if (world == NULL || buffer == NULL || capacity < size)
+    if (bytesOut == NULL)
     {
-        return 0;
+        return m2Refuse(world, m2_errorInvalid);
+    }
+    *bytesOut = 0;
+    if (world == NULL || buffer == NULL)
+    {
+        return m2Refuse(world, m2_errorInvalid);
+    }
+    int32_t size = m2World_SnapshotSize(world);
+    if (capacity < size)
+    {
+        *bytesOut = size; // the size a buffer must have
+        return m2_errorCapacity;
     }
 
     m2SnapshotHeader header;
@@ -101,18 +110,23 @@ int32_t m2World_Snapshot(m2WorldId worldId, void* buffer, int32_t capacity)
 
     uint8_t* out = buffer;
     memcpy(out, &header, sizeof(header));
-    int32_t cursor = (int32_t)sizeof(header) + m2StateWalk(world, out + sizeof(header), NULL, 0);
+    int32_t cursor =
+        (int32_t)sizeof(header) + m2StateWalk((m2World*)world, out + sizeof(header), NULL, 0);
     M2_ASSERT(cursor == size);
-    return cursor;
+    *bytesOut = cursor;
+    return m2_success;
 }
 
-bool m2World_Restore(m2WorldId worldId, const void* buffer, int32_t size)
+m2Result m2World_Restore(m2World* world, const void* buffer, int32_t size)
 {
-    m2World* world = m2GetWorld(worldId);
-    if (world == NULL || buffer == NULL || size < (int32_t)sizeof(m2SnapshotHeader))
+    m2Result writer = m2CheckWriter(world);
+    if (writer != m2_success)
     {
-        m2Refuse(world, m2_errorInvalid);
-        return false;
+        return writer;
+    }
+    if (buffer == NULL || size < (int32_t)sizeof(m2SnapshotHeader))
+    {
+        return m2Refuse(world, m2_errorInvalid);
     }
     m2SnapshotHeader header;
     memcpy(&header, buffer, sizeof(header));
@@ -122,8 +136,7 @@ bool m2World_Restore(m2WorldId worldId, const void* buffer, int32_t size)
         header.configHash != ConfigHash() ||
         memcmp(header.capacities, capacities, sizeof(capacities)) != 0)
     {
-        m2Refuse(world, m2_errorConfig); // another build or another world shape
-        return false;
+        return m2Refuse(world, m2_errorInvalid); // another build or another world shape
     }
     // Hostile bytes are checked before any of them land: every row the
     // table describes, cursors included.
@@ -131,8 +144,7 @@ bool m2World_Restore(m2WorldId worldId, const void* buffer, int32_t size)
     if (size != (int32_t)sizeof(header) + BlockBytes(world) ||
         !m2StateValidate(world, in + sizeof(header)))
     {
-        m2Refuse(world, m2_errorInvalid);
-        return false;
+        return m2Refuse(world, m2_errorInvalid);
     }
 
     int32_t cursor = (int32_t)sizeof(header) + m2StateWalk(world, NULL, in + sizeof(header), 1);
@@ -154,7 +166,7 @@ bool m2World_Restore(m2WorldId worldId, const void* buffer, int32_t size)
     world->events.sensorEndCount = 0;
     world->events.pendingSensorEndCount = 0;
     world->events.jointBreakEventCount = 0;
-    return true;
+    return m2_success;
 }
 
 // The hashed slices of the world, each folded into a running hash.
@@ -267,9 +279,8 @@ static uint64_t HashParticles(const m2World* world, uint64_t h)
     return h;
 }
 
-uint64_t m2World_Hash(m2WorldId worldId)
+uint64_t m2World_Hash(const m2World* world)
 {
-    m2World* world = m2GetWorld(worldId);
     if (world == NULL)
     {
         return 0;
@@ -284,11 +295,10 @@ uint64_t m2World_Hash(m2WorldId worldId)
 
 // Subsystem hashes: independent seeds on purpose (the total is not
 // a function of the parts).
-m2WorldHashParts m2World_GetHashParts(m2WorldId worldId)
+m2WorldHashParts m2World_GetHashParts(const m2World* world)
 {
     m2WorldHashParts parts;
     memset(&parts, 0, sizeof(parts));
-    m2World* world = m2GetWorld(worldId);
     if (world == NULL)
     {
         return parts;

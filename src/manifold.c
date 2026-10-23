@@ -100,6 +100,7 @@ m2Manifold m2CollideCircles(const m2Circle* a, const m2Circle* b, m2RelativePose
     return manifold;
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): numeric kernel, fixed order
 m2Manifold m2CollidePolygonAndCircle(const m2Polygon* a, const m2Circle* b, m2RelativePose pose)
 {
     m2Manifold manifold = EmptyManifold();

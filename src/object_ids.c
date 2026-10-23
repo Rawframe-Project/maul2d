@@ -5,11 +5,9 @@
 
 #include "object_ids.h"
 
-#include "world_registry.h"
-
 int32_t m2BodySlot(const m2World* world, m2BodyId id)
 {
-    int32_t index = id.index1 - 1;
+    int32_t index = (int32_t)id.index1 - 1;
     if (index < 0 || index >= world->bodies.bodyCapacity)
     {
         return -1;
@@ -21,13 +19,8 @@ int32_t m2BodySlot(const m2World* world, m2BodyId id)
     return index;
 }
 
-m2World* m2GetBodyWorld(m2BodyId id)
-{
-    return m2WorldFromTag(id.world);
-}
-
 m2ShapeId m2MakeShapeId(const m2World* world, int32_t shapeIndex)
 {
-    m2ShapeId id = {shapeIndex + 1, world->idWorld, world->shapes.shapeGenerations[shapeIndex]};
+    m2ShapeId id = {(uint32_t)(shapeIndex + 1), world->shapes.shapeGenerations[shapeIndex]};
     return id;
 }

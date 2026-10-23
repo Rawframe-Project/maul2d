@@ -1,16 +1,11 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Core determinism gate. This test does three jobs:
-//   1. Correctness: the approximations stay within their documented error
-//      bounds against libm references (libm is allowed in tests only).
-//   2. Environment canaries: fail loudly if the compiler contracted FMA
-//      or if min/max semantics drift from the pinned form.
-//   3. Determinism hash: a dense sweep of every deterministic function is
-//      hashed; CI compares the printed hash across every platform cell.
-//      Different bits anywhere = red build.
+// Core: the elementary math against libm, the pinned min, max and abs
+// semantics, the SIMD backend report, the version and result names, the
+// world def checks and the world's allocator.
 
-#include "core.h"
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul2d/maul2d.h"
@@ -134,60 +129,149 @@ static void TestMinMaxSemantics(void)
           "m2AbsF(NaN) clears only the sign bit");
 }
 
-// --- 3. Determinism hash ----------------------------------------------------
+// --- The world's allocator ---------------------------------------------------
 
-static int32_t s_liveAllocations = 0;
-static int32_t s_totalAllocations = 0;
-
-static void* CountingAlloc(size_t bytes, void* context)
+typedef struct Ledger
 {
-    (void)context;
-    s_liveAllocations += 1;
-    s_totalAllocations += 1;
-    return calloc(1, bytes);
+    int32_t live;
+    int32_t total;
+    int64_t liveBytes;
+    int32_t failAfter; // refuse every allocation past this many; -1 never
+    int32_t badAlignment;
+} Ledger;
+
+static void* LedgerAlloc(size_t size, size_t alignment, void* context)
+{
+    Ledger* ledger = (Ledger*)context;
+    if (alignment == 0 || (alignment & (alignment - 1)) != 0)
+    {
+        ledger->badAlignment += 1;
+    }
+    if (ledger->failAfter >= 0 && ledger->total >= ledger->failAfter)
+    {
+        return NULL;
+    }
+    ledger->live += 1;
+    ledger->total += 1;
+    ledger->liveBytes += (int64_t)size;
+    return malloc(size);
 }
 
-static void CountingFree(void* memory, void* context)
+static void LedgerFree(void* memory, size_t size, size_t alignment, void* context)
 {
-    (void)context;
-    if (memory != NULL)
-    {
-        s_liveAllocations -= 1;
-    }
+    (void)alignment;
+    Ledger* ledger = (Ledger*)context;
+    ledger->live -= 1;
+    ledger->liveBytes -= (int64_t)size;
     free(memory);
 }
 
-static void TestAllocatorHooks(void)
+static m2WorldDef LedgerDef(Ledger* ledger)
 {
-    // Every internal allocation flows through the hooks, and a world's
-    // whole lifetime balances to zero live blocks. A half pair refuses.
-    m2SetAllocator(CountingAlloc, NULL, NULL);
-    CHECK(m2LastResult() == m2_errorInvalid, "an alloc hook without a free hook refuses");
-    m2SetAllocator(CountingAlloc, CountingFree, NULL);
-
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
-    def.workerCount = 2; // the thread pool must ride the hooks too
-    m2WorldId world = m2CreateWorld(&def);
-    CHECK(s_totalAllocations > 10, "world creation allocates through the hooks");
+    def.allocator.alloc = LedgerAlloc;
+    def.allocator.free = LedgerFree;
+    def.allocator.context = ledger;
+    return def;
+}
+
+static void TestWorldAllocator(void)
+{
+    // Every allocation of a world goes through its own allocator, each free
+    // hands back the size it was given, and a world's whole life balances
+    // to zero. Two worlds keep two allocators: there is no process-wide one.
+    Ledger first = {0, 0, 0, -1, 0};
+    Ledger second = {0, 0, 0, -1, 0};
+    m2WorldDef firstDef = LedgerDef(&first);
+    m2WorldDef secondDef = LedgerDef(&second);
+    m2World* a = NewWorld(&firstDef);
+    m2World* b = NewWorld(&secondDef);
+    CHECK(a != NULL && b != NULL, "both worlds create");
+    CHECK(first.total > 10 && second.total == first.total,
+          "each world allocates through its own allocator");
 
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){0.0, 2.0};
-    m2BodyId body = m2CreateBody(world, &bd);
+    m2BodyId body = NewBody(a, &bd);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Circle circle = {{0.0f, 0.0f}, 0.4f};
-    m2CreateCircleShape(body, &sd, &circle);
+    NewCircleShape(a, body, &sd, &circle);
+    int32_t afterCreate = first.total;
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        m2World_Step(a, 1.0f / 60.0f, 4);
     }
+    CHECK(first.total == afterCreate, "steps allocate nothing");
 
+    m2DestroyWorld(a);
+    CHECK(first.live == 0 && first.liveBytes == 0, "destroying the world frees every block");
+    CHECK(second.live > 0, "and leaves the other world's memory alone");
+    m2DestroyWorld(b);
+    CHECK(second.live == 0 && second.liveBytes == 0, "the other world balances too");
+    CHECK(first.badAlignment == 0 && second.badAlignment == 0, "every alignment is a power of two");
+
+    // An allocator with one function set is refused before it is used.
+    m2WorldDef half = LedgerDef(&first);
+    half.allocator.free = NULL;
+    m2World* refused = (m2World*)&first;
+    CHECK(m2CreateWorld(&half, &refused) == m2_errorInvalid, "a half allocator refuses");
+    CHECK(refused == NULL, "and leaves the null world");
+}
+
+// --- World defs, versions and results ------------------------------------------
+
+static void TestWorldDefChecks(void)
+{
+    m2World* world = NULL;
+    CHECK(m2CreateWorld(NULL, &world) == m2_errorInvalid, "a null def refuses");
+    m2WorldDef def = m2DefaultWorldDef();
+    CHECK(def.version == M2_ABI_VERSION, "the default def carries the headers' version");
+    CHECK((M2_ABI_VERSION & 0x80000000u) != 0, "the version's top bit is set");
+    CHECK(m2CreateWorld(&def, NULL) == m2_errorInvalid, "a null out pointer refuses");
+
+    m2WorldDef stale = def;
+    stale.version = M2_ABI_VERSION ^ 1u;
+    world = (m2World*)&def;
+    CHECK(m2CreateWorld(&stale, &world) == m2_errorVersion, "another ABI version refuses");
+    CHECK(world == NULL, "and leaves the null world");
+    stale.version = 0;
+    CHECK(m2CreateWorld(&stale, &world) == m2_errorVersion, "a zeroed version refuses");
+
+    // The cookie is read before the version.
+    m2WorldDef zeroed;
+    memset(&zeroed, 0, sizeof(zeroed));
+    CHECK(m2CreateWorld(&zeroed, &world) == m2_errorInvalid, "a zeroed def refuses as invalid");
+    m2WorldDef values = m2DefaultWorldDefValues();
+    CHECK(values.version == 0, "the library's defaults leave the version to the program");
+    CHECK(m2CreateWorld(&values, &world) == m2_errorVersion, "and are refused unstamped");
+
+    m2WorldDef empty = def;
+    empty.bodyCapacity = 0;
+    CHECK(m2CreateWorld(&empty, &world) == m2_errorInvalid, "a zero capacity refuses");
+    CHECK(m2CreateWorld(&def, &world) == m2_success && world != NULL, "the default def creates");
+    CHECK(m2World_GetMemoryUsage(world).persistentBytes > (int64_t)(32 * sizeof(void*)),
+          "a world weighs something");
     m2DestroyWorld(world);
-    CHECK(s_liveAllocations == 0, "destroying the world frees every block");
+}
 
-    m2SetAllocator(NULL, NULL, NULL); // back to defaults for the other tests
+static void TestVersionAndResultNames(void)
+{
+    m2Version version = m2GetVersion();
+    CHECK(version.major == M2_VERSION_MAJOR && version.minor == M2_VERSION_MINOR &&
+              version.patch == M2_VERSION_PATCH,
+          "the linked version is the headers' version");
+    CHECK(strcmp(m2ResultName(m2_success), "m2_success") == 0, "success has its name");
+    CHECK(strcmp(m2ResultName(m2_errorInvalid), "m2_errorInvalid") == 0, "invalid has its name");
+    CHECK(strcmp(m2ResultName(m2_errorCapacity), "m2_errorCapacity") == 0, "capacity has its name");
+    CHECK(strcmp(m2ResultName(m2_errorStale), "m2_errorStale") == 0, "stale has its name");
+    CHECK(strcmp(m2ResultName(m2_errorUnsupported), "m2_errorUnsupported") == 0,
+          "unsupported has its name");
+    CHECK(strcmp(m2ResultName(m2_errorState), "m2_errorState") == 0, "state has its name");
+    CHECK(strcmp(m2ResultName(m2_errorVersion), "m2_errorVersion") == 0, "version has its name");
+    CHECK(strcmp(m2ResultName(-5), "unknown m2Result") == 0, "an unused value is named unknown");
 }
 
 static void TestSimdBackend(void)
@@ -204,67 +288,23 @@ static void TestSimdBackend(void)
     // A world was creatable in the other suites, which means the create-time
     // guard passed; confirm it is idempotent and does not disturb creation.
     m2WorldDef def = m2DefaultWorldDef();
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     CHECK(m2CpuSupportsBackend() == 1, "the backend check is stable across calls");
     m2DestroyWorld(world);
 }
 
-#ifndef NDEBUG
-static int s_handled = 0;
-static int HandleAssert(const char* condition, const char* file, int line, void* context)
-{
-    (void)condition;
-    (void)file;
-    (void)line;
-    *(int*)context += 1;
-    return 1; // handled: no abort
-}
-
-// The host hook sees an assertion failure, with its context, and a
-// nonzero return suppresses the abort. Refusing bad input is not an
-// assertion failure: it records a reason and never reaches the hook.
-static void TestAssertHandler(void)
-{
-    s_handled = 0;
-    m2SetAssertHandler(HandleAssert, &s_handled);
-    m2AssertFail("test", __FILE__, __LINE__);
-    CHECK(s_handled == 1, "the handler saw the failure and carried its context");
-    m2WorldDef bad = m2DefaultWorldDef();
-    bad.internalValue = 0; // a hand-rolled def
-    m2WorldId world = m2CreateWorld(&bad);
-    CHECK(world.index1 == 0, "the bad def is refused");
-    CHECK(s_handled == 1, "without an assertion");
-    CHECK(m2LastResult() == m2_errorInvalid, "and the refusal carries its reason");
-    m2WorldDef good = m2DefaultWorldDef();
-    good.bodyCapacity = 32;
-    good.shapeCapacity = 32;
-    m2WorldId w2 = m2CreateWorld(&good);
-    CHECK(m2World_GetMemoryUsage(w2).persistentBytes > (int64_t)(32 * sizeof(void*)),
-          "a world weighs something");
-    int64_t weight = m2World_GetMemoryUsage(w2).persistentBytes;
-    for (int32_t i = 0; i < 5; ++i)
-    {
-        m2World_Step(w2, 1.0f / 60.0f, 4);
-    }
-    CHECK(m2World_GetMemoryUsage(w2).persistentBytes == weight,
-          "steps allocate nothing persistent");
-    m2DestroyWorld(w2);
-    m2SetAssertHandler(NULL, NULL);
-}
-#endif
-
 int main(void)
 {
-#ifndef NDEBUG
-    TestAssertHandler();
-#endif
-    TestAllocatorHooks();
-    printf("maul2d version %d (%s backend)\n", m2GetVersion(), m2GetSimdBackend());
+    m2Version version = m2GetVersion();
+    printf("maul2d %d.%d.%d (%s backend)\n", version.major, version.minor, version.patch,
+           m2GetSimdBackend());
+    TestWorldAllocator();
+    TestWorldDefChecks();
+    TestVersionAndResultNames();
 
     TestAccuracy();
     TestMinMaxSemantics();
     TestSimdBackend();
-    // CI extracts this line from every platform cell and requires equality.
 
     if (s_failures > 0)
     {

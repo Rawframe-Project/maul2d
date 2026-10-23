@@ -20,12 +20,11 @@ extern "C"
 
     typedef struct m2ParticleId
     {
-        int32_t index1; // 1-based, 0 = null
-        uint16_t world;
-        uint16_t generation;
+        uint32_t index1; // 1-based slot, 0 = null
+        uint32_t generation;
     } m2ParticleId;
 
-    static const m2ParticleId m2_nullParticleId = {0, 0, 0};
+    static const m2ParticleId m2_nullParticleId = {0, 0};
 
     /// Per-particle behavior flags, set at emit. Plain water is 0.
     /// Tensile particles attract their tensile neighbors (surface
@@ -43,23 +42,26 @@ extern "C"
         m2_elasticParticle = 1u << 4, // shape-restoring triads captured at fill
     } m2ParticleFlags;
 
-    /// Emit one particle at a world position. Refuses with the null id
-    /// when the world has no particle system (invalid) or when the
-    /// system is full (capacity; also counted in
+    /// Emit one particle at a world position: m2_errorInvalid when the
+    /// world has no particle system or an argument is not finite,
+    /// m2_errorCapacity when the system is full (also counted in
     /// m2Counters.particlePoolFull, so pace emitters off
-    /// m2World_GetParticleCount). Journaled. Thread class: writer.
-    M2_API m2ParticleId m2World_EmitParticle(m2WorldId worldId, m2Pos2 position, m2Vec2 velocity,
-                                             uint32_t flags);
+    /// m2World_GetParticleCount). On failure *particleOut is the null id.
+    /// Journaled. Thread class: writer.
+    M2_NODISCARD M2_API m2Result m2World_EmitParticle(m2World* world, m2Pos2 position,
+                                                      m2Vec2 velocity, uint32_t flags,
+                                                      m2ParticleId* particleOut);
 
     /// Destroy one particle; its slot recycles FIFO under a fresh
-    /// generation. Journaled. Thread class: writer.
-    M2_API void m2DestroyParticle(m2ParticleId particleId);
+    /// generation. m2_errorStale when it is already gone. Journaled.
+    /// Thread class: writer.
+    M2_NODISCARD M2_API m2Result m2DestroyParticle(m2World* world, m2ParticleId particleId);
 
     /// Generation-checked liveness. Thread class: reader.
-    M2_API bool m2Particle_IsValid(m2ParticleId particleId);
+    M2_API bool m2Particle_IsValid(const m2World* world, m2ParticleId particleId);
 
-    M2_API m2Pos2 m2Particle_GetPosition(m2ParticleId particleId);
-    M2_API uint32_t m2Particle_GetFlags(m2ParticleId particleId);
+    M2_API m2Pos2 m2Particle_GetPosition(const m2World* world, m2ParticleId particleId);
+    M2_API uint32_t m2Particle_GetFlags(const m2World* world, m2ParticleId particleId);
 
     /// Give a particle a finite lifetime in seconds: it counts down by
     /// the step's dt and auto-destroys at the end of the step it
@@ -67,20 +69,20 @@ extern "C"
     /// without a journal op (the countdown is state, so it replays and
     /// rolls back by itself). Zero, the default, means immortal.
     /// Journaled. Thread class: writer.
-    M2_API void m2Particle_SetLifetime(m2ParticleId particleId, float seconds);
-    M2_API float m2Particle_GetLifetime(m2ParticleId particleId);
+    M2_API void m2Particle_SetLifetime(m2World* world, m2ParticleId particleId, float seconds);
+    M2_API float m2Particle_GetLifetime(const m2World* world, m2ParticleId particleId);
 
     /// Opaque per-particle game data, copied unchanged through
     /// snapshots and journals. Journaled. Thread class: writer/reader.
-    M2_API void m2Particle_SetUserData(m2ParticleId particleId, uint64_t userData);
-    M2_API uint64_t m2Particle_GetUserData(m2ParticleId particleId);
-    M2_API m2Vec2 m2Particle_GetVelocity(m2ParticleId particleId);
+    M2_API void m2Particle_SetUserData(m2World* world, m2ParticleId particleId, uint64_t userData);
+    M2_API uint64_t m2Particle_GetUserData(const m2World* world, m2ParticleId particleId);
+    M2_API m2Vec2 m2Particle_GetVelocity(const m2World* world, m2ParticleId particleId);
 
     /// Journaled. Thread class: writer.
-    M2_API void m2Particle_SetVelocity(m2ParticleId particleId, m2Vec2 velocity);
+    M2_API void m2Particle_SetVelocity(m2World* world, m2ParticleId particleId, m2Vec2 velocity);
 
     /// Live particle count. Thread class: reader.
-    M2_API int32_t m2World_GetParticleCount(m2WorldId worldId);
+    M2_API int32_t m2World_GetParticleCount(const m2World* world);
 
     /// Fill a convex polygon (given in world space at position) with
     /// particles on the rest stride (0.75 diameters), row-major
@@ -90,7 +92,7 @@ extern "C"
     /// remember their spawn lengths, elastic triads remember their
     /// spawn shape, both captured here, journaled as one op, and
     /// carried by every snapshot. Thread class: writer.
-    M2_API int32_t m2World_FillPolygonWithParticles(m2WorldId worldId, const m2Polygon* polygon,
+    M2_API int32_t m2World_FillPolygonWithParticles(m2World* world, const m2Polygon* polygon,
                                                     m2Pos2 position, m2Vec2 velocity,
                                                     uint32_t flags);
 
@@ -99,14 +101,14 @@ extern "C"
     /// count query (the enumeration contract). Circular regions are
     /// one distance filter away on the caller's side.
     /// Thread class: reader.
-    M2_API int32_t m2World_OverlapParticlesAabb(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper,
+    M2_API int32_t m2World_OverlapParticlesAabb(const m2World* world, m2Pos2 lower, m2Pos2 upper,
                                                 m2ParticleId* ids, int32_t capacity);
 
     /// Fill ids with live particles in ascending slot order; returns
     /// the truthful total even beyond capacity (the enumeration
     /// contract). NULL ids with zero capacity is a count query.
     /// Thread class: reader.
-    M2_API int32_t m2World_GetParticles(m2WorldId worldId, m2ParticleId* ids, int32_t capacity);
+    M2_API int32_t m2World_GetParticles(const m2World* world, m2ParticleId* ids, int32_t capacity);
 
 #ifdef __cplusplus
 }

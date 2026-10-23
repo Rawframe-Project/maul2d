@@ -68,7 +68,7 @@ jobs:
     timeout-minutes: 30
     # The CI image, pinned by digest, as cpp.yml uses it. zizmor reads the
     # null of the macOS and Windows branch as an unpinned image.
-    container: ${{ startsWith(matrix.runner, 'ubuntu') && 'ghcr.io/rawframe-project/ci-cpp:2026.10.4@sha256:9715ff153db04ba0ed4f520b6d2528ff7860f803de61ab011ba60a4eed572836' || null }} # zizmor: ignore[unpinned-images]
+    container: ${{ startsWith(matrix.runner, 'ubuntu') && 'ghcr.io/rawframe-project/ci-cpp:2026.10.5@sha256:bc8ecad77f13664efd2c5961f3c82751d45b3c0b05fb3ccaaea9d0bdd0966f60' || null }} # zizmor: ignore[unpinned-images]
     permissions:
       contents: read
     steps:
@@ -138,7 +138,11 @@ jobs:
           git archive --format=tar.gz --prefix="${GITHUB_REPOSITORY#*/}-${TAG#v}/" -o "dist/${GITHUB_REPOSITORY#*/}-${TAG#v}.tar.gz" HEAD
         env:
           TAG: ${{ needs.release-please.outputs.tag }}
+      # Without a source name syft names the document after its path, ".".
       - uses: anchore/sbom-action@66cbf4bc1f1c0d2edc94016e65bc221b6bb0ad6c # v0.24.3
+        env:
+          SYFT_SOURCE_NAME: ${{ github.event.repository.name }}
+          SYFT_SOURCE_VERSION: ${{ needs.release-please.outputs.tag }}
         with:
           path: .
           format: spdx-json

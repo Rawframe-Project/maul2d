@@ -47,7 +47,7 @@ int main(int argc, char** argv)
     {
         const BenchScene* scene = &scenes[k];
         int32_t steps = override > 0 ? override : scene->steps;
-        m2WorldId world = scene->build();
+        m2World* world = scene->build();
         double t0 = NowMs();
         for (int32_t i = 0; i < steps; ++i)
         {

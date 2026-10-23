@@ -16,6 +16,7 @@
 
 #include "raylib.h"
 
+#include "../test/helpers.h"
 #include "maul2d/maul2d.h"
 
 #include <math.h>
@@ -123,8 +124,8 @@ static void tbDrawPoint(m2Pos2 p, float size, uint32_t color, void* context)
 typedef struct tbScene
 {
     const char* name;
-    void (*setup)(m2WorldId world);
-    void (*tick)(m2WorldId world, double simTime); // optional per-step logic
+    void (*setup)(m2World* world);
+    void (*tick)(m2World* world, double simTime); // optional per-step logic
     bool hasCar;
     bool hasCharacter; // the mover-kit kinematic character
 } tbScene;
@@ -134,32 +135,32 @@ static m2BodyId s_driveWheelB;
 static m2JointId s_driveJointA;
 static m2JointId s_driveJointB;
 
-static m2BodyId tbAddBox(m2WorldId world, double x, double y, float half, float density)
+static m2BodyId tbAddBox(m2World* world, double x, double y, float half, float density)
 {
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){x, y};
-    m2BodyId body = m2CreateBody(world, &bd);
+    m2BodyId body = NewBody(world, &bd);
     m2ShapeDef sd = m2DefaultShapeDef();
     sd.density = density;
     m2Polygon box = m2MakeBox(half, half);
-    m2CreatePolygonShape(body, &sd, &box);
+    NewPolygonShape(world, body, &sd, &box);
     return body;
 }
 
-static m2BodyId tbAddFloor(m2WorldId world, double x, double y, float halfW)
+static m2BodyId tbAddFloor(m2World* world, double x, double y, float halfW)
 {
     m2BodyDef gd = m2DefaultBodyDef();
     gd.position = (m2Pos2){x, y};
-    m2BodyId floor = m2CreateBody(world, &gd);
+    m2BodyId floor = NewBody(world, &gd);
     m2ShapeDef fs = m2DefaultShapeDef();
     fs.friction = 0.8f;
     m2Polygon slab = m2MakeBox(halfW, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
+    NewPolygonShape(world, floor, &fs, &slab);
     return floor;
 }
 
-static void SceneWelcome(m2WorldId world)
+static void SceneWelcome(m2World* world)
 {
     tbAddFloor(world, 0.0, -0.5, 30.0);
     // A pyramid to shove, a chain shelf to bounce under, seesaw, and a
@@ -176,41 +177,41 @@ static void SceneWelcome(m2WorldId world)
     // One-way shelf: approach from below, land from above.
     m2BodyDef cd = m2DefaultBodyDef();
     cd.position = (m2Pos2){8.0, 3.0};
-    m2BodyId shelfBody = m2CreateBody(world, &cd);
+    m2BodyId shelfBody = NewBody(world, &cd);
     m2Vec2 pts[6] = {{4.0f, 0.0f},  {2.5f, 0.0f},  {1.0f, 0.0f},
                      {-1.0f, 0.0f}, {-2.5f, 0.0f}, {-4.0f, 0.0f}};
     m2ChainDef chain = m2DefaultChainDef();
     chain.points = pts;
     chain.count = 6;
-    m2CreateChain(shelfBody, &chain);
+    NewChain(world, shelfBody, &chain);
 
     // Wrecking ball on a breakable rope over the shelf.
     m2BodyDef hd = m2DefaultBodyDef();
     hd.position = (m2Pos2){8.0, 9.0};
-    m2BodyId hook = m2CreateBody(world, &hd);
+    m2BodyId hook = NewBody(world, &hd);
     m2BodyDef wd = m2DefaultBodyDef();
     wd.type = m2_dynamicBody;
     wd.position = (m2Pos2){8.0, 6.0};
-    m2BodyId ball = m2CreateBody(world, &wd);
+    m2BodyId ball = NewBody(world, &wd);
     m2ShapeDef bs = m2DefaultShapeDef();
     bs.density = 6.0f;
     m2Circle heavy = {{0.0f, 0.0f}, 0.6f};
-    m2CreateCircleShape(ball, &bs, &heavy);
+    NewCircleShape(world, ball, &bs, &heavy);
     m2DistanceJointDef dj = m2DefaultDistanceJointDef();
     dj.bodyIdA = hook;
     dj.bodyIdB = ball;
-    m2JointId rope = m2CreateDistanceJoint(world, &dj);
-    m2Joint_SetBreakLimits(rope, 260.0f, 0.0f); // yank it hard and it snaps
+    m2JointId rope = NewDistanceJoint(world, &dj);
+    m2Joint_SetBreakLimits(world, rope, 260.0f, 0.0f); // yank it hard and it snaps
 }
 
-static void SceneCar(m2WorldId world)
+static void SceneCar(m2World* world)
 {
     tbAddFloor(world, 0.0, -0.5, 18.0);
     // Rolling terrain out of a one-sided chain, then a car with two
     // motored wheel joints; arrows drive it.
     m2BodyDef td = m2DefaultBodyDef();
     td.position = (m2Pos2){44.0, -1.0};
-    m2BodyId terrain = m2CreateBody(world, &td);
+    m2BodyId terrain = NewBody(world, &td);
     m2Vec2 hills[12];
     for (int32_t i = 0; i < 12; ++i)
     {
@@ -222,16 +223,16 @@ static void SceneCar(m2WorldId world)
     chain.points = hills;
     chain.count = 12;
     chain.friction = 0.9f;
-    m2CreateChain(terrain, &chain);
+    NewChain(world, terrain, &chain);
 
     m2BodyDef cd = m2DefaultBodyDef();
     cd.type = m2_dynamicBody;
     cd.position = (m2Pos2){-8.0, 1.4};
-    m2BodyId chassis = m2CreateBody(world, &cd);
+    m2BodyId chassis = NewBody(world, &cd);
     m2ShapeDef cs = m2DefaultShapeDef();
     cs.density = 1.6f;
     m2Polygon hull = m2MakeBox(1.1f, 0.3f);
-    m2CreatePolygonShape(chassis, &cs, &hull);
+    NewPolygonShape(world, chassis, &cs, &hull);
 
     m2ShapeDef ws = m2DefaultShapeDef();
     ws.density = 1.0f;
@@ -244,8 +245,8 @@ static void SceneCar(m2WorldId world)
         m2BodyDef wd = m2DefaultBodyDef();
         wd.type = m2_dynamicBody;
         wd.position = (m2Pos2){-8.0 + (i == 0 ? -0.75 : 0.75), 1.0};
-        wheels[i] = m2CreateBody(world, &wd);
-        m2CreateCircleShape(wheels[i], &ws, &tire);
+        wheels[i] = NewBody(world, &wd);
+        NewCircleShape(world, wheels[i], &ws, &tire);
         m2WheelJointDef wj = m2DefaultWheelJointDef();
         wj.bodyIdA = chassis;
         wj.bodyIdB = wheels[i];
@@ -257,7 +258,7 @@ static void SceneCar(m2WorldId world)
         wj.enableMotor = true;
         wj.motorSpeed = 0.0f;
         wj.maxMotorTorque = 24.0f;
-        axles[i] = m2CreateWheelJoint(world, &wj);
+        axles[i] = NewWheelJoint(world, &wj);
     }
     s_driveWheelA = wheels[0];
     s_driveWheelB = wheels[1];
@@ -265,7 +266,7 @@ static void SceneCar(m2WorldId world)
     s_driveJointB = axles[1];
 }
 
-static void SceneDemolition(m2WorldId world)
+static void SceneDemolition(m2World* world)
 {
     tbAddFloor(world, 0.0, -0.5, 30.0);
     // A tower and a motorized platform ferrying crates: press E near
@@ -282,42 +283,42 @@ static void SceneDemolition(m2WorldId world)
     }
     m2BodyDef ad = m2DefaultBodyDef();
     ad.position = (m2Pos2){6.0, 2.0};
-    m2BodyId anchor = m2CreateBody(world, &ad);
+    m2BodyId anchor = NewBody(world, &ad);
     m2BodyDef pd = m2DefaultBodyDef();
     pd.type = m2_dynamicBody;
     pd.position = (m2Pos2){6.0, 2.0};
-    m2BodyId platform = m2CreateBody(world, &pd);
+    m2BodyId platform = NewBody(world, &pd);
     m2ShapeDef ps = m2DefaultShapeDef();
     ps.density = 2.0f;
     m2Polygon deck = m2MakeBox(1.4f, 0.15f);
-    m2CreatePolygonShape(platform, &ps, &deck);
+    NewPolygonShape(world, platform, &ps, &deck);
     m2MotorJointDef mj = m2DefaultMotorJointDef();
     mj.bodyIdA = anchor;
     mj.bodyIdB = platform;
     mj.maxForce = 400.0f;
     mj.maxTorque = 150.0f;
     mj.correctionFactor = 0.25f;
-    s_driveJointA = m2CreateMotorJoint(world, &mj); // reused as the platform handle
+    s_driveJointA = NewMotorJoint(world, &mj); // reused as the platform handle
     tbAddBox(world, 6.0, 2.6, 0.35f, 0.8f);
 }
 
 // A ragdoll out of capsules and limited revolutes; jointed bodies do
 // not self-collide by default, which is exactly what a ragdoll wants.
-static m2BodyId tbCapsulePart(m2WorldId world, double x, double y, float hx, float r)
+static m2BodyId tbCapsulePart(m2World* world, double x, double y, float hx, float r)
 {
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){x, y};
-    m2BodyId part = m2CreateBody(world, &bd);
+    m2BodyId part = NewBody(world, &bd);
     m2ShapeDef sd = m2DefaultShapeDef();
     sd.density = 1.0f;
     sd.friction = 0.4f;
     m2Capsule cap = {{-hx, 0.0f}, {hx, 0.0f}, r};
-    m2CreateCapsuleShape(part, &sd, &cap);
+    NewCapsuleShape(world, part, &sd, &cap);
     return part;
 }
 
-static void tbPin(m2WorldId world, m2BodyId a, m2BodyId b, m2Vec2 anchorA, m2Vec2 anchorB,
+static void tbPin(m2World* world, m2BodyId a, m2BodyId b, m2Vec2 anchorA, m2Vec2 anchorB,
                   float lower, float upper)
 {
     m2RevoluteJointDef jd = m2DefaultRevoluteJointDef();
@@ -328,20 +329,20 @@ static void tbPin(m2WorldId world, m2BodyId a, m2BodyId b, m2Vec2 anchorA, m2Vec
     jd.enableLimit = true;
     jd.lowerAngle = lower;
     jd.upperAngle = upper;
-    m2CreateRevoluteJoint(world, &jd);
+    NewRevoluteJoint(world, &jd);
 }
 
-static void tbMakeRagdoll(m2WorldId world, double x, double y)
+static void tbMakeRagdoll(m2World* world, double x, double y)
 {
     m2BodyId torso = tbCapsulePart(world, x, y, 0.02f, 0.34f);
     m2BodyDef hd = m2DefaultBodyDef();
     hd.type = m2_dynamicBody;
     hd.position = (m2Pos2){x, y + 0.62};
-    m2BodyId head = m2CreateBody(world, &hd);
+    m2BodyId head = NewBody(world, &hd);
     m2ShapeDef hs = m2DefaultShapeDef();
     hs.density = 0.8f;
     m2Circle skull = {{0.0f, 0.0f}, 0.2f};
-    m2CreateCircleShape(head, &hs, &skull);
+    NewCircleShape(world, head, &hs, &skull);
     tbPin(world, torso, head, (m2Vec2){0.0f, 0.4f}, (m2Vec2){0.0f, -0.22f}, -0.5f, 0.5f);
 
     for (int32_t side = 0; side < 2; ++side)
@@ -364,7 +365,7 @@ static void tbMakeRagdoll(m2WorldId world, double x, double y)
     }
 }
 
-static void SceneRagdolls(m2WorldId world)
+static void SceneRagdolls(m2World* world)
 {
     tbAddFloor(world, 0.0, -0.5, 30.0);
     // A staircase for them to crumple down.
@@ -372,11 +373,11 @@ static void SceneRagdolls(m2WorldId world)
     {
         m2BodyDef sd = m2DefaultBodyDef();
         sd.position = (m2Pos2){-8.0 + (double)s * 2.0, (double)s * 0.7};
-        m2BodyId step = m2CreateBody(world, &sd);
+        m2BodyId step = NewBody(world, &sd);
         m2ShapeDef ss = m2DefaultShapeDef();
         ss.friction = 0.6f;
         m2Polygon slab = m2MakeBox(1.0f, 0.35f);
-        m2CreatePolygonShape(step, &ss, &slab);
+        NewPolygonShape(world, step, &ss, &slab);
     }
     for (int32_t i = 0; i < 3; ++i)
     {
@@ -384,17 +385,18 @@ static void SceneRagdolls(m2WorldId world)
     }
 }
 
-static void SceneDemolitionTick(m2WorldId world, double simTime)
+static void SceneDemolitionTick(m2World* world, double simTime)
 {
     (void)world;
-    if (m2Joint_IsValid(s_driveJointA) && m2Joint_GetType(s_driveJointA) == m2_motorJoint)
+    if (m2Joint_IsValid(world, s_driveJointA) &&
+        m2Joint_GetType(world, s_driveJointA) == m2_motorJoint)
     {
         float ferry = (float)(2.5 * sin(simTime * 0.7));
-        m2MotorJoint_SetOffsets(s_driveJointA, (m2Vec2){ferry, 0.0f}, 0.0f);
+        m2MotorJoint_SetOffsets(world, s_driveJointA, (m2Vec2){ferry, 0.0f}, 0.0f);
     }
 }
 
-static void SceneDominoes(m2WorldId world)
+static void SceneDominoes(m2World* world)
 {
     tbAddFloor(world, 0.0, -0.5, 40.0);
     // Forty dominoes, a starter ramp, and a ball to set it all off.
@@ -403,32 +405,32 @@ static void SceneDominoes(m2WorldId world)
         m2BodyDef bd = m2DefaultBodyDef();
         bd.type = m2_dynamicBody;
         bd.position = (m2Pos2){-24.0 + (double)i * 1.1, 0.9};
-        m2BodyId tile = m2CreateBody(world, &bd);
+        m2BodyId tile = NewBody(world, &bd);
         m2ShapeDef sd = m2DefaultShapeDef();
         sd.density = 1.0f;
         sd.friction = 0.5f;
         m2Polygon slab = m2MakeBox(0.12f, 0.9f);
-        m2CreatePolygonShape(tile, &sd, &slab);
+        NewPolygonShape(world, tile, &sd, &slab);
     }
     m2BodyDef rd = m2DefaultBodyDef();
     rd.position = (m2Pos2){-28.5, 2.6};
     rd.rotation = (m2Rot){0.94f, -0.34f}; // ramp tilts toward the row
-    m2BodyId ramp = m2CreateBody(world, &rd);
+    m2BodyId ramp = NewBody(world, &rd);
     m2ShapeDef rs = m2DefaultShapeDef();
     rs.friction = 0.1f;
     m2Polygon board = m2MakeBox(2.4f, 0.1f);
-    m2CreatePolygonShape(ramp, &rs, &board);
+    NewPolygonShape(world, ramp, &rs, &board);
     m2BodyDef md = m2DefaultBodyDef();
     md.type = m2_dynamicBody;
     md.position = (m2Pos2){-30.2, 4.4};
-    m2BodyId marble = m2CreateBody(world, &md);
+    m2BodyId marble = NewBody(world, &md);
     m2ShapeDef ms = m2DefaultShapeDef();
     ms.density = 3.0f;
     m2Circle ball = {{0.0f, 0.0f}, 0.45f};
-    m2CreateCircleShape(marble, &ms, &ball);
+    NewCircleShape(world, marble, &ms, &ball);
 }
 
-static void SceneOneWayCourse(m2WorldId world)
+static void SceneOneWayCourse(m2World* world)
 {
     tbAddFloor(world, 0.0, -0.5, 20.0);
     // Three one-way shelves at rising heights: drop boxes with B and
@@ -437,26 +439,26 @@ static void SceneOneWayCourse(m2WorldId world)
     {
         m2BodyDef cd = m2DefaultBodyDef();
         cd.position = (m2Pos2){-4.0 + (double)level * 5.0, 2.2 + (double)level * 2.2};
-        m2BodyId shelf = m2CreateBody(world, &cd);
+        m2BodyId shelf = NewBody(world, &cd);
         m2Vec2 pts[5] = {{2.5f, 0.0f}, {1.2f, 0.0f}, {0.0f, 0.0f}, {-1.2f, 0.0f}, {-2.5f, 0.0f}};
         m2ChainDef chain = m2DefaultChainDef();
         chain.points = pts;
         chain.count = 5;
-        m2CreateChain(shelf, &chain);
+        NewChain(world, shelf, &chain);
     }
     // A bouncy ball ready to be flung around.
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){-4.0, 0.6};
-    m2BodyId bouncy = m2CreateBody(world, &bd);
+    m2BodyId bouncy = NewBody(world, &bd);
     m2ShapeDef bs = m2DefaultShapeDef();
     bs.density = 0.8f;
     bs.restitution = 0.85f;
     m2Circle orb = {{0.0f, 0.0f}, 0.35f};
-    m2CreateCircleShape(bouncy, &bs, &orb);
+    NewCircleShape(world, bouncy, &bs, &orb);
 }
 
-static void SceneJointZoo(m2WorldId world)
+static void SceneJointZoo(m2World* world)
 {
     tbAddFloor(world, 0.0, -0.5, 30.0);
     // One rig per joint type, left to right: distance pendulum,
@@ -469,44 +471,44 @@ static void SceneJointZoo(m2WorldId world)
 
     m2BodyDef ad = m2DefaultBodyDef();
     ad.position = (m2Pos2){-12.0, 5.0};
-    m2BodyId hookA = m2CreateBody(world, &ad);
+    m2BodyId hookA = NewBody(world, &ad);
     m2BodyDef p1 = m2DefaultBodyDef();
     p1.type = m2_dynamicBody;
     p1.position = (m2Pos2){-10.5, 5.0};
-    m2BodyId bob = m2CreateBody(world, &p1);
-    m2CreateCircleShape(bob, &sd, &disc);
+    m2BodyId bob = NewBody(world, &p1);
+    NewCircleShape(world, bob, &sd, &disc);
     m2DistanceJointDef dj = m2DefaultDistanceJointDef();
     dj.bodyIdA = hookA;
     dj.bodyIdB = bob;
-    m2CreateDistanceJoint(world, &dj);
+    NewDistanceJoint(world, &dj);
 
     m2BodyDef sp = m2DefaultBodyDef();
     sp.position = (m2Pos2){-7.0, 3.0};
-    m2BodyId pivot = m2CreateBody(world, &sp);
+    m2BodyId pivot = NewBody(world, &sp);
     m2BodyDef bl = m2DefaultBodyDef();
     bl.type = m2_dynamicBody;
     bl.position = (m2Pos2){-7.0, 3.0};
-    m2BodyId blade = m2CreateBody(world, &bl);
+    m2BodyId blade = NewBody(world, &bl);
     m2ShapeDef bs2 = m2DefaultShapeDef();
     bs2.density = 0.6f;
     m2Polygon bar = m2MakeBox(1.4f, 0.08f);
-    m2CreatePolygonShape(blade, &bs2, &bar);
+    NewPolygonShape(world, blade, &bs2, &bar);
     m2RevoluteJointDef rj = m2DefaultRevoluteJointDef();
     rj.bodyIdA = pivot;
     rj.bodyIdB = blade;
     rj.enableMotor = true;
     rj.motorSpeed = 2.5f;
     rj.maxMotorTorque = 60.0f;
-    m2CreateRevoluteJoint(world, &rj);
+    NewRevoluteJoint(world, &rj);
 
     m2BodyDef ed = m2DefaultBodyDef();
     ed.position = (m2Pos2){-3.0, 3.0};
-    m2BodyId rail = m2CreateBody(world, &ed);
+    m2BodyId rail = NewBody(world, &ed);
     m2BodyDef cd2 = m2DefaultBodyDef();
     cd2.type = m2_dynamicBody;
     cd2.position = (m2Pos2){-3.0, 3.0};
-    m2BodyId cab = m2CreateBody(world, &cd2);
-    m2CreatePolygonShape(cab, &sd, &unit);
+    m2BodyId cab = NewBody(world, &cd2);
+    NewPolygonShape(world, cab, &sd, &unit);
     m2PrismaticJointDef pj = m2DefaultPrismaticJointDef();
     pj.bodyIdA = rail;
     pj.bodyIdB = cab;
@@ -517,21 +519,21 @@ static void SceneJointZoo(m2WorldId world)
     pj.enableMotor = true;
     pj.motorSpeed = 1.5f;
     pj.maxMotorForce = 80.0f;
-    s_driveJointB = m2CreatePrismaticJoint(world, &pj); // elevator handle
+    s_driveJointB = NewPrismaticJoint(world, &pj); // elevator handle
 
     m2BodyDef wd = m2DefaultBodyDef();
     wd.type = m2_dynamicBody;
     wd.position = (m2Pos2){1.0, 2.0};
-    m2BodyId post = m2CreateBody(world, &wd);
-    m2CreatePolygonShape(post, &sd, &unit);
+    m2BodyId post = NewBody(world, &wd);
+    NewPolygonShape(world, post, &sd, &unit);
     m2BodyDef fd2 = m2DefaultBodyDef();
     fd2.type = m2_dynamicBody;
     fd2.position = (m2Pos2){1.7, 2.0};
-    m2BodyId flag = m2CreateBody(world, &fd2);
+    m2BodyId flag = NewBody(world, &fd2);
     m2ShapeDef fs2 = m2DefaultShapeDef();
     fs2.density = 0.4f;
     m2Polygon pennant = m2MakeBox(0.35f, 0.08f);
-    m2CreatePolygonShape(flag, &fs2, &pennant);
+    NewPolygonShape(world, flag, &fs2, &pennant);
     m2WeldJointDef wj = m2DefaultWeldJointDef();
     wj.bodyIdA = post;
     wj.bodyIdB = flag;
@@ -541,16 +543,16 @@ static void SceneJointZoo(m2WorldId world)
     wj.linearDampingRatio = 0.4f;
     wj.angularHertz = 4.0f;
     wj.angularDampingRatio = 0.4f;
-    m2CreateWeldJoint(world, &wj);
+    NewWeldJoint(world, &wj);
 
     m2BodyDef sd2 = m2DefaultBodyDef();
     sd2.position = (m2Pos2){5.5, 3.5};
-    m2BodyId strut = m2CreateBody(world, &sd2);
+    m2BodyId strut = NewBody(world, &sd2);
     m2BodyDef hd2 = m2DefaultBodyDef();
     hd2.type = m2_dynamicBody;
     hd2.position = (m2Pos2){5.5, 2.2};
-    m2BodyId hub = m2CreateBody(world, &hd2);
-    m2CreateCircleShape(hub, &sd, &disc);
+    m2BodyId hub = NewBody(world, &hd2);
+    NewCircleShape(world, hub, &sd, &disc);
     m2WheelJointDef whj = m2DefaultWheelJointDef();
     whj.bodyIdA = strut;
     whj.bodyIdB = hub;
@@ -558,65 +560,68 @@ static void SceneJointZoo(m2WorldId world)
     whj.enableSpring = true;
     whj.hertz = 2.0f;
     whj.dampingRatio = 0.4f;
-    m2CreateWheelJoint(world, &whj);
+    NewWheelJoint(world, &whj);
 
     m2BodyDef md2 = m2DefaultBodyDef();
     md2.position = (m2Pos2){9.5, 3.0};
-    m2BodyId beacon = m2CreateBody(world, &md2);
+    m2BodyId beacon = NewBody(world, &md2);
     m2BodyDef fd3 = m2DefaultBodyDef();
     fd3.type = m2_dynamicBody;
     fd3.position = (m2Pos2){9.5, 3.0};
-    m2BodyId chaser = m2CreateBody(world, &fd3);
-    m2CreatePolygonShape(chaser, &sd, &unit);
+    m2BodyId chaser = NewBody(world, &fd3);
+    NewPolygonShape(world, chaser, &sd, &unit);
     m2MotorJointDef mj = m2DefaultMotorJointDef();
     mj.bodyIdA = beacon;
     mj.bodyIdB = chaser;
     mj.maxForce = 120.0f;
     mj.maxTorque = 40.0f;
-    s_driveJointA = m2CreateMotorJoint(world, &mj); // follower handle
+    s_driveJointA = NewMotorJoint(world, &mj); // follower handle
 
     m2BodyDef hd3 = m2DefaultBodyDef();
     hd3.position = (m2Pos2){13.0, 6.0};
-    m2BodyId gallows = m2CreateBody(world, &hd3);
+    m2BodyId gallows = NewBody(world, &hd3);
     m2BodyDef ld = m2DefaultBodyDef();
     ld.type = m2_dynamicBody;
     ld.position = (m2Pos2){13.0, 4.0};
-    m2BodyId weight = m2CreateBody(world, &ld);
+    m2BodyId weight = NewBody(world, &ld);
     m2ShapeDef ws2 = m2DefaultShapeDef();
     ws2.density = 4.0f;
-    m2CreatePolygonShape(weight, &ws2, &unit);
+    NewPolygonShape(world, weight, &ws2, &unit);
     m2DistanceJointDef frail = m2DefaultDistanceJointDef();
     frail.bodyIdA = gallows;
     frail.bodyIdB = weight;
-    m2JointId thread = m2CreateDistanceJoint(world, &frail);
-    m2Joint_SetBreakLimits(thread, 45.0f, 0.0f); // one extra box snaps it
+    m2JointId thread = NewDistanceJoint(world, &frail);
+    m2Joint_SetBreakLimits(world, thread, 45.0f, 0.0f); // one extra box snaps it
 }
 
-static void SceneJointZooTick(m2WorldId world, double simTime)
+static void SceneJointZooTick(m2World* world, double simTime)
 {
     (void)world;
     // The elevator shuttles, the follower orbits its beacon.
-    if (m2Joint_IsValid(s_driveJointB) && m2Joint_GetType(s_driveJointB) == m2_prismaticJoint)
+    if (m2Joint_IsValid(world, s_driveJointB) &&
+        m2Joint_GetType(world, s_driveJointB) == m2_prismaticJoint)
     {
         float dir = fmod(simTime, 6.0) < 3.0 ? 1.5f : -1.5f;
-        m2Joint_SetMotorSpeed(s_driveJointB, dir);
+        m2Joint_SetMotorSpeed(world, s_driveJointB, dir);
     }
-    if (m2Joint_IsValid(s_driveJointA) && m2Joint_GetType(s_driveJointA) == m2_motorJoint)
+    if (m2Joint_IsValid(world, s_driveJointA) &&
+        m2Joint_GetType(world, s_driveJointA) == m2_motorJoint)
     {
         float ox = (float)(1.6 * cos(simTime * 0.9));
         float oy = (float)(1.0 * sin(simTime * 1.7));
-        m2MotorJoint_SetOffsets(s_driveJointA, (m2Vec2){ox, oy}, (float)(0.6 * sin(simTime * 0.5)));
+        m2MotorJoint_SetOffsets(world, s_driveJointA, (m2Vec2){ox, oy},
+                                (float)(0.6 * sin(simTime * 0.5)));
     }
 }
 
-static void SceneCurtain(m2WorldId world)
+static void SceneCurtain(m2World* world)
 {
     tbAddFloor(world, 0.0, -0.5, 30.0);
     // A hanging curtain of small plates tied by breakable ropes; drop
     // the anvil (or grab and throw things) and watch it tear.
     m2BodyDef rd = m2DefaultBodyDef();
     rd.position = (m2Pos2){0.0, 10.0};
-    m2BodyId rail = m2CreateBody(world, &rd);
+    m2BodyId rail = NewBody(world, &rd);
     m2ShapeDef ps = m2DefaultShapeDef();
     ps.density = 0.5f;
     m2Polygon plate = m2MakeBox(0.28f, 0.28f);
@@ -632,15 +637,15 @@ static void SceneCurtain(m2WorldId world)
             m2BodyDef bd = m2DefaultBodyDef();
             bd.type = m2_dynamicBody;
             bd.position = (m2Pos2){-3.2 + (double)col * 0.8, 9.2 - (double)row * 0.75};
-            m2BodyId cell = m2CreateBody(world, &bd);
-            m2CreatePolygonShape(cell, &ps, &plate);
+            m2BodyId cell = NewBody(world, &bd);
+            NewPolygonShape(world, cell, &ps, &plate);
             m2DistanceJointDef dj = m2DefaultDistanceJointDef();
             dj.bodyIdA = prev[col];
             dj.bodyIdB = cell;
             dj.hertz = 8.0f;
             dj.dampingRatio = 0.6f;
-            m2JointId link = m2CreateDistanceJoint(world, &dj);
-            m2Joint_SetBreakLimits(link, 55.0f, 0.0f);
+            m2JointId link = NewDistanceJoint(world, &dj);
+            m2Joint_SetBreakLimits(world, link, 55.0f, 0.0f);
             prev[col] = cell;
         }
     }
@@ -648,11 +653,11 @@ static void SceneCurtain(m2WorldId world)
     m2BodyDef av = m2DefaultBodyDef();
     av.type = m2_dynamicBody;
     av.position = (m2Pos2){-8.0, 13.0};
-    m2BodyId anvil = m2CreateBody(world, &av);
+    m2BodyId anvil = NewBody(world, &av);
     m2ShapeDef as2 = m2DefaultShapeDef();
     as2.density = 8.0f;
     m2Polygon block = m2MakeBox(0.7f, 0.5f);
-    m2CreatePolygonShape(anvil, &as2, &block);
+    NewPolygonShape(world, anvil, &as2, &block);
 }
 
 // ------------------------------------------- the mover-kit character
@@ -675,7 +680,7 @@ static void CharacterReset(double x, double y)
     s_charGrounded = false;
 }
 
-static void CharacterUpdate(m2WorldId world, float dt)
+static void CharacterUpdate(m2World* world, float dt)
 {
     // Input: run and jump.
     float wish = 0.0f;
@@ -712,8 +717,8 @@ static void CharacterUpdate(m2WorldId world, float dt)
         if (found[i].normal.y > 0.7f)
         {
             // Ride whatever we stand on (the ferry moment).
-            m2BodyId under = m2Shape_GetBody(found[i].shapeId);
-            carry = m2Body_GetLinearVelocity(under);
+            m2BodyId under = m2Shape_GetBody(world, found[i].shapeId);
+            carry = m2Body_GetLinearVelocity(world, under);
         }
     }
 
@@ -749,7 +754,7 @@ static void CharacterDraw(double alpha)
     tbDrawCapsule(p1, p2, s_charShape.radius, s_charGrounded ? 0x50E080u : 0xE0B050u, NULL);
 }
 
-static void ScenePlatformer(m2WorldId world)
+static void ScenePlatformer(m2World* world)
 {
     tbAddFloor(world, 0.0, -0.5, 26.0);
     CharacterReset(-10.0, 2.0);
@@ -758,44 +763,44 @@ static void ScenePlatformer(m2WorldId world)
     m2BodyDef sd = m2DefaultBodyDef();
     sd.position = (m2Pos2){-5.0, 0.8};
     sd.rotation = (m2Rot){0.94f, 0.34f};
-    m2BodyId ramp = m2CreateBody(world, &sd);
+    m2BodyId ramp = NewBody(world, &sd);
     m2ShapeDef rs = m2DefaultShapeDef();
     rs.friction = 0.9f;
     m2Polygon board = m2MakeBox(2.6f, 0.2f);
-    m2CreatePolygonShape(ramp, &rs, &board);
+    NewPolygonShape(world, ramp, &rs, &board);
 
     // Three one-way shelves, stair-cased: jump up through them.
     for (int32_t level = 0; level < 3; ++level)
     {
         m2BodyDef cd = m2DefaultBodyDef();
         cd.position = (m2Pos2){1.0 + (double)level * 4.0, 2.4 + (double)level * 2.0};
-        m2BodyId shelf = m2CreateBody(world, &cd);
+        m2BodyId shelf = NewBody(world, &cd);
         m2Vec2 pts[5] = {{2.2f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f}, {-1.0f, 0.0f}, {-2.2f, 0.0f}};
         m2ChainDef chain = m2DefaultChainDef();
         chain.points = pts;
         chain.count = 5;
-        m2CreateChain(shelf, &chain);
+        NewChain(world, shelf, &chain);
     }
 
     // The ferry: a motor-joint platform patrolling under the far gap.
     m2BodyDef ad = m2DefaultBodyDef();
     ad.position = (m2Pos2){15.0, 4.0};
-    m2BodyId beacon = m2CreateBody(world, &ad);
+    m2BodyId beacon = NewBody(world, &ad);
     m2BodyDef pd = m2DefaultBodyDef();
     pd.type = m2_dynamicBody;
     pd.position = (m2Pos2){15.0, 4.0};
-    m2BodyId deckBody = m2CreateBody(world, &pd);
+    m2BodyId deckBody = NewBody(world, &pd);
     m2ShapeDef ps = m2DefaultShapeDef();
     ps.density = 3.0f;
     ps.friction = 0.9f;
     m2Polygon deck = m2MakeBox(1.5f, 0.15f);
-    m2CreatePolygonShape(deckBody, &ps, &deck);
+    NewPolygonShape(world, deckBody, &ps, &deck);
     m2MotorJointDef mj = m2DefaultMotorJointDef();
     mj.bodyIdA = beacon;
     mj.bodyIdB = deckBody;
     mj.maxForce = 500.0f;
     mj.maxTorque = 200.0f;
-    s_driveJointA = m2CreateMotorJoint(world, &mj);
+    s_driveJointA = NewMotorJoint(world, &mj);
 
     // Crates to shoulder around at ground level.
     for (int32_t i = 0; i < 3; ++i)
@@ -804,34 +809,35 @@ static void ScenePlatformer(m2WorldId world)
     }
 }
 
-static void ScenePlatformerTick(m2WorldId world, double simTime)
+static void ScenePlatformerTick(m2World* world, double simTime)
 {
     (void)world;
-    if (m2Joint_IsValid(s_driveJointA) && m2Joint_GetType(s_driveJointA) == m2_motorJoint)
+    if (m2Joint_IsValid(world, s_driveJointA) &&
+        m2Joint_GetType(world, s_driveJointA) == m2_motorJoint)
     {
         float ferry = (float)(3.0 * sin(simTime * 0.6));
-        m2MotorJoint_SetOffsets(s_driveJointA, (m2Vec2){ferry, 0.0f}, 0.0f);
+        m2MotorJoint_SetOffsets(world, s_driveJointA, (m2Vec2){ferry, 0.0f}, 0.0f);
     }
 }
 
 static int32_t s_faucetTicks = 0;
 static bool s_faucetTensile = false;
 
-static void SceneWater(m2WorldId world)
+static void SceneWater(m2World* world)
 {
     s_faucetTicks = 0;
     m2ShapeDef sd = m2DefaultShapeDef();
     m2BodyDef floorDef = m2DefaultBodyDef();
     floorDef.position = (m2Pos2){0.0, -0.1};
     m2Polygon floorBox = m2MakeBox(3.0f, 0.1f);
-    m2CreatePolygonShape(m2CreateBody(world, &floorDef), &sd, &floorBox);
+    NewPolygonShape(world, NewBody(world, &floorDef), &sd, &floorBox);
     m2Polygon wallBox = m2MakeBox(0.1f, 1.6f);
     m2BodyDef leftDef = m2DefaultBodyDef();
     leftDef.position = (m2Pos2){-3.0, 1.5};
-    m2CreatePolygonShape(m2CreateBody(world, &leftDef), &sd, &wallBox);
+    NewPolygonShape(world, NewBody(world, &leftDef), &sd, &wallBox);
     m2BodyDef rightDef = m2DefaultBodyDef();
     rightDef.position = (m2Pos2){3.0, 1.5};
-    m2CreatePolygonShape(m2CreateBody(world, &rightDef), &sd, &wallBox);
+    NewPolygonShape(world, NewBody(world, &rightDef), &sd, &wallBox);
 
     // Debris: two light crates that will float, one dense one that
     // will sink, and a plank.
@@ -843,24 +849,24 @@ static void SceneWater(m2WorldId world)
         cd.position = (m2Pos2){-1.5 + (double)i * 1.2, 0.6};
         m2ShapeDef cs = m2DefaultShapeDef();
         cs.density = 0.15f;
-        m2CreatePolygonShape(m2CreateBody(world, &cd), &cs, &crate);
+        NewPolygonShape(world, NewBody(world, &cd), &cs, &crate);
     }
     m2BodyDef hd = m2DefaultBodyDef();
     hd.type = m2_dynamicBody;
     hd.position = (m2Pos2){1.6, 0.6};
     m2ShapeDef hs = m2DefaultShapeDef();
     hs.density = 4.0f;
-    m2CreatePolygonShape(m2CreateBody(world, &hd), &hs, &crate);
+    NewPolygonShape(world, NewBody(world, &hd), &hs, &crate);
     m2BodyDef pd = m2DefaultBodyDef();
     pd.type = m2_dynamicBody;
     pd.position = (m2Pos2){0.5, 0.8};
     m2ShapeDef ps = m2DefaultShapeDef();
     ps.density = 0.1f;
     m2Polygon plank = m2MakeBox(0.6f, 0.06f);
-    m2CreatePolygonShape(m2CreateBody(world, &pd), &ps, &plank);
+    NewPolygonShape(world, NewBody(world, &pd), &ps, &plank);
 }
 
-static void SceneWaterTick(m2WorldId world, double simTime)
+static void SceneWaterTick(m2World* world, double simTime)
 {
     (void)simTime;
     // The faucet: three drops per tick until the pool is deep. The
@@ -873,9 +879,8 @@ static void SceneWaterTick(m2WorldId world, double simTime)
             int32_t lane = (s_faucetTicks + j * 5) % 7;
             double x = -0.27 + (double)lane * 0.09;
             uint32_t flags = s_faucetTensile ? m2_tensileParticle : 0;
-            m2ParticleId d =
-                m2World_EmitParticle(world, (m2Pos2){x, 3.5}, (m2Vec2){0.0f, -2.0f}, flags);
-            m2Particle_SetLifetime(d, 12.0f); // the faucet's spray self-cleans
+            m2ParticleId d = EmitParticle(world, (m2Pos2){x, 3.5}, (m2Vec2){0.0f, -2.0f}, flags);
+            m2Particle_SetLifetime(world, d, 12.0f); // the faucet's spray self-cleans
         }
     }
     s_faucetTicks += 1;
@@ -887,14 +892,14 @@ static void SceneWaterTick(m2WorldId world, double simTime)
 // viewer owns its props, so when a rewind ends it sweeps any mouse
 // joint it does not hold, along with the throwaway static anchor
 // that grips hang from.
-static void tbDropGhostGrips(m2WorldId world, m2JointId held)
+static void tbDropGhostGrips(m2World* world, m2JointId held)
 {
     m2JointId joints[64];
     int32_t total = m2World_GetJoints(world, joints, 64);
     total = total <= 64 ? total : 64;
     for (int32_t i = 0; i < total; ++i)
     {
-        if (m2Joint_GetType(joints[i]) != m2_mouseJoint)
+        if (m2Joint_GetType(world, joints[i]) != m2_mouseJoint)
         {
             continue;
         }
@@ -902,16 +907,17 @@ static void tbDropGhostGrips(m2WorldId world, m2JointId held)
         {
             continue;
         }
-        m2BodyId anchor = m2Joint_GetBodyA(joints[i]);
-        m2DestroyJoint(joints[i]);
-        if (m2Body_GetType(anchor) == m2_staticBody && m2Body_GetShapes(anchor, NULL, 0) == 0)
+        m2BodyId anchor = m2Joint_GetBodyA(world, joints[i]);
+        DestroyJoint(world, joints[i]);
+        if (m2Body_GetType(world, anchor) == m2_staticBody &&
+            m2Body_GetShapes(world, anchor, NULL, 0) == 0)
         {
-            m2DestroyBody(anchor); // the grip's shapeless anchor post
+            DestroyBody(world, anchor); // the grip's shapeless anchor post
         }
     }
 }
 
-static void SceneMachinery(m2WorldId world)
+static void SceneMachinery(m2World* world)
 {
     tbAddFloor(world, 0.0, -0.5, 30.0);
     m2ShapeDef sd = m2DefaultShapeDef();
@@ -927,13 +933,13 @@ static void SceneMachinery(m2WorldId world)
         double x = -10.0 + (double)i * 2.2;
         m2BodyDef postDef = m2DefaultBodyDef();
         postDef.position = (m2Pos2){x, 3.0};
-        m2BodyId post = m2CreateBody(world, &postDef);
+        m2BodyId post = NewBody(world, &postDef);
         m2BodyDef wheelDef = m2DefaultBodyDef();
         wheelDef.type = m2_dynamicBody;
         wheelDef.position = (m2Pos2){x, 3.0};
-        wheels[i] = m2CreateBody(world, &wheelDef);
-        m2CreateCircleShape(wheels[i], &sd, &hub);
-        m2CreatePolygonShape(wheels[i], &sd, &spoke);
+        wheels[i] = NewBody(world, &wheelDef);
+        NewCircleShape(world, wheels[i], &sd, &hub);
+        NewPolygonShape(world, wheels[i], &sd, &spoke);
         m2RevoluteJointDef pin = m2DefaultRevoluteJointDef();
         pin.bodyIdA = post;
         pin.bodyIdB = wheels[i];
@@ -943,13 +949,13 @@ static void SceneMachinery(m2WorldId world)
             pin.motorSpeed = 2.5f;
             pin.maxMotorTorque = 80.0f;
         }
-        m2CreateRevoluteJoint(world, &pin);
+        NewRevoluteJoint(world, &pin);
     }
     m2GearJointDef cog = m2DefaultGearJointDef();
     cog.bodyIdA = wheels[0];
     cog.bodyIdB = wheels[1];
     cog.ratio = 2.0f;
-    m2CreateGearJoint(world, &cog);
+    NewGearJoint(world, &cog);
 
     // Pulley elevator: two platforms on vertical prismatic rails,
     // coupled by a rope over two anchors. Drop the crate onto a
@@ -961,64 +967,64 @@ static void SceneMachinery(m2WorldId world)
         double x = -3.5 + (double)i * 3.0;
         m2BodyDef railDef = m2DefaultBodyDef();
         railDef.position = (m2Pos2){x, 0.0};
-        m2BodyId rail = m2CreateBody(world, &railDef);
+        m2BodyId rail = NewBody(world, &railDef);
         m2BodyDef carDef = m2DefaultBodyDef();
         carDef.type = m2_dynamicBody;
         carDef.position = (m2Pos2){x, 2.0};
-        cars[i] = m2CreateBody(world, &carDef);
+        cars[i] = NewBody(world, &carDef);
         m2ShapeDef ps = m2DefaultShapeDef();
         ps.density = 1.0f;
-        m2CreatePolygonShape(cars[i], &ps, &platform);
+        NewPolygonShape(world, cars[i], &ps, &platform);
         m2PrismaticJointDef rails = m2DefaultPrismaticJointDef();
         rails.bodyIdA = rail;
         rails.bodyIdB = cars[i];
         rails.localAxisA = (m2Vec2){0.0f, 1.0f};
-        m2CreatePrismaticJoint(world, &rails);
+        NewPrismaticJoint(world, &rails);
     }
     m2PulleyJointDef rope = m2DefaultPulleyJointDef();
     rope.bodyIdA = cars[0];
     rope.bodyIdB = cars[1];
     rope.groundAnchorA = (m2Pos2){-3.5, 6.0};
     rope.groundAnchorB = (m2Pos2){-0.5, 6.0};
-    m2CreatePulleyJoint(world, &rope);
+    NewPulleyJoint(world, &rope);
     m2BodyDef cargoDef = m2DefaultBodyDef();
     cargoDef.type = m2_dynamicBody;
     cargoDef.position = (m2Pos2){-3.5, 2.5};
-    m2BodyId cargo = m2CreateBody(world, &cargoDef);
+    m2BodyId cargo = NewBody(world, &cargoDef);
     m2Polygon cargoBox = m2MakeBox(0.25f, 0.25f);
     m2ShapeDef cargoShape = m2DefaultShapeDef();
     cargoShape.density = 2.0f;
-    m2CreatePolygonShape(cargo, &cargoShape, &cargoBox);
+    NewPolygonShape(world, cargo, &cargoShape, &cargoBox);
 
     // Sprung paddle: an angular spring holds it level; drop of balls
     // to bat away, or drag it down and let it snap back.
     m2BodyDef paddlePostDef = m2DefaultBodyDef();
     paddlePostDef.position = (m2Pos2){3.5, 1.6};
-    m2BodyId paddlePost = m2CreateBody(world, &paddlePostDef);
+    m2BodyId paddlePost = NewBody(world, &paddlePostDef);
     m2BodyDef paddleDef = m2DefaultBodyDef();
     paddleDef.type = m2_dynamicBody;
     paddleDef.position = (m2Pos2){4.6, 1.6};
-    m2BodyId paddle = m2CreateBody(world, &paddleDef);
+    m2BodyId paddle = NewBody(world, &paddleDef);
     m2Polygon blade = m2MakeBox(1.1f, 0.08f);
-    m2CreatePolygonShape(paddle, &sd, &blade);
+    NewPolygonShape(world, paddle, &sd, &blade);
     m2RevoluteJointDef springPin = m2DefaultRevoluteJointDef();
     springPin.bodyIdA = paddlePost;
     springPin.bodyIdB = paddle;
     springPin.localAnchorB = (m2Vec2){-1.1f, 0.0f};
     springPin.springHertz = 5.0f;
     springPin.springDampingRatio = 0.4f;
-    m2CreateRevoluteJoint(world, &springPin);
+    NewRevoluteJoint(world, &springPin);
     m2Circle pebble = {{0.0f, 0.0f}, 0.15f};
     for (int32_t i = 0; i < 3; ++i)
     {
         m2BodyDef ballDef = m2DefaultBodyDef();
         ballDef.type = m2_dynamicBody;
         ballDef.position = (m2Pos2){4.0 + (double)i * 0.5, 4.0 + (double)i * 0.7};
-        m2BodyId ball = m2CreateBody(world, &ballDef);
+        m2BodyId ball = NewBody(world, &ballDef);
         m2ShapeDef bs = m2DefaultShapeDef();
         bs.density = 0.4f;
         bs.restitution = 0.5f;
-        m2CreateCircleShape(ball, &bs, &pebble);
+        NewCircleShape(world, ball, &bs, &pebble);
     }
 
     // Shrapnel twins: the same plus outline, once as a single body
@@ -1028,28 +1034,28 @@ static void SceneMachinery(m2WorldId world)
                        {0.6f, 0.4f},  {0.6f, 1.2f},   {-0.6f, 1.2f},  {-0.6f, 0.4f},
                        {-1.4f, 0.4f}, {-1.4f, -0.4f}, {-0.6f, -0.4f}, {-0.6f, -1.2f}};
     m2Polygon pieces[8];
-    int32_t pieceCount = m2DecomposeOutline(plus, 12, pieces, 8);
+    int32_t pieceCount = DecomposeOutline(plus, 12, pieces, 8);
     m2BodyDef statueDef = m2DefaultBodyDef();
     statueDef.type = m2_dynamicBody;
     statueDef.position = (m2Pos2){8.5, 0.9};
-    m2BodyId statue = m2CreateBody(world, &statueDef);
+    m2BodyId statue = NewBody(world, &statueDef);
     for (int32_t i = 0; i < pieceCount; ++i)
     {
         m2ShapeDef ss = m2DefaultShapeDef();
-        m2CreatePolygonShape(statue, &ss, &pieces[i]);
+        NewPolygonShape(world, statue, &ss, &pieces[i]);
     }
     for (int32_t i = 0; i < pieceCount; ++i)
     {
         m2BodyDef shardDef = m2DefaultBodyDef();
         shardDef.type = m2_dynamicBody;
         shardDef.position = (m2Pos2){12.0, 0.9};
-        m2BodyId shard = m2CreateBody(world, &shardDef);
+        m2BodyId shard = NewBody(world, &shardDef);
         m2ShapeDef ss = m2DefaultShapeDef();
-        m2CreatePolygonShape(shard, &ss, &pieces[i]);
+        NewPolygonShape(world, shard, &ss, &pieces[i]);
     }
 }
 
-static void SceneGoo(m2WorldId world)
+static void SceneGoo(m2World* world)
 {
     // A basin, a jelly cube dropped in, a powder heap poured beside
     // it, sticky spray above, and a crate to throw at all of them.
@@ -1057,14 +1063,14 @@ static void SceneGoo(m2WorldId world)
     m2BodyDef floorDef = m2DefaultBodyDef();
     floorDef.position = (m2Pos2){0.0, -0.2};
     m2Polygon slab = m2MakeBox(6.0f, 0.2f);
-    m2CreatePolygonShape(m2CreateBody(world, &floorDef), &sd, &slab);
+    NewPolygonShape(world, NewBody(world, &floorDef), &sd, &slab);
     m2Polygon wallBox = m2MakeBox(0.2f, 2.0f);
     m2BodyDef leftDef = m2DefaultBodyDef();
     leftDef.position = (m2Pos2){-6.0, 1.8};
-    m2CreatePolygonShape(m2CreateBody(world, &leftDef), &sd, &wallBox);
+    NewPolygonShape(world, NewBody(world, &leftDef), &sd, &wallBox);
     m2BodyDef rightDef = m2DefaultBodyDef();
     rightDef.position = (m2Pos2){6.0, 1.8};
-    m2CreatePolygonShape(m2CreateBody(world, &rightDef), &sd, &wallBox);
+    NewPolygonShape(world, NewBody(world, &rightDef), &sd, &wallBox);
 
     m2Polygon jellyBox = m2MakeBox(0.45f, 0.45f);
     m2World_FillPolygonWithParticles(world, &jellyBox, (m2Pos2){-3.0, 1.8}, (m2Vec2){0.0f, 0.0f},
@@ -1079,11 +1085,11 @@ static void SceneGoo(m2WorldId world)
     m2BodyDef crateDef = m2DefaultBodyDef();
     crateDef.type = m2_dynamicBody;
     crateDef.position = (m2Pos2){4.5, 0.4};
-    m2BodyId crate = m2CreateBody(world, &crateDef);
+    m2BodyId crate = NewBody(world, &crateDef);
     m2ShapeDef cs = m2DefaultShapeDef();
     cs.density = 0.4f;
     m2Polygon crateBox = m2MakeBox(0.25f, 0.25f);
-    m2CreatePolygonShape(crate, &cs, &crateBox);
+    NewPolygonShape(world, crate, &cs, &crateBox);
 }
 
 static const tbScene s_scenes[] = {
@@ -1113,7 +1119,7 @@ int main(void)
     InitWindow(s_screenWidth, s_screenHeight, "Maul2D testbed");
     SetTargetFPS(60);
 
-    m2WorldId world = {0, 0};
+    m2World* world = NULL;
     int32_t sceneIndex = 0;
     bool paused = false;
     bool showHelp = false;
@@ -1152,7 +1158,7 @@ int main(void)
     {
         if (reload)
         {
-            if (world.index1 != 0)
+            if (world != NULL)
             {
                 m2DestroyWorld(world);
             }
@@ -1161,7 +1167,7 @@ int main(void)
             def.shapeCapacity = 1024;
             def.jointCapacity = 64;
             def.particleCapacity = 2048; // the water scene pours into this
-            world = m2CreateWorld(&def);
+            world = NewWorld(&def);
             free(ring);
             ringEntry = m2World_SnapshotSize(world);
 #ifdef __EMSCRIPTEN__
@@ -1244,15 +1250,15 @@ int main(void)
         m2Pos2 cursor = tbToWorld(GetMousePosition());
 
         // Grab: a mouse joint, naturally.
-        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && world.index1 != 0)
+        if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && world != NULL)
         {
             m2Circle probe = {{0.0f, 0.0f}, 0.05f};
             m2Transform pose = {cursor, {1.0f, 0.0f}};
             m2ShapeId hit[1];
             if (m2World_OverlapCircle(world, &probe, pose, hit, 1, m2DefaultQueryFilter()) > 0)
             {
-                m2BodyId body = m2Shape_GetBody(hit[0]);
-                if (m2Body_GetType(body) == m2_dynamicBody)
+                m2BodyId body = m2Shape_GetBody(world, hit[0]);
+                if (m2Body_GetType(world, body) == m2_dynamicBody)
                 {
                     m2MouseJointDef sj = m2DefaultMouseJointDef();
                     sj.bodyIdA = body; // bookkeeping anchor only
@@ -1261,31 +1267,31 @@ int main(void)
                     // throwaway static anchor instead.
                     m2BodyDef ad = m2DefaultBodyDef();
                     ad.position = cursor;
-                    m2BodyId anchor = m2CreateBody(world, &ad);
+                    m2BodyId anchor = NewBody(world, &ad);
                     sj.bodyIdA = anchor;
                     sj.target = cursor;
                     sj.hertz = 6.0f;
-                    sj.maxForce = 120.0f * m2Body_GetMass(body);
-                    grip = m2CreateMouseJoint(world, &sj);
+                    sj.maxForce = 120.0f * m2Body_GetMass(world, body);
+                    grip = NewMouseJoint(world, &sj);
                 }
             }
         }
         if (grip.index1 != 0 && IsMouseButtonDown(MOUSE_BUTTON_LEFT))
         {
-            m2MouseJoint_SetTarget(grip, cursor);
+            m2MouseJoint_SetTarget(world, grip, cursor);
         }
         if (grip.index1 != 0 && IsMouseButtonReleased(MOUSE_BUTTON_LEFT))
         {
-            if (m2Joint_IsValid(grip))
+            if (m2Joint_IsValid(world, grip))
             {
-                m2BodyId anchor = m2Joint_GetBodyA(grip);
-                m2DestroyJoint(grip);
-                m2DestroyBody(anchor);
+                m2BodyId anchor = m2Joint_GetBodyA(world, grip);
+                DestroyJoint(world, grip);
+                DestroyBody(world, anchor);
             }
             grip = m2_nullJointId;
         }
 
-        if (IsKeyPressed(KEY_E) && world.index1 != 0)
+        if (IsKeyPressed(KEY_E) && world != NULL)
         {
             m2ExplosionDef boom = m2DefaultExplosionDef();
             boom.position = cursor;
@@ -1294,14 +1300,14 @@ int main(void)
             boom.impulse = 8.0f;
             m2World_Explode(world, &boom);
         }
-        if (IsKeyPressed(KEY_B) && world.index1 != 0)
+        if (IsKeyPressed(KEY_B) && world != NULL)
         {
             tbAddBox(world, cursor.x, cursor.y, 0.4f, 1.0f);
         }
 
         // Drive: wheel motors on the car scene, platform offsets on the
         // demolition scene.
-        if (s_scenes[sceneIndex].hasCar && m2Joint_IsValid(s_driveJointA))
+        if (s_scenes[sceneIndex].hasCar && m2Joint_IsValid(world, s_driveJointA))
         {
             float speed = 0.0f;
             if (IsKeyDown(KEY_RIGHT))
@@ -1312,8 +1318,8 @@ int main(void)
             {
                 speed = 22.0f;
             }
-            m2Joint_SetMotorSpeed(s_driveJointA, speed);
-            m2Joint_SetMotorSpeed(s_driveJointB, speed);
+            m2Joint_SetMotorSpeed(world, s_driveJointA, speed);
+            m2Joint_SetMotorSpeed(world, s_driveJointB, speed);
         }
 
         // ---- step or rewind ----
@@ -1329,10 +1335,10 @@ int main(void)
             grip = m2_nullJointId;
             ringCount -= 1;
             int32_t slot = (ringStart + ringCount) % ringCapacity;
-            m2World_Restore(world, ring + (size_t)slot * (size_t)ringEntry, ringEntry);
+            Restore(world, ring + (size_t)slot * (size_t)ringEntry, ringEntry);
             simTime -= (double)ringStride / 60.0;
         }
-        else if ((!paused || single) && !halfRateSkip && world.index1 != 0)
+        else if ((!paused || single) && !halfRateSkip && world != NULL)
         {
             m2World_Step(world, simMode == 0 ? 1.0f / 60.0f : 1.0f / 30.0f, 4);
             simTime += 1.0 / 60.0;
@@ -1356,12 +1362,12 @@ int main(void)
                     ringCount -= 1;
                 }
                 int32_t slot = (ringStart + ringCount) % ringCapacity;
-                m2World_Snapshot(world, ring + (size_t)slot * (size_t)ringEntry, ringEntry);
+                Snapshot(world, ring + (size_t)slot * (size_t)ringEntry, ringEntry);
                 ringCount += 1;
             }
         }
 
-        if (wasRewinding && !rewinding && world.index1 != 0)
+        if (wasRewinding && !rewinding && world != NULL)
         {
             tbDropGhostGrips(world, grip);
         }
@@ -1370,11 +1376,11 @@ int main(void)
         // ---- render ----
         BeginDrawing();
         ClearBackground((Color){24, 26, 32, 255});
-        if (world.index1 != 0)
+        if (world != NULL)
         {
             m2World_Draw(world, &draw);
         }
-        if (world.index1 != 0 && m2World_GetParticleCount(world) > 0)
+        if (world != NULL && m2World_GetParticleCount(world) > 0)
         {
             static m2ParticleId s_drops[2048];
             int32_t drops = m2World_GetParticles(world, s_drops, 2048);
@@ -1382,8 +1388,8 @@ int main(void)
             float dotRadius = 0.05f * s_camera.pixelsPerMeter;
             for (int32_t i = 0; i < drops; ++i)
             {
-                Vector2 at = tbToScreen(m2Particle_GetPosition(s_drops[i]));
-                uint32_t flags = m2Particle_GetFlags(s_drops[i]);
+                Vector2 at = tbToScreen(m2Particle_GetPosition(world, s_drops[i]));
+                uint32_t flags = m2Particle_GetFlags(world, s_drops[i]);
                 Color tint = (Color){96, 156, 245, 200}; // water blue
                 if ((flags & m2_powderParticle) != 0)
                 {
@@ -1465,7 +1471,7 @@ int main(void)
     }
 
     free(ring);
-    if (world.index1 != 0)
+    if (world != NULL)
     {
         m2DestroyWorld(world);
     }

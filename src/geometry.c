@@ -203,7 +203,10 @@ static int32_t MergeCollinear(m2Vec2* hull, int32_t n)
     return n;
 }
 
-m2Polygon m2ComputeHull(const m2Vec2* points, int32_t count, float radius)
+static m2Polygon BuildPolygon(const m2Vec2* points, int32_t count, float radius);
+
+// The hull, or a polygon with count 0 when the input has none.
+static m2Polygon BuildHull(const m2Vec2* points, int32_t count, float radius)
 {
     m2Polygon invalid;
     memset(&invalid, 0, sizeof(invalid));
@@ -224,11 +227,23 @@ m2Polygon m2ComputeHull(const m2Vec2* points, int32_t count, float radius)
     {
         return invalid; // all collinear
     }
-    // The constructor adds the normals and its own loud validation.
-    return m2MakePolygon(hull, n, radius);
+    // The constructor adds the normals and its own validation.
+    return BuildPolygon(hull, n, radius);
 }
 
-m2Polygon m2MakePolygon(const m2Vec2* points, int32_t count, float radius)
+m2Result m2ComputeHull(const m2Vec2* points, int32_t count, float radius, m2Polygon* polygonOut)
+{
+    m2Polygon hull = BuildHull(points, count, radius);
+    if (polygonOut == NULL || hull.count == 0)
+    {
+        return m2_errorInvalid;
+    }
+    *polygonOut = hull;
+    return m2_success;
+}
+
+// The polygon, or one with count 0 when the points do not make one.
+static m2Polygon BuildPolygon(const m2Vec2* points, int32_t count, float radius)
 {
     m2Polygon polygon;
     memset(&polygon, 0, sizeof(polygon)); // deterministic bytes in unions
@@ -264,13 +279,24 @@ m2Polygon m2MakePolygon(const m2Vec2* points, int32_t count, float radius)
     return polygon;
 }
 
+m2Result m2MakePolygon(const m2Vec2* points, int32_t count, float radius, m2Polygon* polygonOut)
+{
+    m2Polygon polygon = BuildPolygon(points, count, radius);
+    if (polygonOut == NULL || polygon.count == 0)
+    {
+        return m2_errorInvalid;
+    }
+    *polygonOut = polygon;
+    return m2_success;
+}
+
 m2Polygon m2MakeBox(float halfWidth, float halfHeight)
 {
     m2Vec2 points[4] = {{-halfWidth, -halfHeight},
                         {halfWidth, -halfHeight},
                         {halfWidth, halfHeight},
                         {-halfWidth, halfHeight}};
-    return m2MakePolygon(points, 4, 0.0f);
+    return BuildPolygon(points, 4, 0.0f);
 }
 
 // --- World-space AABBs (rotation-aware; f64 crossing at body position) -------
@@ -284,6 +310,7 @@ static m2Pos2 WorldPoint(m2Transform xf, m2Vec2 local)
     return (m2Pos2){xf.p.x + (double)x, xf.p.y + (double)y};
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): numeric kernel, fixed order
 m2Aabb m2ComputeShapeAabb(const m2ShapeGeometry* geometry, m2Transform xf)
 {
     m2Aabb aabb;
@@ -535,12 +562,14 @@ static bool DecompSegmentsCross(m2Vec2 a, m2Vec2 b, m2Vec2 c, m2Vec2 d)
     return false;
 }
 
-int32_t m2DecomposeOutline(const m2Vec2* points, int32_t count, m2Polygon* pieces, int32_t capacity)
+// The decomposition behind m2DecomposeOutline: the true piece total, or
+// -1 for an outline it refuses.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): numeric kernel, fixed order
+static int32_t Decompose(const m2Vec2* points, int32_t count, m2Polygon* pieces, int32_t capacity)
 {
     if (points == NULL || count < 3 || count > M2_MAX_OUTLINE || capacity < 0)
     {
-        m2SetLastResult(m2_errorInvalid);
-        return 0;
+        return -1;
     }
     float area2 = 0.0f;
     for (int32_t i = 0; i < count; ++i)
@@ -548,16 +577,14 @@ int32_t m2DecomposeOutline(const m2Vec2* points, int32_t count, m2Polygon* piece
         m2Vec2 p = points[i];
         if (!m2FiniteF(p.x) || !m2FiniteF(p.y))
         {
-            m2SetLastResult(m2_errorInvalid);
-            return 0;
+            return -1;
         }
         m2Vec2 q = points[(i + 1) % count];
         area2 += p.x * q.y - q.x * p.y;
     }
     if (!(area2 > 0.0f))
     {
-        m2SetLastResult(m2_errorInvalid); // clockwise or degenerate outline
-        return 0;
+        return -1; // clockwise or degenerate outline
     }
     for (int32_t i = 0; i < count; ++i)
     {
@@ -571,8 +598,7 @@ int32_t m2DecomposeOutline(const m2Vec2* points, int32_t count, m2Polygon* piece
             if (DecompSegmentsCross(points[i], points[(i + 1) % count], points[j],
                                     points[(j + 1) % count]))
             {
-                m2SetLastResult(m2_errorInvalid); // self-intersecting outline
-                return 0;
+                return -1; // self-intersecting outline
             }
         }
     }
@@ -627,8 +653,7 @@ int32_t m2DecomposeOutline(const m2Vec2* points, int32_t count, m2Polygon* piece
         }
         if (bestPos < 0)
         {
-            m2SetLastResult(m2_errorInvalid); // no ear: numerically hostile outline
-            return 0;
+            return -1; // no ear: numerically hostile outline
         }
         if (!degenerate)
         {
@@ -738,7 +763,7 @@ int32_t m2DecomposeOutline(const m2Vec2* points, int32_t count, m2Polygon* piece
         {
             verts[k] = points[work[i].idx[k]];
         }
-        m2Polygon piece = m2MakePolygon(verts, work[i].n, 0.0f);
+        m2Polygon piece = BuildPolygon(verts, work[i].n, 0.0f);
         if (piece.count == 0)
         {
             continue;
@@ -750,6 +775,18 @@ int32_t m2DecomposeOutline(const m2Vec2* points, int32_t count, m2Polygon* piece
         total += 1;
     }
     return total;
+}
+
+m2Result m2DecomposeOutline(const m2Vec2* points, int32_t count, m2Polygon* pieces,
+                            int32_t capacity, int32_t* countOut)
+{
+    int32_t total = countOut != NULL ? Decompose(points, count, pieces, capacity) : -1;
+    if (total < 0)
+    {
+        return m2_errorInvalid;
+    }
+    *countOut = total;
+    return m2_success;
 }
 
 // Area of a shape's core, used by the buoyancy fallback for capsules

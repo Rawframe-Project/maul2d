@@ -8,6 +8,7 @@
 // never move the world hash; and a query storm's results hash
 // identically across CI cells.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul2d/base.h"
@@ -18,24 +19,24 @@
 #include <stdlib.h>
 #include <string.h>
 
-static m2ShapeId AddStaticBox(m2WorldId world, double x, double y, float hw, float hh)
+static m2ShapeId AddStaticBox(m2World* world, double x, double y, float hw, float hh)
 {
     m2BodyDef bd = m2DefaultBodyDef();
     bd.position = (m2Pos2){x, y};
-    m2BodyId body = m2CreateBody(world, &bd);
+    m2BodyId body = NewBody(world, &bd);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Polygon box = m2MakeBox(hw, hh);
-    return m2CreatePolygonShape(body, &sd, &box);
+    return NewPolygonShape(world, body, &sd, &box);
 }
 
-static m2ShapeId AddStaticCircle(m2WorldId world, double x, double y, float radius)
+static m2ShapeId AddStaticCircle(m2World* world, double x, double y, float radius)
 {
     m2BodyDef bd = m2DefaultBodyDef();
     bd.position = (m2Pos2){x, y};
-    m2BodyId body = m2CreateBody(world, &bd);
+    m2BodyId body = NewBody(world, &bd);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Circle c = {{0.0f, 0.0f}, radius};
-    return m2CreateCircleShape(body, &sd, &c);
+    return NewCircleShape(world, body, &sd, &c);
 }
 
 static bool SameShape(m2ShapeId a, m2ShapeId b)
@@ -52,13 +53,13 @@ static void TestShapeCastsAndOverlaps(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 32;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyDef gd = m2DefaultBodyDef();
     gd.position = (m2Pos2){0.0, -0.5};
-    m2BodyId ground = m2CreateBody(world, &gd);
+    m2BodyId ground = NewBody(world, &gd);
     m2ShapeDef gs = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(10.0f, 0.5f); // top face at y = 0
-    m2ShapeId floor = m2CreatePolygonShape(ground, &gs, &slab);
+    m2ShapeId floor = NewPolygonShape(world, ground, &gs, &slab);
 
     m2Transform pose = {{0.0, 5.0}, {1.0f, 0.0f}};
     m2QueryFilter all = m2DefaultQueryFilter();
@@ -101,12 +102,12 @@ static void TestShapeCastsAndOverlaps(void)
     // through; from above, it lands.
     m2BodyDef cd = m2DefaultBodyDef();
     cd.position = (m2Pos2){30.0, 0.0};
-    m2BodyId shelfBody = m2CreateBody(world, &cd);
+    m2BodyId shelfBody = NewBody(world, &cd);
     m2Vec2 pts[5] = {{4.0f, 2.0f}, {2.0f, 2.0f}, {0.0f, 2.0f}, {-2.0f, 2.0f}, {-4.0f, 2.0f}};
     m2ChainDef chain = m2DefaultChainDef();
     chain.points = pts;
     chain.count = 5;
-    m2CreateChain(shelfBody, &chain);
+    NewChain(world, shelfBody, &chain);
     m2Transform below = {{30.0, -2.0}, {1.0f, 0.0f}};
     m2RayCastResult rising =
         m2World_CastCircleClosest(world, &ball, below, (m2Vec2){0.0f, 8.0f}, all);
@@ -121,10 +122,10 @@ static void TestShapeCastsAndOverlaps(void)
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){0.0, 0.45};
-    m2BodyId box = m2CreateBody(world, &bd);
+    m2BodyId box = NewBody(world, &bd);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Polygon unit = m2MakeBox(0.4f, 0.4f);
-    m2ShapeId boxShape = m2CreatePolygonShape(box, &sd, &unit);
+    m2ShapeId boxShape = NewPolygonShape(world, box, &sd, &unit);
     m2Transform probe = {{0.0, 0.2}, {1.0f, 0.0f}};
     m2Circle area = {{0.0f, 0.0f}, 1.0f};
     CHECK(m2World_OverlapCircle(world, &area, probe, NULL, 0, all) == 2,
@@ -154,7 +155,7 @@ static void TestAllHits(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 32;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2QueryFilter all = m2DefaultQueryFilter();
 
     // Three walls in a row.
@@ -163,10 +164,10 @@ static void TestAllHits(void)
     {
         m2BodyDef bd = m2DefaultBodyDef();
         bd.position = (m2Pos2){2.0 + (double)i * 3.0, 0.0};
-        m2BodyId post = m2CreateBody(world, &bd);
+        m2BodyId post = NewBody(world, &bd);
         m2ShapeDef sd = m2DefaultShapeDef();
         m2Polygon slab = m2MakeBox(0.3f, 2.0f);
-        walls[i] = m2CreatePolygonShape(post, &sd, &slab);
+        walls[i] = NewPolygonShape(world, post, &sd, &slab);
     }
     m2RayHit hits[8];
     int32_t n = m2World_CastRayAll(world, (m2Pos2){-2.0, 0.0}, (m2Vec2){12.0f, 0.0f}, hits, 8, all);
@@ -197,12 +198,12 @@ static void TestAllHits(void)
     // One-sided chain: rising sweeps never count it, diving ones do.
     m2BodyDef cd = m2DefaultBodyDef();
     cd.position = (m2Pos2){20.0, 0.0};
-    m2BodyId shelfBody = m2CreateBody(world, &cd);
+    m2BodyId shelfBody = NewBody(world, &cd);
     m2Vec2 pts[5] = {{2.5f, 2.0f}, {1.2f, 2.0f}, {0.0f, 2.0f}, {-1.2f, 2.0f}, {-2.5f, 2.0f}};
     m2ChainDef chain = m2DefaultChainDef();
     chain.points = pts;
     chain.count = 5;
-    m2CreateChain(shelfBody, &chain);
+    NewChain(world, shelfBody, &chain);
     m2Transform below = {{20.0, -1.0}, {1.0f, 0.0f}};
     CHECK(m2World_CastCircleAll(world, &ball, below, (m2Vec2){0.0f, 6.0f}, NULL, 0, all) == 0,
           "rising sweeps ghost through the shelf");
@@ -222,21 +223,21 @@ static void TestMoverKit(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 32;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2QueryFilter all = m2DefaultQueryFilter();
 
     // A floor and a wall meeting at the origin corner.
     m2BodyDef gd = m2DefaultBodyDef();
     gd.position = (m2Pos2){0.0, -0.5};
-    m2BodyId floor = m2CreateBody(world, &gd);
+    m2BodyId floor = NewBody(world, &gd);
     m2ShapeDef fs = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(8.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
+    NewPolygonShape(world, floor, &fs, &slab);
     m2BodyDef wd = m2DefaultBodyDef();
     wd.position = (m2Pos2){4.5, 2.0};
-    m2BodyId wall = m2CreateBody(world, &wd);
+    m2BodyId wall = NewBody(world, &wd);
     m2Polygon post = m2MakeBox(0.5f, 2.5f);
-    m2CreatePolygonShape(wall, &fs, &post);
+    NewPolygonShape(world, wall, &fs, &post);
 
     // A capsule mover standing on the floor near the wall.
     m2Capsule mover = {{0.0f, -0.4f}, {0.0f, 0.4f}, 0.3f};
@@ -297,12 +298,12 @@ static void TestMoverKit(void)
     // it collects the shelf.
     m2BodyDef cd = m2DefaultBodyDef();
     cd.position = (m2Pos2){-4.0, 2.0};
-    m2BodyId shelfBody = m2CreateBody(world, &cd);
+    m2BodyId shelfBody = NewBody(world, &cd);
     m2Vec2 pts[5] = {{2.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 0.0f}, {-1.0f, 0.0f}, {-2.0f, 0.0f}};
     m2ChainDef chain = m2DefaultChainDef();
     chain.points = pts;
     chain.count = 5;
-    m2CreateChain(shelfBody, &chain);
+    NewChain(world, shelfBody, &chain);
     m2Transform under = {{-4.5, 1.3}, {1.0f, 0.0f}};
     CHECK(m2World_CollideMover(world, &mover, under, NULL, 0, all) == 0,
           "under the shelf the mover is a ghost");
@@ -318,7 +319,7 @@ static void TestRayClosest(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
 
     // Three walls along +x; the ray must pick the nearest.
     AddStaticBox(world, 8.0, 0.0, 0.5, 2.0);
@@ -358,14 +359,14 @@ static void TestRayGeometries(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
 
     m2BodyDef bd = m2DefaultBodyDef();
     bd.position = (m2Pos2){0.0, 0.0};
-    m2BodyId body = m2CreateBody(world, &bd);
+    m2BodyId body = NewBody(world, &bd);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Capsule capsule = {{-1.0f, 0.0f}, {1.0f, 0.0f}, 0.5f};
-    m2CreateCapsuleShape(body, &sd, &capsule);
+    NewCapsuleShape(world, body, &sd, &capsule);
 
     m2RayCastResult hit = m2World_CastRayClosest(world, (m2Pos2){0.0, 5.0}, (m2Vec2){0.0f, -10.0f},
                                                  m2DefaultQueryFilter());
@@ -374,9 +375,9 @@ static void TestRayGeometries(void)
 
     m2BodyDef gd = m2DefaultBodyDef();
     gd.position = (m2Pos2){10.0, 0.0};
-    m2BodyId ground = m2CreateBody(world, &gd);
+    m2BodyId ground = NewBody(world, &gd);
     m2Segment segment = {{-2.0f, 0.0f}, {2.0f, 0.0f}};
-    m2CreateSegmentShape(ground, &sd, &segment);
+    NewSegmentShape(world, ground, &sd, &segment);
 
     m2RayCastResult seg = m2World_CastRayClosest(world, (m2Pos2){10.0, 3.0}, (m2Vec2){0.0f, -6.0f},
                                                  m2DefaultQueryFilter());
@@ -392,7 +393,7 @@ static void TestRayFarFromOrigin(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
 
     double bx = 3.0e5;
     AddStaticBox(world, bx + 4.0, 0.0, 0.5, 2.0);
@@ -411,7 +412,7 @@ static void TestOverlap(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
 
     m2ShapeId a = AddStaticBox(world, 0.0, 0.0, 0.5, 0.5);
     m2ShapeId b = AddStaticBox(world, 2.0, 0.0, 0.5, 0.5);
@@ -447,23 +448,23 @@ static void TestQueriesAreReadOnly(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 32;
     def.shapeCapacity = 32;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
 
     m2BodyDef fd = m2DefaultBodyDef();
     fd.position = (m2Pos2){0.0, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
+    m2BodyId floor = NewBody(world, &fd);
     m2ShapeDef fs = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(10.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
+    NewPolygonShape(world, floor, &fs, &slab);
     for (int32_t i = 0; i < 8; ++i)
     {
         m2BodyDef bd = m2DefaultBodyDef();
         bd.type = m2_dynamicBody;
         bd.position = (m2Pos2){-3.0 + 0.9 * (double)i, 1.0 + 0.5 * (double)(i % 3)};
-        m2BodyId body = m2CreateBody(world, &bd);
+        m2BodyId body = NewBody(world, &bd);
         m2ShapeDef sd = m2DefaultShapeDef();
         m2Circle circle = {{0.0f, 0.0f}, 0.3f};
-        m2CreateCircleShape(body, &sd, &circle);
+        NewCircleShape(world, body, &sd, &circle);
     }
     for (int32_t i = 0; i < 30; ++i)
     {
@@ -490,18 +491,18 @@ static void TestQueriesAreReadOnly(void)
     m2DestroyWorld(world);
 
     // Same scene, no query storm: identical trajectory.
-    world = m2CreateWorld(&def);
-    floor = m2CreateBody(world, &fd);
-    m2CreatePolygonShape(floor, &fs, &slab);
+    world = NewWorld(&def);
+    floor = NewBody(world, &fd);
+    NewPolygonShape(world, floor, &fs, &slab);
     for (int32_t i = 0; i < 8; ++i)
     {
         m2BodyDef bd = m2DefaultBodyDef();
         bd.type = m2_dynamicBody;
         bd.position = (m2Pos2){-3.0 + 0.9 * (double)i, 1.0 + 0.5 * (double)(i % 3)};
-        m2BodyId body = m2CreateBody(world, &bd);
+        m2BodyId body = NewBody(world, &bd);
         m2ShapeDef sd = m2DefaultShapeDef();
         m2Circle circle = {{0.0f, 0.0f}, 0.3f};
-        m2CreateCircleShape(body, &sd, &circle);
+        NewCircleShape(world, body, &sd, &circle);
     }
     for (int32_t i = 0; i < 50; ++i)
     {
@@ -519,22 +520,22 @@ static void TestQueryFilters(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
 
     m2BodyDef bd = m2DefaultBodyDef();
     bd.position = (m2Pos2){4.0, 0.0};
-    m2BodyId wallBody = m2CreateBody(world, &bd);
+    m2BodyId wallBody = NewBody(world, &bd);
     m2ShapeDef wallShape = m2DefaultShapeDef();
     wallShape.categoryBits = 0x2; // "wall"
     m2Polygon wall = m2MakeBox(0.5, 2.0f);
-    m2ShapeId wallId = m2CreatePolygonShape(wallBody, &wallShape, &wall);
+    m2ShapeId wallId = NewPolygonShape(world, wallBody, &wallShape, &wall);
 
     bd.position = (m2Pos2){2.0, 0.0};
-    m2BodyId ghostBody = m2CreateBody(world, &bd);
+    m2BodyId ghostBody = NewBody(world, &bd);
     m2ShapeDef ghostShape = m2DefaultShapeDef();
     ghostShape.categoryBits = 0x4; // "ghost"
     m2Circle ghost = {{0.0f, 0.0f}, 0.4f};
-    m2CreateCircleShape(ghostBody, &ghostShape, &ghost);
+    NewCircleShape(world, ghostBody, &ghostShape, &ghost);
 
     // Walls-only ray passes through the ghost and hits the wall.
     m2QueryFilter wallsOnly = {1u, 0x2u};
@@ -562,20 +563,20 @@ static void TestContactData(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyDef fd = m2DefaultBodyDef();
     fd.position = (m2Pos2){0.0, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
+    m2BodyId floor = NewBody(world, &fd);
     m2ShapeDef fs = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(5.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
+    NewPolygonShape(world, floor, &fs, &slab);
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){0.0, 0.45};
-    m2BodyId box = m2CreateBody(world, &bd);
+    m2BodyId box = NewBody(world, &bd);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Polygon unit = m2MakeBox(0.4f, 0.4f);
-    m2CreatePolygonShape(box, &sd, &unit);
+    NewPolygonShape(world, box, &sd, &unit);
 
     for (int32_t i = 0; i < 60; ++i)
     {
@@ -608,15 +609,15 @@ static void TestAllHitsBeyondSixtyFour(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = POSTS + 4;
     def.shapeCapacity = POSTS + 4;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     for (int32_t i = 0; i < POSTS; ++i)
     {
         m2BodyDef bd = m2DefaultBodyDef();
         bd.position = (m2Pos2){1.0 + (double)i, 0.0};
-        m2BodyId post = m2CreateBody(world, &bd);
+        m2BodyId post = NewBody(world, &bd);
         m2ShapeDef sd = m2DefaultShapeDef();
         m2Polygon slab = m2MakeBox(0.1f, 1.0f);
-        m2CreatePolygonShape(post, &sd, &slab);
+        NewPolygonShape(world, post, &sd, &slab);
     }
     static m2RayHit hits[128];
     m2Circle ball = {{0.0f, 0.0f}, 0.2f};
@@ -642,17 +643,19 @@ static void TestAllHitsBeyondSixtyFour(void)
 static void TestRayInsideRoundedPolygon(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyDef bd = m2DefaultBodyDef();
-    m2BodyId body = m2CreateBody(world, &bd);
+    m2BodyId body = NewBody(world, &bd);
     m2Vec2 square[4] = {{-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f}, {-1.0f, 1.0f}};
-    m2Polygon rounded = m2MakePolygon(square, 4, 0.5f);
+    m2Polygon rounded = MakePolygon(square, 4, 0.5f);
     m2ShapeDef sd = m2DefaultShapeDef();
-    m2ShapeId shape = m2CreatePolygonShape(body, &sd, &rounded);
-    m2RayCastResult inside = m2Shape_CastRay(shape, (m2Pos2){0.0, 0.0}, (m2Vec2){5.0f, 0.0f});
+    m2ShapeId shape = NewPolygonShape(world, body, &sd, &rounded);
+    m2RayCastResult inside =
+        m2Shape_CastRay(world, shape, (m2Pos2){0.0, 0.0}, (m2Vec2){5.0f, 0.0f});
     CHECK(inside.hit && inside.fraction == 0.0f, "a ray from inside hits at its start");
     CHECK(inside.normal.x == 0.0f && inside.normal.y == 0.0f, "with no normal");
-    m2RayCastResult corner = m2Shape_CastRay(shape, (m2Pos2){3.0, 3.0}, (m2Vec2){-3.0f, -3.0f});
+    m2RayCastResult corner =
+        m2Shape_CastRay(world, shape, (m2Pos2){3.0, 3.0}, (m2Vec2){-3.0f, -3.0f});
     double expected = 1.0 + 0.5 * 0.70710678;
     CHECK(corner.hit && fabs(corner.point.x - expected) < 1.0e-4 &&
               fabs(corner.point.y - expected) < 1.0e-4,

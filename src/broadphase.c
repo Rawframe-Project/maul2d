@@ -105,6 +105,7 @@ static bool MoverSeesTree(const m2World* world, int32_t shapeIndex, int32_t tree
            tree == (int32_t)m2_dynamicBody;
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): numeric kernel, fixed order
 void m2UpdatePairs(m2World* world)
 {
     world->contacts.pairOverflow = 0;

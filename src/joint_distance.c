@@ -12,7 +12,6 @@
 #include "object_ids.h"
 #include "solver_base.h"
 #include "world_internal.h"
-#include "world_registry.h"
 
 #include "maul2d/base.h"
 
@@ -37,26 +36,36 @@ static bool DefValid(const m2DistanceJointDef* def)
            m2JointGain(def->dampingRatio);
 }
 
-m2JointId m2CreateDistanceJoint(m2WorldId worldId, const m2DistanceJointDef* def)
+m2Result m2CreateDistanceJoint(m2World* world, const m2DistanceJointDef* def, m2JointId* jointOut)
 {
-    m2World* world = m2GetWorld(worldId);
-    if (world == NULL || def == NULL || def->internalValue != M2_DJOINT_COOKIE || !DefValid(def))
+    if (jointOut == NULL)
     {
-        m2Refuse(world, m2_errorInvalid);
-        return m2_nullJointId;
+        return m2Refuse(world, m2_errorInvalid);
+    }
+    *jointOut = m2_nullJointId;
+    m2Result writer = m2CheckWriter(world);
+    if (writer != m2_success)
+    {
+        return writer;
+    }
+    if (def == NULL || def->internalValue != M2_DJOINT_COOKIE || !DefValid(def))
+    {
+        return m2Refuse(world, m2_errorInvalid);
     }
     int32_t bodyA = m2BodySlot(world, def->bodyIdA);
     int32_t bodyB = m2BodySlot(world, def->bodyIdB);
-    if (bodyA < 0 || bodyB < 0 || bodyA == bodyB)
+    if (bodyA < 0 || bodyB < 0)
     {
-        m2Refuse(world, m2_errorInvalid);
-        return m2_nullJointId;
+        return m2Refuse(world, m2_errorStale);
+    }
+    if (bodyA == bodyB)
+    {
+        return m2Refuse(world, m2_errorInvalid);
     }
     int32_t index = m2AllocateJoint(world);
     if (index < 0)
     {
-        m2Refuse(world, m2_errorCapacity);
-        return m2_nullJointId;
+        return m2Refuse(world, m2_errorCapacity);
     }
     float length = def->length;
     if (!(length > 0.0f))
@@ -97,17 +106,26 @@ m2JointId m2CreateDistanceJoint(m2WorldId worldId, const m2DistanceJointDef* def
         record.expected = jointId;
         m2JournalRecord(world, m2_opCreateDistanceJoint, &record, (int32_t)sizeof(record));
     }
-    return jointId;
+    *jointOut = jointId;
+    return m2_success;
 }
 
-void m2DistanceJoint_SetLength(m2JointId jointId, float length)
+void m2DistanceJoint_SetLength(m2World* world, m2JointId jointId, float length)
 {
-    m2SetJointParamInternal(m2WorldFromTag(jointId.world), jointId, m2_jointParamLength, length);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
+    m2SetJointParamInternal(world, jointId, m2_jointParamLength, length);
 }
 
-void m2DistanceJoint_SetLengthRange(m2JointId jointId, float minLength, float maxLength)
+void m2DistanceJoint_SetLengthRange(m2World* world, m2JointId jointId, float minLength,
+                                    float maxLength)
 {
-    m2World* world = m2WorldFromTag(jointId.world);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     if (!m2FiniteF(minLength) || !m2FiniteF(maxLength))
     {
         m2Refuse(world, m2_errorInvalid);

@@ -13,7 +13,6 @@
 #include "object_ids.h"
 #include "solver_base.h"
 #include "world_internal.h"
-#include "world_registry.h"
 
 #include "maul2d/base.h"
 
@@ -46,26 +45,36 @@ static bool DefValid(const m2MotorJointDef* def)
            m2JointGain(def->hertz) && m2JointGain(def->dampingRatio);
 }
 
-m2JointId m2CreateMotorJoint(m2WorldId worldId, const m2MotorJointDef* def)
+m2Result m2CreateMotorJoint(m2World* world, const m2MotorJointDef* def, m2JointId* jointOut)
 {
-    m2World* world = m2GetWorld(worldId);
-    if (world == NULL || def == NULL || def->internalValue != M2_MOJOINT_COOKIE || !DefValid(def))
+    if (jointOut == NULL)
     {
-        m2Refuse(world, m2_errorInvalid);
-        return m2_nullJointId;
+        return m2Refuse(world, m2_errorInvalid);
+    }
+    *jointOut = m2_nullJointId;
+    m2Result writer = m2CheckWriter(world);
+    if (writer != m2_success)
+    {
+        return writer;
+    }
+    if (def == NULL || def->internalValue != M2_MOJOINT_COOKIE || !DefValid(def))
+    {
+        return m2Refuse(world, m2_errorInvalid);
     }
     int32_t bodyA = m2BodySlot(world, def->bodyIdA);
     int32_t bodyB = m2BodySlot(world, def->bodyIdB);
-    if (bodyA < 0 || bodyB < 0 || bodyA == bodyB)
+    if (bodyA < 0 || bodyB < 0)
     {
-        m2Refuse(world, m2_errorInvalid);
-        return m2_nullJointId;
+        return m2Refuse(world, m2_errorStale);
+    }
+    if (bodyA == bodyB)
+    {
+        return m2Refuse(world, m2_errorInvalid);
     }
     int32_t index = m2AllocateJoint(world);
     if (index < 0)
     {
-        m2Refuse(world, m2_errorCapacity);
-        return m2_nullJointId;
+        return m2Refuse(world, m2_errorCapacity);
     }
     m2Vec2 zero = {0.0f, 0.0f};
     m2JointId jointId = m2FinishJoint(world, index, (uint8_t)m2_motorJoint, bodyA, bodyB, zero,
@@ -94,12 +103,17 @@ m2JointId m2CreateMotorJoint(m2WorldId worldId, const m2MotorJointDef* def)
         record.expected = jointId;
         m2JournalRecord(world, m2_opCreateMotorJoint, &record, (int32_t)sizeof(record));
     }
-    return jointId;
+    *jointOut = jointId;
+    return m2_success;
 }
 
-void m2MotorJoint_SetOffsets(m2JointId jointId, m2Vec2 linearOffset, float angularOffset)
+void m2MotorJoint_SetOffsets(m2World* world, m2JointId jointId, m2Vec2 linearOffset,
+                             float angularOffset)
 {
-    m2World* world = m2WorldFromTag(jointId.world);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
     if (index < 0)
     {
@@ -128,31 +142,27 @@ void m2MotorJoint_SetOffsets(m2JointId jointId, m2Vec2 linearOffset, float angul
     m2WakeIfDynamic(world, bodyB);
 }
 
-m2Vec2 m2MotorJoint_GetLinearOffset(m2JointId jointId)
+m2Vec2 m2MotorJoint_GetLinearOffset(const m2World* world, m2JointId jointId)
 {
-    m2World* world = m2WorldFromTag(jointId.world);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
     m2Vec2 zero = {0.0f, 0.0f};
     return index >= 0 ? world->joints.jointLocalAxisA[index] : zero;
 }
 
-float m2MotorJoint_GetAngularOffset(m2JointId jointId)
+float m2MotorJoint_GetAngularOffset(const m2World* world, m2JointId jointId)
 {
-    m2World* world = m2WorldFromTag(jointId.world);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
     return index >= 0 ? world->joints.jointRefAngle[index] : 0.0f;
 }
 
-float m2MotorJoint_GetMaxForce(m2JointId jointId)
+float m2MotorJoint_GetMaxForce(const m2World* world, m2JointId jointId)
 {
-    m2World* world = m2WorldFromTag(jointId.world);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
     return index >= 0 ? world->joints.jointLength[index] : 0.0f;
 }
 
-float m2MotorJoint_GetCorrectionFactor(m2JointId jointId)
+float m2MotorJoint_GetCorrectionFactor(const m2World* world, m2JointId jointId)
 {
-    m2World* world = m2WorldFromTag(jointId.world);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
     return index >= 0 ? world->joints.jointDamping[index] : 0.0f;
 }

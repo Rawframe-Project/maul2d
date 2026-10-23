@@ -18,9 +18,8 @@ extern "C"
 
     typedef struct m2ShapeId
     {
-        int32_t index1; // 1-based, 0 = null
-        uint16_t world;
-        uint16_t generation;
+        uint32_t index1; // 1-based slot, 0 = null
+        uint32_t generation;
     } m2ShapeId;
 
     /// All geometry is authored in body-local space, in 32-bit floats.
@@ -105,9 +104,8 @@ extern "C"
     /// need count >= 3 and wrap. Cloned; the array may be temporary.
     typedef struct m2ChainId
     {
-        int32_t index1; // 1-based, 0 = null
-        uint16_t world;
-        uint16_t generation;
+        uint32_t index1; // 1-based slot, 0 = null
+        uint32_t generation;
     } m2ChainId;
 
     typedef struct m2ChainDef
@@ -126,43 +124,55 @@ extern "C"
 
     M2_API m2ChainDef m2DefaultChainDef(void);
 
-    /// Creates the chain's segment shapes on the body and returns the
-    /// chain's id (null on failure). The id names the whole group:
-    /// m2DestroyChain removes every segment at once, ends their
+    /// Creates the chain's segment shapes on the body: m2_errorStale for a
+    /// body that is gone, m2_errorInvalid for a bad def, m2_errorCapacity
+    /// when the chain or shape pool has no room at all. A shape pool that
+    /// runs out midway leaves a shorter chain, which
+    /// m2Chain_GetSegmentCount reports. On failure *chainOut is the null
+    /// id. The id names the whole
+    /// group: m2DestroyChain removes every segment at once, ends their
     /// contacts, and wakes whoever was resting on them. Destroying the
     /// body also retires the chain id. Journaled. Thread class: writer.
-    M2_API m2ChainId m2CreateChain(m2BodyId bodyId, const m2ChainDef* def);
-    M2_API void m2DestroyChain(m2ChainId chainId);
-    M2_API bool m2Chain_IsValid(m2ChainId chainId);
-    M2_API int32_t m2Chain_GetSegmentCount(m2ChainId chainId);
+    M2_NODISCARD M2_API m2Result m2CreateChain(m2World* world, m2BodyId bodyId,
+                                               const m2ChainDef* def, m2ChainId* chainOut);
+    /// Destroys a chain; m2_errorStale when it is already gone.
+    /// Thread class: writer.
+    M2_NODISCARD M2_API m2Result m2DestroyChain(m2World* world, m2ChainId chainId);
+    M2_API bool m2Chain_IsValid(const m2World* world, m2ChainId chainId);
+    M2_API int32_t m2Chain_GetSegmentCount(const m2World* world, m2ChainId chainId);
 
-    static const m2ChainId m2_nullChainId = {0, 0, 0};
+    static const m2ChainId m2_nullChainId = {0, 0};
 
     M2_API m2ShapeDef m2DefaultShapeDef(void);
 
-    /// Validated constructors. Thresholds are relative to the shape's
-    /// size; a returned polygon with count == 0 means the input was
-    /// refused.
-    M2_API m2Polygon m2MakePolygon(const m2Vec2* points, int32_t count, float radius);
+    /// Builds a polygon from convex, counter-clockwise points. Thresholds
+    /// are relative to the shape's size. m2_errorInvalid for input that is
+    /// not a valid polygon; *polygonOut is then left as it was.
+    /// Thread class: reader (pure).
+    M2_NODISCARD M2_API m2Result m2MakePolygon(const m2Vec2* points, int32_t count, float radius,
+                                               m2Polygon* polygonOut);
 
     /// Convex hull of a loose point cloud (welding, collinear
     /// merging, deterministic quickhull): the doorway from sprite
-    /// outlines to collision shapes. Degenerate input returns a
-    /// polygon with count == 0, the loud-invalid convention.
-    M2_API m2Polygon m2ComputeHull(const m2Vec2* points, int32_t count, float radius);
+    /// outlines to collision shapes. m2_errorInvalid for degenerate input;
+    /// *polygonOut is then left as it was. Thread class: reader (pure).
+    M2_NODISCARD M2_API m2Result m2ComputeHull(const m2Vec2* points, int32_t count, float radius,
+                                               m2Polygon* polygonOut);
 
     /// Split a simple counter-clockwise outline (up to 64 points, no
     /// self-intersections, no holes) into convex pieces of at most 8
     /// vertices each: the road from a sprite outline to destructible
-    /// bodies. Fills up to capacity pieces and returns the truthful
-    /// total (the enumeration contract). Refuses invalid input (too
-    /// few or too many points, clockwise winding, self-intersection,
-    /// non-finite coordinates) by returning 0. Near-zero-area
+    /// bodies. Fills up to capacity pieces and sets *countOut to the
+    /// true total, which may exceed capacity (the enumeration contract).
+    /// Refuses invalid input (too few or too many points, clockwise
+    /// winding, self-intersection, non-finite coordinates) with
+    /// m2_errorInvalid, leaving *countOut as it was. Near-zero-area
     /// sliver pieces are welded away by validation and skipped; clean
     /// outlines lose nothing. Pure math, no world required.
     /// Thread class: reader (pure).
-    M2_API int32_t m2DecomposeOutline(const m2Vec2* points, int32_t count, m2Polygon* pieces,
-                                      int32_t capacity);
+    M2_NODISCARD M2_API m2Result m2DecomposeOutline(const m2Vec2* points, int32_t count,
+                                                    m2Polygon* pieces, int32_t capacity,
+                                                    int32_t* countOut);
 
     /// Break a dynamic body into one new dynamic body per piece, all
     /// at the parent's pose, each inheriting the parent's rigid
@@ -174,104 +184,118 @@ extern "C"
     /// road. All-or-nothing: if body or shape capacity cannot seat
     /// every piece the call returns 0 and changes nothing (a full
     /// pool is a runtime fact). One journal op replays the whole
-    /// shatter. Fills outBodies up to capacity, returns the piece
+    /// shatter. Fills bodiesOut up to capacity, returns the piece
     /// count. Thread class: writer.
-    M2_API int32_t m2World_ShatterBody(m2BodyId bodyId, const m2Polygon* pieces, int32_t pieceCount,
-                                       m2BodyId* outBodies, int32_t capacity);
+    M2_API int32_t m2World_ShatterBody(m2World* world, m2BodyId bodyId, const m2Polygon* pieces,
+                                       int32_t pieceCount, m2BodyId* bodiesOut, int32_t capacity);
     M2_API m2Polygon m2MakeBox(float halfWidth, float halfHeight);
 
-    /// Attach a shape to a body. Validation failure or exhausted capacity
-    /// returns the null id; nothing is half-constructed. Dynamic bodies
-    /// recompute mass from all attached shapes (explicit override comes
-    /// with the solver slice). Thread class: writer.
-    M2_API m2ShapeId m2CreateCircleShape(m2BodyId bodyId, const m2ShapeDef* def,
-                                         const m2Circle* circle);
-    M2_API m2ShapeId m2CreateCapsuleShape(m2BodyId bodyId, const m2ShapeDef* def,
-                                          const m2Capsule* capsule);
-    M2_API m2ShapeId m2CreatePolygonShape(m2BodyId bodyId, const m2ShapeDef* def,
-                                          const m2Polygon* polygon);
-    M2_API m2ShapeId m2CreateSegmentShape(m2BodyId bodyId, const m2ShapeDef* def,
-                                          const m2Segment* segment);
+    /// Attach a shape to a body: m2_errorStale for a body that is gone,
+    /// m2_errorInvalid for a bad def or geometry, m2_errorCapacity when the
+    /// shape pool is full. On failure *shapeOut is the null id and nothing
+    /// is half-constructed. Dynamic bodies recompute mass from all attached
+    /// shapes. Thread class: writer.
+    M2_NODISCARD M2_API m2Result m2CreateCircleShape(m2World* world, m2BodyId bodyId,
+                                                     const m2ShapeDef* def, const m2Circle* circle,
+                                                     m2ShapeId* shapeOut);
+    M2_NODISCARD M2_API m2Result m2CreateCapsuleShape(m2World* world, m2BodyId bodyId,
+                                                      const m2ShapeDef* def,
+                                                      const m2Capsule* capsule,
+                                                      m2ShapeId* shapeOut);
+    M2_NODISCARD M2_API m2Result m2CreatePolygonShape(m2World* world, m2BodyId bodyId,
+                                                      const m2ShapeDef* def,
+                                                      const m2Polygon* polygon,
+                                                      m2ShapeId* shapeOut);
+    M2_NODISCARD M2_API m2Result m2CreateSegmentShape(m2World* world, m2BodyId bodyId,
+                                                      const m2ShapeDef* def,
+                                                      const m2Segment* segment,
+                                                      m2ShapeId* shapeOut);
 
-    M2_API bool m2Shape_IsValid(m2ShapeId shapeId);
+    M2_API bool m2Shape_IsValid(const m2World* world, m2ShapeId shapeId);
 
     /// Destroys one shape: touching contacts end (bookended into the
     /// next step's events), pairs are pruned, and the owning body's
-    /// mass and center of mass are recomputed. Thread class: writer.
-    M2_API void m2DestroyShape(m2ShapeId shapeId);
+    /// mass and center of mass are recomputed. m2_errorStale when the
+    /// shape is already gone. Thread class: writer.
+    M2_NODISCARD M2_API m2Result m2DestroyShape(m2World* world, m2ShapeId shapeId);
 
     /// Runtime material and filter tuning, journaled. Material changes
     /// apply the next time the contact is prepared; filter changes
     /// rebuild the shape's pairs immediately (ends are bookended) and
     /// wake whoever was touching it. Thread class: writer / reader.
-    M2_API void m2Shape_SetFriction(m2ShapeId shapeId, float friction);
-    M2_API void m2Shape_SetRestitution(m2ShapeId shapeId, float restitution);
+    M2_API void m2Shape_SetFriction(m2World* world, m2ShapeId shapeId, float friction);
+    M2_API void m2Shape_SetRestitution(m2World* world, m2ShapeId shapeId, float restitution);
     /// Conveyor surface speed along the contact tangent; the pair
     /// value is the SUM of both shapes. Journaled.
-    M2_API void m2Shape_SetTangentSpeed(m2ShapeId shapeId, float speed);
-    M2_API float m2Shape_GetTangentSpeed(m2ShapeId shapeId);
-    M2_API void m2Shape_SetFilter(m2ShapeId shapeId, uint64_t categoryBits, uint64_t maskBits,
-                                  int32_t groupIndex);
-    M2_API float m2Shape_GetFriction(m2ShapeId shapeId);
-    M2_API float m2Shape_GetRestitution(m2ShapeId shapeId);
-    M2_API m2ShapeType m2Shape_GetType(m2ShapeId shapeId);
-    M2_API bool m2Shape_IsSensor(m2ShapeId shapeId);
+    M2_API void m2Shape_SetTangentSpeed(m2World* world, m2ShapeId shapeId, float speed);
+    M2_API float m2Shape_GetTangentSpeed(const m2World* world, m2ShapeId shapeId);
+    M2_API void m2Shape_SetFilter(m2World* world, m2ShapeId shapeId, uint64_t categoryBits,
+                                  uint64_t maskBits, int32_t groupIndex);
+    M2_API float m2Shape_GetFriction(const m2World* world, m2ShapeId shapeId);
+    M2_API float m2Shape_GetRestitution(const m2World* world, m2ShapeId shapeId);
+    M2_API m2ShapeType m2Shape_GetType(const m2World* world, m2ShapeId shapeId);
+    M2_API bool m2Shape_IsSensor(const m2World* world, m2ShapeId shapeId);
     /// Reads the collision filter; any out pointer may be NULL.
-    M2_API void m2Shape_GetFilter(m2ShapeId shapeId, uint64_t* categoryBits, uint64_t* maskBits,
-                                  int32_t* groupIndex);
+    M2_API void m2Shape_GetFilter(const m2World* world, m2ShapeId shapeId,
+                                  uint64_t* categoryBitsOut, uint64_t* maskBitsOut,
+                                  int32_t* groupIndexOut);
 
     /// Geometry readback for editors and gizmos: the getter must
     /// match the shape's type (checked loudly). Returned structs are
     /// the exact stored bits, in the shape's body-local frame.
-    M2_API m2Circle m2Shape_GetCircle(m2ShapeId shapeId);
-    M2_API m2Capsule m2Shape_GetCapsule(m2ShapeId shapeId);
-    M2_API m2Polygon m2Shape_GetPolygon(m2ShapeId shapeId);
-    M2_API m2Segment m2Shape_GetSegment(m2ShapeId shapeId);
-    M2_API m2ChainSegment m2Shape_GetChainSegment(m2ShapeId shapeId);
-    M2_API float m2Shape_GetDensity(m2ShapeId shapeId);
+    M2_API m2Circle m2Shape_GetCircle(const m2World* world, m2ShapeId shapeId);
+    M2_API m2Capsule m2Shape_GetCapsule(const m2World* world, m2ShapeId shapeId);
+    M2_API m2Polygon m2Shape_GetPolygon(const m2World* world, m2ShapeId shapeId);
+    M2_API m2Segment m2Shape_GetSegment(const m2World* world, m2ShapeId shapeId);
+    M2_API m2ChainSegment m2Shape_GetChainSegment(const m2World* world, m2ShapeId shapeId);
+    M2_API float m2Shape_GetDensity(const m2World* world, m2ShapeId shapeId);
 
     /// Runtime geometry: replace a shape's geometry in place, type
     /// changes included. The owner's mass recomputes, touching
     /// partners wake (a floor shrinking under a sleeper is a
     /// teleport-class change), and the broadphase refreshes.
     /// Journaled. Thread class: writer.
-    M2_API void m2Shape_SetCircle(m2ShapeId shapeId, const m2Circle* circle);
-    M2_API void m2Shape_SetCapsule(m2ShapeId shapeId, const m2Capsule* capsule);
-    M2_API void m2Shape_SetPolygon(m2ShapeId shapeId, const m2Polygon* polygon);
-    M2_API void m2Shape_SetSegment(m2ShapeId shapeId, const m2Segment* segment);
+    M2_API void m2Shape_SetCircle(m2World* world, m2ShapeId shapeId, const m2Circle* circle);
+    M2_API void m2Shape_SetCapsule(m2World* world, m2ShapeId shapeId, const m2Capsule* capsule);
+    M2_API void m2Shape_SetPolygon(m2World* world, m2ShapeId shapeId, const m2Polygon* polygon);
+    M2_API void m2Shape_SetSegment(m2World* world, m2ShapeId shapeId, const m2Segment* segment);
 
     /// Enumeration walks, ascending slot order, truthful totals
     /// (same contract as m2World_OverlapAabb). Thread class: reader.
-    M2_API int32_t m2Body_GetShapes(m2BodyId bodyId, m2ShapeId* ids, int32_t capacity);
-    M2_API int32_t m2World_GetChains(m2WorldId worldId, m2ChainId* ids, int32_t capacity);
-    M2_API int32_t m2Chain_GetShapes(m2ChainId chainId, m2ShapeId* ids, int32_t capacity);
+    M2_API int32_t m2Body_GetShapes(const m2World* world, m2BodyId bodyId, m2ShapeId* ids,
+                                    int32_t capacity);
+    M2_API int32_t m2World_GetChains(const m2World* world, m2ChainId* ids, int32_t capacity);
+    M2_API int32_t m2Chain_GetShapes(const m2World* world, m2ChainId chainId, m2ShapeId* ids,
+                                     int32_t capacity);
 
     /// Runtime chain materials: applied to every link at once, one
     /// journal op each; takes effect at the next contact prepare,
     /// like the per-shape material setters. Thread class: writer.
-    M2_API m2WorldId m2Chain_GetWorld(m2ChainId chainId);
-    M2_API void m2Chain_SetFriction(m2ChainId chainId, float friction);
-    M2_API void m2Chain_SetRestitution(m2ChainId chainId, float restitution);
-    M2_API m2BodyId m2Shape_GetBody(m2ShapeId shapeId);
-    M2_API m2WorldId m2Shape_GetWorld(m2ShapeId shapeId);
-    M2_API m2ChainId m2Shape_GetParentChain(m2ShapeId shapeId); // null if free-standing
-    M2_API m2AabbResult m2Shape_GetAabb(m2ShapeId shapeId);     // tight, world space
+    M2_API void m2Chain_SetFriction(m2World* world, m2ChainId chainId, float friction);
+    M2_API void m2Chain_SetRestitution(m2World* world, m2ChainId chainId, float restitution);
+    M2_API m2BodyId m2Shape_GetBody(const m2World* world, m2ShapeId shapeId);
+    M2_API m2ChainId m2Shape_GetParentChain(const m2World* world,
+                                            m2ShapeId shapeId); // null if free-standing
+    M2_API m2AabbResult m2Shape_GetAabb(const m2World* world,
+                                        m2ShapeId shapeId); // tight, world space
 
     /// Point and ray queries against ONE shape. TestPoint counts
     /// touching within the engine's slop skin (the overlap law);
     /// GetClosestPoint returns the surface point nearest to the
     /// query, radius included; RayCast follows the world ray
     /// conventions including the one-sided chain law.
-    M2_API bool m2Shape_TestPoint(m2ShapeId shapeId, m2Pos2 point);
-    M2_API m2Pos2 m2Shape_GetClosestPoint(m2ShapeId shapeId, m2Pos2 point);
-    M2_API void m2Shape_SetDensity(m2ShapeId shapeId, float density); // journaled, mass recomputes
-    M2_API void m2Shape_SetUserData(m2ShapeId shapeId, uint64_t userData); // journaled
-    M2_API uint64_t m2Shape_GetUserData(m2ShapeId shapeId);
+    M2_API bool m2Shape_TestPoint(const m2World* world, m2ShapeId shapeId, m2Pos2 point);
+    M2_API m2Pos2 m2Shape_GetClosestPoint(const m2World* world, m2ShapeId shapeId, m2Pos2 point);
+    M2_API void m2Shape_SetDensity(m2World* world, m2ShapeId shapeId,
+                                   float density); // journaled, mass recomputes
+    M2_API void m2Shape_SetUserData(m2World* world, m2ShapeId shapeId,
+                                    uint64_t userData); // journaled
+    M2_API uint64_t m2Shape_GetUserData(const m2World* world, m2ShapeId shapeId);
 
     /// Body mass derived from attached shape densities (0 for non-dynamic).
-    M2_API float m2Body_GetMass(m2BodyId bodyId);
+    M2_API float m2Body_GetMass(const m2World* world, m2BodyId bodyId);
 
-    static const m2ShapeId m2_nullShapeId = {0, 0, 0};
+    static const m2ShapeId m2_nullShapeId = {0, 0};
 
     /// Query filtering mirrors contact filtering: a shape answers a
     /// query when each side's category intersects the other's mask.
@@ -299,9 +323,10 @@ extern "C"
 
     /// Closest hit along origin + t * translation, t in [0, 1].
     /// Thread class: reader.
-    M2_API m2RayCastResult m2World_CastRayClosest(m2WorldId worldId, m2Pos2 origin,
+    M2_API m2RayCastResult m2World_CastRayClosest(const m2World* world, m2Pos2 origin,
                                                   m2Vec2 translation, m2QueryFilter filter);
-    M2_API m2RayCastResult m2Shape_CastRay(m2ShapeId shapeId, m2Pos2 origin, m2Vec2 translation);
+    M2_API m2RayCastResult m2Shape_CastRay(const m2World* world, m2ShapeId shapeId, m2Pos2 origin,
+                                           m2Vec2 translation);
 
     /// Every hit along a ray or sweep, not just the first: results
     /// arrive in ascending fraction order (ties break to the lower
@@ -316,15 +341,15 @@ extern "C"
         float fraction;
     } m2RayHit;
 
-    M2_API int32_t m2World_CastRayAll(m2WorldId worldId, m2Pos2 origin, m2Vec2 translation,
+    M2_API int32_t m2World_CastRayAll(const m2World* world, m2Pos2 origin, m2Vec2 translation,
                                       m2RayHit* hits, int32_t capacity, m2QueryFilter filter);
-    M2_API int32_t m2World_CastCircleAll(m2WorldId worldId, const m2Circle* circle,
+    M2_API int32_t m2World_CastCircleAll(const m2World* world, const m2Circle* circle,
                                          m2Transform origin, m2Vec2 translation, m2RayHit* hits,
                                          int32_t capacity, m2QueryFilter filter);
-    M2_API int32_t m2World_CastCapsuleAll(m2WorldId worldId, const m2Capsule* capsule,
+    M2_API int32_t m2World_CastCapsuleAll(const m2World* world, const m2Capsule* capsule,
                                           m2Transform origin, m2Vec2 translation, m2RayHit* hits,
                                           int32_t capacity, m2QueryFilter filter);
-    M2_API int32_t m2World_CastPolygonAll(m2WorldId worldId, const m2Polygon* polygon,
+    M2_API int32_t m2World_CastPolygonAll(const m2World* world, const m2Polygon* polygon,
                                           m2Transform origin, m2Vec2 translation, m2RayHit* hits,
                                           int32_t capacity, m2QueryFilter filter);
 
@@ -355,7 +380,7 @@ extern "C"
         uint32_t pressed; // bit i: plane i stops part of the wish
     } m2MoverMove;
 
-    M2_API int32_t m2World_CollideMover(m2WorldId worldId, const m2Capsule* mover,
+    M2_API int32_t m2World_CollideMover(const m2World* world, const m2Capsule* mover,
                                         m2Transform origin, m2MoverPlane* planes, int32_t capacity,
                                         m2QueryFilter filter);
     M2_API m2MoverMove m2SolveMover(m2Vec2 wish, const m2MoverPlane* planes, int32_t count);
@@ -368,27 +393,27 @@ extern "C"
     /// one-sided: sweeps starting on the ghost side pass through.
     /// Initial overlap reports fraction 0 with a zero normal, like
     /// rays. Thread class: reader.
-    M2_API m2RayCastResult m2World_CastCircleClosest(m2WorldId worldId, const m2Circle* circle,
+    M2_API m2RayCastResult m2World_CastCircleClosest(const m2World* world, const m2Circle* circle,
                                                      m2Transform origin, m2Vec2 translation,
                                                      m2QueryFilter filter);
-    M2_API m2RayCastResult m2World_CastCapsuleClosest(m2WorldId worldId, const m2Capsule* capsule,
-                                                      m2Transform origin, m2Vec2 translation,
-                                                      m2QueryFilter filter);
-    M2_API m2RayCastResult m2World_CastPolygonClosest(m2WorldId worldId, const m2Polygon* polygon,
-                                                      m2Transform origin, m2Vec2 translation,
-                                                      m2QueryFilter filter);
+    M2_API m2RayCastResult m2World_CastCapsuleClosest(const m2World* world,
+                                                      const m2Capsule* capsule, m2Transform origin,
+                                                      m2Vec2 translation, m2QueryFilter filter);
+    M2_API m2RayCastResult m2World_CastPolygonClosest(const m2World* world,
+                                                      const m2Polygon* polygon, m2Transform origin,
+                                                      m2Vec2 translation, m2QueryFilter filter);
 
     /// Convex overlaps: live shapes touching the posed shape, in
     /// ascending slot order with a truthful total (the OverlapAabb
     /// contract). Chain segments are one-sided here too. Thread
     /// class: reader.
-    M2_API int32_t m2World_OverlapCircle(m2WorldId worldId, const m2Circle* circle,
+    M2_API int32_t m2World_OverlapCircle(const m2World* world, const m2Circle* circle,
                                          m2Transform origin, m2ShapeId* ids, int32_t capacity,
                                          m2QueryFilter filter);
-    M2_API int32_t m2World_OverlapCapsule(m2WorldId worldId, const m2Capsule* capsule,
+    M2_API int32_t m2World_OverlapCapsule(const m2World* world, const m2Capsule* capsule,
                                           m2Transform origin, m2ShapeId* ids, int32_t capacity,
                                           m2QueryFilter filter);
-    M2_API int32_t m2World_OverlapPolygon(m2WorldId worldId, const m2Polygon* polygon,
+    M2_API int32_t m2World_OverlapPolygon(const m2World* world, const m2Polygon* polygon,
                                           m2Transform origin, m2ShapeId* ids, int32_t capacity,
                                           m2QueryFilter filter);
 
@@ -396,7 +421,7 @@ extern "C"
     /// overlaps [lower, upper], ascending shape order. Returns the total
     /// number of overlapping shapes even when it exceeds capacity.
     /// Thread class: reader.
-    M2_API int32_t m2World_OverlapAabb(m2WorldId worldId, m2Pos2 lower, m2Pos2 upper,
+    M2_API int32_t m2World_OverlapAabb(const m2World* world, m2Pos2 lower, m2Pos2 upper,
                                        m2ShapeId* results, int32_t capacity, m2QueryFilter filter);
 
 #ifdef __cplusplus

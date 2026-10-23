@@ -16,7 +16,6 @@
 
 #include "core.h"
 #include "query.h"
-#include "world_registry.h"
 
 #include "maul2d/base.h"
 
@@ -25,10 +24,10 @@
 // Planes for a posed capsule: one distance query per nearby shape. A
 // collar of four linear slops lets a controller see a wall before it
 // reaches it.
-int32_t m2World_CollideMover(m2WorldId worldId, const m2Capsule* mover, m2Transform origin,
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): numeric kernel, fixed order
+int32_t m2World_CollideMover(const m2World* world, const m2Capsule* mover, m2Transform origin,
                              m2MoverPlane* results, int32_t capacity, m2QueryFilter filter)
 {
-    m2World* world = m2WorldFromId(worldId);
     m2DistanceProxy moverLocal = m2CapsuleProxy(mover);
     if (world == NULL || moverLocal.count == 0 || !m2QueryMotionValid(origin, (m2Vec2){0.0f, 0.0f}))
     {
@@ -95,7 +94,6 @@ int32_t m2World_CollideMover(m2WorldId worldId, const m2Capsule* mover, m2Transf
             {
                 m2MoverPlane* out = results + total;
                 out->shapeId.index1 = shapeIndex + 1;
-                out->shapeId.world = world->idWorld;
                 out->shapeId.generation = world->shapes.shapeGenerations[shapeIndex];
                 out->normal = (m2Vec2){xf.q.c * normalLocal.x - xf.q.s * normalLocal.y,
                                        xf.q.s * normalLocal.x + xf.q.c * normalLocal.y};

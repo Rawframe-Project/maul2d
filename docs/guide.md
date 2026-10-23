@@ -23,20 +23,23 @@ Maul2D promises three things no mainstream 2D engine promises together:
 
 Everything else is a consequence of holding those three lines.
 
-## Ten lines to a world
+## A dozen lines to a world
 
 ```c
 m2WorldDef def = m2DefaultWorldDef();
-m2WorldId world = m2CreateWorld(&def);
+m2World* world = NULL;
+if (m2CreateWorld(&def, &world) != m2_success) { /* report and stop */ }
 
 m2BodyDef bodyDef = m2DefaultBodyDef();
 bodyDef.type = m2_dynamicBody;
 bodyDef.position = (m2Pos2){0.0, 4.0};
-m2BodyId ball = m2CreateBody(world, &bodyDef);
+m2BodyId ball = m2_nullBodyId;
+m2Result result = m2CreateBody(world, &bodyDef, &ball);
 
 m2ShapeDef shapeDef = m2DefaultShapeDef();
 m2Circle circle = {{0.0f, 0.0f}, 0.5f};
-m2CreateCircleShape(ball, &shapeDef, &circle);
+m2ShapeId shape = m2_nullShapeId;
+result = m2CreateCircleShape(world, ball, &shapeDef, &circle, &shape);
 
 for (;;) { m2World_Step(world, 1.0f / 60.0f, 4); }
 ```
@@ -44,15 +47,18 @@ for (;;) { m2World_Step(world, 1.0f / 60.0f, 4); }
 Fixed timestep, always. Determinism starts with feeding the same dt
 every step; 1/60 with 4 substeps is the tuned default.
 
-## Ids, not pointers
+## A world, and ids into it
 
-Every handle (`m2BodyId`, `m2ShapeId`, `m2JointId`, `m2ChainId`,
-`m2ParticleId`) is an index plus a generation, and names its world
-by slot and generation. Destroyed ids stay dead, even after their
-slot is reused, and so do the ids of a destroyed world when a new
-world takes its slot; `m2Body_IsValid` and friends answer without
-asserting. Handles are values: copy them, store them, send them over
-the network.
+A world is an opaque `m2World*`, and every call on what it owns takes
+the world first. Every other handle (`m2BodyId`, `m2ShapeId`,
+`m2JointId`, `m2ChainId`, `m2ParticleId`) is a slot and a generation.
+Destroyed ids stay dead, even after their slot is reused, and
+`m2Body_IsValid` and friends answer without counting anything. Any other
+use of a dead id counts one misuse in `m2Counters.misuse`: a getter
+returns zero, a setter changes nothing, a call with a status returns
+`m2_errorStale`. An id carries no world: passed to another world it
+names whatever that world holds in the same slot. Handles are values:
+copy them, store them, send them over the network.
 
 ## Positions are doubles
 
@@ -369,15 +375,20 @@ cannot assert about: emits refused by a full pool, neighbor pairs
 dropped by the budget, and stale-id or wrong-type rejections on the
 typed paths. `m2World_Validate` walks every invariant the world
 owns (finiteness, endpoint liveness, canonical pair order, registry
-consistency) and answers loudly; build with -DMAUL2D_VALIDATE=ON
-and it runs itself after every step of your debug sessions.
+consistency) and returns false on the first violation; build with
+-DMAUL2D_VALIDATE=ON and it is asserted after every step of your debug
+sessions.
 
 ## Threads
 
 Readers (queries, getters, diagnostics, draw) may run concurrently
 with each other. Writers (anything that mutates, including Step)
-need the world to themselves. The solver's internal workers are
-invisible: `worldDef.workerCount` changes speed, never results.
+need the world to themselves. Separate worlds share nothing, so each
+may live on its own thread. The step runs its parallel work on your
+task system through `enqueueTask` and `finishTask` in the world def:
+the split changes speed, never results. Code the world calls (those
+hooks, debug draw callbacks, the allocator) must not change that world;
+its writers refuse with `m2_errorState`.
 
 ## Versions and formats
 

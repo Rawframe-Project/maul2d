@@ -459,9 +459,7 @@ void m2JournalRecordChain(m2World* world, m2BodyId bodyId, const m2ChainDef* def
 // aligned, and variable-length ops consume their tail from the cursor.
 typedef struct m2ReplayCursor
 {
-    m2WorldId worldId;
     m2World* world;
-    uint16_t here; // the target world's id field, rebinding every id
     const uint8_t* data;
     int32_t size;
     int32_t offset;
