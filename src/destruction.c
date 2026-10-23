@@ -9,6 +9,7 @@
 #include "distance.h"
 #include "geometry.h"
 #include "journal.h"
+#include "object_ids.h"
 #include "world_internal.h"
 #include "world_registry.h"
 

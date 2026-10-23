@@ -48,8 +48,8 @@ jobs:
     permissions:
       contents: read
 
-  # The rules no compiler checks: formatting, the family's length and
-  # snippet checks, and the documentation site. It runs on documentation
+  # The rules no compiler checks: formatting, the family's module, length
+  # and snippet checks, and the documentation site. It runs on documentation
   # changes too, since the snippet check and the site read docs/.
   checks:
     runs-on: ubuntu-24.04
@@ -71,6 +71,7 @@ jobs:
           echo "$files" | xargs clang-format --dry-run -Werror
       - name: Family checks
         run: |
+          python3 tools/check_modules.py
           python3 tools/check_lengths.py
           python3 tools/check_guide.py
       - name: The documentation site builds

@@ -6,8 +6,8 @@
 
 #include "contact.h"
 
+#include "object_ids.h"
 #include "parallel.h"
-#include "shape.h"
 #include "world_internal.h"
 #include "world_registry.h"
 

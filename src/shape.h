@@ -8,7 +8,6 @@
 
 #include "world_internal.h"
 
-m2ShapeId m2MakeShapeId(const m2World* world, int32_t shapeIndex);
 void m2RetireShapeFromBroadphase(m2World* world, int32_t shapeIndex);
 void m2DestroyShapeInternal(m2World* world, int32_t shapeIndex);
 m2ShapeId m2CreateShape(m2BodyId bodyId, const m2ShapeDef* def, const m2ShapeGeometry* geometry);

@@ -13,4 +13,14 @@
 void m2UpdateIslandsAndWake(m2World* world);
 void m2UpdateSleep(m2World* world, float dt);
 
+// Wakes a dynamic body; static and kinematic bodies never sleep.
+static inline void m2WakeIfDynamic(m2World* world, int32_t body)
+{
+    if (world->bodies.types[body] == (uint8_t)m2_dynamicBody)
+    {
+        world->bodies.asleep[body] = 0;
+        world->bodies.sleepTimes[body] = 0.0f;
+    }
+}
+
 #endif // MAUL2D_SRC_ISLAND_H
