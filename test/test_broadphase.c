@@ -8,8 +8,8 @@
 // evolution hash compared across CI cells.
 
 #include "test_harness.h"
-#include "world.h"
 #include "world_internal.h"
+#include "world_registry.h"
 
 static m2ShapeId AttachUnitBox(m2BodyId body)
 {

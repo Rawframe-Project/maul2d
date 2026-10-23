@@ -7,8 +7,8 @@
 // world position leaves here as f64 so the renderer can subtract the
 // camera before dropping to floats.
 
-#include "world.h"
 #include "world_internal.h"
+#include "world_registry.h"
 
 #include "maul2d/base.h"
 

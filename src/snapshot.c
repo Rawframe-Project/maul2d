@@ -7,9 +7,10 @@
 #include "snapshot.h"
 
 #include "joint.h"
+#include "joint_edges.h"
 #include "journal.h"
-#include "world.h"
 #include "world_internal.h"
+#include "world_registry.h"
 #include "world_state.h"
 
 #include "maul2d/base.h"

@@ -12,7 +12,7 @@
 #include "contact_kernel.h"
 #include "graph_color.h"
 #include "joint_solver.h"
-#include "world.h"
+#include "parallel.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"

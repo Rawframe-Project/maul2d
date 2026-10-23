@@ -6,9 +6,9 @@
 
 #include "broadphase.h"
 
-#include "body.h"
 #include "contact.h"
-#include "joint.h"
+#include "island.h"
+#include "joint_edges.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"

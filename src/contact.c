@@ -6,9 +6,10 @@
 
 #include "contact.h"
 
-#include "shape.h"
-#include "world.h"
+#include "object_ids.h"
+#include "parallel.h"
 #include "world_internal.h"
+#include "world_registry.h"
 
 #include "maul2d/base.h"
 

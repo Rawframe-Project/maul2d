@@ -8,7 +8,7 @@
 
 #include "graph_color.h"
 
-#include "solver.h"
+#include "solver_base.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"

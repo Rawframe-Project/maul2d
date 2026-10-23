@@ -6,12 +6,14 @@
 
 #include "shape.h"
 
-#include "body.h"
 #include "broadphase.h"
 #include "distance.h"
+#include "island.h"
 #include "journal.h"
-#include "world.h"
+#include "mass.h"
+#include "object_ids.h"
 #include "world_internal.h"
+#include "world_registry.h"
 
 #include "maul2d/base.h"
 
@@ -30,12 +32,6 @@ static int32_t ShapeSlot(const m2World* world, m2ShapeId id)
         return -1;
     }
     return index;
-}
-
-m2ShapeId m2MakeShapeId(const m2World* world, int32_t shapeIndex)
-{
-    m2ShapeId id = {shapeIndex + 1, world->idWorld, world->shapes.shapeGenerations[shapeIndex]};
-    return id;
 }
 
 // Shared by destroy and disable: end every touching

@@ -8,9 +8,10 @@
 #include "joint.h"
 #include "joint_solver.h"
 #include "journal.h"
-#include "solver.h"
-#include "world.h"
+#include "object_ids.h"
+#include "solver_base.h"
 #include "world_internal.h"
+#include "world_registry.h"
 
 #include "maul2d/base.h"
 

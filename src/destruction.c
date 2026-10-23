@@ -9,8 +9,9 @@
 #include "distance.h"
 #include "geometry.h"
 #include "journal.h"
-#include "world.h"
+#include "object_ids.h"
 #include "world_internal.h"
+#include "world_registry.h"
 
 #include "maul2d/base.h"
 

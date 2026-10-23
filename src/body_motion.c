@@ -5,9 +5,11 @@
 
 #include "body.h"
 #include "broadphase.h"
+#include "island.h"
 #include "joint.h"
+#include "joint_row.h"
 #include "journal.h"
-#include "world.h"
+#include "object_ids.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"

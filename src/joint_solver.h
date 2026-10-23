@@ -8,9 +8,8 @@
 #ifndef MAUL2D_SRC_JOINT_SOLVER_H
 #define MAUL2D_SRC_JOINT_SOLVER_H
 
-#include "joint.h"
 #include "joint_row.h"
-#include "solver.h"
+#include "solver_base.h"
 #include "world_internal.h"
 
 // A joint as the solver sees it for one step. Accumulated impulses live

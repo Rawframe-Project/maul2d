@@ -35,7 +35,6 @@
 #include "dynamic_tree.h"
 #include "particle.h"
 #include "query.h"
-#include "world.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"

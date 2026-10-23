@@ -17,8 +17,9 @@
 #include "body.h"
 #include "distance.h"
 #include "dynamic_tree.h"
+#include "island.h"
+#include "parallel.h"
 #include "particle.h"
-#include "world.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"

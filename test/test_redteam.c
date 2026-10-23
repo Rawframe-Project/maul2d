@@ -8,8 +8,8 @@
 // joints, rollback and journal replay into the 13th gated hash line.
 
 #include "test_harness.h"
-#include "world.h"
 #include "world_internal.h"
+#include "world_registry.h"
 
 #include "maul2d/base.h"
 

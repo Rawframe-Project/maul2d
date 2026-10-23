@@ -5,12 +5,14 @@
 
 #include "chain.h"
 
-#include "body.h"
 #include "geometry.h"
+#include "island.h"
 #include "journal.h"
+#include "mass.h"
+#include "object_ids.h"
 #include "shape.h"
-#include "world.h"
 #include "world_internal.h"
+#include "world_registry.h"
 
 #include "maul2d/base.h"
 

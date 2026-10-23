@@ -8,6 +8,7 @@
 
 #include "ccd.h"
 #include "contact_solver.h"
+#include "joint.h"
 #include "joint_solver.h"
 #include "rotation.h"
 #include "world_internal.h"

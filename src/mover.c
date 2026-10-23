@@ -16,7 +16,7 @@
 
 #include "core.h"
 #include "query.h"
-#include "world.h"
+#include "world_registry.h"
 
 #include "maul2d/base.h"
 

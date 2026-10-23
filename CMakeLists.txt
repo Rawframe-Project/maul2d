@@ -88,6 +88,7 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/joint_row.c
     src/joint_solver.c
     src/joint_distance.c
+    src/joint_edges.c
     src/joint_filter.c
     src/joint_gear.c
     src/joint_motor.c
@@ -101,8 +102,11 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/journal.c
     src/journal_replay.c
     src/manifold.c
+    src/mass.c
     src/math_functions.c
     src/mover.c
+    src/object_ids.c
+    src/parallel.c
     src/particle.c
     src/particle_contacts.c
     src/particle_pairs.c
@@ -115,6 +119,8 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/snapshot.c
     src/solver.c
     src/world.c
+    src/world_internal.c
+    src/world_registry.c
     src/world_state.c)
 maul_configure_library(maul2d)
 if(NOT MSVC)

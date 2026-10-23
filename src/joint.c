@@ -6,96 +6,19 @@
 
 #include "joint.h"
 
-#include "body.h"
 #include "broadphase.h"
+#include "island.h"
+#include "joint_edges.h"
+#include "joint_row.h"
 #include "joint_solver.h"
 #include "journal.h"
-#include "world.h"
 #include "world_internal.h"
+#include "world_registry.h"
 
 #include "maul2d/base.h"
 
 #include <math.h>
 #include <string.h>
-
-// Inserts edge (2 * joint + side) into body's list, keeping the list in
-// ascending joint order so walks visit joints in slot order.
-static void LinkJointEdge(m2World* world, int32_t body, int32_t edge)
-{
-    int32_t joint = edge >> 1;
-    int32_t* link = &world->joints.bodyJointHead[body];
-    while (*link != -1 && (*link >> 1) < joint)
-    {
-        link = &world->joints.jointEdgeNext[*link];
-    }
-    world->joints.jointEdgeNext[edge] = *link;
-    *link = edge;
-}
-
-static void UnlinkJointEdge(m2World* world, int32_t body, int32_t edge)
-{
-    int32_t* link = &world->joints.bodyJointHead[body];
-    while (*link != -1 && *link != edge)
-    {
-        link = &world->joints.jointEdgeNext[*link];
-    }
-    M2_ASSERT(*link == edge);
-    if (*link == edge)
-    {
-        *link = world->joints.jointEdgeNext[edge];
-        world->joints.jointEdgeNext[edge] = -1;
-    }
-}
-
-static void LinkJoint(m2World* world, int32_t joint)
-{
-    LinkJointEdge(world, world->joints.jointBodyA[joint], 2 * joint);
-    LinkJointEdge(world, world->joints.jointBodyB[joint], 2 * joint + 1);
-}
-
-void m2UnlinkJoint(m2World* world, int32_t joint)
-{
-    UnlinkJointEdge(world, world->joints.jointBodyA[joint], 2 * joint);
-    UnlinkJointEdge(world, world->joints.jointBodyB[joint], 2 * joint + 1);
-}
-
-// Rebuilds every adjacency list from the joint arrays, after a restore
-// has replaced them wholesale.
-void m2RebuildJointEdges(m2World* world)
-{
-    for (int32_t b = 0; b < world->bodies.bodyCapacity; ++b)
-    {
-        world->joints.bodyJointHead[b] = -1;
-    }
-    for (int32_t e = 0; e < 2 * world->joints.jointCapacity; ++e)
-    {
-        world->joints.jointEdgeNext[e] = -1;
-    }
-    for (int32_t j = 0; j < world->joints.maxJointIndex; ++j)
-    {
-        if (world->joints.jointAlive[j] != 0)
-        {
-            LinkJoint(world, j);
-        }
-    }
-}
-
-// Jointed bodies do not collide unless the joint allows it. Walks only
-// body A's joints, so the cost is its joint count, not the world's.
-bool m2JointsForbidPair(const m2World* world, int32_t bodyA, int32_t bodyB)
-{
-    for (int32_t e = world->joints.bodyJointHead[bodyA]; e != -1;
-         e = world->joints.jointEdgeNext[e])
-    {
-        int32_t j = e >> 1;
-        int32_t other = (e & 1) != 0 ? world->joints.jointBodyA[j] : world->joints.jointBodyB[j];
-        if (other == bodyB && world->joints.jointCollide[j] == 0)
-        {
-            return true;
-        }
-    }
-    return false;
-}
 
 uint64_t m2Joint_GetUserData(m2JointId jointId)
 {
@@ -240,15 +163,6 @@ int32_t m2AllocateJoint(m2World* world)
     return index;
 }
 
-// Relative angle of B vs A from their rotations, through the engine's own
-// deterministic atan2.
-float m2RelativeJointAngle(m2Rot qA, m2Rot qB)
-{
-    float sin = qA.c * qB.s - qA.s * qB.c;
-    float cos = qA.c * qB.c + qA.s * qB.s;
-    return m2Atan2(sin, cos);
-}
-
 m2JointId m2FinishJoint(m2World* world, int32_t index, uint8_t type, int32_t bodyA, int32_t bodyB,
                         m2Vec2 anchorA, m2Vec2 anchorB, float length, float hertz, float damping)
 {
@@ -281,7 +195,7 @@ m2JointId m2FinishJoint(m2World* world, int32_t index, uint8_t type, int32_t bod
     world->joints.jointTargetsB[index] = (m2Pos2){0.0, 0.0};
     world->joints.jointUserData[index] = 0;
     world->joints.jointAlive[index] = 1;
-    LinkJoint(world, index);
+    m2LinkJoint(world, index);
     // A new constraint wakes both ends.
     world->bodies.asleep[bodyA] = 0;
     world->bodies.sleepTimes[bodyA] = 0.0f;
