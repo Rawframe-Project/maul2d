@@ -185,9 +185,8 @@ m2WorldId m2CreateWorld(const m2WorldDef* def)
     if (!m2StateAllocate(world))
     {
         m2SetLastResult(m2_errorCapacity); // out of memory
-        m2WorldId failed = {(uint16_t)(slot + 1), m2WorldSlotGeneration(slot)};
-        m2OccupyWorldSlot(slot, world);
-        m2DestroyWorld(failed);
+        m2StateFree(world);
+        m2Free(world);
         return m2_nullWorldId;
     }
     SeedFreeLists(world);
@@ -198,11 +197,9 @@ m2WorldId m2CreateWorld(const m2WorldDef* def)
 
 void m2DestroyWorld(m2WorldId worldId)
 {
+    // A stale id names a world that is gone, even when another world now
+    // holds its slot.
     m2World* world = m2GetWorld(worldId);
-    if (world == NULL)
-    {
-        world = m2WorldInSlot(worldId.index1); // failed-allocation path
-    }
     if (world == NULL)
     {
         return;

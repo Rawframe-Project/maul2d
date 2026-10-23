@@ -18,6 +18,9 @@ snapshot and journal formats.
 
 ### Fixed
 
+- `m2DestroyWorld` with the id of a world that was already destroyed
+  does nothing. It used to destroy whichever world had been created in
+  the same slot since.
 - Two joints that can never both hold (a wheel joint and a slider with
   crossing axes on one body, say) no longer turn the world to NaN.
   Their impulses fought without limit until they overflowed; every

@@ -124,6 +124,20 @@ static void TestIdsOutliveNoWorld(void)
     m2DestroyWorld(second);
 }
 
+// Destroying a world through a stale id leaves alone the world that now
+// holds its slot.
+static void TestDestroyStaleWorldId(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2WorldId first = m2CreateWorld(&def);
+    m2DestroyWorld(first);
+    m2WorldId second = m2CreateWorld(&def);
+    CHECK(second.index1 == first.index1, "the second world takes the first one's slot");
+    m2DestroyWorld(first);
+    CHECK(m2World_IsValid(second), "the stale id does not destroy the second world");
+    m2DestroyWorld(second);
+}
+
 static void TestIdSemantics(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
@@ -2479,6 +2493,7 @@ int main(void)
     TestDefCookies();
     TestRollbackIdentity();
     TestIdSemantics();
+    TestDestroyStaleWorldId();
     TestIdsOutliveNoWorld();
     TestMotionLocks();
     TestWind();
