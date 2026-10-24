@@ -1,8 +1,8 @@
 # References
 
-Published sources behind the engines' algorithms. Code is written from
+Published sources behind maul2d's algorithms. Code is written from
 these descriptions, never copied from other implementations (see
-[conventions.md](conventions.md), section 16).
+[Outside code and data](maul-conventions.md#outside-code-and-data)).
 
 ## Elementary functions
 
@@ -33,13 +33,6 @@ these descriptions, never copied from other implementations (see
 - D. E. Knuth, *The Art of Computer Programming*, Vol. 3, 2nd ed.,
   Addison-Wesley, 1998, section 6.2.3: concatenation of balanced trees,
   which the tree uses when a leaf is paired with a taller subtree.
-- T. L. Kay and J. T. Kajiya, "Ray Tracing Complex Scenes", *SIGGRAPH
-  1986*. Hierarchies built top down by splitting a set of objects along
-  an axis; the maul3d tree rebuild splits at the median centroid along
-  the widest axis.
-
-## Contact and distance
-
 - E. G. Gilbert, D. W. Johnson and S. S. Keerthi, "A Fast Procedure
   for Computing the Distance Between Complex Objects in
   Three-Dimensional Space", *IEEE Journal on Robotics and Automation*
@@ -65,27 +58,6 @@ these descriptions, never copied from other implementations (see
 - A. M. Andrew, "Another Efficient Algorithm for Convex Hulls in Two
   Dimensions", *Information Processing Letters* 9(5), 1979. The
   monotone chain hull.
-- C. B. Barber, D. P. Dobkin and H. Huhdanpaa, "The Quickhull Algorithm
-  for Convex Hulls", *ACM Transactions on Mathematical Software* 22(4),
-  1996. The 3D hull: points wait on the face they lie farthest above,
-  and the farthest is added next through the horizon of the faces it
-  sees.
-- D. Gregorius, "The Separating Axis Test between Convex Polyhedra",
-  Game Developers Conference, 2013. Edge pairs of two hulls only form a
-  face of their Minkowski difference when the Gauss map arcs of their
-  adjacent face normals cross; only those pairs are tested.
-- M. E. Newell's method for the plane of a polygon (see I. E.
-  Sutherland, R. F. Sproull and R. A. Schumacker, "A Characterization of
-  Ten Hidden-Surface Algorithms", *Computing Surveys* 6(1), 1974): the
-  normal as the sum over edges, robust for nearly flat loops.
-
-## Mass properties
-
-- J. Blow and A. J. Binstock, "How to Find the Inertia Tensor (or Other
-  Mass Properties) of a 3D Solid Body Represented by a Triangle Mesh",
-  2004. The covariance of a tetrahedron as the canonical tetrahedron's
-  covariance mapped by the tetrahedron's edge matrix; the 3D hull mass
-  sums it over a fan of each face.
 - J. Steiner's formula for parallel bodies: a convex region swollen by
   a radius r gains its perimeter times r plus a disc of radius r. The
   mass of rounded polygons and capsules follows this decomposition
@@ -104,9 +76,8 @@ these descriptions, never copied from other implementations (see
 - R. L. Smith, *Open Dynamics Engine User Guide*, 2006, the section on
   soft constraints: error reduction (ERP) and constraint force mixing
   (CFM) from a spring and damper under implicit integration. The
-  engines' soft rows are this relation written in frequency and damping
-  ratio on the row's effective mass (see m2MakeSoft and its maul3d
-  counterpart for the derivation).
+  soft rows are this relation written in frequency and damping ratio on
+  the row's effective mass (see m2MakeSoft for the derivation).
 - M. Macklin, K. Storey, M. Lu, P. Terdiman, N. Chentanez, S. Jeschke
   and M. Müller, "Small Steps in Physics Simulation", Symposium on
   Computer Animation, 2019. Many substeps with one solver pass each
@@ -118,16 +89,6 @@ these descriptions, never copied from other implementations (see
   soft step schedule compared there against other solvers: per substep
   a warm start, a biased pass with soft constraints, integration, and
   an unbiased relax pass, with restitution after the substeps.
-- E. Catto, "Numerical Methods", Game Developers Conference, 2015. The
-  gyroscopic term of Euler's equations integrated implicitly with a
-  Newton step, which keeps tumbling bodies from gaining energy (maul3d).
-- D. Chappuis, "Constraints Derivation for Rigid Body Simulation in
-  3D", 2013. Point, hinge, slider and fixed constraints written as rows
-  with quaternion based angular errors; maul3d's angular rows follow
-  from the rate of the relative rotation derived in joint_solver.c.
-
-## Particles
-
 - M. P. Allen and D. J. Tildesley, *Computer Simulation of Liquids*,
   Oxford, 1987. Cell lists: space cut into cells one interaction range
   wide, each cell paired with itself and half of its neighbors so that
