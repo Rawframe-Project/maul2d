@@ -81,7 +81,8 @@ typedef struct Pool
     int32_t capacity;
     int32_t head;
     int32_t count;
-    int32_t tail;    // -1 when the pool keeps no tail
+    bool hasTail;    // whether the pool keeps a tail cursor
+    int32_t tail;    // read only when hasTail
     int32_t retired; // 0 when the pool never retires
     int32_t highWater;
 } Pool;
@@ -90,6 +91,10 @@ typedef struct Pool
 // dead, unretired slot exactly once. Returns the live count, or -1.
 static int32_t CheckPool(uint8_t* marks, const Pool* pool)
 {
+    if (pool->highWater < 0 || pool->highWater > pool->capacity)
+    {
+        return -1;
+    }
     int32_t live = 0;
     int32_t exhausted = 0;
     for (int32_t i = 0; i < pool->capacity; ++i)
@@ -107,10 +112,11 @@ static int32_t CheckPool(uint8_t* marks, const Pool* pool)
             exhausted += 1;
         }
     }
-    if (!InPool(pool->head, pool->capacity > 0 ? pool->capacity : 1) || pool->count < 0 ||
-        exhausted != pool->retired || live + pool->count + pool->retired != pool->capacity ||
-        (pool->tail >= 0 && pool->capacity > 0 &&
-         pool->tail != (pool->head + pool->count) % pool->capacity))
+    int32_t cursors = pool->capacity > 0 ? pool->capacity : 1;
+    if (!InPool(pool->head, cursors) || pool->count < 0 || exhausted != pool->retired ||
+        live + pool->count + pool->retired != pool->capacity ||
+        (pool->hasTail &&
+         (!InPool(pool->tail, cursors) || pool->tail != (pool->head + pool->count) % cursors)))
     {
         return -1;
     }
@@ -138,50 +144,11 @@ static int32_t InlineI32(const m2World* world, const uint8_t* in, const void* fi
     return ReadI32(m2StateIncoming(world, in, field), 0);
 }
 
-static bool CheckPools(m2World* world, const uint8_t* in)
+// The particle and fluid volume pools, which exist only in worlds that
+// have them and never retire a slot.
+static bool CheckFluidPools(m2World* world, const uint8_t* in)
 {
     uint8_t* marks = world->restoreMarks;
-    const Pool bodies = {M2_IN(bodies.alive),
-                         M2_IN(bodies.generations),
-                         M2_IN(bodies.freeQueue),
-                         world->bodies.bodyCapacity,
-                         InlineI32(world, in, &world->bodies.freeHead),
-                         InlineI32(world, in, &world->bodies.freeCount),
-                         InlineI32(world, in, &world->bodies.freeTail),
-                         InlineI32(world, in, &world->bodies.retiredCount),
-                         InlineI32(world, in, &world->bodies.maxBodyIndex)};
-    const Pool shapes = {M2_IN(shapes.shapeAlive),
-                         M2_IN(shapes.shapeGenerations),
-                         M2_IN(shapes.shapeFreeQueue),
-                         world->shapes.shapeCapacity,
-                         InlineI32(world, in, &world->shapes.shapeFreeHead),
-                         InlineI32(world, in, &world->shapes.shapeFreeCount),
-                         InlineI32(world, in, &world->shapes.shapeFreeTail),
-                         InlineI32(world, in, &world->shapes.shapeRetiredCount),
-                         InlineI32(world, in, &world->shapes.maxShapeIndex)};
-    const Pool joints = {M2_IN(joints.jointAlive),
-                         M2_IN(joints.jointGenerations),
-                         M2_IN(joints.jointFreeQueue),
-                         world->joints.jointCapacity,
-                         InlineI32(world, in, &world->joints.jointFreeHead),
-                         InlineI32(world, in, &world->joints.jointFreeCount),
-                         InlineI32(world, in, &world->joints.jointFreeTail),
-                         InlineI32(world, in, &world->joints.jointRetiredCount),
-                         InlineI32(world, in, &world->joints.maxJointIndex)};
-    const Pool chains = {M2_IN(chains.chainAlive),
-                         M2_IN(chains.chainGenerations),
-                         M2_IN(chains.chainFreeQueue),
-                         world->shapes.shapeCapacity,
-                         InlineI32(world, in, &world->chains.chainFreeHead),
-                         InlineI32(world, in, &world->chains.chainFreeCount),
-                         InlineI32(world, in, &world->chains.chainFreeTail),
-                         InlineI32(world, in, &world->chains.chainRetiredCount),
-                         InlineI32(world, in, &world->chains.maxChainIndex)};
-    if (CheckPool(marks, &bodies) < 0 || CheckPool(marks, &shapes) < 0 ||
-        CheckPool(marks, &joints) < 0 || CheckPool(marks, &chains) < 0)
-    {
-        return false;
-    }
     if (world->particles.particleCapacity > 0)
     {
         const Pool particles = {M2_IN(particles.particleAlive),
@@ -190,7 +157,8 @@ static bool CheckPools(m2World* world, const uint8_t* in)
                                 world->particles.particleCapacity,
                                 InlineI32(world, in, &world->particles.particleFreeHead),
                                 InlineI32(world, in, &world->particles.particleFreeCount),
-                                -1,
+                                false,
+                                0,
                                 0,
                                 InlineI32(world, in, &world->particles.maxParticleIndex)};
         int32_t live = CheckPool(marks, &particles);
@@ -207,7 +175,8 @@ static bool CheckPools(m2World* world, const uint8_t* in)
                               world->volumes.fvCapacity,
                               InlineI32(world, in, &world->volumes.fvFreeHead),
                               InlineI32(world, in, &world->volumes.fvFreeCount),
-                              -1,
+                              false,
+                              0,
                               0,
                               InlineI32(world, in, &world->volumes.maxFvIndex)};
         if (CheckPool(marks, &volumes) < 0)
@@ -216,6 +185,57 @@ static bool CheckPools(m2World* world, const uint8_t* in)
         }
     }
     return true;
+}
+
+static bool CheckPools(m2World* world, const uint8_t* in)
+{
+    uint8_t* marks = world->restoreMarks;
+    const Pool bodies = {M2_IN(bodies.alive),
+                         M2_IN(bodies.generations),
+                         M2_IN(bodies.freeQueue),
+                         world->bodies.bodyCapacity,
+                         InlineI32(world, in, &world->bodies.freeHead),
+                         InlineI32(world, in, &world->bodies.freeCount),
+                         true,
+                         InlineI32(world, in, &world->bodies.freeTail),
+                         InlineI32(world, in, &world->bodies.retiredCount),
+                         InlineI32(world, in, &world->bodies.maxBodyIndex)};
+    const Pool shapes = {M2_IN(shapes.shapeAlive),
+                         M2_IN(shapes.shapeGenerations),
+                         M2_IN(shapes.shapeFreeQueue),
+                         world->shapes.shapeCapacity,
+                         InlineI32(world, in, &world->shapes.shapeFreeHead),
+                         InlineI32(world, in, &world->shapes.shapeFreeCount),
+                         true,
+                         InlineI32(world, in, &world->shapes.shapeFreeTail),
+                         InlineI32(world, in, &world->shapes.shapeRetiredCount),
+                         InlineI32(world, in, &world->shapes.maxShapeIndex)};
+    const Pool joints = {M2_IN(joints.jointAlive),
+                         M2_IN(joints.jointGenerations),
+                         M2_IN(joints.jointFreeQueue),
+                         world->joints.jointCapacity,
+                         InlineI32(world, in, &world->joints.jointFreeHead),
+                         InlineI32(world, in, &world->joints.jointFreeCount),
+                         true,
+                         InlineI32(world, in, &world->joints.jointFreeTail),
+                         InlineI32(world, in, &world->joints.jointRetiredCount),
+                         InlineI32(world, in, &world->joints.maxJointIndex)};
+    const Pool chains = {M2_IN(chains.chainAlive),
+                         M2_IN(chains.chainGenerations),
+                         M2_IN(chains.chainFreeQueue),
+                         world->shapes.shapeCapacity,
+                         InlineI32(world, in, &world->chains.chainFreeHead),
+                         InlineI32(world, in, &world->chains.chainFreeCount),
+                         true,
+                         InlineI32(world, in, &world->chains.chainFreeTail),
+                         InlineI32(world, in, &world->chains.chainRetiredCount),
+                         InlineI32(world, in, &world->chains.maxChainIndex)};
+    if (CheckPool(marks, &bodies) < 0 || CheckPool(marks, &shapes) < 0 ||
+        CheckPool(marks, &joints) < 0 || CheckPool(marks, &chains) < 0)
+    {
+        return false;
+    }
+    return CheckFluidPools(world, in);
 }
 
 // --- Owners and lists -------------------------------------------------------
@@ -471,7 +491,7 @@ static bool CheckTrees(const m2World* world, const uint8_t* in)
             continue;
         }
         int32_t tree = leaves.bodyTypes[ReadI32(leaves.shapeBody, s)];
-        if (!InPool(proxy, capacity))
+        if (!InPool(tree, M2_TREE_COUNT) || !InPool(proxy, capacity))
         {
             return false;
         }

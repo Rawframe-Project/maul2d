@@ -12,6 +12,7 @@
 
 #include "dynamic_tree.h"
 #include "helpers.h"
+#include "snapshot_check.h"
 #include "test_harness.h"
 #include "world_internal.h"
 #include "world_state.h"
@@ -306,6 +307,51 @@ static void PairNamesADeadShape(const Scene* scene, uint8_t* block)
     memcpy(At(scene, block, &w->contacts.pairKeys), &key, sizeof(key));
 }
 
+// The structural check stands on its own: these edits are refused by it
+// alone, without the per-array checks that also catch them.
+static void BodyTailNegative(const Scene* scene, uint8_t* block)
+{
+    PutI32(At(scene, block, &scene->world->bodies.freeTail), 0, -1);
+}
+
+static void BodyHighWaterPastCapacity(const Scene* scene, uint8_t* block)
+{
+    PutI32(At(scene, block, &scene->world->bodies.maxBodyIndex), 0,
+           scene->world->bodies.bodyCapacity + 5);
+}
+
+static void BodyTypeUnknown(const Scene* scene, uint8_t* block)
+{
+    At(scene, block, &scene->world->bodies.types)[scene->boxA.index1 - 1] = 7;
+}
+
+static void ExpectCheckRefuses(const Scene* scene, Edit edit, const char* what)
+{
+    uint8_t* bytes = (uint8_t*)malloc((size_t)scene->size);
+    CHECK(bytes != NULL, "a copy of the snapshot");
+    if (bytes == NULL)
+    {
+        return;
+    }
+    memcpy(bytes, scene->valid, (size_t)scene->size);
+    edit(scene, bytes + scene->headerBytes);
+    CHECK(!m2SnapshotCheck(scene->world, bytes + scene->headerBytes), what);
+    free(bytes);
+}
+
+static void TestCheckStandsAlone(void)
+{
+    Scene scene = MakeScene();
+    CHECK(m2SnapshotCheck(scene.world, scene.valid + scene.headerBytes),
+          "the structural check accepts the valid snapshot");
+    ExpectCheckRefuses(&scene, BodyTailNegative, "a negative tail is refused by the check alone");
+    ExpectCheckRefuses(&scene, BodyHighWaterPastCapacity,
+                       "a high-water mark past the pool is refused by the check alone");
+    ExpectCheckRefuses(&scene, BodyTypeUnknown,
+                       "an unknown body type is refused by the check alone");
+    FreeScene(&scene);
+}
+
 static void TestHostileStructures(void)
 {
     Scene scene = MakeScene();
@@ -345,6 +391,7 @@ static void TestHostileStructures(void)
 int main(void)
 {
     TestHostileStructures();
+    TestCheckStandsAlone();
     if (s_failures > 0)
     {
         printf("%d failure(s)\n", s_failures);
