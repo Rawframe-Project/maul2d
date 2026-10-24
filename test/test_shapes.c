@@ -417,8 +417,78 @@ static void TestPolygonNormalsAreTheWorlds(void)
     m2DestroyWorld(world);
 }
 
+// Body-local lengths stop at M2_HUGE: past it the solver's float products
+// overflow. Each create and builder refuses, and a refusal counts one
+// misuse where a world is involved.
+static void TestLocalLengthsAreBounded(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    m2BodyDef bodyDef = m2DefaultBodyDef();
+    bodyDef.type = m2_dynamicBody;
+    m2BodyId body = NewBody(world, &bodyDef);
+    m2ShapeDef shapeDef = m2DefaultShapeDef();
+    const float beyond = 2.0f * M2_HUGE;
+    m2ShapeId shape = m2_nullShapeId;
+
+    m2Circle edge = {{0.0f, 0.0f}, M2_HUGE};
+    CHECK(m2CreateCircleShape(world, body, &shapeDef, &edge, &shape) == m2_success,
+          "a circle of radius M2_HUGE is created");
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    m2Circle wide = {{0.0f, 0.0f}, beyond};
+    m2Circle offset = {{beyond, 0.0f}, 1.0f};
+    m2Capsule capsule = {{0.0f, 0.0f}, {beyond, 0.0f}, 0.5f};
+    m2Segment segment = {{0.0f, -beyond}, {0.0f, 1.0f}};
+    m2Polygon box = m2MakeBox(beyond, beyond);
+    CHECK(box.count == 0, "m2MakeBox refuses a box past M2_HUGE");
+    m2Polygon given = m2MakeBox(1.0f, 1.0f);
+    given.vertices[2] = (m2Vec2){beyond, beyond};
+    CHECK(m2CreateCircleShape(world, body, &shapeDef, &wide, &shape) == m2_errorInvalid &&
+              m2CreateCircleShape(world, body, &shapeDef, &offset, &shape) == m2_errorInvalid &&
+              m2CreateCapsuleShape(world, body, &shapeDef, &capsule, &shape) == m2_errorInvalid &&
+              m2CreateSegmentShape(world, body, &shapeDef, &segment, &shape) == m2_errorInvalid &&
+              m2CreatePolygonShape(world, body, &shapeDef, &given, &shape) == m2_errorInvalid,
+          "every shape past M2_HUGE is refused");
+    CHECK(m2World_GetCounters(world).misuse == misuse + 5, "each refusal counts one misuse");
+
+    m2Vec2 points[4] = {{-1.0f, 0.0f}, {0.0f, 0.0f}, {beyond, 0.0f}, {beyond + 1.0f, 0.0f}};
+    m2ChainDef chainDef = m2DefaultChainDef();
+    chainDef.points = points;
+    chainDef.count = 4;
+    m2ChainId chain = m2_nullChainId;
+    CHECK(m2CreateChain(world, body, &chainDef, &chain) == m2_errorInvalid,
+          "a chain point past M2_HUGE is refused");
+
+    m2Vec2 square[4] = {{0.0f, 0.0f}, {beyond, 0.0f}, {beyond, beyond}, {0.0f, beyond}};
+    m2Polygon pieces[4];
+    int32_t count = 7;
+    CHECK(m2MakePolygon(square, 4, 0.0f, &given) == m2_errorInvalid &&
+              m2ComputeHull(square, 4, 0.0f, &given) == m2_errorInvalid &&
+              m2DecomposeOutline(square, 4, pieces, 4, &count) == m2_errorInvalid && count == 7,
+          "the builders refuse points past M2_HUGE");
+    m2DestroyWorld(world);
+}
+
+// A spike from the top edge whose tip stops 1 mm above the bottom edge: no
+// edges meet, but the tip touches the bottom for the solver, so the
+// outline is refused as not simple.
+static void TestOutlineThatNearlyTouchesIsRefused(void)
+{
+    m2Vec2 spike[7] = {{0.0f, 0.0f},   {4.0f, 0.0f}, {4.0f, 2.0f}, {2.1f, 2.0f},
+                       {2.0f, 0.001f}, {1.9f, 2.0f}, {0.0f, 2.0f}};
+    m2Polygon pieces[8];
+    int32_t count = 7;
+    CHECK(m2DecomposeOutline(spike, 7, pieces, 8, &count) == m2_errorInvalid && count == 7,
+          "a vertex within the slop of another edge is refused");
+    spike[4].y = 0.01f;
+    CHECK(m2DecomposeOutline(spike, 7, pieces, 8, &count) == m2_success && count > 1,
+          "one twice the slop away decomposes");
+}
+
 int main(void)
 {
+    TestLocalLengthsAreBounded();
+    TestOutlineThatNearlyTouchesIsRefused();
     TestPolygonNormalsAreTheWorlds();
     TestMassClosedForms();
     TestValidation();

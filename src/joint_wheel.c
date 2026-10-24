@@ -34,8 +34,8 @@ m2WheelJointDef m2DefaultWheelJointDef(void)
 // ordered ranges.
 static bool DefValid(const m2WheelJointDef* def)
 {
-    return m2FiniteVec2(def->localAnchorA) && m2FiniteVec2(def->localAnchorB) &&
-           m2FiniteVec2(def->localAxisA) && m2JointGain(def->hertz) &&
+    return m2LocalVec2(def->localAnchorA) && m2LocalVec2(def->localAnchorB) &&
+           m2LocalVec2(def->localAxisA) && m2JointGain(def->hertz) &&
            m2JointGain(def->dampingRatio) && m2FiniteF(def->motorSpeed) &&
            m2JointGain(def->maxMotorTorque) && m2FiniteF(def->lowerTranslation) &&
            m2FiniteF(def->upperTranslation) && def->lowerTranslation <= def->upperTranslation;

@@ -1,6 +1,6 @@
 # Bodies and shapes
 
-A body has a pose and a velocity; its shapes give it collision and mass. Bodies are static (never move), kinematic (move at the velocity they are given, pushed by nothing) or dynamic (moved by forces, contacts and joints). Positions are 64-bit (`m2Pos2`) and everything else is 32-bit, so a game three hundred kilometers from the origin keeps exact contacts, casts and rendering.
+A body has a pose and a velocity; its shapes give it collision and mass. Bodies are static (never move), kinematic (move at the velocity they are given, pushed by nothing) or dynamic (moved by forces, contacts and joints). Positions are 64-bit (`m2Pos2`) and everything else is 32-bit, so a game three hundred kilometers from the origin keeps exact contacts, casts and rendering. Lengths in a body's own frame are bounded instead: every shape coordinate and radius, chain point and joint anchor lies within `M2_HUGE` (100 km), and a larger one is refused, because the solver's 32-bit products would overflow past it.
 
 ## Moving bodies
 
@@ -46,7 +46,7 @@ A chain is terrain bodies cannot snag on: a run of one-sided segments whose seam
 
 ## Geometry from points
 
-`m2ComputeHull` turns a loose point cloud into a convex polygon, welding near points and refusing degenerate input. `m2DecomposeOutline` goes further: a simple counter-clockwise outline of up to 64 points, a sprite's silhouette, becomes convex pieces of at most 8 vertices that keep its area. A clockwise outline, or one that is not simple (it crosses itself, a vertex touches another edge, a vertex repeats, or an edge folds back), is refused with `m2_errorInvalid`.
+`m2ComputeHull` turns a loose point cloud into a convex polygon, welding near points and refusing degenerate input. `m2DecomposeOutline` goes further: a simple counter-clockwise outline of up to 64 points, a sprite's silhouette, becomes convex pieces of at most 8 vertices that keep its area. A clockwise outline, or one that is not simple (it crosses itself, a vertex comes within 0.005 m of another edge, a vertex repeats, or an edge folds back), is refused with `m2_errorInvalid`.
 
 `m2World_ShatterBody` breaks a dynamic body into one new body per piece. Each piece carries the parent's velocity at its own center of mass and the material of the parent's first shape, and the whole break is one journaled operation, so it replays and rolls back like anything else. When the pools cannot seat every piece, it returns `m2_errorCapacity` and nothing changes.
 

@@ -63,6 +63,7 @@ typedef enum m2Check
     m2_check_finite32,    // every float of every element finite
     m2_check_finite64,    // every double of every element finite
     m2_check_nonNegative, // every float of every element finite and not below 0
+    m2_check_local,       // every float of every element within M2_HUGE
     m2_check_transform,   // a finite double position and a unit float rotation
 } m2Check;
 
@@ -178,8 +179,8 @@ static const m2StateArray s_state[] = {
     M2_STATE_CHECKED(joints.jointAlive, uint8_t, joint, 0, M2_STATE_SNAPSHOT, bool, one),
     M2_STATE_CHECKED(joints.jointBodyA, int32_t, joint, 0, M2_STATE_SNAPSHOT, indexOrNone, body),
     M2_STATE_CHECKED(joints.jointBodyB, int32_t, joint, 0, M2_STATE_SNAPSHOT, indexOrNone, body),
-    M2_STATE_CHECKED(joints.jointLocalAnchorA, m2Vec2, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(joints.jointLocalAnchorB, m2Vec2, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
+    M2_STATE_CHECKED(joints.jointLocalAnchorA, m2Vec2, joint, 0, M2_STATE_SNAPSHOT, local, one),
+    M2_STATE_CHECKED(joints.jointLocalAnchorB, m2Vec2, joint, 0, M2_STATE_SNAPSHOT, local, one),
     M2_STATE_CHECKED(joints.jointLength, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
     M2_STATE_CHECKED(joints.jointHertz, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
     M2_STATE_CHECKED(joints.jointDamping, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
@@ -191,7 +192,7 @@ static const m2StateArray s_state[] = {
     M2_STATE_CHECKED(joints.jointMaxMotor, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
     M2_STATE_CHECKED(joints.jointLower, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
     M2_STATE_CHECKED(joints.jointUpper, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(joints.jointLocalAxisA, m2Vec2, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
+    M2_STATE_CHECKED(joints.jointLocalAxisA, m2Vec2, joint, 0, M2_STATE_SNAPSHOT, local, one),
     M2_STATE_CHECKED(joints.jointRefAngle, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
     M2_STATE_CHECKED(joints.jointMotorImpulse, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
     M2_STATE_CHECKED(joints.jointLowerImpulse, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
@@ -670,6 +671,20 @@ static bool CheckNonNegative(const uint8_t* data, size_t bytes)
     return true;
 }
 
+static bool CheckLocal(const uint8_t* data, size_t bytes)
+{
+    for (size_t at = 0; at + sizeof(float) <= bytes; at += sizeof(float))
+    {
+        float f;
+        memcpy(&f, data + at, sizeof(f));
+        if (!(f >= -M2_HUGE && f <= M2_HUGE))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 static bool CheckTransforms(const uint8_t* data, size_t count)
 {
     for (size_t i = 0; i < count; ++i)
@@ -722,6 +737,8 @@ static bool CheckBlock(const m2World* world, const m2StateArray* array, const ui
         return CheckFinite(data, count * array->elementSize, sizeof(double));
     case m2_check_nonNegative:
         return CheckNonNegative(data, count * array->elementSize);
+    case m2_check_local:
+        return CheckLocal(data, count * array->elementSize);
     case m2_check_transform:
         return CheckTransforms(data, count);
     }

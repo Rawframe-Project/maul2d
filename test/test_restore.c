@@ -211,6 +211,13 @@ static void JointToADeadBody(const Scene* scene, uint8_t* block)
     PutI32(At(scene, block, &scene->world->joints.jointBodyB), 0, 7);
 }
 
+// The pin's anchor on its first body moves past M2_HUGE.
+static void JointAnchorTooFar(const Scene* scene, uint8_t* block)
+{
+    m2Vec2 anchor = {2.0f * M2_HUGE, 0.0f};
+    memcpy(At(scene, block, &scene->world->joints.jointLocalAnchorA), &anchor, sizeof(anchor));
+}
+
 // The dynamic tree's root, an interior node, loses its first child.
 static uint8_t* DynamicTreeNodes(const Scene* scene, uint8_t* block, int32_t* root)
 {
@@ -343,7 +350,7 @@ static void UnfinishedGhost(m2ShapeGeometry* geometry)
     {
         geometry->chainSegment.ghost1.x = NAN;
     }
-    else
+    else if (geometry->type == m2_polygonShape)
     {
         geometry->polygon.radius = -1.0f; // the ground's slab, when it heads the list
     }
@@ -442,6 +449,7 @@ static void TestHostileStructures(void)
     ExpectRefused(&scene, ShapeNamesAnotherBody, "a shape on another body's list is refused");
     ExpectRefused(&scene, ChainOnADeadBody, "a chain on a dead body is refused");
     ExpectRefused(&scene, JointToADeadBody, "a joint to a dead body is refused");
+    ExpectRefused(&scene, JointAnchorTooFar, "a joint anchor beyond M2_HUGE is refused");
     ExpectRefused(&scene, TreeChildDisownsParent,
                   "a tree child that disowns its parent is refused");
     ExpectRefused(&scene, TreeLoopsToRoot, "a tree that loops is refused");

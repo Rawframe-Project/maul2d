@@ -342,7 +342,9 @@ extern "C"
 
     /// Creates a distance joint. A joint joins its bodies' sleep island,
     /// so they sleep and wake together, and both wake now. Destroying
-    /// either body destroys the joint. Journaled.
+    /// either body destroys the joint. Journaled. Every joint def's local
+    /// anchors, axis and linear offset lie within M2_HUGE; a def past it
+    /// is bad.
     ///
     /// @param world     The world.
     /// @param def       The joint, from m2DefaultDistanceJointDef.
@@ -950,7 +952,8 @@ extern "C"
 
     /// Moves a motor joint's target, as a moving platform does every frame.
     /// The torque budget is set with m2Joint_SetMaxMotor. Another joint
-    /// type or a non-finite offset counts one misuse.
+    /// type, a non-finite angular offset or a linear offset beyond M2_HUGE
+    /// counts one misuse.
     ///
     /// @param world          The world.
     /// @param jointId        A motor joint.
