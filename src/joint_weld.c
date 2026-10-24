@@ -30,7 +30,7 @@ m2WeldJointDef m2DefaultWeldJointDef(void)
 // ordered ranges.
 static bool DefValid(const m2WeldJointDef* def)
 {
-    return m2FiniteVec2(def->localAnchorA) && m2FiniteVec2(def->localAnchorB) &&
+    return m2LocalVec2(def->localAnchorA) && m2LocalVec2(def->localAnchorB) &&
            m2JointGain(def->linearHertz) && m2JointGain(def->linearDampingRatio) &&
            m2JointGain(def->angularHertz) && m2JointGain(def->angularDampingRatio);
 }

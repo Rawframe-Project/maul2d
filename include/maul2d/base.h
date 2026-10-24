@@ -177,6 +177,14 @@ extern "C"
 // tape, from running without bound.
 #define M2_MAX_SUBSTEPS 64
 
+// The largest magnitude of a body-local length, in meters: shape
+// coordinates and radii, the points of polygons, hulls, outlines and
+// chains, and joint anchors. Larger ones are refused: the solver works in
+// 32-bit floats relative to each body, and lengths beyond this overflow
+// its products. Box2D uses the same bound. World positions are 64-bit and
+// not bounded.
+#define M2_HUGE 100000.0f
+
 #ifdef __cplusplus
 }
 #endif

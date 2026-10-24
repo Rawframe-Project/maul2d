@@ -24,7 +24,7 @@ extern "C"
     } m2ShapeId;
 
     /// A circle. All geometry is authored in body-local space, in 32-bit
-    /// floats.
+    /// floats, with every coordinate and radius within M2_HUGE.
     typedef struct m2Circle
     {
         m2Vec2 center;
@@ -114,7 +114,8 @@ extern "C"
     /// The def of a chain. Initialize it with m2DefaultChainDef. An open
     /// chain needs at least 4 points: the first and last are ghosts, and
     /// the chain collides along points[1..count-2]. A loop needs at least
-    /// 3 and wraps. The points are copied, so the array may be temporary.
+    /// 3 and wraps. Every point lies within M2_HUGE. The points are copied,
+    /// so the array may be temporary.
     typedef struct m2ChainDef
     {
         const m2Vec2* points;
@@ -240,9 +241,9 @@ extern "C"
     ///                  capacity; left as it was on failure.
     /// @return m2_success; m2_errorInvalid for too few or too many points,
     ///         clockwise winding, an outline that is not simple (an edge
-    ///         crossing another, a vertex on another edge, a repeated
-    ///         vertex, an edge folding back over its neighbor), a
-    ///         non-finite point or a null argument. It takes no world, so
+    ///         crossing another, a vertex within 0.005 m of an edge it
+    ///         does not end, a repeated vertex, an edge folding back over
+    ///         its neighbor), a point beyond M2_HUGE or a null argument. It takes no world, so
     ///         a refusal counts nothing.
     /// @par Thread safety
     /// Safe from any thread.

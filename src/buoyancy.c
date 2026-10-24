@@ -160,8 +160,13 @@ static int32_t RoundedOutline(const m2Vec2* verts, const m2Vec2* normals, int32_
         m2Vec2 to = normals[i];
         float turn = m2Atan2(from.x * to.y - from.y * to.x, from.x * to.x + from.y * to.y);
         turn = turn < 0.0f ? turn + 2.0f * (float)M2_PI : turn; // a half turn may read as -pi
+        // The world builds every normal from an edge at least
+        // M2_MIN_EDGE_LENGTH long within M2_HUGE, so the turn is finite and
+        // the cast below sees at most 17.
+        M2_ASSERT(turn >= 0.0f && turn <= 2.0f * (float)M2_PI);
         int32_t steps = (int32_t)ceilf(turn * (8.0f / (float)M2_PI));
         steps = steps < 2 ? 2 : steps;
+        M2_ASSERT(steps <= 17);
         m2Rot rot = m2MakeRot(turn / (float)steps);
         float inner = FanRadius(radius, steps, turn / (float)steps, rot.s);
         m2Vec2 dir = from;

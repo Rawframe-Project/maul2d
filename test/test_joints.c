@@ -2051,8 +2051,90 @@ static void TestJointAdjacency(void)
     m2DestroyWorld(world);
 }
 
+// Joint anchors, axes and the motor's offset are body-local, so they stop
+// at M2_HUGE like shape coordinates: each create past it is refused, and
+// so is a motor offset set past it.
+static void TestLocalAnchorsAreBounded(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    m2BodyId a = AddBall(world, 0.0, 0.0, 0.5f);
+    m2BodyId b = AddBall(world, 2.0, 0.0, 0.5f);
+    const m2Vec2 beyond = {0.0f, 2.0f * M2_HUGE};
+    m2JointId joint = m2_nullJointId;
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+
+    m2DistanceJointDef distance = m2DefaultDistanceJointDef();
+    distance.bodyIdA = a;
+    distance.bodyIdB = b;
+    distance.localAnchorA = beyond;
+    m2RevoluteJointDef revolute = m2DefaultRevoluteJointDef();
+    revolute.bodyIdA = a;
+    revolute.bodyIdB = b;
+    revolute.localAnchorB = beyond;
+    m2PrismaticJointDef prismatic = m2DefaultPrismaticJointDef();
+    prismatic.bodyIdA = a;
+    prismatic.bodyIdB = b;
+    prismatic.localAxisA = beyond;
+    m2WeldJointDef weld = m2DefaultWeldJointDef();
+    weld.bodyIdA = a;
+    weld.bodyIdB = b;
+    weld.localAnchorA = beyond;
+    m2WheelJointDef wheel = m2DefaultWheelJointDef();
+    wheel.bodyIdA = a;
+    wheel.bodyIdB = b;
+    wheel.localAnchorB = beyond;
+    m2PulleyJointDef pulley = m2DefaultPulleyJointDef();
+    pulley.bodyIdA = a;
+    pulley.bodyIdB = b;
+    pulley.groundAnchorA = (m2Pos2){0.0, 5.0};
+    pulley.groundAnchorB = (m2Pos2){2.0, 5.0};
+    pulley.localAnchorA = beyond;
+    m2MotorJointDef motor = m2DefaultMotorJointDef();
+    motor.bodyIdA = a;
+    motor.bodyIdB = b;
+    motor.linearOffset = beyond;
+    CHECK(m2CreateDistanceJoint(world, &distance, &joint) == m2_errorInvalid &&
+              m2CreateRevoluteJoint(world, &revolute, &joint) == m2_errorInvalid &&
+              m2CreatePrismaticJoint(world, &prismatic, &joint) == m2_errorInvalid &&
+              m2CreateWeldJoint(world, &weld, &joint) == m2_errorInvalid &&
+              m2CreateWheelJoint(world, &wheel, &joint) == m2_errorInvalid &&
+              m2CreatePulleyJoint(world, &pulley, &joint) == m2_errorInvalid &&
+              m2CreateMotorJoint(world, &motor, &joint) == m2_errorInvalid,
+          "every joint def past M2_HUGE is refused");
+    CHECK(m2World_GetCounters(world).misuse == misuse + 7, "each refusal counts one misuse");
+
+    // The mouse joint's grab point is where the target lies in B's frame:
+    // a target past M2_HUGE from B would make an anchor no snapshot keeps.
+    m2MouseJointDef mouse = m2DefaultMouseJointDef();
+    mouse.bodyIdA = a;
+    mouse.bodyIdB = b;
+    mouse.target = (m2Pos2){2.0 + 2.0 * (double)M2_HUGE, 0.0};
+    CHECK(m2CreateMouseJoint(world, &mouse, &joint) == m2_errorInvalid &&
+              m2World_GetCounters(world).misuse == misuse + 8,
+          "a mouse target past M2_HUGE from its body is refused");
+    mouse.target = (m2Pos2){2.0 + (double)M2_HUGE, 0.0};
+    CHECK(m2CreateMouseJoint(world, &mouse, &joint) == m2_success, "one at M2_HUGE is created");
+    misuse += 1;
+    int32_t size = m2World_SnapshotSize(world);
+    void* snapshot = malloc((size_t)size);
+    CHECK(snapshot != NULL && Snapshot(world, snapshot, size) == size &&
+              Restore(world, snapshot, size),
+          "and its world's snapshot restores");
+    free(snapshot);
+
+    motor.linearOffset = (m2Vec2){1.0f, 0.0f};
+    m2JointId mover = NewMotorJoint(world, &motor);
+    m2MotorJoint_SetOffsets(world, mover, beyond, 0.0f);
+    m2Vec2 kept = m2MotorJoint_GetLinearOffset(world, mover);
+    CHECK(m2World_GetCounters(world).misuse == misuse + 8 && kept.x == 1.0f && kept.y == 0.0f,
+          "a motor offset past M2_HUGE changes nothing and counts one misuse");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
+    TestLocalAnchorsAreBounded();
     TestJointAdjacency();
     TestDistancePendulum();
     TestDistanceRope();

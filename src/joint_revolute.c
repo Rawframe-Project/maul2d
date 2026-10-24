@@ -30,7 +30,7 @@ m2RevoluteJointDef m2DefaultRevoluteJointDef(void)
 // ordered ranges.
 static bool DefValid(const m2RevoluteJointDef* def)
 {
-    return m2FiniteVec2(def->localAnchorA) && m2FiniteVec2(def->localAnchorB) &&
+    return m2LocalVec2(def->localAnchorA) && m2LocalVec2(def->localAnchorB) &&
            m2JointGain(def->hertz) && m2JointGain(def->dampingRatio) &&
            m2JointGain(def->springHertz) && m2JointGain(def->springDampingRatio) &&
            m2FiniteF(def->motorSpeed) && m2JointGain(def->maxMotorTorque) &&

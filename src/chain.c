@@ -61,8 +61,8 @@ static int32_t ChainSegmentCount(const m2ChainDef* def)
     return def->isLoop ? def->count : def->count - 3;
 }
 
-// Finite points and a real length on every segment, so the segment
-// creates below can only fail for capacity.
+// Points within M2_HUGE and a real length on every segment, so the
+// segment creates below can only fail for capacity.
 static bool ChainDefValid(const m2ChainDef* def)
 {
     if (def->points == NULL || (def->isLoop ? def->count < 3 : def->count < 4))
@@ -71,7 +71,7 @@ static bool ChainDefValid(const m2ChainDef* def)
     }
     for (int32_t i = 0; i < def->count; ++i)
     {
-        if (!m2FiniteVec2(def->points[i]))
+        if (!m2LocalVec2(def->points[i]))
         {
             return false;
         }

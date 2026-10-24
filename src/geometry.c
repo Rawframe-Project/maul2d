@@ -19,16 +19,6 @@
 // scale-free sliver rejector; a square scores 1/16 = 0.0625).
 #define M2_MIN_THINNESS 0.001f
 
-static bool IsFiniteF(float x)
-{
-    return m2FiniteF(x);
-}
-
-static bool IsFiniteVec(m2Vec2 v)
-{
-    return IsFiniteF(v.x) && IsFiniteF(v.y);
-}
-
 static float EdgeLength(m2Vec2 a, m2Vec2 b)
 {
     float dx = b.x - a.x;
@@ -39,14 +29,14 @@ static float EdgeLength(m2Vec2 a, m2Vec2 b)
 
 bool m2ValidateCircle(const m2Circle* circle)
 {
-    return circle != NULL && IsFiniteVec(circle->center) && IsFiniteF(circle->radius) &&
+    return circle != NULL && m2LocalVec2(circle->center) && m2LocalLength(circle->radius) &&
            circle->radius >= M2_LINEAR_SLOP;
 }
 
 bool m2ValidateCapsule(const m2Capsule* capsule)
 {
-    if (capsule == NULL || !IsFiniteVec(capsule->point1) || !IsFiniteVec(capsule->point2) ||
-        !IsFiniteF(capsule->radius) || capsule->radius < M2_LINEAR_SLOP)
+    if (capsule == NULL || !m2LocalVec2(capsule->point1) || !m2LocalVec2(capsule->point2) ||
+        !m2LocalLength(capsule->radius) || capsule->radius < M2_LINEAR_SLOP)
     {
         return false;
     }
@@ -60,14 +50,14 @@ bool m2ValidateCapsule(const m2Capsule* capsule)
 
 bool m2ValidateSegment(const m2Segment* segment)
 {
-    return segment != NULL && IsFiniteVec(segment->point1) && IsFiniteVec(segment->point2) &&
+    return segment != NULL && m2LocalVec2(segment->point1) && m2LocalVec2(segment->point2) &&
            EdgeLength(segment->point1, segment->point2) >= M2_MIN_EDGE_LENGTH;
 }
 
 bool m2ValidatePolygon(const m2Polygon* polygon)
 {
     if (polygon == NULL || polygon->count < 3 || polygon->count > M2_MAX_POLYGON_VERTICES ||
-        !IsFiniteF(polygon->radius) || polygon->radius < 0.0f)
+        !m2LocalLength(polygon->radius))
     {
         return false;
     }
@@ -78,7 +68,7 @@ bool m2ValidatePolygon(const m2Polygon* polygon)
     {
         m2Vec2 a = polygon->vertices[i];
         m2Vec2 b = polygon->vertices[(i + 1) % polygon->count];
-        if (!IsFiniteVec(a))
+        if (!m2LocalVec2(a))
         {
             return false;
         }
@@ -307,8 +297,8 @@ bool m2GeometryIsCanonical(const m2ShapeGeometry* geometry)
         return m2ValidateSegment(&geometry->segment);
     case m2_chainSegmentShape:
         return m2ValidateSegment(&geometry->chainSegment.segment) &&
-               IsFiniteVec(geometry->chainSegment.ghost1) &&
-               IsFiniteVec(geometry->chainSegment.ghost2);
+               m2LocalVec2(geometry->chainSegment.ghost1) &&
+               m2LocalVec2(geometry->chainSegment.ghost2);
     case m2_polygonShape:
     {
         m2Polygon canonical = m2CanonicalPolygon(&geometry->polygon);
@@ -591,17 +581,24 @@ typedef struct m2DecompPiece
     int32_t n;
 } m2DecompPiece;
 
-static float DecompCross(m2Vec2 a, m2Vec2 b, m2Vec2 c)
+// The predicates work in double: the points are within M2_HUGE, so every
+// difference and product is far from overflow, and a near-zero turn keeps
+// its sign where float would round it away.
+static double DecompCross(m2Vec2 a, m2Vec2 b, m2Vec2 c)
 {
-    return (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
+    double abx = (double)b.x - (double)a.x;
+    double aby = (double)b.y - (double)a.y;
+    double acx = (double)c.x - (double)a.x;
+    double acy = (double)c.y - (double)a.y;
+    return abx * acy - aby * acx;
 }
 
 // Inclusive point-in-triangle for a CCW triangle: boundary counts as
 // inside, which makes the ear test conservative.
 static bool DecompPointInTriangle(m2Vec2 a, m2Vec2 b, m2Vec2 c, m2Vec2 p)
 {
-    return DecompCross(a, b, p) >= 0.0f && DecompCross(b, c, p) >= 0.0f &&
-           DecompCross(c, a, p) >= 0.0f;
+    return DecompCross(a, b, p) >= 0.0 && DecompCross(b, c, p) >= 0.0 &&
+           DecompCross(c, a, p) >= 0.0;
 }
 
 // Whether p, collinear with segment ab, lies on it, endpoints included.
@@ -617,17 +614,17 @@ static bool DecompOnSegment(m2Vec2 a, m2Vec2 b, m2Vec2 p)
 // corners is not simple, and its pieces could cover what it cuts out.
 static bool DecompSegmentsMeet(m2Vec2 a, m2Vec2 b, m2Vec2 c, m2Vec2 d)
 {
-    float d1 = DecompCross(c, d, a);
-    float d2 = DecompCross(c, d, b);
-    float d3 = DecompCross(a, b, c);
-    float d4 = DecompCross(a, b, d);
-    if (((d1 > 0.0f && d2 < 0.0f) || (d1 < 0.0f && d2 > 0.0f)) &&
-        ((d3 > 0.0f && d4 < 0.0f) || (d3 < 0.0f && d4 > 0.0f)))
+    double d1 = DecompCross(c, d, a);
+    double d2 = DecompCross(c, d, b);
+    double d3 = DecompCross(a, b, c);
+    double d4 = DecompCross(a, b, d);
+    if (((d1 > 0.0 && d2 < 0.0) || (d1 < 0.0 && d2 > 0.0)) &&
+        ((d3 > 0.0 && d4 < 0.0) || (d3 < 0.0 && d4 > 0.0)))
     {
         return true;
     }
-    return (d1 == 0.0f && DecompOnSegment(c, d, a)) || (d2 == 0.0f && DecompOnSegment(c, d, b)) ||
-           (d3 == 0.0f && DecompOnSegment(a, b, c)) || (d4 == 0.0f && DecompOnSegment(a, b, d));
+    return (d1 == 0.0 && DecompOnSegment(c, d, a)) || (d2 == 0.0 && DecompOnSegment(c, d, b)) ||
+           (d3 == 0.0 && DecompOnSegment(a, b, c)) || (d4 == 0.0 && DecompOnSegment(a, b, d));
 }
 
 // Whether the corner at b folds the outline straight back over the edge
@@ -636,12 +633,35 @@ static bool DecompSegmentsMeet(m2Vec2 a, m2Vec2 b, m2Vec2 c, m2Vec2 d)
 // rounding can tell the two apart, so the corner is tested exactly here.
 static bool DecompFoldsBack(m2Vec2 a, m2Vec2 b, m2Vec2 c)
 {
-    return DecompCross(a, b, c) == 0.0f &&
-           (b.x - a.x) * (c.x - b.x) + (b.y - a.y) * (c.y - b.y) < 0.0f;
+    double dot = ((double)b.x - (double)a.x) * ((double)c.x - (double)b.x) +
+                 ((double)b.y - (double)a.y) * ((double)c.y - (double)b.y);
+    return DecompCross(a, b, c) == 0.0 && dot < 0.0;
 }
 
-// Whether an outline is simple: no corner folds back, and no two edges
-// meet except adjacent ones at their shared corner.
+// Whether p lies within M2_LINEAR_SLOP of segment ab. Closer than that,
+// a vertex touches the edge for the solver, and float rounding in the
+// pieces can make them cross it.
+static bool DecompNear(m2Vec2 a, m2Vec2 b, m2Vec2 p)
+{
+    double ex = (double)b.x - (double)a.x;
+    double ey = (double)b.y - (double)a.y;
+    double px = (double)p.x - (double)a.x;
+    double py = (double)p.y - (double)a.y;
+    double along = px * ex + py * ey;
+    double length2 = ex * ex + ey * ey;
+    if (along > 0.0 && length2 > 0.0)
+    {
+        double t = along < length2 ? along / length2 : 1.0;
+        px -= t * ex;
+        py -= t * ey;
+    }
+    double slop = (double)M2_LINEAR_SLOP;
+    return px * px + py * py < slop * slop;
+}
+
+// Whether an outline is simple: no corner folds back, no two edges meet
+// except adjacent ones at their shared corner, and no corner comes within
+// M2_LINEAR_SLOP of an edge it does not end.
 static bool DecompSimple(const m2Vec2* points, int32_t count)
 {
     for (int32_t i = 0; i < count; ++i)
@@ -649,6 +669,14 @@ static bool DecompSimple(const m2Vec2* points, int32_t count)
         if (DecompFoldsBack(points[(i + count - 1) % count], points[i], points[(i + 1) % count]))
         {
             return false;
+        }
+        for (int32_t j = 0; j < count; ++j)
+        {
+            if (j != i && (j + 1) % count != i &&
+                DecompNear(points[j], points[(j + 1) % count], points[i]))
+            {
+                return false;
+            }
         }
         for (int32_t j = i + 1; j < count; ++j)
         {
@@ -680,7 +708,7 @@ static int32_t Decompose(const m2Vec2* points, int32_t count, m2Polygon* pieces,
     for (int32_t i = 0; i < count; ++i)
     {
         m2Vec2 p = points[i];
-        if (!m2FiniteF(p.x) || !m2FiniteF(p.y))
+        if (!m2LocalVec2(p))
         {
             return -1;
         }
@@ -716,15 +744,15 @@ static int32_t Decompose(const m2Vec2* points, int32_t count, m2Polygon* pieces,
             int32_t ip = ring[(k + ringCount - 1) % ringCount];
             int32_t ic = ring[k];
             int32_t in = ring[(k + 1) % ringCount];
-            float cross = DecompCross(points[ip], points[ic], points[in]);
-            if (cross == 0.0f)
+            double cross = DecompCross(points[ip], points[ic], points[in]);
+            if (cross == 0.0)
             {
                 // A straight vertex clips for free, no triangle.
                 bestPos = k;
                 degenerate = true;
                 break;
             }
-            if (cross < 0.0f)
+            if (cross < 0.0)
             {
                 continue; // reflex
             }
@@ -761,8 +789,8 @@ static int32_t Decompose(const m2Vec2* points, int32_t count, m2Polygon* pieces,
         }
         ringCount -= 1;
     }
-    float lastCross = DecompCross(points[ring[0]], points[ring[1]], points[ring[2]]);
-    if (lastCross > 0.0f)
+    double lastCross = DecompCross(points[ring[0]], points[ring[1]], points[ring[2]]);
+    if (lastCross > 0.0)
     {
         triangles[3 * triangleCount + 0] = ring[0];
         triangles[3 * triangleCount + 1] = ring[1];
@@ -828,7 +856,7 @@ static int32_t Decompose(const m2Vec2* points, int32_t count, m2Polygon* pieces,
                         m2Vec2 a = points[merged.idx[k]];
                         m2Vec2 b = points[merged.idx[(k + 1) % merged.n]];
                         m2Vec2 c = points[merged.idx[(k + 2) % merged.n]];
-                        convex = DecompCross(a, b, c) > 0.0f;
+                        convex = DecompCross(a, b, c) > 0.0;
                     }
                     if (!convex)
                     {

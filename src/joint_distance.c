@@ -30,7 +30,7 @@ m2DistanceJointDef m2DefaultDistanceJointDef(void)
 // ordered ranges.
 static bool DefValid(const m2DistanceJointDef* def)
 {
-    return m2FiniteVec2(def->localAnchorA) && m2FiniteVec2(def->localAnchorB) &&
+    return m2LocalVec2(def->localAnchorA) && m2LocalVec2(def->localAnchorB) &&
            m2FiniteF(def->length) && m2FiniteF(def->minLength) && m2FiniteF(def->maxLength) &&
            !(def->maxLength > 0.0f && def->minLength > def->maxLength) && m2JointGain(def->hertz) &&
            m2JointGain(def->dampingRatio);

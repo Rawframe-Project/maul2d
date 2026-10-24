@@ -53,7 +53,7 @@ float m2PulleyLiveLength(const m2World* world, int32_t index, int32_t side)
 static bool DefValid(const m2PulleyJointDef* def)
 {
     return m2FinitePos2(def->groundAnchorA) && m2FinitePos2(def->groundAnchorB) &&
-           m2FiniteVec2(def->localAnchorA) && m2FiniteVec2(def->localAnchorB) &&
+           m2LocalVec2(def->localAnchorA) && m2LocalVec2(def->localAnchorB) &&
            m2FiniteF(def->ratio) && def->ratio > 0.0f;
 }
 

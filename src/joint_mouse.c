@@ -64,16 +64,21 @@ m2Result m2CreateMouseJoint(m2World* world, const m2MouseJointDef* def, m2JointI
     {
         return m2Refuse(world, m2_errorInvalid);
     }
+    // The grab point is where the target sits at creation, in B's
+    // local frame (the single f64 crossing). It becomes B's anchor, a
+    // body-local length, so it stays within M2_HUGE like any other.
+    m2Transform xfB = world->bodies.transforms[bodyB];
+    m2Vec2 rel = {(float)(def->target.x - xfB.p.x), (float)(def->target.y - xfB.p.y)};
+    m2Vec2 grab = {xfB.q.c * rel.x + xfB.q.s * rel.y, -xfB.q.s * rel.x + xfB.q.c * rel.y};
+    if (!m2LocalVec2(grab))
+    {
+        return m2Refuse(world, m2_errorInvalid);
+    }
     int32_t index = m2AllocateJoint(world);
     if (index < 0)
     {
         return m2Refuse(world, m2_errorCapacity);
     }
-    // The grab point is where the target sits at creation, in B's
-    // local frame (the single f64 crossing).
-    m2Transform xfB = world->bodies.transforms[bodyB];
-    m2Vec2 rel = {(float)(def->target.x - xfB.p.x), (float)(def->target.y - xfB.p.y)};
-    m2Vec2 grab = {xfB.q.c * rel.x + xfB.q.s * rel.y, -xfB.q.s * rel.x + xfB.q.c * rel.y};
     m2Vec2 zero = {0.0f, 0.0f};
     m2JointId jointId = m2FinishJoint(world, index, (uint8_t)m2_mouseJoint, bodyA, bodyB, zero,
                                       grab, 0.0f, def->hertz, def->dampingRatio);

@@ -45,6 +45,15 @@ static inline bool m2FinitePos2(m2Pos2 p)
 {
     return m2FiniteD(p.x) && m2FiniteD(p.y);
 }
+// A body-local point or length within M2_HUGE; NaN fails both.
+static inline bool m2LocalVec2(m2Vec2 v)
+{
+    return v.x >= -M2_HUGE && v.x <= M2_HUGE && v.y >= -M2_HUGE && v.y <= M2_HUGE;
+}
+static inline bool m2LocalLength(float x)
+{
+    return x >= 0.0f && x <= M2_HUGE;
+}
 // A caller rotation that is stored or used as given must already be a
 // unit rotation (m2MakeRot builds one); anything else would shear.
 static inline bool m2UnitRot(m2Rot q)
