@@ -16,6 +16,7 @@
 
 #include "maul2d/base.h"
 
+#include <stddef.h>
 #include <string.h>
 
 // Ids are compared by slot and generation.
@@ -472,21 +473,57 @@ static bool ApplyShatterBody(m2ReplayCursor* r, const m2OpPayload* p)
 // The command table, indexed by op code. The payload size is the fixed
 // part read before the apply runs; variable-length ops read their tail
 // through the cursor.
-#define M2_COMMAND(op, payload, fn) [op] = {(int32_t)sizeof(payload), fn}
+#define M2_COMMAND(op, payload, fn) [op] = {(int32_t)sizeof(payload), fn, NULL, 0}
+#define M2_COMMAND_BOOLS(op, payload, fn, bools)                                                   \
+    [op] = {(int32_t)sizeof(payload), fn, (bools), (int32_t)(sizeof(bools) / sizeof((bools)[0]))}
+
+// The bool members of the payloads that carry them: the defs' flags.
+#define M2_AT(payload, member) (uint16_t)offsetof(payload, member)
+static const uint16_t s_bodyBools[] = {M2_AT(m2OpCreateBody, def.motionLocks.linearX),
+                                       M2_AT(m2OpCreateBody, def.motionLocks.linearY),
+                                       M2_AT(m2OpCreateBody, def.motionLocks.angularZ),
+                                       M2_AT(m2OpCreateBody, def.fixedRotation),
+                                       M2_AT(m2OpCreateBody, def.enableSleep),
+                                       M2_AT(m2OpCreateBody, def.isEnabled),
+                                       M2_AT(m2OpCreateBody, def.isBullet)};
+static const uint16_t s_shapeBools[] = {M2_AT(m2OpCreateShape, def.isSensor)};
+static const uint16_t s_distanceBools[] = {M2_AT(m2OpCreateDistanceJoint, def.enableSpring),
+                                           M2_AT(m2OpCreateDistanceJoint, def.collideConnected)};
+static const uint16_t s_revoluteBools[] = {M2_AT(m2OpCreateRevoluteJoint, def.enableMotor),
+                                           M2_AT(m2OpCreateRevoluteJoint, def.enableLimit),
+                                           M2_AT(m2OpCreateRevoluteJoint, def.collideConnected)};
+static const uint16_t s_prismaticBools[] = {M2_AT(m2OpCreatePrismaticJoint, def.enableMotor),
+                                            M2_AT(m2OpCreatePrismaticJoint, def.enableLimit),
+                                            M2_AT(m2OpCreatePrismaticJoint, def.collideConnected)};
+static const uint16_t s_weldBools[] = {M2_AT(m2OpCreateWeldJoint, def.collideConnected)};
+static const uint16_t s_wheelBools[] = {M2_AT(m2OpCreateWheelJoint, def.enableSpring),
+                                        M2_AT(m2OpCreateWheelJoint, def.enableMotor),
+                                        M2_AT(m2OpCreateWheelJoint, def.enableLimit),
+                                        M2_AT(m2OpCreateWheelJoint, def.collideConnected)};
+static const uint16_t s_motorBools[] = {M2_AT(m2OpCreateMotorJoint, def.collideConnected)};
+static const uint16_t s_mouseBools[] = {M2_AT(m2OpCreateMouseJoint, def.collideConnected)};
+static const uint16_t s_gearBools[] = {M2_AT(m2OpCreateGearJoint, def.collideConnected)};
+static const uint16_t s_pulleyBools[] = {M2_AT(m2OpCreatePulleyJoint, def.collideConnected)};
+static const uint16_t s_ratchetBools[] = {M2_AT(m2OpCreateRatchetJoint, def.collideConnected)};
+#undef M2_AT
 
 static const m2JournalCommand s_commands[m2_opCount] = {
     M2_COMMAND(m2_opStep, m2OpStep, ApplyStep),
-    M2_COMMAND(m2_opCreateBody, m2OpCreateBody, ApplyCreateBody),
+    M2_COMMAND_BOOLS(m2_opCreateBody, m2OpCreateBody, ApplyCreateBody, s_bodyBools),
     M2_COMMAND(m2_opDestroyBody, m2BodyId, ApplyDestroyBody),
     M2_COMMAND(m2_opSetLinearVelocity, m2OpBodyVec, ApplySetLinearVelocity),
     M2_COMMAND(m2_opSetAngularVelocity, m2OpBodyFloat, ApplySetAngularVelocity),
-    M2_COMMAND(m2_opCreateShape, m2OpCreateShape, ApplyCreateShape),
-    M2_COMMAND(m2_opCreateDistanceJoint, m2OpCreateDistanceJoint, ApplyCreateDistanceJoint),
-    M2_COMMAND(m2_opCreateRevoluteJoint, m2OpCreateRevoluteJoint, ApplyCreateRevoluteJoint),
+    M2_COMMAND_BOOLS(m2_opCreateShape, m2OpCreateShape, ApplyCreateShape, s_shapeBools),
+    M2_COMMAND_BOOLS(m2_opCreateDistanceJoint, m2OpCreateDistanceJoint, ApplyCreateDistanceJoint,
+                     s_distanceBools),
+    M2_COMMAND_BOOLS(m2_opCreateRevoluteJoint, m2OpCreateRevoluteJoint, ApplyCreateRevoluteJoint,
+                     s_revoluteBools),
     M2_COMMAND(m2_opDestroyJoint, m2JointId, ApplyDestroyJoint),
-    M2_COMMAND(m2_opCreatePrismaticJoint, m2OpCreatePrismaticJoint, ApplyCreatePrismaticJoint),
-    M2_COMMAND(m2_opCreateWeldJoint, m2OpCreateWeldJoint, ApplyCreateWeldJoint),
-    M2_COMMAND(m2_opCreateWheelJoint, m2OpCreateWheelJoint, ApplyCreateWheelJoint),
+    M2_COMMAND_BOOLS(m2_opCreatePrismaticJoint, m2OpCreatePrismaticJoint, ApplyCreatePrismaticJoint,
+                     s_prismaticBools),
+    M2_COMMAND_BOOLS(m2_opCreateWeldJoint, m2OpCreateWeldJoint, ApplyCreateWeldJoint, s_weldBools),
+    M2_COMMAND_BOOLS(m2_opCreateWheelJoint, m2OpCreateWheelJoint, ApplyCreateWheelJoint,
+                     s_wheelBools),
     M2_COMMAND(m2_opDestroyShape, m2ShapeId, ApplyDestroyShape),
     M2_COMMAND(m2_opApplyLinearImpulse, m2OpBodyPoint, ApplyLinearImpulse),
     M2_COMMAND(m2_opApplyAngularImpulse, m2OpBodyFloat, ApplyAngularImpulse),
@@ -505,8 +542,10 @@ static const m2JournalCommand s_commands[m2_opCount] = {
     M2_COMMAND(m2_opApplyForceCenter, m2OpBodyVec, ApplyApplyForceCenter),
     M2_COMMAND(m2_opApplyTorque, m2OpBodyFloat, ApplyApplyTorque),
     M2_COMMAND(m2_opCreateFilterJoint, m2OpCreateFilterJoint, ApplyCreateFilterJoint),
-    M2_COMMAND(m2_opCreateMotorJoint, m2OpCreateMotorJoint, ApplyCreateMotorJoint),
-    M2_COMMAND(m2_opCreateMouseJoint, m2OpCreateMouseJoint, ApplyCreateMouseJoint),
+    M2_COMMAND_BOOLS(m2_opCreateMotorJoint, m2OpCreateMotorJoint, ApplyCreateMotorJoint,
+                     s_motorBools),
+    M2_COMMAND_BOOLS(m2_opCreateMouseJoint, m2OpCreateMouseJoint, ApplyCreateMouseJoint,
+                     s_mouseBools),
     M2_COMMAND(m2_opMotorOffsets, m2OpMotorOffsets, ApplyMotorOffsets),
     M2_COMMAND(m2_opMouseTarget, m2OpMouseTarget, ApplyMouseTarget),
     M2_COMMAND(m2_opDisableBody, m2BodyId, ApplyDisableBody),
@@ -525,12 +564,14 @@ static const m2JournalCommand s_commands[m2_opCount] = {
     M2_COMMAND(m2_opShapeUserData, m2OpShapeUserData, ApplyShapeUserData),
     M2_COMMAND(m2_opJointUserData, m2OpJointUserData, ApplyJointUserData),
     M2_COMMAND(m2_opSetDominance, m2OpBodyByte, ApplySetDominance),
-    M2_COMMAND(m2_opCreateGearJoint, m2OpCreateGearJoint, ApplyCreateGearJoint),
-    M2_COMMAND(m2_opCreatePulleyJoint, m2OpCreatePulleyJoint, ApplyCreatePulleyJoint),
+    M2_COMMAND_BOOLS(m2_opCreateGearJoint, m2OpCreateGearJoint, ApplyCreateGearJoint, s_gearBools),
+    M2_COMMAND_BOOLS(m2_opCreatePulleyJoint, m2OpCreatePulleyJoint, ApplyCreatePulleyJoint,
+                     s_pulleyBools),
     M2_COMMAND(m2_opEmitParticle, m2OpEmitParticle, ApplyEmitParticle),
     M2_COMMAND(m2_opDestroyParticle, m2ParticleId, ApplyDestroyParticle),
     M2_COMMAND(m2_opSetParticleVelocity, m2OpParticleVec, ApplySetParticleVelocity),
-    M2_COMMAND(m2_opCreateRatchetJoint, m2OpCreateRatchetJoint, ApplyCreateRatchetJoint),
+    M2_COMMAND_BOOLS(m2_opCreateRatchetJoint, m2OpCreateRatchetJoint, ApplyCreateRatchetJoint,
+                     s_ratchetBools),
     M2_COMMAND(m2_opFillParticles, m2OpFillParticles, ApplyFillParticles),
     M2_COMMAND(m2_opShatterBody, m2OpShatterHeader, ApplyShatterBody),
     M2_COMMAND(m2_opSetParticleLifetime, m2OpParticleFloat, ApplySetParticleLifetime),

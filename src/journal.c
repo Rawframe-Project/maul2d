@@ -243,6 +243,13 @@ static m2Result ReplayOps(m2World* world, const uint8_t* data, int32_t size)
         {
             return m2_errorInvalid; // unknown op or truncated payload
         }
+        for (int32_t k = 0; k < command->boolCount; ++k)
+        {
+            if (data[cursor.offset + command->bools[k]] > 1)
+            {
+                return m2_errorInvalid; // a bool that is neither false nor true
+            }
+        }
         memcpy(&payload, data + cursor.offset, (size_t)command->payloadSize);
         cursor.offset += command->payloadSize;
         if (!command->apply(&cursor, &payload))

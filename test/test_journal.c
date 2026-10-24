@@ -13,6 +13,7 @@
 #include "maul2d/base.h"
 #include "maul2d/maul2d.h"
 
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -467,8 +468,76 @@ static void TestRestoreRefusesBadCounters(void)
     free(snap);
 }
 
+// Replays a tape whose one record, made at the start of a recording, has
+// the byte at payloadOffset replaced: it must be refused, change nothing
+// and count nothing.
+static void ExpectByteRefused(m2World* world, const uint8_t* tape, int32_t bytes,
+                              int32_t recordStart, size_t payloadOffset, const char* what)
+{
+    uint8_t* edited = (uint8_t*)malloc((size_t)bytes);
+    CHECK(edited != NULL, "a copy of the tape");
+    if (edited == NULL)
+    {
+        return;
+    }
+    memcpy(edited, tape, (size_t)bytes);
+    edited[recordStart + 1 + (int32_t)payloadOffset] = 29;
+    uint64_t hash = m2World_Hash(world);
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    CHECK(m2World_ReplayJournal(world, edited, bytes) == m2_errorInvalid, what);
+    CHECK(m2World_Hash(world) == hash && m2World_GetCounters(world).misuse == misuse,
+          "a refused tape changes nothing and counts nothing");
+    free(edited);
+}
+
+// A record's bool flags hold 0 or 1; any other byte is refused before the
+// payload is read, since reading it as a bool is undefined. fuzz_journal
+// found a body def whose isEnabled byte was 29.
+static void TestTapeBoolsAreZeroOrOne(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    def.jointCapacity = 2;
+    m2World* world = NewWorld(&def);
+    int32_t capacity = m2World_GetJournalBaseSize(world) + 4096;
+    uint8_t* tape = (uint8_t*)malloc((size_t)capacity);
+    CHECK(tape != NULL && StartJournal(world, tape, capacity), "the journal starts");
+    int32_t recordStart = StopJournal(world); // the header and snapshot alone
+
+    m2BodyDef bodyDef = m2DefaultBodyDef();
+    bodyDef.type = m2_dynamicBody;
+    CHECK(StartJournal(world, tape, capacity), "the journal starts again");
+    m2BodyId body = NewBody(world, &bodyDef);
+    int32_t bytes = StopJournal(world);
+    const size_t bodyBools[] = {offsetof(m2BodyDef, fixedRotation),
+                                offsetof(m2BodyDef, enableSleep), offsetof(m2BodyDef, isEnabled),
+                                offsetof(m2BodyDef, isBullet),
+                                offsetof(m2BodyDef, motionLocks.angularZ)};
+    for (size_t i = 0; i < sizeof(bodyBools) / sizeof(bodyBools[0]); ++i)
+    {
+        ExpectByteRefused(world, tape, bytes, recordStart, bodyBools[i],
+                          "a body def's bool of 29 is refused");
+    }
+
+    bodyDef.position = (m2Pos2){1.0, 0.0};
+    m2BodyId other = NewBody(world, &bodyDef);
+    m2RevoluteJointDef pin = m2DefaultRevoluteJointDef();
+    pin.bodyIdA = body;
+    pin.bodyIdB = other;
+    CHECK(StartJournal(world, tape, capacity), "the journal starts a third time");
+    recordStart = m2World_GetJournalBaseSize(world);
+    NewRevoluteJoint(world, &pin);
+    bytes = StopJournal(world);
+    ExpectByteRefused(world, tape, bytes, recordStart, offsetof(m2RevoluteJointDef, enableMotor),
+                      "a joint def's bool of 29 is refused");
+    free(tape);
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
+    TestTapeBoolsAreZeroOrOne();
     TestReplayIsAtomic();
     TestRestoreRefusesBadCounters();
     TestRollbackWhileRecording();
