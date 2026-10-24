@@ -14,6 +14,7 @@
 #include "maul2d/base.h"
 #include "maul2d/maul2d.h"
 
+#include <float.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -2132,8 +2133,219 @@ static void TestLocalAnchorsAreBounded(void)
     m2DestroyWorld(world);
 }
 
+// One joint of the given type between a and b, every row it has switched
+// on: limits, motors and springs. Returns false for a type with no def
+// here.
+static bool FarJoint(m2World* world, m2JointType type, m2BodyId a, m2BodyId b)
+{
+    m2JointId joint = m2_nullJointId;
+    switch (type)
+    {
+    case m2_distanceJoint:
+    {
+        m2DistanceJointDef def = m2DefaultDistanceJointDef();
+        def.bodyIdA = a;
+        def.bodyIdB = b;
+        def.minLength = 0.5f;
+        def.maxLength = 2.0f;
+        def.enableSpring = true;
+        def.hertz = 4.0f;
+        joint = NewDistanceJoint(world, &def);
+        break;
+    }
+    case m2_revoluteJoint:
+    {
+        m2RevoluteJointDef def = m2DefaultRevoluteJointDef();
+        def.bodyIdA = a;
+        def.bodyIdB = b;
+        def.localAnchorA = (m2Vec2){0.5f, 0.0f};
+        def.localAnchorB = (m2Vec2){-0.5f, 0.0f};
+        def.springHertz = 2.0f;
+        def.enableMotor = true;
+        def.motorSpeed = 1.0f;
+        def.maxMotorTorque = 10.0f;
+        def.enableLimit = true;
+        def.lowerAngle = -0.5f;
+        def.upperAngle = 0.5f;
+        joint = NewRevoluteJoint(world, &def);
+        break;
+    }
+    case m2_prismaticJoint:
+    {
+        m2PrismaticJointDef def = m2DefaultPrismaticJointDef();
+        def.bodyIdA = a;
+        def.bodyIdB = b;
+        def.enableMotor = true;
+        def.motorSpeed = 1.0f;
+        def.maxMotorForce = 10.0f;
+        def.enableLimit = true;
+        def.lowerTranslation = -1.0f;
+        def.upperTranslation = 1.0f;
+        joint = NewPrismaticJoint(world, &def);
+        break;
+    }
+    case m2_weldJoint:
+    {
+        m2WeldJointDef def = m2DefaultWeldJointDef();
+        def.bodyIdA = a;
+        def.bodyIdB = b;
+        def.localAnchorA = (m2Vec2){0.5f, 0.0f};
+        def.localAnchorB = (m2Vec2){-0.5f, 0.0f};
+        joint = NewWeldJoint(world, &def);
+        break;
+    }
+    case m2_wheelJoint:
+    {
+        m2WheelJointDef def = m2DefaultWheelJointDef();
+        def.bodyIdA = a;
+        def.bodyIdB = b;
+        def.enableSpring = true;
+        def.hertz = 4.0f;
+        def.enableMotor = true;
+        def.motorSpeed = 1.0f;
+        def.maxMotorTorque = 10.0f;
+        def.enableLimit = true;
+        def.lowerTranslation = -1.0f;
+        def.upperTranslation = 1.0f;
+        joint = NewWheelJoint(world, &def);
+        break;
+    }
+    case m2_filterJoint:
+    {
+        m2FilterJointDef def = m2DefaultFilterJointDef();
+        def.bodyIdA = a;
+        def.bodyIdB = b;
+        joint = NewFilterJoint(world, &def);
+        break;
+    }
+    case m2_motorJoint:
+    {
+        m2MotorJointDef def = m2DefaultMotorJointDef();
+        def.bodyIdA = a;
+        def.bodyIdB = b;
+        def.linearOffset = (m2Vec2){1.0f, 0.0f};
+        def.maxForce = 100.0f;
+        def.maxTorque = 10.0f;
+        joint = NewMotorJoint(world, &def);
+        break;
+    }
+    case m2_mouseJoint:
+    {
+        m2MouseJointDef def = m2DefaultMouseJointDef();
+        def.bodyIdA = a;
+        def.bodyIdB = b;
+        def.target = (m2Pos2){1.0, 0.0};
+        def.maxForce = 100.0f;
+        joint = NewMouseJoint(world, &def);
+        break;
+    }
+    case m2_gearJoint:
+    {
+        m2GearJointDef def = m2DefaultGearJointDef();
+        def.bodyIdA = a;
+        def.bodyIdB = b;
+        def.ratio = 2.0f;
+        joint = NewGearJoint(world, &def);
+        break;
+    }
+    case m2_pulleyJoint:
+    {
+        m2PulleyJointDef def = m2DefaultPulleyJointDef();
+        def.bodyIdA = a;
+        def.bodyIdB = b;
+        def.groundAnchorA = (m2Pos2){0.0, 3.0};
+        def.groundAnchorB = (m2Pos2){1.0, 3.0};
+        joint = NewPulleyJoint(world, &def);
+        break;
+    }
+    case m2_ratchetJoint:
+    {
+        m2RatchetJointDef def = m2DefaultRatchetJointDef();
+        def.bodyIdA = a;
+        def.bodyIdB = b;
+        def.ratchet = 0.5f;
+        joint = NewRatchetJoint(world, &def);
+        break;
+    }
+    default:
+        return false;
+    }
+    return m2Joint_IsValid(world, joint);
+}
+
+static bool BodyFinite(const m2World* world, m2BodyId body)
+{
+    m2Pos2 p = m2Body_GetPosition(world, body);
+    m2Vec2 v = m2Body_GetLinearVelocity(world, body);
+    float w = m2Body_GetAngularVelocity(world, body);
+    return isfinite(p.x) && isfinite(p.y) && isfinite(v.x) && isfinite(v.y) && isfinite(w);
+}
+
+// Two jointed dynamic bodies moved far apart with m2Body_SetTransform:
+// world positions are 64-bit and unbounded, so their separation can pass
+// what a float holds. With type -1 there is no joint, the control.
+static bool FarApartStaysFinite(int32_t type, int32_t placement)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    def.jointCapacity = 2;
+    m2World* world = NewWorld(&def);
+    m2World_SetGravity(world, (m2Vec2){0.0f, -10.0f});
+    m2Polygon box = m2MakeBox(0.25f, 0.25f);
+    m2ShapeDef shapeDef = m2DefaultShapeDef();
+    m2BodyDef bodyDef = m2DefaultBodyDef();
+    bodyDef.type = m2_dynamicBody;
+    m2BodyId a = NewBody(world, &bodyDef);
+    NewPolygonShape(world, a, &shapeDef, &box);
+    bodyDef.position = (m2Pos2){1.0, 0.0};
+    m2BodyId b = NewBody(world, &bodyDef);
+    NewPolygonShape(world, b, &shapeDef, &box);
+    bool made = type < 0 || FarJoint(world, (m2JointType)type, a, b);
+    m2World_Step(world, 1.0f / 60.0f, 4);
+    m2Rot identity = {1.0f, 0.0f};
+    if (placement == 0)
+    {
+        m2Body_SetTransform(world, b, (m2Pos2){1e40, 1e40}, identity);
+    }
+    else if (placement == 1)
+    {
+        m2Body_SetTransform(world, b, (m2Pos2){DBL_MAX, DBL_MAX}, identity);
+    }
+    else
+    {
+        m2Body_SetTransform(world, a, (m2Pos2){-1e40, 0.0}, identity);
+        m2Body_SetTransform(world, b, (m2Pos2){1e40, 0.0}, identity);
+    }
+    bool finite = made;
+    for (int32_t i = 0; i < 8 && finite; ++i)
+    {
+        m2World_Step(world, 1.0f / 60.0f, 4);
+        finite = m2World_Validate(world) && BodyFinite(world, a) && BodyFinite(world, b);
+    }
+    m2DestroyWorld(world);
+    return finite;
+}
+
+static void TestFarApartJointsStayFinite(void)
+{
+    static const char* const placements[3] = {"1e40", "the largest double", "-1e40 and +1e40"};
+    for (int32_t placement = 0; placement < 3; ++placement)
+    {
+        for (int32_t type = -1; type <= (int32_t)m2_ratchetJoint; ++type)
+        {
+            if (!FarApartStaysFinite(type, placement))
+            {
+                printf("joint type %d at %s\n", (int)type, placements[placement]);
+                CHECK(false, "jointed bodies far apart stay valid and finite");
+            }
+        }
+    }
+}
+
 int main(void)
 {
+    TestFarApartJointsStayFinite();
     TestLocalAnchorsAreBounded();
     TestJointAdjacency();
     TestDistancePendulum();

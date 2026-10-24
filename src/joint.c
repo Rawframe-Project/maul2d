@@ -74,8 +74,8 @@ float m2Joint_GetLinearSeparation(const m2World* world, m2JointId jointId)
     m2Vec2 aB = world->joints.jointLocalAnchorB[j];
     m2Vec2 wA = {xfA.q.c * aA.x - xfA.q.s * aA.y, xfA.q.s * aA.x + xfA.q.c * aA.y};
     m2Vec2 wB = {xfB.q.c * aB.x - xfB.q.s * aB.y, xfB.q.s * aB.x + xfB.q.c * aB.y};
-    float dx = (float)(xfB.p.x - xfA.p.x) + wB.x - wA.x;
-    float dy = (float)(xfB.p.y - xfA.p.y) + wB.y - wA.y;
+    float dx = m2JointSeparation(xfB.p.x - xfA.p.x) + wB.x - wA.x;
+    float dy = m2JointSeparation(xfB.p.y - xfA.p.y) + wB.y - wA.y;
     switch (world->joints.jointType[j])
     {
     case 0: // distance: length error along the rod
@@ -103,8 +103,8 @@ float m2Joint_GetLinearSeparation(const m2World* world, m2JointId jointId)
     {
         m2Pos2 grab = m2Body_GetWorldPoint(
             world, (m2BodyId){(uint32_t)(bodyB + 1), world->bodies.generations[bodyB]}, aB);
-        float gx = (float)(grab.x - world->joints.jointTargets[j].x);
-        float gy = (float)(grab.y - world->joints.jointTargets[j].y);
+        float gx = m2JointSeparation(grab.x - world->joints.jointTargets[j].x);
+        float gy = m2JointSeparation(grab.y - world->joints.jointTargets[j].y);
         return sqrtf(gx * gx + gy * gy);
     }
     default: // revolute, weld: the pinned point's gap
