@@ -40,18 +40,17 @@ m2BodyDef m2DefaultBodyDef(void)
 }
 
 // A def every field of which a snapshot of the world will restore: a
-// known type, finite numbers, a rotation with a direction, and dampings
-// not below 0.
+// known type, a finite position, a rotation with a direction, and the
+// velocities, gravity scale and dampings within their ranges.
 static bool BodyDefValid(const m2BodyDef* def)
 {
     return (int32_t)def->type >= (int32_t)m2_staticBody &&
            (int32_t)def->type <= (int32_t)m2_dynamicBody && m2FinitePos2(def->position) &&
            m2FiniteF(def->rotation.c) && m2FiniteF(def->rotation.s) &&
            (def->rotation.c != 0.0f || def->rotation.s != 0.0f) &&
-           m2FiniteVec2(def->linearVelocity) && m2FiniteF(def->angularVelocity) &&
-           m2FiniteF(def->gravityScale) && m2FiniteF(def->linearDamping) &&
-           def->linearDamping >= 0.0f && m2FiniteF(def->angularDamping) &&
-           def->angularDamping >= 0.0f;
+           m2ValidVelocity(def->linearVelocity) && m2ValidSpeed(def->angularVelocity) &&
+           m2ValidGravityScale(def->gravityScale) && m2ValidRate(def->linearDamping) &&
+           m2ValidRate(def->angularDamping);
 }
 
 // A static body never moves, so its def carries no velocity, as its
@@ -255,9 +254,9 @@ static bool BodyParamValid(uint8_t param, float value)
     {
     case m2_bodyParamLinearDamping:
     case m2_bodyParamAngularDamping:
-        return m2FiniteF(value) && value >= 0.0f;
+        return m2ValidRate(value);
     case m2_bodyParamGravityScale:
-        return m2FiniteF(value);
+        return m2ValidGravityScale(value);
     case m2_bodyParamFixedRotation:
     case m2_bodyParamEnableSleep:
     case m2_bodyParamLockLinearX:
@@ -690,7 +689,7 @@ void m2Body_SetDominance(m2World* world, m2BodyId bodyId, int8_t dominance)
 // inertia of exactly the mass at the center gives a body that cannot turn.
 static bool MassDataInverses(m2MassData massData, float* invMass, float* invInertia)
 {
-    if (!m2FiniteF(massData.mass) || !(massData.mass > 0.0f) || !m2LocalVec2(massData.center) ||
+    if (!m2ValidMass(massData.mass) || !m2LocalVec2(massData.center) ||
         !m2FiniteF(massData.rotationalInertia))
     {
         return false;
@@ -698,9 +697,13 @@ static bool MassDataInverses(m2MassData massData, float* invMass, float* invIner
     float inertiaCenter =
         massData.rotationalInertia - massData.mass * (massData.center.x * massData.center.x +
                                                       massData.center.y * massData.center.y);
+    if (!m2ValidInertia(inertiaCenter))
+    {
+        return false;
+    }
     *invMass = 1.0f / massData.mass;
     *invInertia = inertiaCenter > 0.0f ? 1.0f / inertiaCenter : 0.0f;
-    return inertiaCenter >= 0.0f && m2MassInversesValid(*invMass, *invInertia);
+    return m2MassInversesValid(*invMass, *invInertia);
 }
 
 void m2Body_SetMassData(m2World* world, m2BodyId bodyId, m2MassData massData)

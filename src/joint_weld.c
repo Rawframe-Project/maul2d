@@ -31,8 +31,8 @@ m2WeldJointDef m2DefaultWeldJointDef(void)
 static bool DefValid(const m2WeldJointDef* def)
 {
     return m2LocalVec2(def->localAnchorA) && m2LocalVec2(def->localAnchorB) &&
-           m2JointGain(def->linearHertz) && m2JointGain(def->linearDampingRatio) &&
-           m2JointGain(def->angularHertz) && m2JointGain(def->angularDampingRatio);
+           m2ValidRate(def->linearHertz) && m2ValidCoefficient(def->linearDampingRatio) &&
+           m2ValidRate(def->angularHertz) && m2ValidCoefficient(def->angularDampingRatio);
 }
 
 m2Result m2CreateWeldJoint(m2World* world, const m2WeldJointDef* def, m2JointId* jointOut)

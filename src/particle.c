@@ -45,7 +45,7 @@ m2Result m2World_EmitParticle(m2World* world, m2Pos2 position, m2Vec2 velocity, 
     {
         return m2Refuse(world, m2_errorInvalid); // no particle system in this world: misuse
     }
-    if (!m2FinitePos2(position) || !m2FiniteVec2(velocity))
+    if (!m2FinitePos2(position) || !m2ValidVelocity(velocity))
     {
         return m2Refuse(world, m2_errorInvalid); // NaN screen, the def-validation law
     }
@@ -187,7 +187,7 @@ void m2Particle_SetVelocity(m2World* world, m2ParticleId particleId, m2Vec2 velo
     {
         return; // expired: changes nothing, counts nothing
     }
-    if (!m2FiniteVec2(velocity))
+    if (!m2ValidVelocity(velocity))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -317,7 +317,7 @@ static bool ValidFill(const m2World* world, const m2Polygon* polygon, m2Pos2 pos
     bool valid = world != NULL && polygon != NULL && polygon->count >= 3 &&
                  polygon->count <= M2_MAX_POLYGON_VERTICES &&
                  world->particles.particleCapacity > 0 && m2FinitePos2(position) &&
-                 m2FiniteVec2(velocity);
+                 m2ValidVelocity(velocity);
     for (int32_t i = 0; valid && i < polygon->count; ++i)
     {
         valid = m2FiniteVec2(polygon->vertices[i]) && m2FiniteVec2(polygon->normals[i]);

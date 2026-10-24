@@ -29,12 +29,13 @@ typedef struct m2MassShapes
 
 // The mass a body of this type takes from its shapes, in list order:
 // zero for static and kinematic bodies, a 1 kg floor without rotation for
-// a dynamic body whose shapes weigh nothing.
+// a dynamic body whose shapes weigh nothing, and otherwise the sum with
+// its mass and inertia clamped into the ranges of base.h.
 m2BodyMass m2BodyMassFromShapes(uint8_t type, bool fixedRotation, const m2MassShapes* shapes);
 
-// Whether a body may keep these inverses as mass data of its own: a
-// positive inverse mass and a non-negative inverse inertia, both finite
-// and each with a finite inverse, so the mass and inertia read back finite.
+// Whether a body may keep these inverses as mass data of its own: the
+// inverse of a mass within [M2_MIN_MASS, M2_MAX_MASS], and 0 or the
+// inverse of an inertia within [M2_MIN_INERTIA, M2_MAX_INERTIA].
 // m2Body_SetMassData and the snapshot check share it, so what one accepts
 // the other does.
 bool m2MassInversesValid(float invMass, float invInertia);

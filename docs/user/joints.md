@@ -25,7 +25,7 @@ Motors and limits belong to the revolute, prismatic and wheel joints. `m2Joint_S
 
 Every parameter of a def can be read back and most can be set at run time; each change is journaled. `m2Joint_SetSpringHertz` and `m2Joint_SetSpringDampingRatio` soften a joint's main rows (the distance spring, the wheel suspension, the weld's linear row, the mouse spring); the angular variants tune the revolute spring and the weld's angular row. A call made for one type, such as `m2DistanceJoint_SetLength` on a weld, changes nothing and counts one misuse.
 
-`m2Joint_GetLinearSeparation` and `m2Joint_GetAngularSeparation` say how far a joint is from what it holds right now, which shows a rig being pulled apart. A joint takes bodies more than 1e15 m apart along an axis as 1e15 m apart: world positions are 64-bit and unbounded, but the solver works in 32-bit floats, and the clamp keeps it finite when a teleport sends one body to the far end of the world.
+`m2Joint_GetLinearSeparation` and `m2Joint_GetAngularSeparation` say how far a joint is from what it holds right now, which shows a rig being pulled apart. A joint takes bodies more than `M2_JOINT_REACH` (1e9 m) apart along an axis as that far apart: world positions are 64-bit and unbounded, but the solver works in 32-bit floats, and the clamp keeps it finite when a teleport sends one body to the far end of the world.
 
 ## Breaking
 

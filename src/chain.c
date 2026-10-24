@@ -65,7 +65,8 @@ static int32_t ChainSegmentCount(const m2ChainDef* def)
 // segment creates below can only fail for capacity.
 static bool ChainDefValid(const m2ChainDef* def)
 {
-    if (def->points == NULL || (def->isLoop ? def->count < 3 : def->count < 4))
+    if (def->points == NULL || (def->isLoop ? def->count < 3 : def->count < 4) ||
+        !m2ValidCoefficient(def->friction) || !m2ValidRestitution(def->restitution))
     {
         return false;
     }
@@ -298,7 +299,7 @@ void m2Chain_SetFriction(m2World* world, m2ChainId chainId, float friction)
         return;
     }
     int32_t index = world != NULL ? ChainSlot(world, chainId) : -1;
-    if (index < 0 || !m2FiniteF(friction) || friction < 0.0f)
+    if (index < 0 || !m2ValidCoefficient(friction))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -313,7 +314,7 @@ void m2Chain_SetRestitution(m2World* world, m2ChainId chainId, float restitution
         return;
     }
     int32_t index = world != NULL ? ChainSlot(world, chainId) : -1;
-    if (index < 0 || !(restitution >= 0.0f && restitution <= 1.0f))
+    if (index < 0 || !m2ValidRestitution(restitution))
     {
         m2Refuse(world, m2_errorInvalid);
         return;

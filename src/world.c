@@ -52,12 +52,6 @@ m2WorldDef m2DefaultWorldDefValues(void)
     return def;
 }
 
-// A finite value not below a floor.
-static bool FiniteAtLeast(float value, float floor)
-{
-    return m2FiniteF(value) && value >= floor;
-}
-
 // Checks a world def past its cookie and version. The fluids radius
 // floor is 4x linear slop so the skin laws keep meaning.
 static bool ValidWorldDef(const m2WorldDef* def)
@@ -65,7 +59,7 @@ static bool ValidWorldDef(const m2WorldDef* def)
     if (def->bodyCapacity < 1 || def->shapeCapacity < 1 || def->jointCapacity < 1 ||
         def->fluidVolumeCapacity < 0 || def->particleCapacity < 0 ||
         (def->allocator.alloc == NULL) != (def->allocator.free == NULL) ||
-        !m2FiniteVec2(def->gravity))
+        !m2ValidAcceleration(def->gravity))
     {
         return false;
     }
@@ -73,16 +67,20 @@ static bool ValidWorldDef(const m2WorldDef* def)
     {
         return true;
     }
-    return FiniteAtLeast(def->particleRadius, 0.02f) && FiniteAtLeast(def->particleDensity, 0.0f) &&
-           def->particleDensity > 0.0f && m2FiniteF(def->particleGravityScale) &&
-           FiniteAtLeast(def->particlePressureStrength, 0.0f) &&
-           FiniteAtLeast(def->particleDampingStrength, 0.0f) &&
-           FiniteAtLeast(def->particleViscousStrength, 0.0f) &&
-           FiniteAtLeast(def->particleCohesionStrength, 0.0f) &&
-           FiniteAtLeast(def->particleNearPressureStrength, 0.0f) &&
-           FiniteAtLeast(def->particlePowderStrength, 0.0f) &&
-           FiniteAtLeast(def->particleSpringStrength, 0.0f) &&
-           FiniteAtLeast(def->particleElasticStrength, 0.0f);
+    // A particle's mass is its density over a square of 1.5 radii, the
+    // spacing of a fill; it must be a mass a body could have.
+    float stride = 1.5f * def->particleRadius;
+    return m2WithinF(def->particleRadius, 0.02f, M2_HUGE) && m2ValidDensity(def->particleDensity) &&
+           m2ValidMass(def->particleDensity * stride * stride) &&
+           m2ValidGravityScale(def->particleGravityScale) &&
+           m2ValidCoefficient(def->particlePressureStrength) &&
+           m2ValidCoefficient(def->particleDampingStrength) &&
+           m2ValidCoefficient(def->particleViscousStrength) &&
+           m2ValidCoefficient(def->particleCohesionStrength) &&
+           m2ValidCoefficient(def->particleNearPressureStrength) &&
+           m2ValidCoefficient(def->particlePowderStrength) &&
+           m2ValidCoefficient(def->particleSpringStrength) &&
+           m2ValidCoefficient(def->particleElasticStrength);
 }
 
 // Copies the def's settings and capacities into a zeroed world. The
@@ -428,7 +426,7 @@ void m2World_Step(m2World* world, float dt, int32_t substepCount)
     {
         return;
     }
-    if (!m2FiniteF(dt) || !(dt > 0.0f) || substepCount < 1 || substepCount > M2_MAX_SUBSTEPS)
+    if (!m2ValidTimeStep(dt) || substepCount < 1 || substepCount > M2_MAX_SUBSTEPS)
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -615,7 +613,7 @@ void m2World_SetGravity(m2World* world, m2Vec2 gravity)
     {
         return;
     }
-    if (world == NULL || !m2FiniteVec2(gravity))
+    if (world == NULL || !m2ValidAcceleration(gravity))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -656,7 +654,7 @@ void m2World_SetWind(m2World* world, m2Vec2 velocity, float linearDrag)
     {
         return;
     }
-    if (world == NULL || !m2FiniteF(linearDrag) || linearDrag < 0.0f || !m2FiniteVec2(velocity))
+    if (world == NULL || !m2ValidRate(linearDrag) || !m2ValidVelocity(velocity))
     {
         m2Refuse(world, m2_errorInvalid);
         return;

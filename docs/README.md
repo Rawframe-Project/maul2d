@@ -9,6 +9,7 @@
 - [Fluids](user/fluids.md): particle pools, behaviors and jelly, particle lifetimes, fluid volumes, wind.
 - [Rollback and replay](user/rollback-and-replay.md): fixed steps, snapshots and rollback netcode, the journal, hunting a divergence, bytes from outside, formats.
 - [Diagnostics](user/diagnostics.md): counters, validation, debug drawing, hashes.
+- [Limits](user/limits.md): the range of every number the step multiplies, what is clamped, and why.
 - [Recipes](user/recipes.md): top-down worlds, platformers, vehicles, destructible geometry, water, lockstep.
 - [API reference](https://rawframe-project.github.io/maul2d/api.html), generated from the headers.
 

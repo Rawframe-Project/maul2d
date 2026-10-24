@@ -1710,6 +1710,18 @@ static m2BodyDef BadBodyDef(int32_t field)
     case 13:
         def.angularDamping = INFINITY;
         break;
+    case 14:
+        def.linearVelocity.x = nextafterf(M2_MAX_SPEED, INFINITY);
+        break;
+    case 15:
+        def.angularVelocity = -nextafterf(M2_MAX_SPEED, INFINITY);
+        break;
+    case 16:
+        def.gravityScale = nextafterf(M2_MAX_GRAVITY_SCALE, INFINITY);
+        break;
+    case 17:
+        def.angularDamping = nextafterf(M2_MAX_RATE, INFINITY);
+        break;
     default:
         def.rotation = (m2Rot){0.0f, -0.0f}; // no direction
         break;
@@ -1764,14 +1776,14 @@ static void TestDefsMatchWhatARestoreAccepts(void)
     }
 
     m2WorldDef def = m2DefaultWorldDef();
-    def.gravity = (m2Vec2){-FLT_MAX, FLT_MAX};
+    def.gravity = (m2Vec2){-M2_MAX_ACCELERATION, M2_MAX_ACCELERATION};
     def.particleCapacity = 8;
     def.particleRadius = 0.02f;
-    def.particleDensity = FLT_MIN;
-    def.particleViscousStrength = FLT_MAX;
+    def.particleDensity = 2.0e-6f; // a particle of 1.8e-9 kg, near M2_MIN_MASS
+    def.particleViscousStrength = M2_MAX_COEFFICIENT;
     def.particleCohesionStrength = 0.0f;
     m2World* world = NewWorld(&def);
-    for (int32_t field = 0; field < 15; ++field)
+    for (int32_t field = 0; field < 19; ++field)
     {
         m2BodyDef bodyDef = BadBodyDef(field);
         uint64_t misuse = m2World_GetCounters(world).misuse;
@@ -1784,16 +1796,16 @@ static void TestDefsMatchWhatARestoreAccepts(void)
     m2BodyDef edge = m2DefaultBodyDef();
     edge.position = (m2Pos2){DBL_MAX, -DBL_MAX};
     edge.rotation = (m2Rot){0.0f, 1.0e-30f};
-    edge.gravityScale = -FLT_MAX;
+    edge.gravityScale = -M2_MAX_GRAVITY_SCALE;
     edge.linearDamping = -0.0f;
-    edge.angularDamping = FLT_MAX;
+    edge.angularDamping = M2_MAX_RATE;
     edge.dominance = INT8_MIN;
     for (int32_t type = m2_staticBody; type <= m2_dynamicBody; ++type)
     {
         edge.type = (m2BodyType)type;
         bool still = edge.type == m2_staticBody; // a static def has no velocity
-        edge.linearVelocity = still ? (m2Vec2){-0.0f, 0.0f} : (m2Vec2){FLT_MAX, -FLT_MAX};
-        edge.angularVelocity = still ? -0.0f : -FLT_MAX;
+        edge.linearVelocity = still ? (m2Vec2){-0.0f, 0.0f} : (m2Vec2){M2_MAX_SPEED, -M2_MAX_SPEED};
+        edge.angularVelocity = still ? -0.0f : -M2_MAX_SPEED;
         m2Rot q = m2Body_GetRotation(world, NewBody(world, &edge));
         CHECK(q.c == 0.0f && q.s == 1.0f, "a tiny rotation keeps its direction");
     }

@@ -31,10 +31,10 @@ m2RevoluteJointDef m2DefaultRevoluteJointDef(void)
 static bool DefValid(const m2RevoluteJointDef* def)
 {
     return m2LocalVec2(def->localAnchorA) && m2LocalVec2(def->localAnchorB) &&
-           m2JointGain(def->hertz) && m2JointGain(def->dampingRatio) &&
-           m2JointGain(def->springHertz) && m2JointGain(def->springDampingRatio) &&
-           m2FiniteF(def->motorSpeed) && m2JointGain(def->maxMotorTorque) &&
-           m2FiniteF(def->lowerAngle) && m2FiniteF(def->upperAngle) &&
+           m2ValidRate(def->hertz) && m2ValidCoefficient(def->dampingRatio) &&
+           m2ValidRate(def->springHertz) && m2ValidCoefficient(def->springDampingRatio) &&
+           m2ValidSpeed(def->motorSpeed) && m2ValidMaxForce(def->maxMotorTorque) &&
+           m2ValidAngle(def->lowerAngle) && m2ValidAngle(def->upperAngle) &&
            def->lowerAngle <= def->upperAngle;
 }
 

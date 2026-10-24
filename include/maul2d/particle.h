@@ -54,7 +54,7 @@ extern "C"
     ///
     /// @param world        The world.
     /// @param position     Where, in world space.
-    /// @param velocity     Its velocity, m/s.
+    /// @param velocity     Its velocity, m/s, within M2_MAX_SPEED per axis.
     /// @param flags        m2ParticleFlags values, ored together.
     /// @param particleOut  Receives the particle; the null id on failure.
     /// @return m2_success; m2_errorInvalid when the world has no particle
@@ -163,7 +163,8 @@ extern "C"
     /// several readers at once.
     M2_API m2Vec2 m2Particle_GetVelocity(const m2World* world, m2ParticleId particleId);
 
-    /// Sets a particle's velocity. A non-finite velocity counts one misuse.
+    /// Sets a particle's velocity. A velocity beyond M2_MAX_SPEED on either
+    /// axis counts one misuse.
     /// Journaled.
     ///
     /// @param world       The world.
@@ -191,7 +192,8 @@ extern "C"
     /// @param world     The world.
     /// @param polygon   The region, in a frame placed at position.
     /// @param position  Where the polygon's frame sits, in world space.
-    /// @param velocity  The velocity of every particle, m/s.
+    /// @param velocity  The velocity of every particle, m/s, within
+    ///                  M2_MAX_SPEED per axis.
     /// @param flags     m2ParticleFlags values, ored together.
     /// @return The number of particles emitted; 0 and one misuse counted
     ///         when the world has no particle system, an argument is not

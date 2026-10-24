@@ -20,13 +20,6 @@
 #define M2_JOINT_ROPE        16u // distance: spring enabled (stored with the joint)
 #define M2_JOINT_FREE_LENGTH 32u // distance: zero-stiffness spring, skip the rest row
 
-// Def checks shared by the kinds: a finite value, and a finite value that
-// is not negative (stiffness, damping, budgets).
-static inline bool m2JointGain(float x)
-{
-    return m2FiniteF(x) && x >= 0.0f;
-}
-
 // Slot lookups: the live slot of a joint id, or -1. The typed lookup
 // also demands a joint type and refuses (world may be NULL) on a miss.
 int32_t m2JointSlotChecked(const m2World* world, m2JointId jointId);

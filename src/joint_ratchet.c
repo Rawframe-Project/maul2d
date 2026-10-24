@@ -36,7 +36,8 @@ m2RatchetJointDef m2DefaultRatchetJointDef(void)
 // ordered ranges.
 static bool DefValid(const m2RatchetJointDef* def)
 {
-    return m2FiniteF(def->ratchet) && def->ratchet != 0.0f && m2FiniteF(def->phase);
+    float tooth = def->ratchet < 0.0f ? -def->ratchet : def->ratchet;
+    return m2WithinF(tooth, M2_MIN_RATCHET_TOOTH, M2_MAX_ANGLE) && m2ValidAngle(def->phase);
 }
 
 m2Result m2CreateRatchetJoint(m2World* world, const m2RatchetJointDef* def, m2JointId* jointOut)

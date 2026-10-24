@@ -34,8 +34,8 @@ m2MouseJointDef m2DefaultMouseJointDef(void)
 // ordered ranges.
 static bool DefValid(const m2MouseJointDef* def)
 {
-    return m2FinitePos2(def->target) && m2JointGain(def->hertz) && m2JointGain(def->dampingRatio) &&
-           m2JointGain(def->maxForce);
+    return m2FinitePos2(def->target) && m2ValidRate(def->hertz) &&
+           m2ValidCoefficient(def->dampingRatio) && m2ValidMaxForce(def->maxForce);
 }
 
 m2Result m2CreateMouseJoint(m2World* world, const m2MouseJointDef* def, m2JointId* jointOut)
@@ -155,9 +155,9 @@ static void PrepareMouse(m2World* world, m2JointConstraint* c, const m2JointFram
     int32_t j = f->joint;
     m2Vec2 center = m2RotateVec2(f->qB, world->bodies.localCenters[c->bodyB]);
     m2Pos2 origin = world->bodies.transforms[c->bodyB].p;
-    c->gap = (m2Vec2){
-        m2JointSeparation(origin.x - world->joints.jointTargets[j].x) + center.x + c->armB.x,
-        m2JointSeparation(origin.y - world->joints.jointTargets[j].y) + center.y + c->armB.y};
+    c->gap =
+        (m2Vec2){m2WorldOffset(origin.x - world->joints.jointTargets[j].x) + center.x + c->armB.x,
+                 m2WorldOffset(origin.y - world->joints.jointTargets[j].y) + center.y + c->armB.y};
     c->spring = m2MakeSoft(0.5f, 0.1f, f->h);
     m2JointBodies onlyB = {{0.0f, 0.0f},
                            0.0f,

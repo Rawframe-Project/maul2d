@@ -74,8 +74,8 @@ float m2Joint_GetLinearSeparation(const m2World* world, m2JointId jointId)
     m2Vec2 aB = world->joints.jointLocalAnchorB[j];
     m2Vec2 wA = {xfA.q.c * aA.x - xfA.q.s * aA.y, xfA.q.s * aA.x + xfA.q.c * aA.y};
     m2Vec2 wB = {xfB.q.c * aB.x - xfB.q.s * aB.y, xfB.q.s * aB.x + xfB.q.c * aB.y};
-    float dx = m2JointSeparation(xfB.p.x - xfA.p.x) + wB.x - wA.x;
-    float dy = m2JointSeparation(xfB.p.y - xfA.p.y) + wB.y - wA.y;
+    float dx = m2WorldOffset(xfB.p.x - xfA.p.x) + wB.x - wA.x;
+    float dy = m2WorldOffset(xfB.p.y - xfA.p.y) + wB.y - wA.y;
     switch (world->joints.jointType[j])
     {
     case 0: // distance: length error along the rod
@@ -103,8 +103,8 @@ float m2Joint_GetLinearSeparation(const m2World* world, m2JointId jointId)
     {
         m2Pos2 grab = m2Body_GetWorldPoint(
             world, (m2BodyId){(uint32_t)(bodyB + 1), world->bodies.generations[bodyB]}, aB);
-        float gx = m2JointSeparation(grab.x - world->joints.jointTargets[j].x);
-        float gy = m2JointSeparation(grab.y - world->joints.jointTargets[j].y);
+        float gx = m2WorldOffset(grab.x - world->joints.jointTargets[j].x);
+        float gy = m2WorldOffset(grab.y - world->joints.jointTargets[j].y);
         return sqrtf(gx * gx + gy * gy);
     }
     default: // revolute, weld: the pinned point's gap
@@ -212,31 +212,38 @@ static bool JointParamValid(uint8_t type, uint8_t param, float value)
     case m2_jointParamEnableLimit:
         return motorAndLimits && (value == 0.0f || value == 1.0f);
     case m2_jointParamMotorSpeed:
+        return motorAndLimits && m2ValidSpeed(value);
     case m2_jointParamLower:
     case m2_jointParamUpper:
-        return motorAndLimits && m2FiniteF(value);
+        // An angle on a revolute joint, a translation on the others.
+        return motorAndLimits &&
+               (type == (uint8_t)m2_revoluteJoint ? m2ValidAngle(value) : m2ValidReach(value));
     case m2_jointParamMaxMotor:
-        return (M2_MAX_MOTOR_KINDS & (1u << type)) != 0 && m2FiniteF(value) && value >= 0.0f;
+        return (M2_MAX_MOTOR_KINDS & (1u << type)) != 0 && m2ValidMaxForce(value);
     case m2_jointParamBreakForce:
     case m2_jointParamBreakTorque:
         return value >= 0.0f; // zero turns breaking off; infinity never breaks
     case m2_jointParamHertz:
+        return type != (uint8_t)m2_filterJoint && type != (uint8_t)m2_motorJoint &&
+               m2ValidRate(value);
     case m2_jointParamDamping:
         return type != (uint8_t)m2_filterJoint && type != (uint8_t)m2_motorJoint &&
-               m2FiniteF(value) && value >= 0.0f;
+               m2ValidCoefficient(value);
     case m2_jointParamAngularHertz:
+        return (type == (uint8_t)m2_weldJoint || type == (uint8_t)m2_revoluteJoint) &&
+               m2ValidRate(value);
     case m2_jointParamAngularDamping:
         return (type == (uint8_t)m2_weldJoint || type == (uint8_t)m2_revoluteJoint) &&
-               m2FiniteF(value) && value >= 0.0f;
+               m2ValidCoefficient(value);
     case m2_jointParamLength:
-        return type == (uint8_t)m2_distanceJoint && m2FiniteF(value) && value > 0.0f;
+        return type == (uint8_t)m2_distanceJoint && m2ValidReach(value) && value > 0.0f;
     case m2_jointParamMinLength:
     case m2_jointParamMaxLength:
-        return type == (uint8_t)m2_distanceJoint && m2FiniteF(value) && value >= 0.0f;
+        return type == (uint8_t)m2_distanceJoint && m2ValidReach(value) && value >= 0.0f;
     case m2_jointParamGearRatio:
-        return type == (uint8_t)m2_gearJoint && m2FiniteF(value) && value != 0.0f;
+        return type == (uint8_t)m2_gearJoint && m2ValidRatio(value);
     case m2_jointParamPulleyRatio:
-        return type == (uint8_t)m2_pulleyJoint && m2FiniteF(value) && value > 0.0f;
+        return type == (uint8_t)m2_pulleyJoint && m2ValidRatio(value) && value > 0.0f;
     default:
         return false;
     }
@@ -396,9 +403,14 @@ void m2Joint_SetLimits(m2World* world, m2JointId jointId, float lower, float upp
     {
         return;
     }
-    if (!(lower <= upper) || !m2FiniteF(lower) || !m2FiniteF(upper))
+    // Both or neither: never half a range. Each bound is checked against
+    // the joint's kind before either lands.
+    int32_t index = world != NULL ? m2JointSlotChecked(world, jointId) : -1;
+    uint8_t type = index >= 0 ? world->joints.jointType[index] : 0;
+    if (index < 0 || !(lower <= upper) || !JointParamValid(type, m2_jointParamLower, lower) ||
+        !JointParamValid(type, m2_jointParamUpper, upper))
     {
-        m2Refuse(world, m2_errorInvalid); // both or neither: never half a range
+        m2Refuse(world, m2_errorInvalid);
         return;
     }
     if (m2SetJointParamInternal(world, jointId, m2_jointParamLower, lower))
