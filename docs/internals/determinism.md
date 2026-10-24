@@ -1,6 +1,31 @@
 # Determinism
 
-maul2d promises that the same world, given the same calls, reaches the same bits on every supported platform, compiler, SIMD backend and worker count. This page describes how the tests hold that promise. The documentation pull request of the migration completes the page.
+maul2d promises that the same world, given the same calls, reaches the same bits on every supported platform, compiler, SIMD backend and worker count. This page explains how the code keeps that promise and how the tests hold it.
+
+## Arithmetic
+
+- **IEEE operations only.** `cmake/CompilerFlags.cmake` turns off floating-point contraction (`-ffp-contract=off`) and refuses fast math, so the compiler never fuses or reorders an operation on one target and not another. Fused multiply-add appears only where the code spells it through `src/simd.h`, which maps it to `_mm256_fmadd_ps`, `vfmaq_f32` or `fmaf`; all three are correctly rounded, so they agree.
+- **No platform math.** The sources call only the correctly rounded functions in `tools/libm-allowed.txt` (square roots, floors, ceilings, absolute values), and `tools/check_source.py` refuses any other. Angles go through the engine's own `m2MakeRot` and `m2Atan2`, polynomials written from the references in [references.md](references.md).
+- **Pinned min, max and abs.** `m2MinF` and `m2MaxF` are exactly `a < b ? a : b` and `a > b ? a : b`, signed zeros and NaNs included, and `m2AbsF` clears the sign bit. Compilers fold the plain forms differently (MSVC treated +0 and -0 as equal), so `core_math.h` implements them with instructions whose semantics match on each target.
+- **One float crossing per stage.** Positions are f64 and everything local is f32. Each stage moves a body-local value to world space in one place (a body's pose added in double), so precision does not depend on distance from the origin and the rounding is the same everywhere.
+- **Renormalized rotations.** Every composition of rotations renormalizes at once, so drift is bounded and identical.
+
+## Order
+
+Every result that depends on an order has a canonical one:
+
+- Pairs live in a list sorted by key (the two shape indices), rebuilt each step by a merge, and `m2World_Validate` checks the order. Manifolds, events and contact data follow it.
+- Islands union toward the lowest body index, and every pass over bodies, shapes, joints and particles walks slots in ascending order.
+- Ties break to the lower index: the closest hit of a query, the deepest face of a manifold, the first ear of a decomposition.
+- A slot freed by a destroy is reused in FIFO order under a new generation, so the same calls hand out the same ids.
+
+## Threads
+
+The task hooks never change results. Parallel work is split into ranges where each item writes only its own output slot (a pair's manifold, a constraint block of one graph color, a particle's staging cell), so any split and any worker order produce the same bytes. Work whose order matters (the force passes of the fluid, which each read the velocities the previous one left; the merge of new pairs) stays serial. The concurrency test runs separate worlds on separate threads, and the golden scenes compare a four-worker run with the serial one.
+
+## State
+
+Everything that affects the future is world state, and every byte of it is in the snapshot: the pools, the warm-start impulses, the sleep timers, the particle lifetimes, the journal recorder excepted. A restore therefore continues exactly as the original would have. `m2World_Hash` folds, with `m2Hash64` and its frozen constants, the part of that state a step moves: poses, velocities, mass, sleep, contacts, joint impulses, fluid volumes and particles (the header lists every field). Settings, shapes and the user data of bodies, shapes, joints and volumes are in the snapshot but not in the hash, and diagnostics such as `m2World_GetProfile` are in neither.
 
 ## Golden scenes
 
@@ -21,7 +46,7 @@ Two lines pin formats rather than results:
 - `ROLLBACK_SNAPSHOT`: the bytes of the `ROLLBACK` scene's snapshot.
 - `JOURNAL_TAPE`: the bytes of the walk's journal tape.
 
-They sit on their own lines because the snapshot and the tape record public structs as bytes. A change to those structs moves a format line while every result line stays the same.
+They sit on their own lines because the snapshot and the tape record public structs as bytes. A change to those structs, or to which calls a tape records, moves a format line while every result line stays the same.
 
 The six `BENCH_*` lines pin the benchmark scenes in [`bench/scenes.c`](../../bench/scenes.c), which the benchmark and the golden test share.
 
@@ -36,3 +61,7 @@ out/<preset>/test_golden | grep -E '^M2_[A-Z0-9_]+_HASH=' > test/hashes.txt
 ```
 
 The pull request that regenerates values says which lines moved and why, and CI shows every cell agreeing on the new values.
+
+## The walk
+
+The seeded API walk (`test/walk.h`) drives random sessions through every public writer, with rollbacks, journal replays and threaded twins on every seed; each seed's world must stay valid and its replays must match. The walk suite runs a set of seeds on every cell, the golden `JOURNAL` scene pins ten of them, and the nightly simulation runs more seeds and a long soak.

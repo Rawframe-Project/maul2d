@@ -75,6 +75,7 @@ source_checks() {
     step "family rules"
     python3 tools/check_source.py
     python3 tools/check_modules.py
+    python3 tools/check_docs.py
     python3 tools/check_lengths.py
     python3 tools/check_guide.py
     if [ -f "$org/scripts/docs_check.py" ]; then

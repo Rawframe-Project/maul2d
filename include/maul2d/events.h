@@ -15,35 +15,32 @@ extern "C"
 {
 #endif
 
-    /// Contact lifecycle events (polled, never called back). Begin/end
-    /// pairing is an API contract: every path that kills a touching
-    /// contact emits the end event - separation, pair loss, and shape or
-    /// body destruction included. Events carry the index of the step
-    /// they belong to; after a rollback, re-simulated steps re-emit
-    /// their events (dedup by {step, shape ids} on the host side).
-    /// Begin events carry the digested impact facts a game consumes:
-    /// where, which way, how hard, never the internal manifold, whose
-    /// layout stays free to evolve. The normal points from shape A toward shape B in
-    /// world frame; approachSpeed is the closing speed along it,
-    /// never negative.
+    /// A contact that began touching during a step. Begin and end events
+    /// pair up: every path that ends a touching contact (separation, a lost
+    /// pair, a destroyed shape or body, a filter or type change) emits its
+    /// end. A begin carries what a game reacts to (where, which way, how
+    /// hard), never the internal manifold, whose layout stays free to
+    /// change.
     typedef struct m2ContactBeginEvent
     {
-        m2ShapeId shapeIdA; // lower shape index of the pair
+        m2ShapeId shapeIdA; // the lower shape index of the pair
         m2ShapeId shapeIdB;
-        uint64_t step;
-        m2Vec2 normal;
-        float approachSpeed;
+        uint64_t step;       // the step the event belongs to
+        m2Vec2 normal;       // world frame, from shape A toward shape B
+        float approachSpeed; // closing speed along the normal, never negative
         int32_t pointCount;
         m2Pos2 points[2]; // world contact positions
     } m2ContactBeginEvent;
 
+    /// A contact that stopped touching during a step.
     typedef struct m2ContactEndEvent
     {
-        m2ShapeId shapeIdA; // ids as they were when touch ended
+        m2ShapeId shapeIdA; // the ids as they were when the touch ended
         m2ShapeId shapeIdB;
         uint64_t step;
     } m2ContactEndEvent;
 
+    /// The contact events of the last step, in canonical order.
     typedef struct m2ContactEvents
     {
         const m2ContactBeginEvent* beginEvents;
@@ -52,18 +49,23 @@ extern "C"
         int32_t endCount;
     } m2ContactEvents;
 
-    /// Arrays are world-owned and valid until the next m2World_Step or
-    /// m2World_Restore on this world; Restore clears them. Order is
-    /// canonical (deterministic across platforms and replays).
-    /// Thread class: reader.
+    /// Returns the contact events of the last step. Events are polled,
+    /// never called back. After a rollback, the steps simulated again emit
+    /// their events again; a host that must see each once keys them by
+    /// step and shape ids.
+    ///
+    /// @param world  The world.
+    /// @return Arrays the world owns, in canonical order, valid until the
+    ///         next m2World_Step or m2World_Restore of this world; a restore
+    ///         clears them. Empty for a null world.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M2_API m2ContactEvents m2World_GetContactEvents(const m2World* world);
 
-    /// Sensor overlap stream: same records, separate buffers, same
-    /// bookending guarantees (a destroyed or filtered overlap always
-    /// emits its end). Each begin now carries the overlap hit point,
-    /// normal and closing speed, filled from the overlap manifold just
-    /// like a solid contact begin; an end carries shapes and
-    /// step only. Thread class: reader.
+    /// The sensor events of the last step: the contact records, in their
+    /// own arrays, with the same pairing. A begin carries the overlap's
+    /// point, normal and closing speed; an end, the shapes and the step.
     typedef struct m2SensorEvents
     {
         const m2ContactBeginEvent* beginEvents;
@@ -72,38 +74,63 @@ extern "C"
         int32_t endCount;
     } m2SensorEvents;
 
+    /// Returns the sensor events of the last step. A destroyed or filtered
+    /// overlap always emits its end.
+    ///
+    /// @param world  The world.
+    /// @return Arrays the world owns, in canonical order, valid until the
+    ///         next m2World_Step or m2World_Restore of this world. Empty for
+    ///         a null world.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M2_API m2SensorEvents m2World_GetSensorEvents(const m2World* world);
 
-    /// A joint that exceeded its break limits during the step. The id
-    /// is the one the joint had; it is already invalid by the time you
-    /// read this. Force and torque are the reaction magnitudes that
-    /// broke it. Deterministic: twins break on the same step.
+    /// A joint that exceeded its break limits during a step. Its id is
+    /// already stale when the event is read. Two worlds given the same
+    /// calls break the same joints on the same step.
     typedef struct m2JointBreakEvent
     {
-        m2JointId jointId;
+        m2JointId jointId; // the id the joint had
         uint64_t step;
-        float force;
-        float torque;
+        float force;  // the reaction force that broke it
+        float torque; // the reaction torque that broke it
     } m2JointBreakEvent;
 
+    /// The joint events of the last step.
     typedef struct m2JointEvents
     {
         const m2JointBreakEvent* breakEvents;
         int32_t breakCount;
     } m2JointEvents;
 
+    /// Returns the joints that broke during the last step.
+    ///
+    /// @param world  The world.
+    /// @return An array the world owns, in ascending joint order, valid
+    ///         until the next m2World_Step or m2World_Restore of this world.
+    ///         Empty for a null world.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M2_API m2JointEvents m2World_GetJointEvents(const m2World* world);
 
-    /// Who is inside this sensor right now. Fills up to capacity shape
-    /// ids in canonical pair order and returns the true total even
-    /// beyond capacity. Zero for anything that is not a live sensor.
-    /// Thread class: reader.
+    /// Lists the shapes inside a sensor now, in canonical pair order.
+    ///
+    /// @param world          The world.
+    /// @param sensorShapeId  The sensor. A stale id counts one misuse; a
+    ///                       live shape that is not a sensor lists nothing.
+    /// @param overlaps       Receives up to capacity shape ids; may be null
+    ///                       to measure.
+    /// @param capacity       The length of overlaps.
+    /// @return The number of shapes inside, which may exceed capacity.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M2_API int32_t m2Shape_GetSensorOverlaps(const m2World* world, m2ShapeId sensorShapeId,
                                              m2ShapeId* overlaps, int32_t capacity);
 
-    /// A read-only view of the contacts touching right now, canonical
-    /// pair order. Returns the total touching count even beyond
-    /// capacity. Thread class: reader.
+    /// One contact touching now, as the solver last saw it.
     typedef struct m2ContactData
     {
         m2ShapeId shapeIdA;
@@ -115,6 +142,17 @@ extern "C"
         float tangentImpulses[2];
     } m2ContactData;
 
+    /// Lists the solid contacts touching now, in canonical pair order.
+    /// Sensor overlaps are not contacts and are left out.
+    ///
+    /// @param world     The world.
+    /// @param data      Receives up to capacity contacts; may be null to
+    ///                  measure.
+    /// @param capacity  The length of data.
+    /// @return The number of touching contacts, which may exceed capacity.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
     M2_API int32_t m2World_GetContactData(const m2World* world, m2ContactData* data,
                                           int32_t capacity);
 

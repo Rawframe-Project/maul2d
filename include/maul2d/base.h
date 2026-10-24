@@ -93,8 +93,9 @@ extern "C"
         m2_errorStale = -3,
         // The CPU cannot run the SIMD backend the library was built for.
         m2_errorUnsupported = -4,
-        // The call is not allowed now: from inside m2World_Step, a debug
-        // draw callback or a task the world is running.
+        // The call is not allowed now: a writer called from host code the
+        // world is running (a task hook, a debug draw callback, the
+        // allocator), or a journal call in the wrong recording state.
         m2_errorState = -6,
         // A world def was built from headers of another binary interface
         // than the library's (M2_ABI_VERSION).

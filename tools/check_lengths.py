@@ -16,7 +16,9 @@
 #
 # Cognitive complexity is clang-tidy's check; a function kept above its
 # threshold carries NOLINT(readability-function-cognitive-complexity) and
-# a reason on its line, and this script lists those exceptions.
+# a reason on its line, or NOLINTNEXTLINE(...) and a reason on the line
+# above when clang-format wraps the signature, and this script lists those
+# exceptions.
 #
 # usage: check_lengths.py [--list | --tighten | --structs]
 #   --list     print every function and file over its limit with its length
@@ -166,7 +168,7 @@ def complexity_exceptions():
         for name in sorted(os.listdir(src)):
             if name.endswith((".c", ".m")):
                 for number, line in enumerate(open(os.path.join(src, name), encoding="utf-8"), 1):
-                    if "NOLINT(readability-function-cognitive-complexity)" in line:
+                    if re.search(r"NOLINT(NEXTLINE)?\(readability-function-cognitive-complexity\)", line):
                         found.append(f"{top}/{name}:{number}: {line.strip()}")
     return found
 
