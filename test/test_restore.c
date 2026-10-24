@@ -211,6 +211,14 @@ static void JointToADeadBody(const Scene* scene, uint8_t* block)
     PutI32(At(scene, block, &scene->world->joints.jointBodyB), 0, 7);
 }
 
+// A body's center of mass moves far past M2_HUGE.
+static void BodyCenterTooFar(const Scene* scene, uint8_t* block)
+{
+    m2Vec2 center = {1e30f, 0.0f};
+    uint8_t* centers = At(scene, block, &scene->world->bodies.localCenters);
+    memcpy(centers + (size_t)(scene->boxA.index1 - 1) * sizeof(center), &center, sizeof(center));
+}
+
 // The pin's anchor on its first body moves past M2_HUGE.
 static void JointAnchorTooFar(const Scene* scene, uint8_t* block)
 {
@@ -450,6 +458,7 @@ static void TestHostileStructures(void)
     ExpectRefused(&scene, ChainOnADeadBody, "a chain on a dead body is refused");
     ExpectRefused(&scene, JointToADeadBody, "a joint to a dead body is refused");
     ExpectRefused(&scene, JointAnchorTooFar, "a joint anchor beyond M2_HUGE is refused");
+    ExpectRefused(&scene, BodyCenterTooFar, "a center of mass beyond M2_HUGE is refused");
     ExpectRefused(&scene, TreeChildDisownsParent,
                   "a tree child that disowns its parent is refused");
     ExpectRefused(&scene, TreeLoopsToRoot, "a tree that loops is refused");

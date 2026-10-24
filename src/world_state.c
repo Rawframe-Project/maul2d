@@ -139,7 +139,7 @@ static const m2StateArray s_state[] = {
     M2_STATE_CHECKED(bodies.gravityScales, float, body, 0, M2_STATE_SNAPSHOT, finite32, one),
     M2_STATE_CHECKED(bodies.invMass, float, body, 0, M2_STATE_SNAPSHOT, finite32, one),
     M2_STATE_CHECKED(bodies.invInertia, float, body, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(bodies.localCenters, m2Vec2, body, 0, M2_STATE_SNAPSHOT, finite32, one),
+    M2_STATE_CHECKED(bodies.localCenters, m2Vec2, body, 0, M2_STATE_SNAPSHOT, local, one),
     M2_STATE_CHECKED(bodies.asleep, uint8_t, body, 0, M2_STATE_SNAPSHOT, bool, one),
     M2_STATE_CHECKED(bodies.sleepTimes, float, body, 0, M2_STATE_SNAPSHOT, finite32, one),
     M2_STATE_ARRAY(bodies.sleepStreak, uint8_t, body, 0, M2_STATE_SNAPSHOT),

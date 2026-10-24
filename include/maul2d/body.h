@@ -281,8 +281,13 @@ extern "C"
     /// Overrides the mass a dynamic body's shapes give it. The override
     /// lasts until a shape change, a fixed-rotation change or
     /// m2Body_ApplyMassFromShapes recomputes the mass. The body wakes. A
-    /// stale id, a body that is not dynamic or a mass that is not positive
-    /// changes nothing and counts one misuse. Journaled.
+    /// stale id, a body that is not dynamic, a mass that is not positive
+    /// and finite, a center beyond M2_HUGE, a rotational inertia that is
+    /// not finite or is below mass times the squared distance of the
+    /// center, or a mass or inertia about the center so small that its
+    /// inverse overflows, changes nothing and counts one misuse. An inertia
+    /// of exactly mass times the squared distance leaves the body unable
+    /// to turn. Journaled.
     ///
     /// @param world     The world.
     /// @param bodyId    The body.
