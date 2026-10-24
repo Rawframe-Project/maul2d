@@ -416,6 +416,23 @@ static void TestDecomposeAdversaries(void)
     CHECK(n > 0, "the full 64-point budget decomposes");
     int32_t total = DecomposeOutline(blade, 64, NULL, 0);
     CHECK(total == n || total > 24, "count queries agree with fills");
+
+    // Outlines that touch themselves without crossing, found by
+    // fuzz_geometry: their pieces could cover what the outline cuts out.
+    const m2Vec2 onEdge[5] = {{10.125f, -13.5f},
+                              {0.125f, 0.375f},
+                              {0.375f, 10.125f},
+                              {0.375f, 0.375f},
+                              {-15.875f, 0.375f}}; // the second point lies on the last edge
+    const m2Vec2 repeated[6] = {{0.0f, 0.0f}, {2.0f, 0.0f}, {1.0f, 1.0f},
+                                {2.0f, 2.0f}, {0.0f, 2.0f}, {1.0f, 1.0f}};
+    const m2Vec2 folded[5] = {{0.0f, 0.0f}, {2.0f, 0.0f}, {2.0f, 2.0f}, {2.0f, 1.0f}, {0.0f, 2.0f}};
+    int32_t untouched = 7;
+    CHECK(m2DecomposeOutline(onEdge, 5, pieces, 24, &untouched) == m2_errorInvalid &&
+              m2DecomposeOutline(repeated, 6, pieces, 24, &untouched) == m2_errorInvalid &&
+              m2DecomposeOutline(folded, 5, pieces, 24, &untouched) == m2_errorInvalid,
+          "an outline that touches itself is refused");
+    CHECK(untouched == 7, "and leaves the count as it was");
 }
 
 static void TestJournalDefenses(void)

@@ -237,8 +237,11 @@ extern "C"
     /// @param countOut  Receives the number of pieces, which may exceed
     ///                  capacity; left as it was on failure.
     /// @return m2_success; m2_errorInvalid for too few or too many points,
-    ///         clockwise winding, self-intersection, a non-finite point or
-    ///         a null argument.
+    ///         clockwise winding, an outline that is not simple (an edge
+    ///         crossing another, a vertex on another edge, a repeated
+    ///         vertex, an edge folding back over its neighbor), a
+    ///         non-finite point or a null argument. It takes no world, so
+    ///         a refusal counts nothing.
     /// @par Thread safety
     /// Safe from any thread.
     M2_NODISCARD M2_API m2Result m2DecomposeOutline(const m2Vec2* points, int32_t count,

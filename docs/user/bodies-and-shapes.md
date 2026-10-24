@@ -46,7 +46,7 @@ A chain is terrain bodies cannot snag on: a run of one-sided segments whose seam
 
 ## Geometry from points
 
-`m2ComputeHull` turns a loose point cloud into a convex polygon, welding near points and refusing degenerate input. `m2DecomposeOutline` goes further: a simple counter-clockwise outline of up to 64 points, a sprite's silhouette, becomes convex pieces of at most 8 vertices that keep its area. A clockwise or self-intersecting outline is refused.
+`m2ComputeHull` turns a loose point cloud into a convex polygon, welding near points and refusing degenerate input. `m2DecomposeOutline` goes further: a simple counter-clockwise outline of up to 64 points, a sprite's silhouette, becomes convex pieces of at most 8 vertices that keep its area. A clockwise outline, or one that is not simple (it crosses itself, a vertex touches another edge, a vertex repeats, or an edge folds back), is refused with `m2_errorInvalid`.
 
 `m2World_ShatterBody` breaks a dynamic body into one new body per piece. Each piece carries the parent's velocity at its own center of mass and the material of the parent's first shape, and the whole break is one journaled operation, so it replays and rolls back like anything else. When the pools cannot seat every piece, it returns `m2_errorCapacity` and nothing changes.
 
