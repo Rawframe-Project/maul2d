@@ -1,0 +1,10 @@
+# The <math.h> functions the sources may call. maul2d promises the same
+# bits on every platform, so only functions IEEE 754 requires to be
+# correctly rounded are listed; the angle functions are the engine's own
+# (m2MakeRot, m2Atan2). fmaf is allowed in src/simd.h alone.
+ceilf
+fabs
+floor
+floorf
+sqrt
+sqrtf
