@@ -82,8 +82,9 @@ extern "C"
     /// @param world    The world.
     /// @param def      The body, from m2DefaultBodyDef. Its type must be
     ///                 one of m2BodyType; its position, rotation,
-    ///                 velocities and gravity scale finite; its dampings
-    ///                 finite and not below 0. A rotation is normalized.
+    ///                 velocities and gravity scale finite; its rotation
+    ///                 not zero, and normalized to its direction; its
+    ///                 dampings finite and not below 0.
     /// @param bodyOut  Receives the body; the null id on failure.
     /// @return m2_success; m2_errorInvalid for a null argument, a def not
     ///         from m2DefaultBodyDef or a field out of range, which

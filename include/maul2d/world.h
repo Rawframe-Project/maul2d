@@ -173,7 +173,8 @@ extern "C"
     M2_API void m2DestroyWorld(m2World* world);
 
     /// Walks the whole world and checks its invariants: every live
-    /// transform, velocity and particle finite, every joint and jelly net
+    /// position, velocity and particle finite, every body rotation of unit
+    /// length, every joint and jelly net
     /// attached to live objects, the counts consistent, the pairs in key
     /// order. It costs a full walk, so call it from debug paths; building
     /// with -DMAUL2D_VALIDATE=ON asserts it after every step.

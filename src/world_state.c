@@ -62,7 +62,7 @@ typedef enum m2Check
     m2_check_finite32,    // every float of every element finite
     m2_check_finite64,    // every double of every element finite
     m2_check_nonNegative, // every float of every element finite and not below 0
-    m2_check_transform,   // a double position and a float rotation, finite
+    m2_check_transform,   // a finite double position and a unit float rotation
 } m2Check;
 
 typedef struct m2StateArray
@@ -663,7 +663,7 @@ static bool CheckTransforms(const uint8_t* data, size_t count)
     {
         m2Transform xf;
         memcpy(&xf, data + i * sizeof(xf), sizeof(xf));
-        if (!m2FinitePos2(xf.p) || !m2FiniteF(xf.q.c) || !m2FiniteF(xf.q.s))
+        if (!m2FinitePos2(xf.p) || !m2UnitRot(xf.q))
         {
             return false;
         }

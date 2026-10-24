@@ -1706,8 +1706,11 @@ static m2BodyDef BadBodyDef(int32_t field)
     case 12:
         def.angularDamping = -INFINITY;
         break;
-    default:
+    case 13:
         def.angularDamping = INFINITY;
+        break;
+    default:
+        def.rotation = (m2Rot){0.0f, -0.0f}; // no direction
         break;
     }
     return def;
@@ -1767,7 +1770,7 @@ static void TestDefsMatchWhatARestoreAccepts(void)
     def.particleViscousStrength = FLT_MAX;
     def.particleCohesionStrength = 0.0f;
     m2World* world = NewWorld(&def);
-    for (int32_t field = 0; field < 14; ++field)
+    for (int32_t field = 0; field < 15; ++field)
     {
         m2BodyDef bodyDef = BadBodyDef(field);
         uint64_t misuse = m2World_GetCounters(world).misuse;
@@ -1779,7 +1782,7 @@ static void TestDefsMatchWhatARestoreAccepts(void)
 
     m2BodyDef edge = m2DefaultBodyDef();
     edge.position = (m2Pos2){DBL_MAX, -DBL_MAX};
-    edge.rotation = (m2Rot){0.0f, 0.0f};
+    edge.rotation = (m2Rot){0.0f, 1.0e-30f};
     edge.linearVelocity = (m2Vec2){FLT_MAX, -FLT_MAX};
     edge.angularVelocity = -FLT_MAX;
     edge.gravityScale = -FLT_MAX;
@@ -1789,10 +1792,16 @@ static void TestDefsMatchWhatARestoreAccepts(void)
     for (int32_t type = m2_staticBody; type <= m2_dynamicBody; ++type)
     {
         edge.type = (m2BodyType)type;
-        (void)NewBody(world, &edge);
+        m2Rot q = m2Body_GetRotation(world, NewBody(world, &edge));
+        CHECK(q.c == 0.0f && q.s == 1.0f, "a tiny rotation keeps its direction");
     }
     edge.rotation = (m2Rot){FLT_MAX, -FLT_MAX};
-    (void)NewBody(world, &edge);
+    m2Rot huge = m2Body_GetRotation(world, NewBody(world, &edge));
+    edge.rotation = (m2Rot){1.0e20f, 1.0e20f};
+    m2Rot diagonal = m2Body_GetRotation(world, NewBody(world, &edge));
+    CHECK(huge.c == diagonal.c && huge.s == -diagonal.s && m2IsNormalizedRot(diagonal) &&
+              fabsf(diagonal.c - 0.70710678f) < 1.0e-6f && diagonal.c == diagonal.s,
+          "a huge rotation keeps its direction");
 
     int32_t size = m2World_SnapshotSize(world);
     uint8_t* first = (uint8_t*)malloc((size_t)size);
@@ -1805,6 +1814,49 @@ static void TestDefsMatchWhatARestoreAccepts(void)
     CHECK(m2World_Validate(world), "edge values keep the world valid");
     free(second);
     free(first);
+    m2DestroyWorld(world);
+}
+
+// A snapshot whose body rotation is not of unit length is refused like
+// any other bad bytes: no count, nothing changed. The body's transform is
+// found in the snapshot by its bytes.
+static void TestRestoreRefusesANonUnitRotation(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    m2BodyDef bodyDef = m2DefaultBodyDef();
+    bodyDef.position = (m2Pos2){123.25, -77.5};
+    bodyDef.rotation = (m2Rot){0.6f, 0.8f};
+    m2BodyId body = NewBody(world, &bodyDef);
+    m2Transform xf = {m2Body_GetPosition(world, body), m2Body_GetRotation(world, body)};
+
+    int32_t size = m2World_SnapshotSize(world);
+    uint8_t* bytes = (uint8_t*)malloc((size_t)size);
+    CHECK(bytes != NULL && Snapshot(world, bytes, size) == size, "the world snapshots");
+    int32_t at = -1;
+    for (int32_t i = 0; i + (int32_t)sizeof(xf) <= size; ++i)
+    {
+        if (memcmp(bytes + i, &xf, sizeof(xf)) == 0)
+        {
+            CHECK(at < 0, "the transform appears once");
+            at = i;
+        }
+    }
+    CHECK(at >= 0, "the transform is in the snapshot");
+
+    uint64_t hash = m2World_Hash(world);
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    const m2Rot bad[] = {{0.0f, 0.0f}, {2.0f, 0.0f}, {0.6f, 0.6f}};
+    for (size_t k = 0; at >= 0 && k < sizeof(bad) / sizeof(bad[0]); ++k)
+    {
+        memcpy(bytes + at + (int32_t)sizeof(m2Pos2), &bad[k], sizeof(bad[k]));
+        CHECK(m2World_Restore(world, bytes, size) == m2_errorInvalid,
+              "a rotation that is not of unit length is refused");
+    }
+    CHECK(m2World_Hash(world) == hash && m2World_GetCounters(world).misuse == misuse,
+          "the refusal changes nothing and counts nothing");
+    CHECK(m2World_Validate(world), "the world stays valid");
+    free(bytes);
     m2DestroyWorld(world);
 }
 
@@ -2885,6 +2937,7 @@ int main(void)
     TestCreateWorldOutOfMemory();
     TestInfiniteInputIsRefused();
     TestDefsMatchWhatARestoreAccepts();
+    TestRestoreRefusesANonUnitRotation();
     TestEveryRefusalHasAReason();
     TestHostCodeCannotWrite();
     TestAllocatorCannotWrite();

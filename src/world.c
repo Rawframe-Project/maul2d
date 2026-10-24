@@ -139,8 +139,12 @@ static void SeedFreeLists(m2World* world)
         m2TreeInit(&world->broadphase.trees[t], world->broadphase.treeNodes[t],
                    world->broadphase.treeNodeCapacity);
     }
+    // Every body slot, live or not, holds a unit rotation, which is what
+    // a restore checks; a destroyed body leaves its last one behind.
+    m2Transform identity = {{0.0, 0.0}, {1.0f, 0.0f}};
     for (int32_t i = 0; i < cap; ++i)
     {
+        world->bodies.transforms[i] = identity;
         world->bodies.freeQueue[i] = i;
         world->bodies.bodyShapeHead[i] = -1;
         world->joints.bodyJointHead[i] = -1;
@@ -817,7 +821,7 @@ static bool ValidBody(const m2World* world, int32_t i)
 {
     m2Transform xf = world->bodies.transforms[i];
     M2_CHECK_INVARIANT(m2FinitePos2(xf.p));
-    M2_CHECK_INVARIANT(m2FiniteF(xf.q.c) && m2FiniteF(xf.q.s));
+    M2_CHECK_INVARIANT(m2UnitRot(xf.q));
     m2Vec2 v = world->bodies.linearVelocities[i];
     M2_CHECK_INVARIANT(m2FiniteVec2(v));
     M2_CHECK_INVARIANT(m2FiniteF(world->bodies.angularVelocities[i]));

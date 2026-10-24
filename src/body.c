@@ -40,12 +40,14 @@ m2BodyDef m2DefaultBodyDef(void)
 }
 
 // A def every field of which a snapshot of the world will restore: a
-// known type, finite numbers, and dampings not below 0.
+// known type, finite numbers, a rotation with a direction, and dampings
+// not below 0.
 static bool BodyDefValid(const m2BodyDef* def)
 {
     return (int32_t)def->type >= (int32_t)m2_staticBody &&
            (int32_t)def->type <= (int32_t)m2_dynamicBody && m2FinitePos2(def->position) &&
            m2FiniteF(def->rotation.c) && m2FiniteF(def->rotation.s) &&
+           (def->rotation.c != 0.0f || def->rotation.s != 0.0f) &&
            m2FiniteVec2(def->linearVelocity) && m2FiniteF(def->angularVelocity) &&
            m2FiniteF(def->gravityScale) && m2FiniteF(def->linearDamping) &&
            def->linearDamping >= 0.0f && m2FiniteF(def->angularDamping) &&
