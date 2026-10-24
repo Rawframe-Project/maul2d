@@ -31,6 +31,7 @@ option(MAUL2D_TEST_PACKAGE "Test the installed package by building samples/minim
 set(MAUL2D_SIMD "auto" CACHE STRING "SIMD backend: auto or scalar")
 set_property(CACHE MAUL2D_SIMD PROPERTY STRINGS auto scalar)
 option(MAUL2D_VALIDATE "Validate the world after every step" OFF)
+option(MAUL2D_FUZZ "Build the libFuzzer targets (Clang only)" OFF)
 
 # Every executable (tests, samples, benchmarks, tools) lands in the top
 # of the build tree, so scripts and CI find them in one place.
@@ -171,6 +172,27 @@ if(MAUL2D_BUILD_TESTS)
                          -P ${PROJECT_SOURCE_DIR}/cmake/PackageTest.cmake)
         set_tests_properties(package PROPERTIES LABELS package)
     endif()
+endif()
+# The fuzz targets: test/fuzz_<area>.c, run as fuzz_<area> <corpus dir>.
+if(MAUL2D_FUZZ)
+    # The library is instrumented too: its coverage guides libFuzzer, and
+    # the sanitizers watch its code, not only the targets'. Whatever links
+    # it (samples, benchmarks, tools) links the sanitizer runtimes.
+    # -fno-sanitize-recover=all makes undefined behavior a crash libFuzzer
+    # stops on and saves; without it UBSan prints and the run goes on.
+    target_compile_options(maul2d PRIVATE -fsanitize=fuzzer-no-link,address,undefined
+                           -fno-sanitize-recover=all)
+    target_link_options(maul2d PUBLIC -fsanitize=address,undefined -fno-sanitize-recover=all)
+    find_package(Threads REQUIRED)
+    foreach(area snapshot journal geometry walk)
+        add_executable(fuzz_${area} test/fuzz_${area}.c)
+        target_link_libraries(fuzz_${area} PRIVATE maul2d Threads::Threads)
+        maul_apply_flags(fuzz_${area})
+        target_compile_options(fuzz_${area} PRIVATE -fsanitize=fuzzer,address,undefined
+                               -fno-sanitize-recover=all)
+        target_link_options(fuzz_${area} PRIVATE -fsanitize=fuzzer,address,undefined
+                            -fno-sanitize-recover=all)
+    endforeach()
 endif()
 if(MAUL2D_BUILD_SAMPLES)
     add_subdirectory(samples)

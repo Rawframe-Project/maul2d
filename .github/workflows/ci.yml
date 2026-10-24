@@ -1,5 +1,5 @@
 # Continuous integration: the pull request check, and the full check on
-# main and every night, which simulates longer. Each build cell
+# main and every night, which simulates and fuzzes longer. Each build cell
 # is a CMake preset built by the organization's shared workflow; the other
 # jobs run in the same CI image. Every test cell checks the determinism
 # hashes against test/hashes.txt (the golden test), so all cells agree on
@@ -202,6 +202,65 @@ jobs:
       - name: Size
         run: ls -l out/web-emscripten/libmaul2d.a
 
+  # Each fuzz target feeds hostile snapshots, tapes and points, or drives
+  # the API walk, and crashes on a broken promise: briefly on a pull
+  # request, longer on main and at night.
+  fuzz:
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    # The image cpp.yml uses; --init reaps orphaned processes.
+    container:
+      image: ghcr.io/rawframe-project/ci-cpp:2026.10.6@sha256:50c383f608f992c272196139d749f15978e35143a2876362b1e0aef6993480bd
+      options: --init
+    permissions:
+      contents: read
+    env:
+      FUZZ_SECONDS: ${{ github.event_name == 'pull_request' && 20 || (github.event_name == 'push' && 90 || 900) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build
+        run: |
+          cmake -B out/fuzz -G Ninja -DCMAKE_C_COMPILER=clang-20 -D${PREFIX}_FUZZ=ON \
+            -D${PREFIX}_BUILD_TESTS=OFF -D${PREFIX}_WERROR=ON
+          cmake --build out/fuzz
+      - name: Run
+        # Four targets at a time, one per core of the runner; each keeps its
+        # full time. A target's output goes to its log, printed when it
+        # finds something.
+        run: |
+          mkdir -p out/fuzz-logs
+          fuzz_one() {
+            name=$(basename "$1")
+            mkdir -p "out/corpus/$name"
+            if "$1" -max_total_time="$FUZZ_SECONDS" -max_len=4096 "out/corpus/$name" \
+              >"out/fuzz-logs/$name.log" 2>&1; then
+              echo "$name: no finding"
+            else
+              tail -n 60 "out/fuzz-logs/$name.log"
+              echo "::error::$name found something"
+              return 1
+            fi
+          }
+          export -f fuzz_one
+          printf '%s\n' out/fuzz/fuzz_* | xargs -P 4 -I {} bash -c 'fuzz_one "$1"' _ {}
+      - name: Fuzz logs and crash inputs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fuzz
+          path: |
+            out/fuzz-logs/
+            crash-*
+            leak-*
+            timeout-*
+            oom-*
+          if-no-files-found: ignore
+          retention-days: 7
+
   # Every night: the seeded API walk over many more seeds, and a long soak
   # of one world, both checking replay, rollback and threaded twins. Not a
   # pull request check: it takes longer than the budget allows.
@@ -230,7 +289,7 @@ jobs:
   # renaming a job never touches the ruleset.
   required:
     if: always()
-    needs: [changes, docs, zizmor, checks, build, testbed, msvc-headers, web]
+    needs: [changes, docs, zizmor, checks, build, testbed, msvc-headers, web, fuzz]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     permissions: {}
