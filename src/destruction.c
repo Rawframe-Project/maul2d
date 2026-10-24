@@ -167,15 +167,33 @@ static m2BodyId CreatePiece(m2World* world, int32_t parent, const m2ShapeDef* sh
     return piece;
 }
 
-int32_t m2World_ShatterBody(m2World* world, m2BodyId bodyId, const m2Polygon* pieces,
-                            int32_t pieceCount, m2BodyId* bodiesOut, int32_t capacity)
+m2Result m2World_ShatterBody(m2World* world, m2BodyId bodyId, const m2Polygon* pieces,
+                             int32_t pieceCount, m2BodyId* bodiesOut, int32_t capacity,
+                             int32_t* countOut)
 {
-    if (m2CheckWriter(world) != m2_success)
+    if (countOut != NULL)
     {
-        return 0;
+        *countOut = 0;
     }
-    int32_t parent = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    bool valid = parent >= 0 && pieces != NULL && pieceCount >= 1 && pieceCount <= 64 &&
+    if (countOut == NULL || capacity < 0 || (bodiesOut == NULL && capacity > 0))
+    {
+        return m2Refuse(world, m2_errorInvalid);
+    }
+    for (int32_t i = 0; i < capacity; ++i)
+    {
+        bodiesOut[i] = m2_nullBodyId;
+    }
+    m2Result writer = m2CheckWriter(world);
+    if (writer != m2_success)
+    {
+        return writer;
+    }
+    int32_t parent = m2BodySlot(world, bodyId);
+    if (parent < 0)
+    {
+        return m2Refuse(world, m2_errorStale);
+    }
+    bool valid = pieces != NULL && pieceCount >= 1 && pieceCount <= 64 &&
                  world->bodies.types[parent] == (uint8_t)m2_dynamicBody;
     for (int32_t i = 0; valid && i < pieceCount; ++i)
     {
@@ -183,13 +201,11 @@ int32_t m2World_ShatterBody(m2World* world, m2BodyId bodyId, const m2Polygon* pi
     }
     if (!valid)
     {
-        m2Refuse(world, m2_errorInvalid);
-        return 0;
+        return m2Refuse(world, m2_errorInvalid);
     }
     if (world->bodies.freeCount < pieceCount || world->shapes.shapeFreeCount < pieceCount)
     {
-        m2Refuse(world, m2_errorCapacity); // all pieces or none
-        return 0;
+        return m2Refuse(world, m2_errorCapacity); // all pieces or none
     }
     m2ShapeDef shapeDef = PieceShapeDef(world, parent);
     uint8_t journalWasActive = world->recorder.journalActive;
@@ -209,5 +225,6 @@ int32_t m2World_ShatterBody(m2World* world, m2BodyId bodyId, const m2Polygon* pi
     (void)destroyed;
     world->recorder.journalActive = journalWasActive;
     m2JournalRecordShatter(world, bodyId, pieces, pieceCount, firstIndex1);
-    return pieceCount;
+    *countOut = pieceCount;
+    return m2_success;
 }
