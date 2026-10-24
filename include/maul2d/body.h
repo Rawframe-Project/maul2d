@@ -82,7 +82,8 @@ extern "C"
     /// @param world    The world.
     /// @param def      The body, from m2DefaultBodyDef. Its type must be
     ///                 one of m2BodyType; its position, rotation,
-    ///                 velocities and gravity scale finite; its rotation
+    ///                 velocities and gravity scale finite, the
+    ///                 velocities zero for a static body; its rotation
     ///                 not zero, and normalized to its direction; its
     ///                 dampings finite and not below 0.
     /// @param bodyOut  Receives the body; the null id on failure.
@@ -246,8 +247,8 @@ extern "C"
     /// Sets the velocities that carry a body to a target pose in one step
     /// of the given length: the way to drive a kinematic body. It goes
     /// through the journaled velocity setters, so a replay repeats it. A
-    /// stale id or an invalid argument changes nothing and counts one
-    /// misuse.
+    /// stale id, a static body or an invalid argument changes nothing and
+    /// counts one misuse.
     ///
     /// @param world     The world.
     /// @param bodyId    The body.
@@ -483,11 +484,11 @@ extern "C"
     M2_API m2AabbResult m2Body_ComputeAabb(const m2World* world, m2BodyId bodyId);
 
     /// Sets the velocity of a body's center of mass and wakes it. A stale
-    /// id or a non-finite velocity changes nothing and counts one misuse.
-    /// Journaled.
+    /// id, a static body or a non-finite velocity changes nothing and
+    /// counts one misuse: a static body never moves. Journaled.
     ///
     /// @param world     The world.
-    /// @param bodyId    The body.
+    /// @param bodyId    The kinematic or dynamic body.
     /// @param velocity  The velocity, m/s.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
@@ -497,7 +498,7 @@ extern "C"
     /// m2Body_SetLinearVelocity does.
     ///
     /// @param world     The world.
-    /// @param bodyId    The body.
+    /// @param bodyId    The kinematic or dynamic body.
     /// @param velocity  The angular velocity, radians/s.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.

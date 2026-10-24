@@ -23,9 +23,10 @@ void m2Body_SetLinearVelocity(m2World* world, m2BodyId bodyId, m2Vec2 velocity)
         return;
     }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || !m2FiniteVec2(velocity))
+    if (index < 0 || world->bodies.types[index] == (uint8_t)m2_staticBody ||
+        !m2FiniteVec2(velocity))
     {
-        m2Refuse(world, m2_errorInvalid);
+        m2Refuse(world, m2_errorInvalid); // a static body never moves
         return;
     }
     world->bodies.linearVelocities[index] = velocity;
@@ -48,9 +49,9 @@ void m2Body_SetAngularVelocity(m2World* world, m2BodyId bodyId, float velocity)
         return;
     }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || !m2FiniteF(velocity))
+    if (index < 0 || world->bodies.types[index] == (uint8_t)m2_staticBody || !m2FiniteF(velocity))
     {
-        m2Refuse(world, m2_errorInvalid);
+        m2Refuse(world, m2_errorInvalid); // a static body never moves
         return;
     }
     world->bodies.angularVelocities[index] = velocity;
@@ -315,8 +316,8 @@ void m2Body_SetTargetTransform(m2World* world, m2BodyId bodyId, m2Pos2 position,
         return;
     }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || !(dt > 0.0f) || !m2FinitePos2(position) || !m2UnitRot(rotation) ||
-        !m2FiniteF(dt))
+    if (index < 0 || world->bodies.types[index] == (uint8_t)m2_staticBody || !(dt > 0.0f) ||
+        !m2FinitePos2(position) || !m2UnitRot(rotation) || !m2FiniteF(dt))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
