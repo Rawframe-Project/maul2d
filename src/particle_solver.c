@@ -51,7 +51,10 @@
 // How far outside a surface a crossing particle stops.
 #define M2_FLUID_SURFACE_GAP 0.005f
 
-#define M2_PARTICLE_CANDIDATES 32
+// A particle's crossing candidates: 32 per broadphase tree, so the lowest
+// slots kept include every shape whenever no tree holds more than 32 of
+// them in the sweep.
+#define M2_CROSSING_CANDIDATES (32 * M2_TREE_COUNT)
 
 // The step's scales.
 typedef struct Fluid
@@ -401,8 +404,8 @@ static int32_t FirstCrossing(const m2World* world, m2Pos2 from, m2Vec2 move, flo
                    from.y + (move.y < 0.0f ? (double)move.y : 0.0)},
                   {from.x + (move.x > 0.0f ? (double)move.x : 0.0),
                    from.y + (move.y > 0.0f ? (double)move.y : 0.0)}};
-    // The lowest M2_PARTICLE_CANDIDATES non-sensor slots in the sweep.
-    int32_t shapes[M2_PARTICLE_CANDIDATES];
+    // The lowest M2_CROSSING_CANDIDATES non-sensor slots in the sweep.
+    int32_t shapes[M2_CROSSING_CANDIDATES];
     int32_t count = 0;
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
@@ -413,7 +416,7 @@ static int32_t FirstCrossing(const m2World* world, m2Pos2 from, m2Vec2 move, flo
         {
             if (world->shapes.shapeSensor[shape] == 0)
             {
-                m2TreeKeepLowest(shapes, &count, M2_PARTICLE_CANDIDATES, shape);
+                m2TreeKeepLowest(shapes, &count, M2_CROSSING_CANDIDATES, shape);
             }
         }
     }

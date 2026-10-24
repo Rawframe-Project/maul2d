@@ -892,9 +892,9 @@ static m2World* WallField(int32_t history)
 }
 
 // A wall across the diagonal at (0.25, 0.25), created after 40 small
-// circles that sit in the corner of a diagonal sweep's box, off its ray: a
-// particle swept along the diagonal has more candidate shapes than the
-// cap, and only the wall stops it.
+// circles 9 cm off the diagonal beside it, whose fat boxes reach into a
+// diagonal sweep's box near the wall: a particle swept along the diagonal
+// has more candidate shapes than the cap, and only the wall stops it.
 static m2World* CrossingField(int32_t history)
 {
     m2World* world = FieldWorld();
@@ -904,13 +904,13 @@ static m2World* CrossingField(int32_t history)
     for (int32_t i = 0; i < 40; ++i)
     {
         m2BodyDef cd = m2DefaultBodyDef();
-        cd.position = (m2Pos2){0.35 + 0.02 * (double)(i % 8), 0.025 * (double)(i / 8)};
+        cd.position = (m2Pos2){0.30, 0.17}; // 9 cm off the diagonal, by the wall
         ids[i] = NewBody(world, &cd);
         NewCircleShape(world, ids[i], &sd, &dot);
     }
     m2BodyDef wd = m2DefaultBodyDef();
     wd.position = (m2Pos2){0.25, 0.25};
-    wd.rotation = m2MakeRot(-0.25f * M2_PI);
+    wd.rotation = m2MakeRot(0.25f * M2_PI); // its long side across the diagonal
     ids[40] = NewBody(world, &wd);
     m2Polygon slab = m2MakeBox(0.01f, 0.3f);
     NewPolygonShape(world, ids[40], &sd, &slab);
@@ -950,8 +950,40 @@ static void TestCappedCandidatesIgnoreTreeHistory(void)
     }
 }
 
+// A particle swept diagonally to a wall created after 40 small circles
+// beside it, half on static and half on kinematic bodies: more candidate
+// shapes than 32, yet fewer than 32 in each tree, so the particle stops at
+// the wall.
+static void TestCrowdedCrossingStops(void)
+{
+    m2World* world = FieldWorld();
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Circle dot = {{0.0f, 0.0f}, 0.008f};
+    for (int32_t i = 0; i < 40; ++i)
+    {
+        m2BodyDef cd = m2DefaultBodyDef();
+        cd.type = i % 2 == 0 ? m2_staticBody : m2_kinematicBody;
+        cd.position = (m2Pos2){0.30, 0.17}; // 9 cm off the diagonal, by the wall
+        NewCircleShape(world, NewBody(world, &cd), &sd, &dot);
+    }
+    m2BodyDef wd = m2DefaultBodyDef();
+    wd.position = (m2Pos2){0.25, 0.25};
+    wd.rotation = m2MakeRot(0.25f * M2_PI); // its long side across the diagonal
+    m2Polygon slab = m2MakeBox(0.01f, 0.3f);
+    NewPolygonShape(world, NewBody(world, &wd), &sd, &slab);
+    m2ParticleId particle = EmitParticle(world, (m2Pos2){0.0, 0.0}, (m2Vec2){30.0f, 30.0f}, 0);
+    for (int32_t i = 0; i < 20; ++i)
+    {
+        m2World_Step(world, 1.0f / 60.0f, 4);
+    }
+    m2Pos2 at = m2Particle_GetPosition(world, particle);
+    CHECK(at.x + at.y < 0.5, "the particle stops at the wall");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
+    TestCrowdedCrossingStops();
     TestCappedCandidatesIgnoreTreeHistory();
     TestLifecycle();
     TestFarParticlesStep();
