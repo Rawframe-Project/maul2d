@@ -34,7 +34,7 @@ cmake --build build
 ctest --test-dir build
 ```
 
-The library is C23 and builds with GCC 14, Clang 19, Apple Clang, or clang-cl on Windows; the public headers are C17 and C++17. `cmake --install` installs a CMake package and a pkg-config file. [Getting started](docs/user/getting-started.md) has the options and a first world; every tagged release carries prebuilt libraries for Linux, Windows and macOS.
+The library is C23 and builds with GCC 14, Clang 19, Apple Clang, or clang-cl on Windows; the public headers are C17 and C++17. `cmake --install` installs a CMake package and a pkg-config file. [Getting started](docs/user/getting-started.md) has the options and a first world; every tagged release carries the source archive with its checksum, an SBOM and a build attestation.
 
 ## The Maul family
 
