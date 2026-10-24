@@ -36,10 +36,23 @@ typedef struct Entry
     int32_t count; // for a run, how many particles it holds
 } Entry;
 
+// A coordinate's cell, held within 2^62 before the integer cast: a finite
+// position far beyond the grid's reach (1e129 m) would overflow int64,
+// which is undefined. Positions the grid reaches keep their exact cell;
+// farther ones share cells, which the pair distance test then sorts out.
+static int64_t CellCoordinate(double scaled)
+{
+    double cell = floor(scaled);
+    const double bound = 4611686018427387904.0; // 2^62
+    cell = cell <= bound ? cell : bound;        // NaN goes to the bound too
+    cell = cell >= -bound ? cell : -bound;
+    return (int64_t)cell;
+}
+
 static uint64_t CellKey(m2Pos2 p, double inverseCell)
 {
-    uint32_t column = (uint32_t)((int64_t)floor(p.x * inverseCell) + 2147483648LL);
-    uint32_t row = (uint32_t)((int64_t)floor(p.y * inverseCell) + 2147483648LL);
+    uint32_t column = (uint32_t)(CellCoordinate(p.x * inverseCell) + 2147483648LL);
+    uint32_t row = (uint32_t)(CellCoordinate(p.y * inverseCell) + 2147483648LL);
     return ((uint64_t)row << 32) | (uint64_t)column;
 }
 

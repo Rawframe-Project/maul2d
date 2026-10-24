@@ -805,9 +805,34 @@ static void TestLifetimeAndUserData(void)
     m2DestroyWorld(world);
 }
 
+// Particles anywhere a finite position can name step without undefined
+// behavior: the grid cell of a position far beyond its reach (1e129 m)
+// used to overflow an integer cast. fuzz_snapshot found it through a
+// snapshot; the API reaches it too.
+static void TestFarParticlesStep(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.particleCapacity = 8;
+    m2World* world = NewWorld(&def);
+    const m2Pos2 far[] = {{1.0e129, 0.0}, {-1.0e300, 5.0}, {0.0, 1.0e200}, {3.0e9, -3.0e9}};
+    for (size_t i = 0; i < sizeof(far) / sizeof(far[0]); ++i)
+    {
+        CHECK(EmitParticle(world, far[i], (m2Vec2){0.0f, 0.0f}, 0).index1 != 0,
+              "a far particle is emitted");
+    }
+    EmitParticle(world, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f}, 0);
+    for (int32_t i = 0; i < 4; ++i)
+    {
+        m2World_Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(m2World_Validate(world), "far particles step into a valid world");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
     TestLifecycle();
+    TestFarParticlesStep();
     TestOverflowIsQuiet();
     TestPairOverflow();
     TestRelaxation();
