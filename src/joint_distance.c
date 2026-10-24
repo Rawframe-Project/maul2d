@@ -31,9 +31,10 @@ m2DistanceJointDef m2DefaultDistanceJointDef(void)
 static bool DefValid(const m2DistanceJointDef* def)
 {
     return m2LocalVec2(def->localAnchorA) && m2LocalVec2(def->localAnchorB) &&
-           m2FiniteF(def->length) && m2FiniteF(def->minLength) && m2FiniteF(def->maxLength) &&
-           !(def->maxLength > 0.0f && def->minLength > def->maxLength) && m2JointGain(def->hertz) &&
-           m2JointGain(def->dampingRatio);
+           m2ValidReach(def->length) && m2ValidReach(def->minLength) &&
+           m2ValidReach(def->maxLength) &&
+           !(def->maxLength > 0.0f && def->minLength > def->maxLength) && m2ValidRate(def->hertz) &&
+           m2ValidCoefficient(def->dampingRatio);
 }
 
 m2Result m2CreateDistanceJoint(m2World* world, const m2DistanceJointDef* def, m2JointId* jointOut)
@@ -77,8 +78,8 @@ m2Result m2CreateDistanceJoint(m2World* world, const m2DistanceJointDef* def, m2
                      xfA.q.s * def->localAnchorA.x + xfA.q.c * def->localAnchorA.y};
         m2Vec2 wB = {xfB.q.c * def->localAnchorB.x - xfB.q.s * def->localAnchorB.y,
                      xfB.q.s * def->localAnchorB.x + xfB.q.c * def->localAnchorB.y};
-        float dx = m2JointSeparation(xfB.p.x - xfA.p.x) + wB.x - wA.x;
-        float dy = m2JointSeparation(xfB.p.y - xfA.p.y) + wB.y - wA.y;
+        float dx = m2WorldOffset(xfB.p.x - xfA.p.x) + wB.x - wA.x;
+        float dy = m2WorldOffset(xfB.p.y - xfA.p.y) + wB.y - wA.y;
         length = sqrtf(dx * dx + dy * dy);
     }
     m2JointId jointId =
@@ -126,7 +127,7 @@ void m2DistanceJoint_SetLengthRange(m2World* world, m2JointId jointId, float min
     {
         return;
     }
-    if (!m2FiniteF(minLength) || !m2FiniteF(maxLength))
+    if (!m2ValidReach(minLength) || !m2ValidReach(maxLength))
     {
         m2Refuse(world, m2_errorInvalid);
         return;

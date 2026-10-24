@@ -36,7 +36,7 @@ static void BlastShape(m2World* world, const m2ExplosionDef* def, int32_t s)
 {
     int32_t body = world->shapes.shapeBody[s];
     m2Transform xf = world->bodies.transforms[body];
-    m2Vec2 rel = {(float)(def->position.x - xf.p.x), (float)(def->position.y - xf.p.y)};
+    m2Vec2 rel = {m2WorldOffset(def->position.x - xf.p.x), m2WorldOffset(def->position.y - xf.p.y)};
     m2Vec2 local = {xf.q.c * rel.x + xf.q.s * rel.y, -xf.q.s * rel.x + xf.q.c * rel.y};
     m2DistanceProxy target = m2GeometryProxy(&world->shapes.shapeGeometry[s]);
     m2DistanceProxy point;
@@ -78,6 +78,7 @@ static void BlastShape(m2World* world, const m2ExplosionDef* def, int32_t s)
     world->bodies.linearVelocities[body].y += world->bodies.invMass[body] * impulseWorld.y;
     world->bodies.angularVelocities[body] +=
         world->bodies.invInertia[body] * (arm.x * impulseLocal.y - arm.y * impulseLocal.x);
+    m2SaturateBodyVelocity(world, body);
     world->bodies.asleep[body] = 0;
     world->bodies.sleepTimes[body] = 0.0f;
 }
@@ -89,7 +90,8 @@ void m2World_Explode(m2World* world, const m2ExplosionDef* def)
         return;
     }
     if (world == NULL || def == NULL || def->internalValue != M2_EXPLODE_COOKIE ||
-        !(def->radius >= 0.0f) || !(def->falloff > 0.0f))
+        !m2LocalLength(def->radius) || !m2LocalLength(def->falloff) || !(def->falloff > 0.0f) ||
+        !m2ValidImpulse(def->impulse) || !m2FinitePos2(def->position))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -164,6 +166,7 @@ static m2BodyId CreatePiece(m2World* world, int32_t parent, const m2ShapeDef* sh
     world->bodies.linearVelocities[index] =
         (m2Vec2){vParent.x - wParent * ry, vParent.y + wParent * rx};
     world->bodies.angularVelocities[index] = wParent;
+    m2SaturateBodyVelocity(world, index);
     return piece;
 }
 

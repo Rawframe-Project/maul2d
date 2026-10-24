@@ -34,7 +34,7 @@ m2GearJointDef m2DefaultGearJointDef(void)
 // ordered ranges.
 static bool DefValid(const m2GearJointDef* def)
 {
-    return m2FiniteF(def->ratio) && def->ratio != 0.0f;
+    return m2ValidRatio(def->ratio);
 }
 
 m2Result m2CreateGearJoint(m2World* world, const m2GearJointDef* def, m2JointId* jointOut)

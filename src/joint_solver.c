@@ -68,8 +68,8 @@ static m2Vec2 AnchorGap(const m2World* world, const m2JointConstraint* c)
     m2Vec2 centerA = m2RotateVec2(tA.q, world->bodies.localCenters[c->bodyA]);
     m2Vec2 centerB = m2RotateVec2(tB.q, world->bodies.localCenters[c->bodyB]);
     return (m2Vec2){
-        m2JointSeparation(tB.p.x - tA.p.x) + (centerB.x - centerA.x) + (c->armB.x - c->armA.x),
-        m2JointSeparation(tB.p.y - tA.p.y) + (centerB.y - centerA.y) + (c->armB.y - c->armA.y)};
+        m2WorldOffset(tB.p.x - tA.p.x) + (centerB.x - centerA.x) + (c->armB.x - c->armA.x),
+        m2WorldOffset(tB.p.y - tA.p.y) + (centerB.y - centerA.y) + (c->armB.y - c->armA.y)};
 }
 
 static void PrepareCommon(const m2World* world, m2JointConstraint* c, int32_t j, float h)

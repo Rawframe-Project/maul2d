@@ -39,10 +39,10 @@ m2MotorJointDef m2DefaultMotorJointDef(void)
 // ordered ranges.
 static bool DefValid(const m2MotorJointDef* def)
 {
-    return m2LocalVec2(def->linearOffset) && m2FiniteF(def->angularOffset) &&
-           m2JointGain(def->maxForce) && m2JointGain(def->maxTorque) &&
-           m2JointGain(def->correctionFactor) && def->correctionFactor <= 1.0f &&
-           m2JointGain(def->hertz) && m2JointGain(def->dampingRatio);
+    return m2LocalVec2(def->linearOffset) && m2ValidAngle(def->angularOffset) &&
+           m2ValidMaxForce(def->maxForce) && m2ValidMaxForce(def->maxTorque) &&
+           m2WithinF(def->correctionFactor, 0.0f, 1.0f) && m2ValidRate(def->hertz) &&
+           m2ValidCoefficient(def->dampingRatio);
 }
 
 m2Result m2CreateMotorJoint(m2World* world, const m2MotorJointDef* def, m2JointId* jointOut)
@@ -119,7 +119,7 @@ void m2MotorJoint_SetOffsets(m2World* world, m2JointId jointId, m2Vec2 linearOff
     {
         return; // TypedJointSlot refused
     }
-    if (!m2LocalVec2(linearOffset) || !m2FiniteF(angularOffset))
+    if (!m2LocalVec2(linearOffset) || !m2ValidAngle(angularOffset))
     {
         m2Refuse(world, m2_errorInvalid);
         return;

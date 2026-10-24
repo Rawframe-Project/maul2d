@@ -43,6 +43,12 @@ m2BodyMass m2BodyMassFromShapes(uint8_t type, bool fixedRotation, const m2MassSh
     float invMass = 1.0f / mass;
     center.x *= invMass;
     center.y *= invMass;
+    // The mass the body keeps is held to [M2_MIN_MASS, M2_MAX_MASS] and its
+    // inertia to [M2_MIN_INERTIA, M2_MAX_INERTIA], the ranges the solver is
+    // budgeted for; the center stays the mass-weighted mean of the shapes.
+    // Within the ranges the clamps change no bit, and m2Body_GetMassData
+    // reads back what the body kept.
+    float keptInvMass = 1.0f / m2ClampF(mass, M2_MIN_MASS, M2_MAX_MASS);
     // Every shape lies within M2_HUGE, so the true center does too; the
     // rounding of the weighted mean can still carry it an ulp past, and
     // the snapshot holds centers to the bound.
@@ -60,17 +66,21 @@ m2BodyMass m2BodyMassFromShapes(uint8_t type, bool fixedRotation, const m2MassSh
         float oy = center.y - data.center.y;
         inertiaCenter += data.rotationalInertia + data.mass * (ox * ox + oy * oy);
     }
-    result.invMass = invMass;
-    result.invInertia = !fixedRotation && inertiaCenter > 0.0f ? 1.0f / inertiaCenter : 0.0f;
+    result.invMass = keptInvMass;
+    result.invInertia = !fixedRotation && inertiaCenter > 0.0f
+                            ? 1.0f / m2ClampF(inertiaCenter, M2_MIN_INERTIA, M2_MAX_INERTIA)
+                            : 0.0f;
     result.center = center;
     return result;
 }
 
 bool m2MassInversesValid(float invMass, float invInertia)
 {
-    return m2FiniteF(invMass) && invMass > 0.0f && m2FiniteF(1.0f / invMass) &&
-           m2FiniteF(invInertia) && invInertia >= 0.0f &&
-           (invInertia == 0.0f || m2FiniteF(1.0f / invInertia));
+    // Rounding to nearest is monotonic, so a mass within its range always
+    // has an inverse within these bounds.
+    return m2WithinF(invMass, 1.0f / M2_MAX_MASS, 1.0f / M2_MIN_MASS) &&
+           (invInertia == 0.0f ||
+            m2WithinF(invInertia, 1.0f / M2_MAX_INERTIA, 1.0f / M2_MIN_INERTIA));
 }
 
 static int32_t WorldNext(const void* context, int32_t shape)

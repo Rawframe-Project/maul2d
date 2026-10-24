@@ -82,9 +82,9 @@ extern "C"
     /// The def of a shape. Initialize it with m2DefaultShapeDef.
     typedef struct m2ShapeDef
     {
-        float density;      // kg/m^2; a dynamic body gets a minimum mass
-        float friction;     // Coulomb; pairs mix by geometric mean
-        float tangentSpeed; // conveyor: the surface slides along the contact tangent, m/s
+        float density;      // kg/m^2, 0 to M2_MAX_DENSITY; a dynamic body gets a minimum mass
+        float friction;     // Coulomb, 0 to M2_MAX_COEFFICIENT; pairs mix by geometric mean
+        float tangentSpeed; // conveyor along the contact tangent, m/s, within M2_MAX_SPEED
         float restitution;  // bounce in [0, 1]; pairs mix by maximum
         /// Two shapes collide when each one's category intersects the
         /// other's mask. Defaults: category 1, mask all. Queries take
@@ -121,8 +121,8 @@ extern "C"
         const m2Vec2* points;
         int32_t count;
         bool isLoop;
-        float friction;
-        float restitution;
+        float friction;    // 0 to M2_MAX_COEFFICIENT
+        float restitution; // 0 to 1
         uint64_t categoryBits;
         uint64_t maskBits;
         int32_t groupIndex;
@@ -384,7 +384,7 @@ extern "C"
     ///
     /// @param world     The world.
     /// @param shapeId   The shape.
-    /// @param friction  The Coulomb friction, finite and at least 0.
+    /// @param friction  The Coulomb friction, 0 to M2_MAX_COEFFICIENT.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_API void m2Shape_SetFriction(m2World* world, m2ShapeId shapeId, float friction);
@@ -401,7 +401,8 @@ extern "C"
     /// Sets a shape's conveyor speed along the contact tangent. A pair
     /// slides at the sum of both shapes' speeds; positive drives a rider
     /// toward +x on an upward-facing floor. Riders wake. A stale id or a
-    /// non-finite speed changes nothing and counts one misuse. Journaled.
+    /// speed beyond M2_MAX_SPEED changes nothing and counts one misuse.
+    /// Journaled.
     ///
     /// @param world    The world.
     /// @param shapeId  The shape.
@@ -646,7 +647,7 @@ extern "C"
     ///
     /// @param world     The world.
     /// @param chainId   The chain.
-    /// @param friction  The Coulomb friction, finite and at least 0.
+    /// @param friction  The Coulomb friction, 0 to M2_MAX_COEFFICIENT.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_API void m2Chain_SetFriction(m2World* world, m2ChainId chainId, float friction);
@@ -718,8 +719,8 @@ extern "C"
     M2_API m2Pos2 m2Shape_GetClosestPoint(const m2World* world, m2ShapeId shapeId, m2Pos2 point);
 
     /// Sets a shape's density; a dynamic body recomputes its mass. A stale
-    /// id or a negative or non-finite density changes nothing and counts
-    /// one misuse. Journaled.
+    /// id or a density outside 0 to M2_MAX_DENSITY changes nothing and
+    /// counts one misuse. Journaled.
     ///
     /// @param world    The world.
     /// @param shapeId  The shape.

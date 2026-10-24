@@ -32,10 +32,10 @@ m2PrismaticJointDef m2DefaultPrismaticJointDef(void)
 static bool DefValid(const m2PrismaticJointDef* def)
 {
     return m2LocalVec2(def->localAnchorA) && m2LocalVec2(def->localAnchorB) &&
-           m2LocalVec2(def->localAxisA) && m2JointGain(def->hertz) &&
-           m2JointGain(def->dampingRatio) && m2FiniteF(def->motorSpeed) &&
-           m2JointGain(def->maxMotorForce) && m2FiniteF(def->lowerTranslation) &&
-           m2FiniteF(def->upperTranslation) && def->lowerTranslation <= def->upperTranslation;
+           m2LocalVec2(def->localAxisA) && m2ValidRate(def->hertz) &&
+           m2ValidCoefficient(def->dampingRatio) && m2ValidSpeed(def->motorSpeed) &&
+           m2ValidMaxForce(def->maxMotorForce) && m2ValidReach(def->lowerTranslation) &&
+           m2ValidReach(def->upperTranslation) && def->lowerTranslation <= def->upperTranslation;
 }
 
 m2Result m2CreatePrismaticJoint(m2World* world, const m2PrismaticJointDef* def, m2JointId* jointOut)

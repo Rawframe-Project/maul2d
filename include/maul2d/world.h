@@ -45,7 +45,7 @@ extern "C"
         int32_t internalValue;
         // M2_ABI_VERSION of the headers the program was built with.
         uint32_t version;
-        m2Vec2 gravity;       // m/s^2, applied to dynamic bodies
+        m2Vec2 gravity;       // m/s^2, within M2_MAX_ACCELERATION per axis
         int32_t bodyCapacity; // fixed pool sizes: a world never grows
         int32_t shapeCapacity;
         int32_t jointCapacity;
@@ -56,15 +56,15 @@ extern "C"
         /// are fixed here like every other physics setting.
         int32_t particleCapacity;    // 0: no fluids
         int32_t fluidVolumeCapacity; // 0: no buoyancy volumes
-        float particleRadius;        // meters, at least 0.02
-        float particleDensity;       // mass per area
-        float particleGravityScale;
+        float particleRadius;        // meters, 0.02 to M2_HUGE
+        float particleDensity;       // kg/m^2; a particle weighs M2_MIN_MASS or more
+        float particleGravityScale;  // within M2_MAX_GRAVITY_SCALE
         /// The particle model's strengths: the pressure above rest density,
         /// the damping of approach speed, shear viscosity for viscous
         /// particles, the spacing push of powder grains, the pull of
         /// spring nets and elastic triads, and for tensile particles the
         /// cohesion below rest density and the near pressure that keeps a
-        /// droplet from collapsing. Each is at least 0.
+        /// droplet from collapsing. Each is 0 to M2_MAX_COEFFICIENT.
         float particlePressureStrength;
         float particleDampingStrength;
         float particleViscousStrength;
@@ -156,8 +156,8 @@ extern "C"
     ///         m2_errorInvalid for a bad cookie; m2_errorVersion for a def
     ///         built for another binary interface; m2_errorInvalid for the
     ///         rest of the def (a capacity below 1, an allocator with one
-    ///         function set, a gravity not finite, a particle parameter
-    ///         not finite or out of range);
+    ///         function set, a gravity beyond M2_MAX_ACCELERATION, a
+    ///         particle parameter out of its range);
     ///         m2_errorCapacity when the allocator refuses or a size does
     ///         not fit.
     /// @par Thread safety
@@ -188,8 +188,8 @@ extern "C"
     M2_API bool m2World_Validate(const m2World* world);
 
     /// Sets the gravity and wakes every sleeping dynamic body: a stack must
-    /// not float in a world that turned upside down. A non-finite gravity
-    /// counts one misuse. Journaled.
+    /// not float in a world that turned upside down. A gravity beyond
+    /// M2_MAX_ACCELERATION on either axis counts one misuse. Journaled.
     ///
     /// @param world    The world.
     /// @param gravity  The acceleration, m/s^2.
@@ -211,8 +211,8 @@ extern "C"
     /// gravity, so larger bodies catch more wind and everything drifts
     /// toward the wind's speed. Unlike gravity it wakes no sleeper, since
     /// wind is meant to gust. Regional wind is a fluid volume of density 0.
-    /// A non-finite argument or a negative drag counts one misuse.
-    /// Journaled.
+    /// A velocity beyond M2_MAX_SPEED on either axis or a drag outside 0 to
+    /// M2_MAX_RATE counts one misuse. Journaled.
     ///
     /// @param world       The world.
     /// @param velocity    The air's velocity, m/s.
@@ -239,9 +239,9 @@ extern "C"
     typedef struct m2ExplosionDef
     {
         m2Pos2 position;
-        float radius;  // at least 0
-        float falloff; // above 0
-        float impulse; // N s at full strength
+        float radius;  // 0 to M2_HUGE
+        float falloff; // above 0, to M2_HUGE
+        float impulse; // N s at full strength, within M2_IMPULSE_LIMIT
         uint64_t maskBits;
         int32_t internalValue; // the cookie m2DefaultExplosionDef sets
     } m2ExplosionDef;
@@ -254,7 +254,8 @@ extern "C"
     /// Safe from any thread.
     M2_API m2ExplosionDef m2DefaultExplosionDef(void);
 
-    /// Sets off an explosion. A bad def counts one misuse. Journaled as one
+    /// Sets off an explosion. Each body's velocity saturates at M2_MAX_SPEED
+    /// per axis. A bad def counts one misuse. Journaled as one
     /// operation.
     ///
     /// @param world  The world.
@@ -381,14 +382,14 @@ extern "C"
 
     /// Advances the simulation. Identical worlds given identical calls
     /// reach identical bits on every supported platform. Feed the same dt
-    /// every step: 1/60 with 4 substeps is the tuned default. A non-finite
-    /// or non-positive dt, or a substep count below 1 or above
-    /// M2_MAX_SUBSTEPS, changes nothing and counts one misuse. Journaled.
+    /// every step: 1/60 with 4 substeps is the tuned default. A dt outside
+    /// M2_MIN_TIME_STEP to M2_MAX_TIME_STEP, or a substep count below 1 or
+    /// above M2_MAX_SUBSTEPS, changes nothing and counts one misuse.
+    /// Journaled.
     ///
     /// @param world         The world.
-    /// @param dt            The step, seconds; positive and finite, and
-    ///                      bounded by nothing else: the solver's speed
-    ///                      caps keep a long step finite.
+    /// @param dt            The step, seconds, from M2_MIN_TIME_STEP (1e-6)
+    ///                      to M2_MAX_TIME_STEP (10).
     /// @param substepCount  The solver substeps, 1 to M2_MAX_SUBSTEPS.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
@@ -535,10 +536,10 @@ extern "C"
         m2Pos2 regionLower; // the region, world space
         m2Pos2 regionUpper;
         double surface;    // the waterline, world y
-        float density;     // buoyant force per submerged area; at least 0
-        float linearDrag;  // velocity damping per submerged area; at least 0
-        float angularDrag; // spin damping; at least 0
-        m2Vec2 flow;       // the current the water drags bodies toward, m/s
+        float density;     // buoyant force per submerged area; 0 to M2_MAX_DENSITY
+        float linearDrag;  // velocity damping per submerged area; 0 to M2_MAX_RATE
+        float angularDrag; // spin damping; 0 to M2_MAX_RATE
+        m2Vec2 flow;       // the current, m/s, within M2_MAX_SPEED per axis
         uint64_t userData;
         int32_t internalValue; // the cookie m2DefaultFluidVolumeDef sets
     } m2FluidVolumeDef;

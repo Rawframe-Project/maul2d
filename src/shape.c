@@ -152,9 +152,9 @@ m2ShapeDef m2DefaultShapeDef(void)
 
 static bool ShapeDefValid(const m2ShapeDef* def)
 {
-    return def != NULL && def->internalValue == M2_SHAPE_COOKIE && m2FiniteF(def->density) &&
-           def->density >= 0.0f && m2FiniteF(def->friction) && def->friction >= 0.0f &&
-           def->restitution >= 0.0f && def->restitution <= 1.0f && m2FiniteF(def->tangentSpeed);
+    return def != NULL && def->internalValue == M2_SHAPE_COOKIE && m2ValidDensity(def->density) &&
+           m2ValidCoefficient(def->friction) && m2ValidRestitution(def->restitution) &&
+           m2ValidSpeed(def->tangentSpeed);
 }
 
 static void WriteShapeSlot(m2World* world, int32_t index, int32_t bodyIndex, const m2ShapeDef* def,
@@ -340,11 +340,11 @@ static bool ShapeParamValid(uint8_t param, float value)
     switch (param)
     {
     case m2_shapeParamFriction:
-        return m2FiniteF(value) && value >= 0.0f;
+        return m2ValidCoefficient(value);
     case m2_shapeParamRestitution:
-        return value >= 0.0f && value <= 1.0f;
+        return m2ValidRestitution(value);
     case m2_shapeParamTangentSpeed:
-        return m2FiniteF(value);
+        return m2ValidSpeed(value);
     default:
         return false;
     }
@@ -734,7 +734,7 @@ void m2Shape_SetDensity(m2World* world, m2ShapeId shapeId, float density)
         return;
     }
     int32_t index = ShapeSlotChecked(world, shapeId);
-    if (index < 0 || !m2FiniteF(density) || density < 0.0f)
+    if (index < 0 || !m2ValidDensity(density))
     {
         m2Refuse(world, m2_errorInvalid);
         return;

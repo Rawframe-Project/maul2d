@@ -38,8 +38,8 @@ float m2PulleyLiveLength(const m2World* world, int32_t index, int32_t side)
     m2Pos2 g = side == 0 ? world->joints.jointTargets[index] : world->joints.jointTargetsB[index];
     m2Rot q = world->bodies.transforms[body].q;
     m2Vec2 arm = {q.c * la.x - q.s * la.y, q.s * la.x + q.c * la.y};
-    float dx = m2JointSeparation(world->bodies.transforms[body].p.x - g.x) + arm.x;
-    float dy = m2JointSeparation(world->bodies.transforms[body].p.y - g.y) + arm.y;
+    float dx = m2WorldOffset(world->bodies.transforms[body].p.x - g.x) + arm.x;
+    float dy = m2WorldOffset(world->bodies.transforms[body].p.y - g.y) + arm.y;
     return sqrtf(dx * dx + dy * dy);
 }
 
@@ -54,7 +54,7 @@ static bool DefValid(const m2PulleyJointDef* def)
 {
     return m2FinitePos2(def->groundAnchorA) && m2FinitePos2(def->groundAnchorB) &&
            m2LocalVec2(def->localAnchorA) && m2LocalVec2(def->localAnchorB) &&
-           m2FiniteF(def->ratio) && def->ratio > 0.0f;
+           m2ValidRatio(def->ratio) && def->ratio > 0.0f;
 }
 
 m2Result m2CreatePulleyJoint(m2World* world, const m2PulleyJointDef* def, m2JointId* jointOut)
@@ -167,11 +167,10 @@ static void PreparePulley(m2World* world, m2JointConstraint* c, const m2JointFra
     m2Pos2 originB = world->bodies.transforms[c->bodyB].p;
     m2Vec2 anchorA = m2RotateVec2(f->qA, world->joints.jointLocalAnchorA[j]);
     m2Vec2 anchorB = m2RotateVec2(f->qB, world->joints.jointLocalAnchorB[j]);
-    c->ropeA = (m2Vec2){m2JointSeparation(originA.x - world->joints.jointTargets[j].x) + anchorA.x,
-                        m2JointSeparation(originA.y - world->joints.jointTargets[j].y) + anchorA.y};
-    c->ropeB =
-        (m2Vec2){m2JointSeparation(originB.x - world->joints.jointTargetsB[j].x) + anchorB.x,
-                 m2JointSeparation(originB.y - world->joints.jointTargetsB[j].y) + anchorB.y};
+    c->ropeA = (m2Vec2){m2WorldOffset(originA.x - world->joints.jointTargets[j].x) + anchorA.x,
+                        m2WorldOffset(originA.y - world->joints.jointTargets[j].y) + anchorA.y};
+    c->ropeB = (m2Vec2){m2WorldOffset(originB.x - world->joints.jointTargetsB[j].x) + anchorB.x,
+                        m2WorldOffset(originB.y - world->joints.jointTargetsB[j].y) + anchorB.y};
     c->ratio = world->joints.jointLength[j];
     c->length = world->joints.jointRefAngle[j];
 }

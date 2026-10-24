@@ -54,6 +54,112 @@ static inline bool m2LocalLength(float x)
 {
     return x >= 0.0f && x <= M2_HUGE;
 }
+// The ranges of base.h, one check per quantity, shared by the defs, the
+// setters and replay. NaN fails every one of them.
+static inline bool m2WithinF(float x, float lo, float hi)
+{
+    return x >= lo && x <= hi;
+}
+static inline bool m2ValidSpeed(float x)
+{
+    return m2WithinF(x, -M2_MAX_SPEED, M2_MAX_SPEED);
+}
+static inline bool m2ValidVelocity(m2Vec2 v)
+{
+    return m2ValidSpeed(v.x) && m2ValidSpeed(v.y);
+}
+static inline bool m2ValidAcceleration(m2Vec2 a)
+{
+    return m2WithinF(a.x, -M2_MAX_ACCELERATION, M2_MAX_ACCELERATION) &&
+           m2WithinF(a.y, -M2_MAX_ACCELERATION, M2_MAX_ACCELERATION);
+}
+static inline bool m2ValidGravityScale(float x)
+{
+    return m2WithinF(x, -M2_MAX_GRAVITY_SCALE, M2_MAX_GRAVITY_SCALE);
+}
+static inline bool m2ValidRate(float x)
+{
+    return m2WithinF(x, 0.0f, M2_MAX_RATE);
+}
+static inline bool m2ValidCoefficient(float x)
+{
+    return m2WithinF(x, 0.0f, M2_MAX_COEFFICIENT);
+}
+static inline bool m2ValidRestitution(float x)
+{
+    return m2WithinF(x, 0.0f, 1.0f);
+}
+static inline bool m2ValidDensity(float x)
+{
+    return m2WithinF(x, 0.0f, M2_MAX_DENSITY);
+}
+static inline bool m2ValidRatio(float x)
+{
+    float magnitude = x < 0.0f ? -x : x;
+    return m2WithinF(magnitude, M2_MIN_RATIO, M2_MAX_RATIO);
+}
+static inline bool m2ValidMass(float x)
+{
+    return m2WithinF(x, M2_MIN_MASS, M2_MAX_MASS);
+}
+// Rotational inertia about the center of mass; 0 does not rotate.
+static inline bool m2ValidInertia(float x)
+{
+    return x == 0.0f || m2WithinF(x, M2_MIN_INERTIA, M2_MAX_INERTIA);
+}
+static inline bool m2ValidForce(float x)
+{
+    return m2WithinF(x, -M2_MAX_FORCE, M2_MAX_FORCE);
+}
+static inline bool m2ValidForceVec(m2Vec2 f)
+{
+    return m2ValidForce(f.x) && m2ValidForce(f.y);
+}
+// A budget: a motor's or a mouse's largest force or torque.
+static inline bool m2ValidMaxForce(float x)
+{
+    return m2WithinF(x, 0.0f, M2_MAX_FORCE);
+}
+static inline bool m2ValidImpulse(float x)
+{
+    return m2WithinF(x, -M2_IMPULSE_LIMIT, M2_IMPULSE_LIMIT);
+}
+static inline bool m2ValidImpulseVec(m2Vec2 j)
+{
+    return m2ValidImpulse(j.x) && m2ValidImpulse(j.y);
+}
+static inline bool m2ValidTimeStep(float x)
+{
+    return m2WithinF(x, M2_MIN_TIME_STEP, M2_MAX_TIME_STEP);
+}
+static inline bool m2ValidAngle(float x)
+{
+    return m2WithinF(x, -M2_MAX_ANGLE, M2_MAX_ANGLE);
+}
+// A joint length or translation, signed.
+static inline bool m2ValidReach(float x)
+{
+    return m2WithinF(x, -(float)M2_JOINT_REACH, (float)M2_JOINT_REACH);
+}
+// A world-space difference as a float, clamped to M2_JOINT_REACH. World
+// positions are 64-bit and unbounded, and their difference can pass what
+// a float holds; it would reach the solver as infinity and leave NaN in
+// the bodies. Clamped, a lever stays within the bound docs/user/limits.md
+// budgets for. Two points this far apart no longer interact anyway: at
+// 400 m/s, closing 1e9 m takes a month.
+static inline float m2WorldOffset(double d)
+{
+    d = d < M2_JOINT_REACH ? d : M2_JOINT_REACH;
+    d = d > -M2_JOINT_REACH ? d : -M2_JOINT_REACH;
+    return (float)d;
+}
+// Saturation: a velocity component or an accumulated load held to its
+// range.
+static inline float m2SaturateF(float x, float limit)
+{
+    return x < -limit ? -limit : (x > limit ? limit : x);
+}
+
 // A caller rotation that is stored or used as given must already be a
 // unit rotation (m2MakeRot builds one); anything else would shear.
 static inline bool m2UnitRot(m2Rot q)

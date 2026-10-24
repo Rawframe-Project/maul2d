@@ -35,10 +35,10 @@ m2WheelJointDef m2DefaultWheelJointDef(void)
 static bool DefValid(const m2WheelJointDef* def)
 {
     return m2LocalVec2(def->localAnchorA) && m2LocalVec2(def->localAnchorB) &&
-           m2LocalVec2(def->localAxisA) && m2JointGain(def->hertz) &&
-           m2JointGain(def->dampingRatio) && m2FiniteF(def->motorSpeed) &&
-           m2JointGain(def->maxMotorTorque) && m2FiniteF(def->lowerTranslation) &&
-           m2FiniteF(def->upperTranslation) && def->lowerTranslation <= def->upperTranslation;
+           m2LocalVec2(def->localAxisA) && m2ValidRate(def->hertz) &&
+           m2ValidCoefficient(def->dampingRatio) && m2ValidSpeed(def->motorSpeed) &&
+           m2ValidMaxForce(def->maxMotorTorque) && m2ValidReach(def->lowerTranslation) &&
+           m2ValidReach(def->upperTranslation) && def->lowerTranslation <= def->upperTranslation;
 }
 
 m2Result m2CreateWheelJoint(m2World* world, const m2WheelJointDef* def, m2JointId* jointOut)

@@ -243,8 +243,9 @@ m2Result m2CreateFluidVolume(m2World* world, const m2FluidVolumeDef* def,
     {
         return m2Refuse(world, m2_errorInvalid);
     }
-    if (!(def->density >= 0.0f) || !(def->linearDrag >= 0.0f) || !(def->angularDrag >= 0.0f) ||
-        !m2FiniteD(def->surface))
+    if (!m2ValidDensity(def->density) || !m2ValidRate(def->linearDrag) ||
+        !m2ValidRate(def->angularDrag) || !m2ValidVelocity(def->flow) || !m2FiniteD(def->surface) ||
+        !m2FinitePos2(def->regionLower) || !m2FinitePos2(def->regionUpper))
     {
         return m2Refuse(world, m2_errorInvalid);
     }
