@@ -179,10 +179,10 @@ extern "C"
     /// tolerance.
     ///
     /// @param q  The rotation to test.
-    /// @return 1 when q is unit length, 0 otherwise.
+    /// @return True when q is unit length.
     /// @par Thread safety
     /// Safe from any thread.
-    M2_API int m2IsNormalizedRot(m2Rot q);
+    M2_API bool m2IsNormalizedRot(m2Rot q);
 
 #ifdef __cplusplus
 }

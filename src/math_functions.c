@@ -85,7 +85,7 @@ m2Rot m2MulRot(m2Rot q, m2Rot r)
     return m2RotCompose(q, r);
 }
 
-int m2IsNormalizedRot(m2Rot q)
+bool m2IsNormalizedRot(m2Rot q)
 {
     float mag2 = q.c * q.c + q.s * q.s;
     float tolerance = 4.0f * 1.19209290e-7f; // 4 * FLT_EPSILON
