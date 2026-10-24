@@ -74,6 +74,7 @@ jobs:
         run: |
           python3 tools/check_source.py
           python3 tools/check_modules.py
+          python3 tools/check_docs.py
           python3 tools/check_lengths.py
           python3 tools/check_guide.py
       - name: The documentation site builds
