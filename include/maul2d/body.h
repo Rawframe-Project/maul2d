@@ -583,9 +583,8 @@ extern "C"
     /// Safe from any thread; a world is used by one thread at a time.
     M2_API void m2Body_ApplyTorque(m2World* world, m2BodyId bodyId, float torque);
 
-    /// Sets a body's linear damping. A negative value, negative infinity
-    /// included, is stored as 0 and counts nothing. NaN, positive infinity
-    /// or a stale id changes nothing and counts one misuse. Journaled.
+    /// Sets a body's linear damping. A stale id or a negative or non-finite
+    /// value changes nothing and counts one misuse. Journaled.
     ///
     /// @param world    The world.
     /// @param bodyId   The body.
