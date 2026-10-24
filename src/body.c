@@ -324,11 +324,7 @@ void m2Body_SetLinearDamping(m2World* world, m2BodyId bodyId, float damping)
                            damping < 0.0f ? 0.0f : damping);
 }
 
-float m2Body_GetLinearDamping(const m2World* world, m2BodyId bodyId)
-{
-    int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    return index >= 0 ? world->bodies.linearDampings[index] : 0.0f;
-}
+M2_BODY_GETTER(float, m2Body_GetLinearDamping, world->bodies.linearDampings[index], 0.0f)
 
 void m2Body_SetAngularDamping(m2World* world, m2BodyId bodyId, float damping)
 {
@@ -340,11 +336,7 @@ void m2Body_SetAngularDamping(m2World* world, m2BodyId bodyId, float damping)
                            damping < 0.0f ? 0.0f : damping);
 }
 
-float m2Body_GetAngularDamping(const m2World* world, m2BodyId bodyId)
-{
-    int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    return index >= 0 ? world->bodies.angularDampings[index] : 0.0f;
-}
+M2_BODY_GETTER(float, m2Body_GetAngularDamping, world->bodies.angularDampings[index], 0.0f)
 
 void m2Body_SetGravityScale(m2World* world, m2BodyId bodyId, float scale)
 {
@@ -364,11 +356,7 @@ void m2Body_SetFixedRotation(m2World* world, m2BodyId bodyId, bool flag)
     m2SetBodyParamInternal(world, bodyId, m2_bodyParamFixedRotation, flag ? 1.0f : 0.0f);
 }
 
-bool m2Body_IsFixedRotation(const m2World* world, m2BodyId bodyId)
-{
-    int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    return index >= 0 && world->bodies.fixedRotations[index] != 0;
-}
+M2_BODY_GETTER(bool, m2Body_IsFixedRotation, world->bodies.fixedRotations[index] != 0, false)
 
 void m2Body_SetMotionLocks(m2World* world, m2BodyId bodyId, m2MotionLocks locks)
 {
@@ -391,7 +379,11 @@ m2MotionLocks m2Body_GetMotionLocks(const m2World* world, m2BodyId bodyId)
 {
     m2MotionLocks locks = {false, false, false};
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index >= 0)
+    if (index < 0)
+    {
+        m2Refuse(world, m2_errorInvalid);
+    }
+    else
     {
         locks.linearX = (world->bodies.motionLocks[index] & M2_LOCK_LINEAR_X) != 0;
         locks.linearY = (world->bodies.motionLocks[index] & M2_LOCK_LINEAR_Y) != 0;
@@ -409,11 +401,7 @@ void m2Body_EnableSleep(m2World* world, m2BodyId bodyId, bool flag)
     m2SetBodyParamInternal(world, bodyId, m2_bodyParamEnableSleep, flag ? 1.0f : 0.0f);
 }
 
-bool m2Body_IsSleepEnabled(const m2World* world, m2BodyId bodyId)
-{
-    int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    return index >= 0 && world->bodies.sleepEnables[index] != 0;
-}
+M2_BODY_GETTER(bool, m2Body_IsSleepEnabled, world->bodies.sleepEnables[index] != 0, false)
 
 void m2Body_SetType(m2World* world, m2BodyId bodyId, m2BodyType type)
 {
@@ -498,10 +486,14 @@ void m2Body_SetAwake(m2World* world, m2BodyId bodyId, bool awake)
         return;
     }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || world->bodies.types[index] != (uint8_t)m2_dynamicBody ||
-        world->bodies.disabled[index] != 0)
+    if (index < 0)
     {
+        m2Refuse(world, m2_errorStale);
         return;
+    }
+    if (world->bodies.types[index] != (uint8_t)m2_dynamicBody || world->bodies.disabled[index] != 0)
+    {
+        return; // only an enabled dynamic body sleeps
     }
     uint8_t sleeping = awake ? 0 : 1;
     if (world->bodies.asleep[index] == sleeping)
@@ -586,7 +578,12 @@ void m2Body_Disable(m2World* world, m2BodyId bodyId)
         return;
     }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || world->bodies.disabled[index] != 0)
+    if (index < 0)
+    {
+        m2Refuse(world, m2_errorStale);
+        return;
+    }
+    if (world->bodies.disabled[index] != 0)
     {
         return; // already dormant: no-op stays unjournaled
     }
@@ -607,9 +604,14 @@ void m2Body_Enable(m2World* world, m2BodyId bodyId)
         return;
     }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || world->bodies.disabled[index] == 0)
+    if (index < 0)
     {
+        m2Refuse(world, m2_errorStale);
         return;
+    }
+    if (world->bodies.disabled[index] == 0)
+    {
+        return; // already enabled
     }
     m2JournalRecord(world, m2_opEnableBody, &bodyId, (int32_t)sizeof(bodyId));
     world->bodies.disabled[index] = 0;

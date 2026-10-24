@@ -104,8 +104,11 @@ extern "C"
     /// slot and a generation. A correct program never uses an id after
     /// destroying its object, so a stale id counts one misuse: a getter
     /// returns the zeroed value, a setter changes nothing, and a call that
-    /// returns a status returns m2_errorStale. The validity queries
-    /// (m2Body_IsValid and the others) count nothing. An id carries no
+    /// returns a status returns m2_errorStale. Particles are the exception:
+    /// the world ends a particle on its own when its lifetime runs out, so
+    /// a program may hold a dead particle id, and a stale particle id counts
+    /// nothing. The validity queries (m2Body_IsValid and the others) count
+    /// nothing either. An id carries no
     /// world: one passed to another world names whatever that world holds
     /// in the same slot and generation, and the library cannot tell.
     ///

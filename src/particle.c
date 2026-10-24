@@ -96,7 +96,7 @@ m2Result m2DestroyParticle(m2World* world, m2ParticleId particleId)
     int32_t index = ParticleSlot(world, particleId);
     if (index < 0)
     {
-        return m2Refuse(world, m2_errorStale);
+        return m2_errorStale; // particles expire on their own: no misuse
     }
     if (world->recorder.journalActive != 0)
     {
@@ -183,7 +183,11 @@ void m2Particle_SetVelocity(m2World* world, m2ParticleId particleId, m2Vec2 velo
         return;
     }
     int32_t index = ParticleSlot(world, particleId);
-    if (index < 0 || !m2FiniteVec2(velocity))
+    if (index < 0)
+    {
+        return; // expired: changes nothing, counts nothing
+    }
+    if (!m2FiniteVec2(velocity))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -212,7 +216,11 @@ void m2Particle_SetLifetime(m2World* world, m2ParticleId particleId, float secon
         return;
     }
     int32_t index = ParticleSlot(world, particleId);
-    if (index < 0 || !m2FiniteF(seconds) || seconds < 0.0f)
+    if (index < 0)
+    {
+        return; // expired: changes nothing, counts nothing
+    }
+    if (!m2FiniteF(seconds) || seconds < 0.0f)
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -243,8 +251,7 @@ void m2Particle_SetUserData(m2World* world, m2ParticleId particleId, uint64_t us
     int32_t index = ParticleSlot(world, particleId);
     if (index < 0)
     {
-        m2Refuse(world, m2_errorInvalid);
-        return;
+        return; // expired: changes nothing, counts nothing
     }
     if (world->recorder.journalActive != 0)
     {

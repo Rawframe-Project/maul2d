@@ -528,6 +528,7 @@ float m2Joint_GetReactionForce(const m2World* world, m2JointId jointId)
         world->joints.jointAlive[index] == 0 ||
         world->joints.jointGenerations[index] != jointId.generation)
     {
+        m2Refuse(world, m2_errorInvalid);
         return 0.0f;
     }
     float force = 0.0f;
@@ -543,6 +544,7 @@ float m2Joint_GetReactionTorque(const m2World* world, m2JointId jointId)
         world->joints.jointAlive[index] == 0 ||
         world->joints.jointGenerations[index] != jointId.generation)
     {
+        m2Refuse(world, m2_errorInvalid);
         return 0.0f;
     }
     float force = 0.0f;

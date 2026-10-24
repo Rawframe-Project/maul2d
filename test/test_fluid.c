@@ -784,6 +784,17 @@ static void TestLifetimeAndUserData(void)
     CHECK(m2Particle_IsValid(world, drops[1]) && m2Particle_GetUserData(world, drops[1]) == 1001,
           "an immortal keeps its data past the reaping");
 
+    // A particle the world reaped leaves its id behind in the program, so
+    // a stale particle id is no misuse: every call answers and counts
+    // nothing.
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    CHECK(m2Particle_GetPosition(world, drops[0]).x == 0.0, "an expired drop reads as zero");
+    m2Particle_SetVelocity(world, drops[0], (m2Vec2){1.0f, 0.0f});
+    m2Particle_SetLifetime(world, drops[0], 1.0f);
+    m2Particle_SetUserData(world, drops[0], 7);
+    CHECK(m2DestroyParticle(world, drops[0]) == m2_errorStale, "destroying it is m2_errorStale");
+    CHECK(m2World_GetCounters(world).misuse == misuse, "and none of it counts as misuse");
+
     // Rollback: the reaped drops return with their data intact.
     CHECK(Restore(world, snap, size), "the pre-reaping snapshot restores");
     CHECK(m2World_GetParticleCount(world) == 10, "the reaped drops are back");

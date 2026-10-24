@@ -326,6 +326,7 @@ int32_t m2Chain_GetShapes(const m2World* world, m2ChainId chainId, m2ShapeId* id
     int32_t chainIndex = world != NULL ? ChainSlot(world, chainId) : -1;
     if (chainIndex < 0)
     {
+        m2Refuse(world, m2_errorInvalid);
         return 0;
     }
     int32_t total = 0;

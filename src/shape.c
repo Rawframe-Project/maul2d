@@ -422,6 +422,7 @@ float m2Shape_GetTangentSpeed(const m2World* world, m2ShapeId shapeId)
         world->shapes.shapeAlive[index] == 0 ||
         world->shapes.shapeGenerations[index] != shapeId.generation)
     {
+        m2Refuse(world, m2_errorInvalid);
         return 0.0f;
     }
     return world->shapes.shapeTangentSpeed[index];
@@ -448,13 +449,23 @@ void m2Shape_SetRestitution(m2World* world, m2ShapeId shapeId, float restitution
 float m2Shape_GetFriction(const m2World* world, m2ShapeId shapeId)
 {
     int32_t index = ShapeSlotChecked(world, shapeId);
-    return index >= 0 ? world->shapes.shapeFriction[index] : 0.0f;
+    if (index < 0)
+    {
+        m2Refuse(world, m2_errorInvalid);
+        return 0.0f;
+    }
+    return world->shapes.shapeFriction[index];
 }
 
 float m2Shape_GetRestitution(const m2World* world, m2ShapeId shapeId)
 {
     int32_t index = ShapeSlotChecked(world, shapeId);
-    return index >= 0 ? world->shapes.shapeRestitution[index] : 0.0f;
+    if (index < 0)
+    {
+        m2Refuse(world, m2_errorInvalid);
+        return 0.0f;
+    }
+    return world->shapes.shapeRestitution[index];
 }
 
 void m2Shape_SetFilter(m2World* world, m2ShapeId shapeId, uint64_t categoryBits, uint64_t maskBits,
