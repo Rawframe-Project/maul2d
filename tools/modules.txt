@@ -62,4 +62,5 @@ solver: ccd contact_solver joint joint_solver rotation world_internal
 solver_base:
 world: allocator broadphase buoyancy contact cpu island journal parallel particle solver world_internal world_state
 world_internal: allocator core dynamic_tree geometry
-world_state: contact_solver world_internal
+world_hash: dynamic_tree world_internal
+world_state: contact_solver world_hash world_internal

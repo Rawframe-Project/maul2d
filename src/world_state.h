@@ -10,6 +10,7 @@
 #ifndef MAUL2D_SRC_WORLD_STATE_H
 #define MAUL2D_SRC_WORLD_STATE_H
 
+#include "world_hash.h"
 #include "world_internal.h"
 
 // Allocates every array, sized from the capacities already set in the
@@ -38,5 +39,11 @@ bool m2StateBodyValid(const m2World* world, int32_t index);
 // &world->bodies.alive); NULL when the field is not in this world's
 // snapshots. The bytes may be unaligned: read them with memcpy.
 const uint8_t* m2StateIncoming(const m2World* world, const uint8_t* in, const void* field);
+
+// Folds the state the table marks as hashed into one hash: per-object
+// arrays by live slot, keyed by the slot index; counted arrays up to their
+// count, keyed by it; and each pool's identity (its cursors, free queue in
+// order and generations), which decides where the next object lands.
+uint64_t m2StateHash(const m2World* world, m2HashPart part);
 
 #endif // MAUL2D_SRC_WORLD_STATE_H

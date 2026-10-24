@@ -401,30 +401,35 @@ static int32_t FirstCrossing(const m2World* world, m2Pos2 from, m2Vec2 move, flo
                    from.y + (move.y < 0.0f ? (double)move.y : 0.0)},
                   {from.x + (move.x > 0.0f ? (double)move.x : 0.0),
                    from.y + (move.y > 0.0f ? (double)move.y : 0.0)}};
-    int32_t best = -1;
-    *fraction = 1.0f;
+    // The lowest M2_PARTICLE_CANDIDATES non-sensor slots in the sweep.
+    int32_t shapes[M2_PARTICLE_CANDIDATES];
+    int32_t count = 0;
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
-        int32_t shapes[M2_PARTICLE_CANDIDATES];
-        int32_t hits = m2TreeQuery(&world->broadphase.trees[t], world->broadphase.treeNodes[t], box,
-                                   shapes, M2_PARTICLE_CANDIDATES);
-        hits = hits <= M2_PARTICLE_CANDIDATES ? hits : M2_PARTICLE_CANDIDATES;
-        for (int32_t h = 0; h < hits; ++h)
+        m2TreeCursor cursor;
+        m2TreeBeginQuery(&cursor, &world->broadphase.trees[t], world->broadphase.treeNodes[t], box);
+        int32_t shape;
+        while (m2TreeNextQuery(&cursor, &shape))
         {
-            int32_t shape = shapes[h];
-            if (world->shapes.shapeSensor[shape] != 0)
+            if (world->shapes.shapeSensor[shape] == 0)
             {
-                continue;
+                m2TreeKeepLowest(shapes, &count, M2_PARTICLE_CANDIDATES, shape);
             }
-            struct m2CastHitInternal hit = m2RayCastShapeIndex(world, shape, from, move, 1.0f);
-            bool inside = hit.normal.x == 0.0f && hit.normal.y == 0.0f;
-            if (hit.hit && !inside &&
-                (hit.fraction < *fraction || (hit.fraction == *fraction && shape < best)))
-            {
-                *fraction = hit.fraction;
-                *normal = hit.normal;
-                best = shape;
-            }
+        }
+    }
+    int32_t best = -1;
+    *fraction = 1.0f;
+    for (int32_t h = 0; h < count; ++h)
+    {
+        int32_t shape = shapes[h];
+        struct m2CastHitInternal hit = m2RayCastShapeIndex(world, shape, from, move, 1.0f);
+        bool inside = hit.normal.x == 0.0f && hit.normal.y == 0.0f;
+        if (hit.hit && !inside &&
+            (hit.fraction < *fraction || (hit.fraction == *fraction && shape < best)))
+        {
+            *fraction = hit.fraction;
+            *normal = hit.normal;
+            best = shape;
         }
     }
     return best;

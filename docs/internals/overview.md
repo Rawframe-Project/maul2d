@@ -38,7 +38,7 @@ When every dynamic body sleeps and nothing kinematic moves, the world hibernates
 
 `tools/modules.txt` declares which module may include which, and `tools/check_modules.py` keeps the graph one-way.
 
-- **World and state:** `world.c` (creation, the step, settings), `world_state.c` (the pools), `world_internal.c` (refusals, host code, the bracketed allocator), `allocator.c` (the one file that reaches `malloc`).
+- **World and state:** `world.c` (creation, the step, settings), `world_state.c` (the pools and the state table, which also drives the hash), `world_hash.c` (the id pools' share of the hash), `world_internal.c` (refusals, host code, the bracketed allocator), `allocator.c` (the one file that reaches `malloc`).
 - **Objects:** `body*.c`, `shape.c`, `chain.c`, `joint*.c` (one file per joint type), `particle*.c`, `buoyancy.c`, `destruction.c` (shatter and explosions), `object_ids.c`.
 - **Collision:** `dynamic_tree.c` and `broadphase.c`, `contact.c` (pairs and events), `manifold.c`, `distance.c`, `geometry.c` (shape math, hulls, decomposition, mass), `ccd.c`.
 - **Solver:** `solver.c` (the substep order), `contact_solver.c`, `contact_kernel.c` (the SIMD lanes), `graph_color.c`, `joint_solver.c`, `joint_row.c`, `island.c`, `parallel.c` (the task hooks).

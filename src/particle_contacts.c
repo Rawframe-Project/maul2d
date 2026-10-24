@@ -38,34 +38,23 @@ static m2Vec2 Rotate(m2Rot q, m2Vec2 v)
     return (m2Vec2){q.c * v.x - q.s * v.y, q.s * v.x + q.c * v.y};
 }
 
-// The non-sensor shapes whose boxes overlap box, ascending. Returns the
-// count.
+// The non-sensor shapes whose boxes overlap box, ascending: the lowest
+// M2_PARTICLE_CANDIDATES slots when more overlap. Returns the count.
 static int32_t Candidates(const m2World* world, m2Aabb box, int32_t* out)
 {
     int32_t count = 0;
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
-        int32_t found[M2_PARTICLE_CANDIDATES];
-        int32_t hits = m2TreeQuery(&world->broadphase.trees[t], world->broadphase.treeNodes[t], box,
-                                   found, M2_PARTICLE_CANDIDATES);
-        hits = hits <= M2_PARTICLE_CANDIDATES ? hits : M2_PARTICLE_CANDIDATES;
-        for (int32_t h = 0; h < hits && count < M2_PARTICLE_CANDIDATES; ++h)
+        m2TreeCursor cursor;
+        m2TreeBeginQuery(&cursor, &world->broadphase.trees[t], world->broadphase.treeNodes[t], box);
+        int32_t shape;
+        while (m2TreeNextQuery(&cursor, &shape))
         {
-            if (world->shapes.shapeSensor[found[h]] == 0)
+            if (world->shapes.shapeSensor[shape] == 0)
             {
-                out[count++] = found[h];
+                m2TreeKeepLowest(out, &count, M2_PARTICLE_CANDIDATES, shape);
             }
         }
-    }
-    for (int32_t a = 1; a < count; ++a)
-    {
-        int32_t key = out[a];
-        int32_t b = a - 1;
-        for (; b >= 0 && out[b] > key; --b)
-        {
-            out[b + 1] = out[b];
-        }
-        out[b + 1] = key;
     }
     return count;
 }
