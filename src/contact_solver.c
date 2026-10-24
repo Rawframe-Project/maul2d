@@ -18,6 +18,8 @@
 #include "maul2d/base.h"
 
 #include <math.h>
+#include <stdckdint.h>
+#include <stdint.h>
 
 int32_t m2ContactConstraintSize(void)
 {
@@ -25,11 +27,14 @@ int32_t m2ContactConstraintSize(void)
     return (int32_t)sizeof(m2ContactConstraint) + (int32_t)sizeof(m2JointConstraint);
 }
 
-int32_t m2ContactBlockScratchBytes(int32_t pairCapacity)
+size_t m2ContactBlockScratchBytes(int32_t pairCapacity)
 {
     // Full blocks, plus one partial block per color and point count.
-    int32_t blocks = pairCapacity / M2_LANES + 2 * M2_GRAPH_COLORS;
-    return blocks * (int32_t)sizeof(m2ContactBlock);
+    // Saturates instead of wrapping on 32-bit targets, so the world's
+    // checked allocation refuses it.
+    size_t blocks = (size_t)(pairCapacity / M2_LANES) + (size_t)(2 * M2_GRAPH_COLORS);
+    size_t bytes = 0;
+    return ckd_mul(&bytes, blocks, sizeof(m2ContactBlock)) ? SIZE_MAX : bytes;
 }
 
 static bool IsDynamic(const m2World* world, int32_t body)

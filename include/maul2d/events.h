@@ -56,7 +56,7 @@ extern "C"
     /// m2World_Restore on this world; Restore clears them. Order is
     /// canonical (deterministic across platforms and replays).
     /// Thread class: reader.
-    M2_API m2ContactEvents m2World_GetContactEvents(m2WorldId worldId);
+    M2_API m2ContactEvents m2World_GetContactEvents(const m2World* world);
 
     /// Sensor overlap stream: same records, separate buffers, same
     /// bookending guarantees (a destroyed or filtered overlap always
@@ -72,7 +72,7 @@ extern "C"
         int32_t endCount;
     } m2SensorEvents;
 
-    M2_API m2SensorEvents m2World_GetSensorEvents(m2WorldId worldId);
+    M2_API m2SensorEvents m2World_GetSensorEvents(const m2World* world);
 
     /// A joint that exceeded its break limits during the step. The id
     /// is the one the joint had; it is already invalid by the time you
@@ -92,14 +92,14 @@ extern "C"
         int32_t breakCount;
     } m2JointEvents;
 
-    M2_API m2JointEvents m2World_GetJointEvents(m2WorldId worldId);
+    M2_API m2JointEvents m2World_GetJointEvents(const m2World* world);
 
     /// Who is inside this sensor right now. Fills up to capacity shape
     /// ids in canonical pair order and returns the true total even
     /// beyond capacity. Zero for anything that is not a live sensor.
     /// Thread class: reader.
-    M2_API int32_t m2Shape_GetSensorOverlaps(m2ShapeId sensorShapeId, m2ShapeId* overlaps,
-                                             int32_t capacity);
+    M2_API int32_t m2Shape_GetSensorOverlaps(const m2World* world, m2ShapeId sensorShapeId,
+                                             m2ShapeId* overlaps, int32_t capacity);
 
     /// A read-only view of the contacts touching right now, canonical
     /// pair order. Returns the total touching count even beyond
@@ -115,7 +115,8 @@ extern "C"
         float tangentImpulses[2];
     } m2ContactData;
 
-    M2_API int32_t m2World_GetContactData(m2WorldId worldId, m2ContactData* data, int32_t capacity);
+    M2_API int32_t m2World_GetContactData(const m2World* world, m2ContactData* data,
+                                          int32_t capacity);
 
 #ifdef __cplusplus
 }

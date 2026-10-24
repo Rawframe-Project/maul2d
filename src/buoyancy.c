@@ -24,7 +24,6 @@
 
 #include "journal.h"
 #include "world_internal.h"
-#include "world_registry.h"
 
 #include "maul2d/base.h"
 
@@ -222,24 +221,31 @@ m2FluidVolumeDef m2DefaultFluidVolumeDef(void)
     return def;
 }
 
-m2FluidVolumeId m2CreateFluidVolume(m2WorldId worldId, const m2FluidVolumeDef* def)
+m2Result m2CreateFluidVolume(m2World* world, const m2FluidVolumeDef* def,
+                             m2FluidVolumeId* volumeOut)
 {
-    m2World* world = m2WorldFromId(worldId);
-    if (world == NULL || def == NULL || def->internalValue != M2_FVOLUME_COOKIE ||
-        world->volumes.fvCapacity == 0)
+    if (volumeOut == NULL)
     {
-        m2Refuse(world, m2_errorInvalid);
-        return m2_nullFluidVolumeId;
+        return m2Refuse(world, m2_errorInvalid);
+    }
+    *volumeOut = m2_nullFluidVolumeId;
+    m2Result writer = m2CheckWriter(world);
+    if (writer != m2_success)
+    {
+        return writer;
+    }
+    if (def == NULL || def->internalValue != M2_FVOLUME_COOKIE || world->volumes.fvCapacity == 0)
+    {
+        return m2Refuse(world, m2_errorInvalid);
     }
     if (!(def->density >= 0.0f) || !(def->linearDrag >= 0.0f) || !(def->angularDrag >= 0.0f) ||
         !m2FiniteD(def->surface))
     {
-        m2Refuse(world, m2_errorInvalid);
-        return m2_nullFluidVolumeId;
+        return m2Refuse(world, m2_errorInvalid);
     }
     if (world->volumes.fvFreeCount == 0)
     {
-        return m2_nullFluidVolumeId; // pool full: a runtime fact
+        return m2Refuse(world, m2_errorCapacity); // pool full: a runtime fact
     }
     int32_t index = world->volumes.fvFreeQueue[world->volumes.fvFreeHead];
     world->volumes.fvFreeHead = (world->volumes.fvFreeHead + 1) % world->volumes.fvCapacity;
@@ -257,7 +263,7 @@ m2FluidVolumeId m2CreateFluidVolume(m2WorldId worldId, const m2FluidVolumeDef* d
     world->volumes.fvFlow[index] = def->flow;
     world->volumes.fvUserData[index] = def->userData;
     world->volumes.fvAlive[index] = 1;
-    m2FluidVolumeId id = {index + 1, world->idWorld, world->volumes.fvGenerations[index]};
+    m2FluidVolumeId id = {(uint32_t)(index + 1), world->volumes.fvGenerations[index]};
     if (world->recorder.journalActive != 0)
     {
         m2OpCreateFluidVolume record;
@@ -266,12 +272,13 @@ m2FluidVolumeId m2CreateFluidVolume(m2WorldId worldId, const m2FluidVolumeDef* d
         record.expected = id;
         m2JournalRecord(world, m2_opCreateFluidVolume, &record, (int32_t)sizeof(record));
     }
-    return id;
+    *volumeOut = id;
+    return m2_success;
 }
 
 static int32_t FvSlot(const m2World* world, m2FluidVolumeId id)
 {
-    int32_t index = id.index1 - 1;
+    int32_t index = (int32_t)id.index1 - 1;
     if (world == NULL || index < 0 || index >= world->volumes.fvCapacity ||
         world->volumes.fvAlive[index] == 0 || world->volumes.fvGenerations[index] != id.generation)
     {
@@ -280,14 +287,17 @@ static int32_t FvSlot(const m2World* world, m2FluidVolumeId id)
     return index;
 }
 
-void m2DestroyFluidVolume(m2FluidVolumeId volumeId)
+m2Result m2DestroyFluidVolume(m2World* world, m2FluidVolumeId volumeId)
 {
-    m2World* world = m2WorldFromTag(volumeId.world);
+    m2Result writer = m2CheckWriter(world);
+    if (writer != m2_success)
+    {
+        return writer;
+    }
     int32_t index = FvSlot(world, volumeId);
     if (index < 0)
     {
-        m2Refuse(world, m2_errorInvalid);
-        return;
+        return m2Refuse(world, m2_errorStale);
     }
     if (world->recorder.journalActive != 0)
     {
@@ -298,17 +308,20 @@ void m2DestroyFluidVolume(m2FluidVolumeId volumeId)
     world->volumes.fvFreeQueue[(world->volumes.fvFreeHead + world->volumes.fvFreeCount) %
                                world->volumes.fvCapacity] = index;
     world->volumes.fvFreeCount += 1;
+    return m2_success;
 }
 
-bool m2FluidVolume_IsValid(m2FluidVolumeId volumeId)
+bool m2FluidVolume_IsValid(const m2World* world, m2FluidVolumeId volumeId)
 {
-    m2World* world = m2WorldFromTag(volumeId.world);
     return FvSlot(world, volumeId) >= 0;
 }
 
-void m2FluidVolume_SetSurface(m2FluidVolumeId volumeId, double surface)
+void m2FluidVolume_SetSurface(m2World* world, m2FluidVolumeId volumeId, double surface)
 {
-    m2World* world = m2WorldFromTag(volumeId.world);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     int32_t index = FvSlot(world, volumeId);
     if (index < 0 || !m2FiniteD(surface))
     {
@@ -326,16 +339,14 @@ void m2FluidVolume_SetSurface(m2FluidVolumeId volumeId, double surface)
     world->volumes.fvSurface[index] = surface;
 }
 
-double m2FluidVolume_GetSurface(m2FluidVolumeId volumeId)
+double m2FluidVolume_GetSurface(const m2World* world, m2FluidVolumeId volumeId)
 {
-    m2World* world = m2WorldFromTag(volumeId.world);
     int32_t index = FvSlot(world, volumeId);
     return index >= 0 ? world->volumes.fvSurface[index] : 0.0;
 }
 
-uint64_t m2FluidVolume_GetUserData(m2FluidVolumeId volumeId)
+uint64_t m2FluidVolume_GetUserData(const m2World* world, m2FluidVolumeId volumeId)
 {
-    m2World* world = m2WorldFromTag(volumeId.world);
     int32_t index = FvSlot(world, volumeId);
     return index >= 0 ? world->volumes.fvUserData[index] : 0;
 }

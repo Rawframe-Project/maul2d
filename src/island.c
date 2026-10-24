@@ -57,6 +57,7 @@ static bool BodySlow(const m2World* world, int32_t i)
 
 // Pre-solve: build islands over touching contacts, wake islands that
 // have any awake member or a moving-kinematic toucher.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): one island graph pass
 void m2UpdateIslandsAndWake(m2World* world)
 {
     int32_t* parent = world->solver.islandParent;
@@ -155,10 +156,16 @@ void m2UpdateIslandsAndWake(m2World* world)
     }
 }
 
-// Post-solve: island-coupled sleep accounting. An island sleeps only
-// when every member has stayed under tolerance for the full window; one
-// fast member resets the whole island.
-void m2UpdateSleep(m2World* world, float dt)
+// The bodies the sleep pass accounts: alive, dynamic and awake.
+static bool AwakeDynamic(const m2World* world, int32_t i)
+{
+    return world->bodies.alive[i] != 0 && world->bodies.types[i] == (uint8_t)m2_dynamicBody &&
+           world->bodies.asleep[i] == 0;
+}
+
+// Advances each awake body's sleep timer; one fast member resets the
+// timers of its whole island.
+static void AdvanceSleepTimers(m2World* world, float dt)
 {
     int32_t* parent = world->solver.islandParent;
     uint8_t* islandFast = world->solver.islandDisturbed; // reuse scratch
@@ -169,8 +176,7 @@ void m2UpdateSleep(m2World* world, float dt)
     }
     for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
-        if (world->bodies.alive[i] == 0 || world->bodies.types[i] != (uint8_t)m2_dynamicBody ||
-            world->bodies.asleep[i] != 0)
+        if (!AwakeDynamic(world, i))
         {
             continue;
         }
@@ -182,8 +188,7 @@ void m2UpdateSleep(m2World* world, float dt)
 
     for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
-        if (world->bodies.alive[i] == 0 || world->bodies.types[i] != (uint8_t)m2_dynamicBody ||
-            world->bodies.asleep[i] != 0)
+        if (!AwakeDynamic(world, i))
         {
             continue;
         }
@@ -200,18 +205,21 @@ void m2UpdateSleep(m2World* world, float dt)
         }
         world->bodies.sleepTimes[i] += dt;
     }
+}
 
-    // Island sleeps when its minimum timer crosses the window. Two
-    // passes keep it order-canonical: find sleepy roots, then apply.
-    uint8_t* rootSleeps = islandFast; // reuse again: 1 = candidate
+// An island sleeps when its minimum timer crosses the window. Two passes
+// keep it order-canonical: find sleepy roots, then apply.
+static void SleepReadyIslands(m2World* world)
+{
+    int32_t* parent = world->solver.islandParent;
+    uint8_t* rootSleeps = world->solver.islandDisturbed; // reuse scratch: 1 = candidate
     for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
         rootSleeps[i] = 0;
     }
     for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
-        if (world->bodies.alive[i] == 0 || world->bodies.types[i] != (uint8_t)m2_dynamicBody ||
-            world->bodies.asleep[i] != 0)
+        if (!AwakeDynamic(world, i))
         {
             continue;
         }
@@ -227,8 +235,7 @@ void m2UpdateSleep(m2World* world, float dt)
     }
     for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
-        if (world->bodies.alive[i] == 0 || world->bodies.types[i] != (uint8_t)m2_dynamicBody ||
-            world->bodies.asleep[i] != 0)
+        if (!AwakeDynamic(world, i))
         {
             continue;
         }
@@ -239,4 +246,13 @@ void m2UpdateSleep(m2World* world, float dt)
             world->bodies.angularVelocities[i] = 0.0f;
         }
     }
+}
+
+// Post-solve: island-coupled sleep accounting. An island sleeps only
+// when every member has stayed under tolerance for the full window; one
+// fast member resets the whole island.
+void m2UpdateSleep(m2World* world, float dt)
+{
+    AdvanceSleepTimers(world, dt);
+    SleepReadyIslands(world);
 }

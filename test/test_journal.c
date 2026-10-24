@@ -7,6 +7,7 @@
 // hash identically across CI cells - the wire format is part of the
 // determinism contract.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul2d/base.h"
@@ -29,20 +30,20 @@ static m2WorldDef TestDef(void)
 
 // A session with every op type: floor, rain of shapes, a pendulum, a
 // shove, a destroy, steps in two dt flavors (markers carry dt unchanged).
-static void RunSession(m2WorldId world, uint8_t* journal, int32_t capacity, int32_t* outSize,
+static void RunSession(m2World* world, uint8_t* journal, int32_t capacity, int32_t* outSize,
                        uint64_t* outHash)
 {
     if (journal != NULL)
     {
-        CHECK(m2World_StartJournal(world, journal, capacity), "journal starts");
+        CHECK(StartJournal(world, journal, capacity), "journal starts");
     }
 
     m2BodyDef fd = m2DefaultBodyDef();
     fd.position = (m2Pos2){0.0, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
+    m2BodyId floor = NewBody(world, &fd);
     m2ShapeDef fs = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(15.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
+    NewPolygonShape(world, floor, &fs, &slab);
 
     m2BodyId victim = m2_nullBodyId;
     for (int32_t i = 0; i < 8; ++i)
@@ -50,18 +51,18 @@ static void RunSession(m2WorldId world, uint8_t* journal, int32_t capacity, int3
         m2BodyDef bd = m2DefaultBodyDef();
         bd.type = m2_dynamicBody;
         bd.position = (m2Pos2){-4.0 + 1.1 * (double)i, 2.0 + 0.4 * (double)i};
-        m2BodyId body = m2CreateBody(world, &bd);
+        m2BodyId body = NewBody(world, &bd);
         m2ShapeDef sd = m2DefaultShapeDef();
         sd.restitution = 0.3f;
         if (i % 2 == 0)
         {
             m2Circle c = {{0.0f, 0.0f}, 0.3f};
-            m2CreateCircleShape(body, &sd, &c);
+            NewCircleShape(world, body, &sd, &c);
         }
         else
         {
             m2Polygon box = m2MakeBox(0.3f, 0.25f);
-            m2CreatePolygonShape(body, &sd, &box);
+            NewPolygonShape(world, body, &sd, &box);
         }
         if (i == 3)
         {
@@ -69,35 +70,35 @@ static void RunSession(m2WorldId world, uint8_t* journal, int32_t capacity, int3
         }
         if (i == 5)
         {
-            m2Body_SetLinearVelocity(body, (m2Vec2){-2.5f, 1.0f});
-            m2Body_SetAngularVelocity(body, 3.0f);
+            m2Body_SetLinearVelocity(world, body, (m2Vec2){-2.5f, 1.0f});
+            m2Body_SetAngularVelocity(world, body, 3.0f);
         }
     }
 
     m2BodyDef ad = m2DefaultBodyDef();
     ad.position = (m2Pos2){5.0, 5.0};
-    m2BodyId anchor = m2CreateBody(world, &ad);
+    m2BodyId anchor = NewBody(world, &ad);
     m2BodyDef bobDef = m2DefaultBodyDef();
     bobDef.type = m2_dynamicBody;
     bobDef.position = (m2Pos2){6.5, 5.0};
-    m2BodyId bob = m2CreateBody(world, &bobDef);
+    m2BodyId bob = NewBody(world, &bobDef);
     m2ShapeDef bs = m2DefaultShapeDef();
     m2Circle bc = {{0.0f, 0.0f}, 0.2f};
-    m2CreateCircleShape(bob, &bs, &bc);
+    NewCircleShape(world, bob, &bs, &bc);
     m2DistanceJointDef jd = m2DefaultDistanceJointDef();
     jd.bodyIdA = anchor;
     jd.bodyIdB = bob;
-    m2JointId rod = m2CreateDistanceJoint(world, &jd);
+    m2JointId rod = NewDistanceJoint(world, &jd);
 
     // A motorized slider exercises the prismatic create op (op 10).
     m2BodyDef ramDef = m2DefaultBodyDef();
     ramDef.type = m2_dynamicBody;
     ramDef.position = (m2Pos2){9.0, 2.0};
-    m2BodyId ram = m2CreateBody(world, &ramDef);
-    m2CreateCircleShape(ram, &bs, &bc);
+    m2BodyId ram = NewBody(world, &ramDef);
+    NewCircleShape(world, ram, &bs, &bc);
     m2BodyDef cylDef = m2DefaultBodyDef();
     cylDef.position = (m2Pos2){9.0, 2.0};
-    m2BodyId cylinder = m2CreateBody(world, &cylDef);
+    m2BodyId cylinder = NewBody(world, &cylDef);
     m2PrismaticJointDef press = m2DefaultPrismaticJointDef();
     press.bodyIdA = cylinder;
     press.bodyIdB = ram;
@@ -108,27 +109,27 @@ static void RunSession(m2WorldId world, uint8_t* journal, int32_t capacity, int3
     press.enableLimit = true;
     press.lowerTranslation = -0.8f;
     press.upperTranslation = 0.3f;
-    m2JointId pressJoint = m2CreatePrismaticJoint(world, &press);
+    m2JointId pressJoint = NewPrismaticJoint(world, &press);
 
     // Weld and wheel creates put ops 11 and 12 into the gated bytes.
     m2BodyDef sideDef = m2DefaultBodyDef();
     sideDef.type = m2_dynamicBody;
     sideDef.position = (m2Pos2){9.6, 2.0};
-    m2BodyId sidecar = m2CreateBody(world, &sideDef);
-    m2CreateCircleShape(sidecar, &bs, &bc);
+    m2BodyId sidecar = NewBody(world, &sideDef);
+    NewCircleShape(world, sidecar, &bs, &bc);
     m2Circle spare = {{0.3f, 0.2f}, 0.1f};
-    m2ShapeId sacrificial = m2CreateCircleShape(sidecar, &bs, &spare);
+    m2ShapeId sacrificial = NewCircleShape(world, sidecar, &bs, &spare);
     m2WeldJointDef weld = m2DefaultWeldJointDef();
     weld.bodyIdA = ram;
     weld.bodyIdB = sidecar;
-    m2CreateWeldJoint(world, &weld);
+    NewWeldJoint(world, &weld);
     m2WheelJointDef ride = m2DefaultWheelJointDef();
     ride.bodyIdA = sidecar;
     ride.bodyIdB = bob;
     ride.enableMotor = true;
     ride.motorSpeed = 2.0f;
     ride.maxMotorTorque = 5.0f;
-    m2CreateWheelJoint(world, &ride);
+    NewWheelJoint(world, &ride);
 
     for (int32_t i = 0; i < 45; ++i)
     {
@@ -136,54 +137,54 @@ static void RunSession(m2WorldId world, uint8_t* journal, int32_t capacity, int3
     }
     // Shape destruction, impulses and joint tuning all ride the journal
     // too.
-    m2Body_ApplyLinearImpulseAtPoint(ram, (m2Vec2){0.4f, 0.9f}, (m2Pos2){9.1, 2.0});
-    m2Body_ApplyAngularImpulse(ram, 0.3f);
-    m2Joint_SetMotorSpeed(pressJoint, 0.7f);
-    m2Body_SetTransform(ram, (m2Pos2){8.6, 2.4}, m2MakeRot(0.3f)); // op 17
-    m2Body_SetType(sidecar, m2_kinematicBody);                     // op 18
+    m2Body_ApplyLinearImpulseAtPoint(world, ram, (m2Vec2){0.4f, 0.9f}, (m2Pos2){9.1, 2.0});
+    m2Body_ApplyAngularImpulse(world, ram, 0.3f);
+    m2Joint_SetMotorSpeed(world, pressJoint, 0.7f);
+    m2Body_SetTransform(world, ram, (m2Pos2){8.6, 2.4}, m2MakeRot(0.3f)); // op 17
+    m2Body_SetType(world, sidecar, m2_kinematicBody);                     // op 18
     m2Vec2 chainPts[5] = {{12.0f, 0.5f}, {11.0f, 0.0f}, {10.0f, 0.0f}, {9.0f, 0.0f}, {8.0f, 0.5f}};
     m2ChainDef chain = m2DefaultChainDef();
     chain.points = chainPts;
     chain.count = 5;
-    m2ChainId chainId = m2CreateChain(cylinder, &chain); // op 20
-    m2World_SetGravity(world, (m2Vec2){0.3f, -9.5f});    // op 21
-    m2Shape_SetFriction(sacrificial, 0.9f);              // op 22 (before it dies)
-    m2Shape_SetTangentSpeed(sacrificial, 1.25f);         // op 22 param 2
-    m2Shape_SetFilter(sacrificial, 0x2, 0xFFFFFFFFu, 0); // op 23
-    m2DestroyShape(sacrificial);
+    m2ChainId chainId = NewChain(world, cylinder, &chain);      // op 20
+    m2World_SetGravity(world, (m2Vec2){0.3f, -9.5f});           // op 21
+    m2Shape_SetFriction(world, sacrificial, 0.9f);              // op 22 (before it dies)
+    m2Shape_SetTangentSpeed(world, sacrificial, 1.25f);         // op 22 param 2
+    m2Shape_SetFilter(world, sacrificial, 0x2, 0xFFFFFFFFu, 0); // op 23
+    DestroyShape(world, sacrificial);
     for (int32_t i = 0; i < 15; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    m2DestroyBody(victim);
-    m2DestroyJoint(rod);
-    m2DestroyChain(chainId);                      // op 24
-    m2Body_ApplyForce(bob, (m2Vec2){3.0f, 1.0f}); // op 28
-    m2Body_ApplyTorque(bob, 0.8f);                // op 29
-    m2Body_SetLinearDamping(bob, 0.2f);           // op 25
-    m2Body_SetFixedRotation(bob, true);           // op 25
-    m2World_EnableSleeping(world, false);         // op 26
+    DestroyBody(world, victim);
+    DestroyJoint(world, rod);
+    DestroyChain(world, chainId);                        // op 24
+    m2Body_ApplyForce(world, bob, (m2Vec2){3.0f, 1.0f}); // op 28
+    m2Body_ApplyTorque(world, bob, 0.8f);                // op 29
+    m2Body_SetLinearDamping(world, bob, 0.2f);           // op 25
+    m2Body_SetFixedRotation(world, bob, true);           // op 25
+    m2World_EnableSleeping(world, false);                // op 26
     m2World_EnableSleeping(world, true);
     m2MotorJointDef chase = m2DefaultMotorJointDef(); // op 31
     chase.bodyIdA = anchor;
     chase.bodyIdB = bob;
     chase.maxForce = 60.0f;
     chase.maxTorque = 20.0f;
-    m2JointId chaser = m2CreateMotorJoint(world, &chase);
-    m2MotorJoint_SetOffsets(chaser, (m2Vec2){0.5f, 0.5f}, 0.1f); // op 33
-    m2MouseJointDef grip = m2DefaultMouseJointDef();             // op 32
+    m2JointId chaser = NewMotorJoint(world, &chase);
+    m2MotorJoint_SetOffsets(world, chaser, (m2Vec2){0.5f, 0.5f}, 0.1f); // op 33
+    m2MouseJointDef grip = m2DefaultMouseJointDef();                    // op 32
     grip.bodyIdA = floor;
     grip.bodyIdB = ram;
     grip.target = (m2Pos2){2.0, 1.0};
-    m2JointId gripper = m2CreateMouseJoint(world, &grip);
-    m2MouseJoint_SetTarget(gripper, (m2Pos2){3.0, 2.0}); // op 34
-    m2Body_Disable(ram);                                 // op 35
-    m2Body_Enable(ram);                                  // op 36
-    m2MassData heavier = m2Body_GetMassData(bob);
+    m2JointId gripper = NewMouseJoint(world, &grip);
+    m2MouseJoint_SetTarget(world, gripper, (m2Pos2){3.0, 2.0}); // op 34
+    m2Body_Disable(world, ram);                                 // op 35
+    m2Body_Enable(world, ram);                                  // op 36
+    m2MassData heavier = m2Body_GetMassData(world, bob);
     heavier.mass *= 2.0f;
     heavier.rotationalInertia *= 2.0f;
-    m2Body_SetMassData(bob, heavier); // op 37
-    m2Body_ApplyMassFromShapes(bob);  // op 38
+    m2Body_SetMassData(world, bob, heavier); // op 37
+    m2Body_ApplyMassFromShapes(world, bob);  // op 38
     m2ExplosionDef boom = m2DefaultExplosionDef();
     boom.position = (m2Pos2){1.0, 0.5};
     boom.radius = 2.0f;
@@ -192,86 +193,85 @@ static void RunSession(m2WorldId world, uint8_t* journal, int32_t capacity, int3
     m2BodyDef rsd = m2DefaultBodyDef();
     rsd.type = m2_dynamicBody;
     rsd.position = (m2Pos2){5.0, 3.0};
-    m2BodyId reshapeBody = m2CreateBody(world, &rsd);
+    m2BodyId reshapeBody = NewBody(world, &rsd);
     m2ShapeDef rss = m2DefaultShapeDef();
     m2Polygon rsp = m2MakeBox(0.3f, 0.3f);
-    m2ShapeId reshapeShape = m2CreatePolygonShape(reshapeBody, &rss, &rsp);
+    m2ShapeId reshapeShape = NewPolygonShape(world, reshapeBody, &rss, &rsp);
     m2Circle reshaped = {{0.0f, 0.0f}, 0.3f};
-    m2Shape_SetCircle(reshapeShape, &reshaped); // op 40
+    m2Shape_SetCircle(world, reshapeShape, &reshaped); // op 40
     m2Vec2 matPts[5] = {{9.0f, 2.0f}, {8.0f, 2.0f}, {7.0f, 2.0f}, {6.0f, 2.0f}, {5.0f, 2.0f}};
     m2ChainDef matChain = m2DefaultChainDef();
     matChain.points = matPts;
     matChain.count = 5;
-    m2ChainId matLedge = m2CreateChain(cylinder, &matChain);
-    m2Chain_SetFriction(matLedge, 0.75f);                 // op 41
-    m2Chain_SetRestitution(matLedge, 0.15f);              // op 42
-    m2Body_ApplyLinearImpulse(bob, (m2Vec2){0.5f, 0.2f}); // op 43
-    m2Body_SetAwake(bob, false);                          // op 44
-    m2Body_SetAwake(bob, true);
-    m2Body_SetBullet(bob, true);            // op 45
-    m2Shape_SetDensity(reshapeShape, 1.5f); // op 46
-    m2Body_SetUserData(bob, 999);           // op 47
-    m2Body_SetDominance(bob, 3);            // op 50
-    m2Shape_SetUserData(reshapeShape, 111); // op 48
-    m2Joint_SetUserData(gripper, 222);      // op 49
+    m2ChainId matLedge = NewChain(world, cylinder, &matChain);
+    m2Chain_SetFriction(world, matLedge, 0.75f);                 // op 41
+    m2Chain_SetRestitution(world, matLedge, 0.15f);              // op 42
+    m2Body_ApplyLinearImpulse(world, bob, (m2Vec2){0.5f, 0.2f}); // op 43
+    m2Body_SetAwake(world, bob, false);                          // op 44
+    m2Body_SetAwake(world, bob, true);
+    m2Body_SetBullet(world, bob, true);            // op 45
+    m2Shape_SetDensity(world, reshapeShape, 1.5f); // op 46
+    m2Body_SetUserData(world, bob, 999);           // op 47
+    m2Body_SetDominance(world, bob, 3);            // op 50
+    m2Shape_SetUserData(world, reshapeShape, 111); // op 48
+    m2Joint_SetUserData(world, gripper, 222);      // op 49
     m2GearJointDef cogDef = m2DefaultGearJointDef();
     cogDef.bodyIdA = bob;
     cogDef.bodyIdB = ram;
     cogDef.ratio = 2.0f;
-    m2JointId cog = m2CreateGearJoint(world, &cogDef); // op 51
-    m2GearJoint_SetRatio(cog, 1.5f);                   // param 15
+    m2JointId cog = NewGearJoint(world, &cogDef); // op 51
+    m2GearJoint_SetRatio(world, cog, 1.5f);       // param 15
     m2PulleyJointDef hoistDef = m2DefaultPulleyJointDef();
     hoistDef.bodyIdA = cylinder;
     hoistDef.bodyIdB = sidecar;
     hoistDef.groundAnchorA = (m2Pos2){-1.0, 9.0};
     hoistDef.groundAnchorB = (m2Pos2){3.0, 9.0};
-    m2JointId hoist = m2CreatePulleyJoint(world, &hoistDef); // op 52
-    m2PulleyJoint_SetRatio(hoist, 2.0f);                     // param 16
+    m2JointId hoist = NewPulleyJoint(world, &hoistDef); // op 52
+    m2PulleyJoint_SetRatio(world, hoist, 2.0f);         // param 16
     m2RatchetJointDef pawlDef = m2DefaultRatchetJointDef();
     pawlDef.bodyIdA = anchor;
     pawlDef.bodyIdB = sidecar;
     pawlDef.ratchet = -0.3f;
-    m2CreateRatchetJoint(world, &pawlDef); // op 56
+    NewRatchetJoint(world, &pawlDef); // op 56
     m2RevoluteJointDef swingDef = m2DefaultRevoluteJointDef();
     swingDef.bodyIdA = anchor;
     swingDef.bodyIdB = cylinder;
     swingDef.springHertz = 3.0f; // the def echo carries the spring pair
     swingDef.springDampingRatio = 0.5f;
-    m2JointId swing = m2CreateRevoluteJoint(world, &swingDef);
-    m2Joint_SetAngularSpringHertz(swing, 1.5f);         // param 10 on a revolute
-    m2Joint_SetAngularSpringDampingRatio(swing, 0.25f); // param 11 on a revolute
-    m2ParticleId drop =
-        m2World_EmitParticle(world, (m2Pos2){0.5, 6.0}, (m2Vec2){0.0f, 0.0f}, 0); // op 53
-    m2Particle_SetVelocity(drop, (m2Vec2){0.2f, 0.0f});                           // op 55
-    m2ParticleId drop2 = m2World_EmitParticle(world, (m2Pos2){0.7, 6.0}, (m2Vec2){0.0f, 0.0f}, 0);
-    m2DestroyParticle(drop); // op 54
+    m2JointId swing = NewRevoluteJoint(world, &swingDef);
+    m2Joint_SetAngularSpringHertz(world, swing, 1.5f);         // param 10 on a revolute
+    m2Joint_SetAngularSpringDampingRatio(world, swing, 0.25f); // param 11 on a revolute
+    m2ParticleId drop = EmitParticle(world, (m2Pos2){0.5, 6.0}, (m2Vec2){0.0f, 0.0f}, 0); // op 53
+    m2Particle_SetVelocity(world, drop, (m2Vec2){0.2f, 0.0f});                            // op 55
+    m2ParticleId drop2 = EmitParticle(world, (m2Pos2){0.7, 6.0}, (m2Vec2){0.0f, 0.0f}, 0);
+    DestroyParticle(world, drop); // op 54
     m2Vec2 shardTri[3] = {{0.0f, 0.0f}, {0.3f, 0.0f}, {0.0f, 0.3f}};
-    m2Polygon shard = m2MakePolygon(shardTri, 3, 0.0f);
+    m2Polygon shard = MakePolygon(shardTri, 3, 0.0f);
     m2Polygon shardPair[2];
     shardPair[0] = shard;
     shardPair[1] = shard;
-    m2World_ShatterBody(ram, shardPair, 2, NULL,
-                        0);              // op 58 (ram is dynamic; its gear dies with it)
-    m2Particle_SetLifetime(drop2, 0.5f); // op 59
-    m2Particle_SetUserData(drop2, 777);  // op 60
+    m2World_ShatterBody(world, ram, shardPair, 2, NULL,
+                        0);                     // op 58 (ram is dynamic; its gear dies with it)
+    m2Particle_SetLifetime(world, drop2, 0.5f); // op 59
+    m2Particle_SetUserData(world, drop2, 777);  // op 60
     m2FluidVolumeDef poolDef = m2DefaultFluidVolumeDef();
     poolDef.regionLower = (m2Pos2){-5.0, -5.0};
     poolDef.regionUpper = (m2Pos2){5.0, 5.0};
     poolDef.surface = -1.0;
-    m2FluidVolumeId pool = m2CreateFluidVolume(world, &poolDef); // op 61
-    m2FluidVolume_SetSurface(pool, 0.5);                         // op 63
+    m2FluidVolumeId pool = NewFluidVolume(world, &poolDef); // op 61
+    m2FluidVolume_SetSurface(world, pool, 0.5);             // op 63
     m2BodyDef drd = m2DefaultBodyDef();
     drd.position = (m2Pos2){-4.0, 6.0};
-    m2BodyId drHook = m2CreateBody(world, &drd);
+    m2BodyId drHook = NewBody(world, &drd);
     m2DistanceJointDef drj = m2DefaultDistanceJointDef();
     drj.bodyIdA = drHook;
     drj.bodyIdB = bob;
     drj.hertz = 1.0f;
-    m2JointId leash = m2CreateDistanceJoint(world, &drj);
-    m2DistanceJoint_SetLength(leash, 1.8f);            // param 12
-    m2DistanceJoint_SetLengthRange(leash, 0.4f, 2.2f); // params 13+14
-    m2Joint_SetSpringHertz(leash, 6.0f);               // param 8
-    m2Joint_SetSpringDampingRatio(leash, 0.5f);        // param 9
+    m2JointId leash = NewDistanceJoint(world, &drj);
+    m2DistanceJoint_SetLength(world, leash, 1.8f);            // param 12
+    m2DistanceJoint_SetLengthRange(world, leash, 0.4f, 2.2f); // params 13+14
+    m2Joint_SetSpringHertz(world, leash, 6.0f);               // param 8
+    m2Joint_SetSpringDampingRatio(world, leash, 0.5f);        // param 9
     for (int32_t i = 0; i < 30; ++i)
     {
         m2World_Step(world, 1.0f / 120.0f, 2); // second dt flavor
@@ -279,7 +279,7 @@ static void RunSession(m2WorldId world, uint8_t* journal, int32_t capacity, int3
 
     if (journal != NULL)
     {
-        *outSize = m2World_StopJournal(world);
+        *outSize = StopJournal(world);
         CHECK(*outSize > 0, "journal stops without overflow");
     }
     *outHash = m2World_Hash(world);
@@ -294,27 +294,26 @@ static void TestRecordReplay(void)
     uint8_t* journal = malloc(CAPACITY);
 
     m2WorldDef def = TestDef();
-    m2WorldId original = m2CreateWorld(&def);
+    m2World* original = NewWorld(&def);
     int32_t journalSize = 0;
     uint64_t originalHash = 0;
     RunSession(original, journal, CAPACITY, &journalSize, &originalHash);
 
     // Replay into a FRESH world of the same shape.
-    m2WorldId fresh = m2CreateWorld(&def);
-    CHECK(m2World_ReplayJournal(fresh, journal, journalSize), "replay accepts the journal");
+    m2World* fresh = NewWorld(&def);
+    CHECK(ReplayJournal(fresh, journal, journalSize), "replay accepts the journal");
     CHECK(m2World_Hash(fresh) == originalHash, "replayed world hash matches bit-exactly");
     CHECK(m2World_GetStepCount(fresh) == m2World_GetStepCount(original), "step counts match");
 
     // Replay is repeatable: run it again on the same world.
-    CHECK(m2World_ReplayJournal(fresh, journal, journalSize), "replay is idempotent from t0");
+    CHECK(ReplayJournal(fresh, journal, journalSize), "replay is idempotent from t0");
     CHECK(m2World_Hash(fresh) == originalHash, "second replay matches too");
 
     // Wrong-shaped world refuses the journal.
     m2WorldDef other = TestDef();
     other.bodyCapacity = 128;
-    m2WorldId mismatched = m2CreateWorld(&other);
-    CHECK(!m2World_ReplayJournal(mismatched, journal, journalSize),
-          "capacity mismatch is rejected");
+    m2World* mismatched = NewWorld(&other);
+    CHECK(!ReplayJournal(mismatched, journal, journalSize), "capacity mismatch is rejected");
 
     m2DestroyWorld(original);
     m2DestroyWorld(fresh);
@@ -325,18 +324,18 @@ static void TestRecordReplay(void)
 static void TestOverflowIsLoud(void)
 {
     m2WorldDef def = TestDef();
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     int32_t snapshotSize = m2World_SnapshotSize(world);
     int32_t capacity = snapshotSize + 64; // room for the header + a crumb
     uint8_t* journal = malloc((size_t)capacity + sizeof(void*));
-    CHECK(m2World_StartJournal(world, journal, capacity), "tiny journal starts");
+    CHECK(StartJournal(world, journal, capacity), "tiny journal starts");
     for (int32_t i = 0; i < 8; ++i)
     {
         m2BodyDef bd = m2DefaultBodyDef();
         bd.type = m2_dynamicBody;
-        m2CreateBody(world, &bd); // blows past the crumb
+        NewBody(world, &bd); // blows past the crumb
     }
-    CHECK(m2World_StopJournal(world) == 0, "overflowed journal reports zero, never truncates");
+    CHECK(StopJournal(world) == 0, "overflowed journal reports zero, never truncates");
     m2DestroyWorld(world);
     free(journal);
 }
@@ -349,25 +348,25 @@ static void TestRollbackWhileRecording(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 32;
     def.shapeCapacity = 32;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     int32_t tapeCapacity = 2 * m2World_GetJournalBaseSize(world) + (1 << 16);
     unsigned char* tape = malloc((size_t)tapeCapacity);
-    CHECK(m2World_StartJournal(world, tape, tapeCapacity), "tape starts");
+    CHECK(StartJournal(world, tape, tapeCapacity), "tape starts");
 
     m2BodyDef fd = m2DefaultBodyDef();
     fd.position = (m2Pos2){0.0, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
+    m2BodyId floor = NewBody(world, &fd);
     m2ShapeDef fs = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(12.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
+    NewPolygonShape(world, floor, &fs, &slab);
     m2BodyDef ballDef = m2DefaultBodyDef();
     ballDef.type = m2_dynamicBody;
     ballDef.position = (m2Pos2){0.0, 3.0};
-    m2BodyId ball = m2CreateBody(world, &ballDef);
+    m2BodyId ball = NewBody(world, &ballDef);
     m2ShapeDef bs = m2DefaultShapeDef();
     bs.restitution = 0.5f;
     m2Circle circle = {{0.0f, 0.0f}, 0.3f};
-    m2CreateCircleShape(ball, &bs, &circle);
+    NewCircleShape(world, ball, &bs, &circle);
 
     for (int32_t i = 0; i < 40; ++i)
     {
@@ -375,27 +374,28 @@ static void TestRollbackWhileRecording(void)
     }
     int32_t snapSize = m2World_SnapshotSize(world);
     void* snap = malloc((size_t)snapSize);
-    CHECK(m2World_Snapshot(world, snap, snapSize) == snapSize, "mid-recording snapshot");
+    CHECK(Snapshot(world, snap, snapSize) == snapSize, "mid-recording snapshot");
 
     // The misprediction: a shove that will be rolled back.
-    m2Body_ApplyLinearImpulseAtPoint(ball, (m2Vec2){2.0f, 1.0f}, m2Body_GetPosition(ball));
+    m2Body_ApplyLinearImpulseAtPoint(world, ball, (m2Vec2){2.0f, 1.0f},
+                                     m2Body_GetPosition(world, ball));
     for (int32_t i = 0; i < 25; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
 
-    CHECK(m2World_Restore(world, snap, snapSize), "rollback with the tape still rolling");
+    CHECK(Restore(world, snap, snapSize), "rollback with the tape still rolling");
     for (int32_t i = 0; i < 30; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4); // the corrected timeline
     }
 
-    int32_t bytes = m2World_StopJournal(world);
+    int32_t bytes = StopJournal(world);
     CHECK(bytes > snapSize, "the tape survived the rollback and kept recording");
     uint64_t recorded = m2World_Hash(world);
 
-    m2WorldId fresh = m2CreateWorld(&def);
-    CHECK(m2World_ReplayJournal(fresh, tape, bytes), "the rollback-bearing tape replays");
+    m2World* fresh = NewWorld(&def);
+    CHECK(ReplayJournal(fresh, tape, bytes), "the rollback-bearing tape replays");
     CHECK(m2World_Hash(fresh) == recorded, "the whole timeline lands on the same bits");
 
     m2DestroyWorld(fresh);
@@ -415,26 +415,26 @@ static void TestReplayIsAtomic(void)
     };
     uint8_t* tape = malloc(CAPACITY);
     m2WorldDef def = TestDef();
-    m2WorldId recorder = m2CreateWorld(&def);
+    m2World* recorder = NewWorld(&def);
     int32_t size = 0;
     uint64_t recordedHash = 0;
     RunSession(recorder, tape, CAPACITY, &size, &recordedHash);
     m2DestroyWorld(recorder);
 
-    m2WorldId target = m2CreateWorld(&def);
+    m2World* target = NewWorld(&def);
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){1.0, 7.0};
-    m2BodyId own = m2CreateBody(target, &bd);
+    m2BodyId own = NewBody(target, &bd);
     m2Circle ball = {{0.0f, 0.0f}, 0.5f};
     m2ShapeDef sd = m2DefaultShapeDef();
-    m2CreateCircleShape(own, &sd, &ball);
+    NewCircleShape(target, own, &sd, &ball);
     m2World_Step(target, 1.0f / 60.0f, 4);
     uint64_t before = m2World_Hash(target);
 
-    CHECK(!m2World_ReplayJournal(target, tape, size - 3), "a truncated tape is refused");
+    CHECK(!ReplayJournal(target, tape, size - 3), "a truncated tape is refused");
     CHECK(m2World_Hash(target) == before, "and the world is untouched");
-    CHECK(m2World_ReplayJournal(target, tape, size), "the whole tape replays");
+    CHECK(ReplayJournal(target, tape, size), "the whole tape replays");
     CHECK(m2World_Hash(target) == recordedHash, "onto the recorded bits");
 
     m2DestroyWorld(target);
@@ -446,22 +446,22 @@ static void TestRestoreRefusesBadCounters(void)
     // A snapshot whose header counters point past the capacities is
     // refused before anything is overwritten.
     m2WorldDef def = TestDef();
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
-    m2BodyId body = m2CreateBody(world, &bd);
+    m2BodyId body = NewBody(world, &bd);
     m2Circle ball = {{0.0f, 0.0f}, 0.5f};
     m2ShapeDef sd = m2DefaultShapeDef();
-    m2CreateCircleShape(body, &sd, &ball);
+    NewCircleShape(world, body, &sd, &ball);
     int32_t size = m2World_SnapshotSize(world);
     uint8_t* snap = malloc((size_t)size);
-    CHECK(m2World_Snapshot(world, snap, size) == size, "snapshot taken");
+    CHECK(Snapshot(world, snap, size) == size, "snapshot taken");
     m2World_Step(world, 1.0f / 60.0f, 4);
     uint64_t before = m2World_Hash(world);
 
     int32_t hostile = def.bodyCapacity + 1000;
     memcpy(snap + 12, &hostile, sizeof(hostile)); // maxBodyIndex
-    CHECK(!m2World_Restore(world, snap, size), "an out-of-range body count is refused");
+    CHECK(!Restore(world, snap, size), "an out-of-range body count is refused");
     CHECK(m2World_Hash(world) == before, "and the world is untouched");
 
     m2DestroyWorld(world);

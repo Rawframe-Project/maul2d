@@ -7,6 +7,7 @@
 // end); sleep counters survive rollback bit-exactly; and the sleep and
 // wake cycle hash crosses CI cells.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul2d/base.h"
@@ -16,26 +17,26 @@
 #include <stdlib.h>
 #include <string.h>
 
-static m2BodyId AddSlab(m2WorldId world, double y)
+static m2BodyId AddSlab(m2World* world, double y)
 {
     m2BodyDef fd = m2DefaultBodyDef();
     fd.position = (m2Pos2){0.0, y};
-    m2BodyId body = m2CreateBody(world, &fd);
+    m2BodyId body = NewBody(world, &fd);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(20.0f, 0.5f);
-    m2CreatePolygonShape(body, &sd, &slab);
+    NewPolygonShape(world, body, &sd, &slab);
     return body;
 }
 
-static m2BodyId AddBox(m2WorldId world, double x, double y)
+static m2BodyId AddBox(m2World* world, double x, double y)
 {
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){x, y};
-    m2BodyId body = m2CreateBody(world, &bd);
+    m2BodyId body = NewBody(world, &bd);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Polygon unit = m2MakeBox(0.5f, 0.5f);
-    m2CreatePolygonShape(body, &sd, &unit);
+    NewPolygonShape(world, body, &sd, &unit);
     return body;
 }
 
@@ -44,7 +45,7 @@ static void TestPyramidSleeps(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 32;
     def.shapeCapacity = 32;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     AddSlab(world, -0.5);
 
     m2BodyId boxes[6];
@@ -64,27 +65,27 @@ static void TestPyramidSleeps(void)
     }
     for (int32_t i = 0; i < count; ++i)
     {
-        CHECK(!m2Body_IsAwake(boxes[i]), "pyramid box sleeps");
-        m2Vec2 v = m2Body_GetLinearVelocity(boxes[i]);
+        CHECK(!m2Body_IsAwake(world, boxes[i]), "pyramid box sleeps");
+        m2Vec2 v = m2Body_GetLinearVelocity(world, boxes[i]);
         CHECK(v.x == 0.0f && v.y == 0.0f, "sleeping velocity zeroed");
     }
 
     // Frozen: positions must not change at all while asleep.
-    m2Pos2 before = m2Body_GetPosition(boxes[0]);
+    m2Pos2 before = m2Body_GetPosition(world, boxes[0]);
     for (int32_t i = 0; i < 30; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    m2Pos2 after = m2Body_GetPosition(boxes[0]);
+    m2Pos2 after = m2Body_GetPosition(world, boxes[0]);
     CHECK(before.x == after.x && before.y == after.y, "sleeping bodies are frozen");
 
     // Island-transitive wake: shove the top box; the whole pile wakes.
-    m2Body_SetLinearVelocity(boxes[count - 1], (m2Vec2){2.0f, 0.0f});
+    m2Body_SetLinearVelocity(world, boxes[count - 1], (m2Vec2){2.0f, 0.0f});
     m2World_Step(world, 1.0f / 60.0f, 4);
     int32_t awakeCount = 0;
     for (int32_t i = 0; i < count; ++i)
     {
-        awakeCount += m2Body_IsAwake(boxes[i]) ? 1 : 0;
+        awakeCount += m2Body_IsAwake(world, boxes[i]) ? 1 : 0;
     }
     CHECK(awakeCount == count, "waking is island-transitive");
 
@@ -98,7 +99,7 @@ static void TestKinematicWakesSleepers(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     AddSlab(world, -0.5);
     m2BodyId a = AddBox(world, 0.0, 0.55);
     m2BodyId b = AddBox(world, 0.0, 1.57);
@@ -107,22 +108,22 @@ static void TestKinematicWakesSleepers(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(!m2Body_IsAwake(a) && !m2Body_IsAwake(b), "stack asleep before the sweep");
+    CHECK(!m2Body_IsAwake(world, a) && !m2Body_IsAwake(world, b), "stack asleep before the sweep");
 
     m2BodyDef kd = m2DefaultBodyDef();
     kd.type = m2_kinematicBody;
     kd.position = (m2Pos2){-6.0, 0.55};
     kd.linearVelocity = (m2Vec2){8.0f, 0.0f};
-    m2BodyId sweeper = m2CreateBody(world, &kd);
+    m2BodyId sweeper = NewBody(world, &kd);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Polygon blade = m2MakeBox(0.5f, 0.4f);
-    m2CreatePolygonShape(sweeper, &sd, &blade);
+    NewPolygonShape(world, sweeper, &sd, &blade);
 
     bool woke = false;
     for (int32_t i = 0; i < 90; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
-        if (m2Body_IsAwake(a))
+        if (m2Body_IsAwake(world, a))
         {
             woke = true;
             break;
@@ -133,7 +134,7 @@ static void TestKinematicWakesSleepers(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m2Body_GetPosition(a).x > 0.2, "woken box actually gets pushed");
+    CHECK(m2Body_GetPosition(world, a).x > 0.2, "woken box actually gets pushed");
 
     m2DestroyWorld(world);
 }
@@ -145,7 +146,7 @@ static void TestSleepRollback(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     AddSlab(world, -0.5);
     m2BodyId box = AddBox(world, 0.0, 1.2);
 
@@ -153,11 +154,11 @@ static void TestSleepRollback(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4); // landed, counters counting
     }
-    CHECK(m2Body_IsAwake(box), "still dozing off at snapshot time");
+    CHECK(m2Body_IsAwake(world, box), "still dozing off at snapshot time");
 
     int32_t size = m2World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
-    CHECK(m2World_Snapshot(world, snap, size) == size, "snapshot");
+    CHECK(Snapshot(world, snap, size) == size, "snapshot");
 
     int32_t sleepStepA = -1;
     uint64_t hashes[120];
@@ -165,20 +166,20 @@ static void TestSleepRollback(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
         hashes[i] = m2World_Hash(world);
-        if (sleepStepA < 0 && !m2Body_IsAwake(box))
+        if (sleepStepA < 0 && !m2Body_IsAwake(world, box))
         {
             sleepStepA = i;
         }
     }
     CHECK(sleepStepA >= 0, "box eventually sleeps");
 
-    CHECK(m2World_Restore(world, snap, size), "restore");
+    CHECK(Restore(world, snap, size), "restore");
     int32_t sleepStepB = -1;
     for (int32_t i = 0; i < 120; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
         CHECK(m2World_Hash(world) == hashes[i], "sleep cycle replays bit-exactly");
-        if (sleepStepB < 0 && !m2Body_IsAwake(box))
+        if (sleepStepB < 0 && !m2Body_IsAwake(world, box))
         {
             sleepStepB = i;
         }
@@ -197,13 +198,13 @@ static void TestTowerSleeps(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyDef fd = m2DefaultBodyDef();
     fd.position = (m2Pos2){0.0, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
+    m2BodyId floor = NewBody(world, &fd);
     m2ShapeDef fs = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(20.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
+    NewPolygonShape(world, floor, &fs, &slab);
     m2ShapeDef sd = m2DefaultShapeDef();
     sd.friction = 0.6f;
     m2Polygon unit = m2MakeBox(0.5f, 0.5f);
@@ -213,8 +214,8 @@ static void TestTowerSleeps(void)
         m2BodyDef bd = m2DefaultBodyDef();
         bd.type = m2_dynamicBody;
         bd.position = (m2Pos2){0.0, 0.55 + 1.02 * (double)i};
-        boxes[i] = m2CreateBody(world, &bd);
-        m2CreatePolygonShape(boxes[i], &sd, &unit);
+        boxes[i] = NewBody(world, &bd);
+        NewPolygonShape(world, boxes[i], &sd, &unit);
     }
     int32_t sleepStep = -1;
     for (int32_t step = 0; step < 300 && sleepStep < 0; ++step)
@@ -223,7 +224,7 @@ static void TestTowerSleeps(void)
         bool allAsleep = true;
         for (int32_t i = 0; i < 8; ++i)
         {
-            allAsleep = allAsleep && !m2Body_IsAwake(boxes[i]);
+            allAsleep = allAsleep && !m2Body_IsAwake(world, boxes[i]);
         }
         if (allAsleep)
         {
@@ -241,7 +242,7 @@ static void TestTeleportWakesBystanders(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     AddSlab(world, -0.5);
     m2BodyId support = AddBox(world, 0.0, 0.55);
     m2BodyId rider = AddBox(world, 0.0, 1.57);
@@ -250,17 +251,17 @@ static void TestTeleportWakesBystanders(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(!m2Body_IsAwake(support) && !m2Body_IsAwake(rider), "stack asleep");
-    double riderY = m2Body_GetPosition(rider).y;
+    CHECK(!m2Body_IsAwake(world, support) && !m2Body_IsAwake(world, rider), "stack asleep");
+    double riderY = m2Body_GetPosition(world, rider).y;
 
-    m2Body_SetTransform(support, (m2Pos2){50.0, 0.55}, (m2Rot){1.0f, 0.0f});
+    m2Body_SetTransform(world, support, (m2Pos2){50.0, 0.55}, (m2Rot){1.0f, 0.0f});
     m2World_Step(world, 1.0f / 60.0f, 4);
-    CHECK(m2Body_IsAwake(rider), "the rider notices its support vanish");
+    CHECK(m2Body_IsAwake(world, rider), "the rider notices its support vanish");
     for (int32_t i = 0; i < 60; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m2Body_GetPosition(rider).y < riderY - 0.5, "and falls");
+    CHECK(m2Body_GetPosition(world, rider).y < riderY - 0.5, "and falls");
 
     m2DestroyWorld(world);
 }

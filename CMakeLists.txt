@@ -65,6 +65,7 @@ else()
     set(MAUL_LIBRARY_KIND STATIC)
 endif()
 add_library(maul2d ${MAUL_LIBRARY_KIND}
+    src/allocator.c
     src/body.c
     src/body_motion.c
     src/body_read.c
@@ -120,7 +121,6 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/solver.c
     src/world.c
     src/world_internal.c
-    src/world_registry.c
     src/world_state.c)
 maul_configure_library(maul2d)
 if(NOT MSVC)
@@ -131,12 +131,19 @@ endif()
 
 # The CPU check must run on CPUs the backend does not support, so it is
 # compiled without the architecture flags and linked into the library.
+# The public header comes first, so its export marks reach the
+# definitions in the family's cpu.c.
 add_library(maul2d_cpu OBJECT src/cpu.c)
 set(maul_saved_arch_flags "${MAUL_ARCH_FLAGS}")
 set(MAUL_ARCH_FLAGS "")
 maul_apply_flags(maul2d_cpu)
 set(MAUL_ARCH_FLAGS "${maul_saved_arch_flags}")
 target_include_directories(maul2d_cpu PRIVATE ${PROJECT_SOURCE_DIR}/include ${PROJECT_SOURCE_DIR}/src)
+if(MSVC)
+    target_compile_options(maul2d_cpu PRIVATE /FImaul2d/base.h)
+else()
+    target_compile_options(maul2d_cpu PRIVATE -include maul2d/base.h)
+endif()
 set_target_properties(maul2d_cpu PROPERTIES C_VISIBILITY_PRESET hidden POSITION_INDEPENDENT_CODE ON)
 if(MAUL2D_BUILD_SHARED)
     target_compile_definitions(maul2d_cpu PRIVATE MAUL2D_SHARED maul2d_EXPORTS)

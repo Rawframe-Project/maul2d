@@ -11,7 +11,9 @@
 
 #include "maul2d/base.h"
 
+#include <stdckdint.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 // How many elements an array holds, as a function of the capacities.
@@ -388,9 +390,16 @@ static size_t ExtentCount(const m2World* world, uint8_t extent)
     case m2_extent_fluidVolume:
         return (size_t)world->volumes.fvCapacity;
     case m2_extent_constraintBytes:
-        return (size_t)world->contacts.pairCapacity * (size_t)m2ContactConstraintSize();
+    {
+        // Saturates instead of wrapping on 32-bit targets, so the checked
+        // sum in ArrayBytes refuses it.
+        size_t bytes = 0;
+        bool over = ckd_mul(&bytes, (size_t)world->contacts.pairCapacity,
+                            (size_t)m2ContactConstraintSize());
+        return over ? SIZE_MAX : bytes;
+    }
     case m2_extent_contactBlockBytes:
-        return (size_t)m2ContactBlockScratchBytes(world->contacts.pairCapacity);
+        return m2ContactBlockScratchBytes(world->contacts.pairCapacity);
     }
     M2_ASSERT(false);
     return 0;
@@ -414,6 +423,15 @@ static void** FieldPointer(m2World* world, const m2StateArray* array)
     return (void**)((uint8_t*)world + array->offset);
 }
 
+// The bytes an allocated array takes, or false when the size does not
+// fit a size_t.
+static bool ArrayBytes(const m2World* world, const m2StateArray* array, size_t* bytes)
+{
+    size_t count = 0;
+    return !ckd_add(&count, ExtentCount(world, array->extent), (size_t)array->extra) &&
+           !ckd_mul(bytes, count, array->elementSize);
+}
+
 bool m2StateAllocate(m2World* world)
 {
     bool ok = true;
@@ -424,15 +442,23 @@ bool m2StateAllocate(m2World* world)
         {
             continue;
         }
-        size_t bytes = (ExtentCount(world, array->extent) + array->extra) * array->elementSize;
+        size_t bytes = 0;
+        if (!ArrayBytes(world, array, &bytes))
+        {
+            return false;
+        }
         if (bytes == 0)
         {
             continue;
         }
-        void* memory = m2AllocZeroed(bytes);
+        void* memory = m2WorldAlloc(world, bytes);
         *FieldPointer(world, array) = memory;
         world->memoryBytes += (int64_t)bytes;
         ok = ok && memory != NULL;
+        if (!ok)
+        {
+            return false;
+        }
     }
     return ok;
 }
@@ -442,10 +468,15 @@ void m2StateFree(m2World* world)
     for (size_t i = 0; i < sizeof(s_state) / sizeof(s_state[0]); ++i)
     {
         const m2StateArray* array = &s_state[i];
-        if ((array->flags & M2_STATE_POINTER) != 0)
+        void** field = FieldPointer(world, array);
+        if ((array->flags & M2_STATE_POINTER) != 0 && *field != NULL)
         {
-            m2Free(*FieldPointer(world, array));
-            *FieldPointer(world, array) = NULL;
+            size_t bytes = 0;
+            bool sized = ArrayBytes(world, array, &bytes);
+            M2_ASSERT(sized); // it was allocated with this size
+            (void)sized;
+            m2WorldFree(world, *field, bytes);
+            *field = NULL;
         }
     }
 }

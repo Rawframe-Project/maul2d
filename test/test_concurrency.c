@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// The multi-world concurrency proof: two
-// DISTINCT worlds stepped on two host threads land bit-identical
-// to their serial twins. One writer per world stays the law;
-// create/destroy stay host-serialized. POSIX-only referee; the
+// The multi-world concurrency proof: two distinct worlds, each created,
+// stepped and destroyed on its own host thread, land bit-identical to
+// their serial twins, and many readers share one world. Worlds share
+// nothing, so creation needs no host lock. POSIX-only referee; the
 // contract holds everywhere.
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul2d/maul2d.h"
@@ -15,58 +16,63 @@
 #include <stdio.h>
 #include <string.h>
 
-static m2WorldId BuildWorld(int32_t seed)
+static m2World* BuildWorld(int32_t seed)
 {
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 128;
     def.shapeCapacity = 128;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyDef gd = m2DefaultBodyDef();
-    m2BodyId ground = m2CreateBody(world, &gd);
+    m2BodyId ground = NewBody(world, &gd);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(8.0f, 0.3f);
-    m2CreatePolygonShape(ground, &sd, &slab);
+    NewPolygonShape(world, ground, &sd, &slab);
     for (int32_t i = 0; i < 80; ++i)
     {
         m2BodyDef bd = m2DefaultBodyDef();
         bd.type = m2_dynamicBody;
         bd.position = (m2Pos2){0.8 * (double)(i % 10) - 3.6 + 0.01 * (double)seed,
                                0.8 + 0.7 * (double)(i / 10)};
-        m2BodyId b = m2CreateBody(world, &bd);
+        m2BodyId b = NewBody(world, &bd);
         if (i % 2 == 0)
         {
             m2Polygon box = m2MakeBox(0.3f, 0.3f);
-            m2CreatePolygonShape(b, &sd, &box);
+            NewPolygonShape(world, b, &sd, &box);
         }
         else
         {
             m2Circle c = {{0.0f, 0.0f}, 0.3f};
-            m2CreateCircleShape(b, &sd, &c);
+            NewCircleShape(world, b, &sd, &c);
         }
     }
     return world;
 }
 
-typedef struct StepJob
+typedef struct WorldJob
 {
-    m2WorldId world;
+    int32_t seed;
     int32_t steps;
-} StepJob;
+    uint64_t hash;
+} WorldJob;
 
-static void* StepMain(void* arg)
+// A whole world's life on one thread: create, step, hash, destroy.
+static void* WorldMain(void* arg)
 {
-    StepJob* job = (StepJob*)arg;
+    WorldJob* job = (WorldJob*)arg;
+    m2World* world = BuildWorld(job->seed);
     for (int32_t i = 0; i < job->steps; ++i)
     {
-        m2World_Step(job->world, 1.0f / 60.0f, 4);
+        m2World_Step(world, 1.0f / 60.0f, 4);
     }
+    job->hash = m2World_Hash(world);
+    m2DestroyWorld(world);
     return NULL;
 }
 
 static void TestParallelWorldsMatchSerial(void)
 {
-    m2WorldId serialA = BuildWorld(1);
-    m2WorldId serialB = BuildWorld(2);
+    m2World* serialA = BuildWorld(1);
+    m2World* serialB = BuildWorld(2);
     for (int32_t i = 0; i < 300; ++i)
     {
         m2World_Step(serialA, 1.0f / 60.0f, 4);
@@ -77,20 +83,16 @@ static void TestParallelWorldsMatchSerial(void)
     m2DestroyWorld(serialA);
     m2DestroyWorld(serialB);
 
-    m2WorldId parA = BuildWorld(1);
-    m2WorldId parB = BuildWorld(2);
-    StepJob jobA = {parA, 300};
-    StepJob jobB = {parB, 300};
+    WorldJob jobA = {1, 300, 0};
+    WorldJob jobB = {2, 300, 0};
     pthread_t tA;
     pthread_t tB;
-    pthread_create(&tA, NULL, StepMain, &jobA);
-    pthread_create(&tB, NULL, StepMain, &jobB);
+    pthread_create(&tA, NULL, WorldMain, &jobA);
+    pthread_create(&tB, NULL, WorldMain, &jobB);
     pthread_join(tA, NULL);
     pthread_join(tB, NULL);
-    CHECK(m2World_Hash(parA) == wantA, "world A is thread-placement blind");
-    CHECK(m2World_Hash(parB) == wantB, "world B is thread-placement blind");
-    m2DestroyWorld(parA);
-    m2DestroyWorld(parB);
+    CHECK(jobA.hash == wantA, "world A is thread-placement blind");
+    CHECK(jobB.hash == wantB, "world B is thread-placement blind");
 }
 
 // Readers share a world: many threads query one world at once and
@@ -104,7 +106,7 @@ enum
 
 typedef struct ReaderJob
 {
-    m2WorldId world;
+    m2World* world;
     int32_t mismatches;
     int32_t expectedCount[READER_ROUNDS];
     m2ShapeId expected[READER_ROUNDS][READER_CAPACITY];
@@ -144,7 +146,7 @@ static void* ReaderMain(void* arg)
 
 static void TestConcurrentReadersMatchSerial(void)
 {
-    m2WorldId world = BuildWorld(3);
+    m2World* world = BuildWorld(3);
     for (int32_t i = 0; i < 120; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
@@ -181,39 +183,8 @@ static void TestConcurrentReadersMatchSerial(void)
     m2DestroyWorld(world);
 }
 
-static void* RefuseCapacityMain(void* arg)
-{
-    m2WorldId world = *(const m2WorldId*)arg;
-    m2BodyDef bd = m2DefaultBodyDef();
-    m2CreateBody(world, &bd); // the pool is full: refused for capacity
-    return (void*)(intptr_t)(m2LastResult() == m2_errorCapacity);
-}
-
-static void TestLastResultIsPerThread(void)
-{
-    // This thread refuses for an invalid id while another refuses for
-    // capacity; each thread reads back its own reason.
-    m2WorldDef def = m2DefaultWorldDef();
-    def.bodyCapacity = 1;
-    def.shapeCapacity = 1;
-    m2WorldId world = m2CreateWorld(&def);
-    m2BodyDef bd = m2DefaultBodyDef();
-    m2BodyId stale = m2CreateBody(world, &bd);
-    stale.generation += 1; // this world's id, but for no live body
-    m2DestroyBody(stale);
-    CHECK(m2LastResult() == m2_errorInvalid, "this thread's refusal is invalid");
-    pthread_t other;
-    void* sawCapacity = NULL;
-    pthread_create(&other, NULL, RefuseCapacityMain, &world);
-    pthread_join(other, &sawCapacity);
-    CHECK(sawCapacity != NULL, "the other thread saw its own capacity refusal");
-    CHECK(m2LastResult() == m2_errorInvalid, "and did not overwrite this thread's reason");
-    m2DestroyWorld(world);
-}
-
 int main(void)
 {
-    TestLastResultIsPerThread();
     TestParallelWorldsMatchSerial();
     TestConcurrentReadersMatchSerial();
     if (s_failures == 0)

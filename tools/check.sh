@@ -12,17 +12,17 @@
 #                            changes reach. Under two minutes; run it
 #                            before every push.
 #   tools/check.sh pr        what the pull request check runs on this
-#                            machine: every check, the documentation site,
-#                            and the linux-clang-20-asan, linux-gcc-14 and
-#                            linux-shared presets.
+#                            machine: every check, clang-tidy, the
+#                            documentation site, and the linux-clang-20-asan,
+#                            linux-gcc-14 and linux-shared presets.
 #   tools/check.sh full      also the other Linux presets (ThreadSanitizer,
 #                            Clang Release), the testbed, and the nightly
 #                            simulation.
 #
 # The builds are the CI cells' CMake presets (CMakePresets.json), in
-# out/<preset>. Needs gcc-14, clang-20, ninja, python3 with markdown, and
-# the clang-format version CI pins: the organization's CI image has them
-# all. The organization's documentation check runs when its .github
+# out/<preset>. Needs gcc-14, clang-20, clang-tidy-20, ninja, python3
+# with markdown, and the clang-format version CI pins: the organization's
+# CI image has them all. The organization's documentation check runs when its .github
 # checkout is at ORG_DEFAULTS (default: ../../.github from the repository).
 set -euo pipefail
 
@@ -73,6 +73,7 @@ labels_for() {
 
 source_checks() {
     step "family rules"
+    python3 tools/check_source.py
     python3 tools/check_modules.py
     python3 tools/check_lengths.py
     python3 tools/check_guide.py
@@ -126,6 +127,12 @@ source_checks
 
 step "clang-format on every file"
 all_c_files | xargs clang-format --dry-run -Werror
+
+step "clang-tidy"
+cmake -B out/check-tidy -G Ninja -DCMAKE_C_COMPILER=clang-20 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
+    -DMAUL2D_BUILD_TESTS=OFF -DMAUL2D_BUILD_BENCH=OFF -DMAUL2D_BUILD_SAMPLES=OFF >/dev/null
+git ls-files 'src/*.c' | xargs -P "$(nproc)" -n 1 clang-tidy-20 -p out/check-tidy --quiet \
+    --warnings-as-errors='*'
 
 step "the documentation site builds"
 python3 tools/build_docs.py

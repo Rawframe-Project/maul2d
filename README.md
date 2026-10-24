@@ -13,9 +13,10 @@ are a few calls away:
 
 ```c
 int32_t size = m2World_SnapshotSize(world);
-m2World_Snapshot(world, buffer, size);
+int32_t written = 0;
+m2Result result = m2World_Snapshot(world, buffer, size, &written);
 /* ... mispredicted steps ... */
-m2World_Restore(world, buffer, size); // resimulate from here, bit for bit
+result = m2World_Restore(world, buffer, written); // resimulate from here, bit for bit
 ```
 
 **[Try the testbed in your browser](https://rawframe-project.github.io/maul2d/testbed/)**:

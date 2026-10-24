@@ -16,7 +16,6 @@
 #include "object_ids.h"
 #include "shape.h"
 #include "world_internal.h"
-#include "world_registry.h"
 
 #include "maul2d/base.h"
 
@@ -39,18 +38,25 @@ m2BodyDef m2DefaultBodyDef(void)
     return def;
 }
 
-m2BodyId m2CreateBody(m2WorldId worldId, const m2BodyDef* def)
+m2Result m2CreateBody(m2World* world, const m2BodyDef* def, m2BodyId* bodyOut)
 {
-    m2World* world = m2GetWorld(worldId);
-    if (world == NULL || def == NULL || def->internalValue != M2_BODY_COOKIE)
+    if (bodyOut == NULL)
     {
-        m2Refuse(world, m2_errorInvalid);
-        return m2_nullBodyId;
+        return m2Refuse(world, m2_errorInvalid);
+    }
+    *bodyOut = m2_nullBodyId;
+    m2Result writer = m2CheckWriter(world);
+    if (writer != m2_success)
+    {
+        return writer;
+    }
+    if (def == NULL || def->internalValue != M2_BODY_COOKIE)
+    {
+        return m2Refuse(world, m2_errorInvalid);
     }
     if (world->bodies.freeCount == 0)
     {
-        m2Refuse(world, m2_errorCapacity);
-        return m2_nullBodyId;
+        return m2Refuse(world, m2_errorCapacity);
     }
 
     int32_t index = world->bodies.freeQueue[world->bodies.freeHead];
@@ -93,7 +99,7 @@ m2BodyId m2CreateBody(m2WorldId worldId, const m2BodyDef* def)
         world->bodies.maxBodyIndex = index + 1;
     }
 
-    m2BodyId id = {index + 1, world->idWorld, world->bodies.generations[index]};
+    m2BodyId id = {(uint32_t)(index + 1), world->bodies.generations[index]};
 
     if (world->recorder.journalActive != 0)
     {
@@ -103,21 +109,21 @@ m2BodyId m2CreateBody(m2WorldId worldId, const m2BodyDef* def)
         record.expected = id;
         m2JournalRecord(world, m2_opCreateBody, &record, (int32_t)sizeof(record));
     }
-    return id;
+    *bodyOut = id;
+    return m2_success;
 }
 
-void m2DestroyBody(m2BodyId bodyId)
+m2Result m2DestroyBody(m2World* world, m2BodyId bodyId)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
-    if (world == NULL)
+    m2Result writer = m2CheckWriter(world);
+    if (writer != m2_success)
     {
-        return;
+        return writer;
     }
     int32_t index = m2BodySlot(world, bodyId);
     if (index < 0)
     {
-        m2Refuse(world, m2_errorInvalid);
-        return;
+        return m2Refuse(world, m2_errorStale);
     }
     m2JournalRecord(world, m2_opDestroyBody, &bodyId, (int32_t)sizeof(bodyId));
 
@@ -172,24 +178,23 @@ void m2DestroyBody(m2BodyId bodyId)
     if (world->bodies.generations[index] == UINT16_MAX)
     {
         world->bodies.retiredCount += 1;
-        return;
+        return m2_success;
     }
     world->bodies.generations[index] += 1;
     world->bodies.freeQueue[world->bodies.freeTail] = index;
     world->bodies.freeTail = (world->bodies.freeTail + 1) % world->bodies.bodyCapacity;
     world->bodies.freeCount += 1;
+    return m2_success;
 }
 
-bool m2Body_IsValid(m2BodyId bodyId)
+bool m2Body_IsValid(const m2World* world, m2BodyId bodyId)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
     return world != NULL && m2BodySlot(world, bodyId) >= 0;
 }
 
 #define M2_BODY_GETTER(returnType, name, expr, fallback)                                           \
-    returnType name(m2BodyId bodyId)                                                               \
+    returnType name(const m2World* world, m2BodyId bodyId)                                         \
     {                                                                                              \
-        m2World* world = m2GetBodyWorld(bodyId);                                                   \
         int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;                            \
         if (index < 0)                                                                             \
         {                                                                                          \
@@ -309,56 +314,68 @@ bool m2SetBodyParamInternal(m2World* world, m2BodyId bodyId, uint8_t param, floa
     return true;
 }
 
-void m2Body_SetLinearDamping(m2BodyId bodyId, float damping)
+void m2Body_SetLinearDamping(m2World* world, m2BodyId bodyId, float damping)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     m2SetBodyParamInternal(world, bodyId, m2_bodyParamLinearDamping,
                            damping < 0.0f ? 0.0f : damping);
 }
 
-float m2Body_GetLinearDamping(m2BodyId bodyId)
+float m2Body_GetLinearDamping(const m2World* world, m2BodyId bodyId)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     return index >= 0 ? world->bodies.linearDampings[index] : 0.0f;
 }
 
-void m2Body_SetAngularDamping(m2BodyId bodyId, float damping)
+void m2Body_SetAngularDamping(m2World* world, m2BodyId bodyId, float damping)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     m2SetBodyParamInternal(world, bodyId, m2_bodyParamAngularDamping,
                            damping < 0.0f ? 0.0f : damping);
 }
 
-float m2Body_GetAngularDamping(m2BodyId bodyId)
+float m2Body_GetAngularDamping(const m2World* world, m2BodyId bodyId)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     return index >= 0 ? world->bodies.angularDampings[index] : 0.0f;
 }
 
-void m2Body_SetGravityScale(m2BodyId bodyId, float scale)
+void m2Body_SetGravityScale(m2World* world, m2BodyId bodyId, float scale)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     m2SetBodyParamInternal(world, bodyId, m2_bodyParamGravityScale, scale);
 }
 
-void m2Body_SetFixedRotation(m2BodyId bodyId, bool flag)
+void m2Body_SetFixedRotation(m2World* world, m2BodyId bodyId, bool flag)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     m2SetBodyParamInternal(world, bodyId, m2_bodyParamFixedRotation, flag ? 1.0f : 0.0f);
 }
 
-bool m2Body_IsFixedRotation(m2BodyId bodyId)
+bool m2Body_IsFixedRotation(const m2World* world, m2BodyId bodyId)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     return index >= 0 && world->bodies.fixedRotations[index] != 0;
 }
 
-void m2Body_SetMotionLocks(m2BodyId bodyId, m2MotionLocks locks)
+void m2Body_SetMotionLocks(m2World* world, m2BodyId bodyId, m2MotionLocks locks)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     // Each axis rides the journaled body-param channel so a replay
     // reproduces the locks. angularZ is the fixed-rotation lock.
     // A stale id refuses once, on the first channel.
@@ -370,10 +387,9 @@ void m2Body_SetMotionLocks(m2BodyId bodyId, m2MotionLocks locks)
     }
 }
 
-m2MotionLocks m2Body_GetMotionLocks(m2BodyId bodyId)
+m2MotionLocks m2Body_GetMotionLocks(const m2World* world, m2BodyId bodyId)
 {
     m2MotionLocks locks = {false, false, false};
-    m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index >= 0)
     {
@@ -384,22 +400,27 @@ m2MotionLocks m2Body_GetMotionLocks(m2BodyId bodyId)
     return locks;
 }
 
-void m2Body_EnableSleep(m2BodyId bodyId, bool flag)
+void m2Body_EnableSleep(m2World* world, m2BodyId bodyId, bool flag)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     m2SetBodyParamInternal(world, bodyId, m2_bodyParamEnableSleep, flag ? 1.0f : 0.0f);
 }
 
-bool m2Body_IsSleepEnabled(m2BodyId bodyId)
+bool m2Body_IsSleepEnabled(const m2World* world, m2BodyId bodyId)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     return index >= 0 && world->bodies.sleepEnables[index] != 0;
 }
 
-void m2Body_SetType(m2BodyId bodyId, m2BodyType type)
+void m2Body_SetType(m2World* world, m2BodyId bodyId, m2BodyType type)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0 || (int32_t)type < 0 || (int32_t)type >= M2_TREE_COUNT)
     {
@@ -470,9 +491,12 @@ void m2Body_SetType(m2BodyId bodyId, m2BodyType type)
     world->bodies.sleepStreak[index] = 0;
 }
 
-void m2Body_SetAwake(m2BodyId bodyId, bool awake)
+void m2Body_SetAwake(m2World* world, m2BodyId bodyId, bool awake)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0 || world->bodies.types[index] != (uint8_t)m2_dynamicBody ||
         world->bodies.disabled[index] != 0)
@@ -504,9 +528,12 @@ void m2Body_SetAwake(m2BodyId bodyId, bool awake)
     }
 }
 
-void m2Body_SetBullet(m2BodyId bodyId, bool flag)
+void m2Body_SetBullet(m2World* world, m2BodyId bodyId, bool flag)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0)
     {
@@ -529,9 +556,12 @@ void m2Body_SetBullet(m2BodyId bodyId, bool flag)
     world->bodies.bullets[index] = next;
 }
 
-void m2Body_SetUserData(m2BodyId bodyId, uint64_t userData)
+void m2Body_SetUserData(m2World* world, m2BodyId bodyId, uint64_t userData)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0)
     {
@@ -549,9 +579,12 @@ void m2Body_SetUserData(m2BodyId bodyId, uint64_t userData)
     world->bodies.userData[index] = userData;
 }
 
-void m2Body_Disable(m2BodyId bodyId)
+void m2Body_Disable(m2World* world, m2BodyId bodyId)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0 || world->bodies.disabled[index] != 0)
     {
@@ -567,9 +600,12 @@ void m2Body_Disable(m2BodyId bodyId)
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_Enable(m2BodyId bodyId)
+void m2Body_Enable(m2World* world, m2BodyId bodyId)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0 || world->bodies.disabled[index] == 0)
     {
@@ -589,9 +625,12 @@ void m2Body_Enable(m2BodyId bodyId)
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_SetDominance(m2BodyId bodyId, int8_t dominance)
+void m2Body_SetDominance(m2World* world, m2BodyId bodyId, int8_t dominance)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0)
     {
@@ -614,9 +653,12 @@ void m2Body_SetDominance(m2BodyId bodyId, int8_t dominance)
     m2WakeIfDynamic(world, index);
 }
 
-void m2Body_SetMassData(m2BodyId bodyId, m2MassData massData)
+void m2Body_SetMassData(m2World* world, m2BodyId bodyId, m2MassData massData)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0 || world->bodies.types[index] != (uint8_t)m2_dynamicBody ||
         !(massData.mass > 0.0f))
@@ -644,9 +686,12 @@ void m2Body_SetMassData(m2BodyId bodyId, m2MassData massData)
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_ApplyMassFromShapes(m2BodyId bodyId)
+void m2Body_ApplyMassFromShapes(m2World* world, m2BodyId bodyId)
 {
-    m2World* world = m2GetBodyWorld(bodyId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0)
     {

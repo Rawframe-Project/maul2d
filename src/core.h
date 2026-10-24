@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Internal declarations for core.c: assertions, refusals, the memory
-// hooks, the CPU check, the finite-input checks and the profile clock.
-// Every engine source reaches these through world_internal.h or
-// directly.
+// Internal declarations for core.c: assertions, the finite-input
+// checks and the profile clock. Every engine source reaches these
+// through world_internal.h or directly.
 
 #ifndef MAUL2D_SRC_CORE_H
 #define MAUL2D_SRC_CORE_H
@@ -14,28 +13,18 @@
 
 #include <stddef.h>
 
-// Internal invariants only: states that cannot happen unless the engine
-// itself is wrong. Caller input is refused with m2Refuse, never asserted.
+// M2_ASSERT states an internal invariant: a state that cannot occur
+// unless the library itself is wrong. Caller input is never asserted; it
+// is refused with a status or counted as misuse. The check traps in every
+// build without NDEBUG (Debug, the sanitizer and fuzz builds), so a broken
+// invariant stops the run where it happened. Release builds compile it
+// out without evaluating the condition, so the solver's inner loops do not
+// pay for it.
 #if defined(NDEBUG)
-#define M2_ASSERT(cond) ((void)0)
+#define M2_ASSERT(cond) ((void)sizeof((cond) ? 1 : 0))
 #else
-#define M2_ASSERT(cond) ((cond) ? (void)0 : m2AssertFail(#cond, __FILE__, __LINE__))
+#define M2_ASSERT(cond) ((cond) ? (void)0 : __builtin_trap())
 #endif
-
-// Reports a failed invariant to the host's assert handler, and aborts
-// unless the handler returns nonzero.
-void m2AssertFail(const char* condition, const char* file, int line);
-
-// Records the reason m2LastResult reports on this thread.
-void m2SetLastResult(m2Result reason);
-
-// All engine memory goes through the host's allocator hooks.
-void* m2AllocZeroed(size_t bytes);
-void m2Free(void* memory);
-
-// Hands a message to the host's assert hook without aborting; returns
-// nonzero when the host handled it.
-int m2ReportToHost(const char* message, const char* where);
 
 // Finite checks for caller input and invariants. NaN compares false
 // and infinity minus infinity is NaN, so x - x == 0 refuses NaN and

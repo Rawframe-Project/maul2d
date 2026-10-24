@@ -11,8 +11,8 @@ permissions: {}
 
 jobs:
   title:
-    uses: Rawframe-Project/.github/.github/workflows/pr-title.yml@ffd926f489c08984a43e40ac93e1f1feb784be93 # v0.0.8
+    uses: Rawframe-Project/.github/.github/workflows/pr-title.yml@b1220ae4523884c7baee93dfb2d9dd1fb1ec960b # v0.0.9
     permissions:
       pull-requests: read
     with:
-      scopes: world collision solver joints fluid query geometry journal snapshot simd testbed samples build bench family
+      scopes: api world collision solver joints fluid query geometry journal snapshot simd testbed samples build bench family

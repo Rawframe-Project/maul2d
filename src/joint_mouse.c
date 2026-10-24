@@ -13,7 +13,6 @@
 #include "object_ids.h"
 #include "solver_base.h"
 #include "world_internal.h"
-#include "world_registry.h"
 
 #include "maul2d/base.h"
 
@@ -39,26 +38,36 @@ static bool DefValid(const m2MouseJointDef* def)
            m2JointGain(def->maxForce);
 }
 
-m2JointId m2CreateMouseJoint(m2WorldId worldId, const m2MouseJointDef* def)
+m2Result m2CreateMouseJoint(m2World* world, const m2MouseJointDef* def, m2JointId* jointOut)
 {
-    m2World* world = m2GetWorld(worldId);
-    if (world == NULL || def == NULL || def->internalValue != M2_MSJOINT_COOKIE || !DefValid(def))
+    if (jointOut == NULL)
     {
-        m2Refuse(world, m2_errorInvalid);
-        return m2_nullJointId;
+        return m2Refuse(world, m2_errorInvalid);
+    }
+    *jointOut = m2_nullJointId;
+    m2Result writer = m2CheckWriter(world);
+    if (writer != m2_success)
+    {
+        return writer;
+    }
+    if (def == NULL || def->internalValue != M2_MSJOINT_COOKIE || !DefValid(def))
+    {
+        return m2Refuse(world, m2_errorInvalid);
     }
     int32_t bodyA = m2BodySlot(world, def->bodyIdA);
     int32_t bodyB = m2BodySlot(world, def->bodyIdB);
-    if (bodyA < 0 || bodyB < 0 || bodyA == bodyB)
+    if (bodyA < 0 || bodyB < 0)
     {
-        m2Refuse(world, m2_errorInvalid);
-        return m2_nullJointId;
+        return m2Refuse(world, m2_errorStale);
+    }
+    if (bodyA == bodyB)
+    {
+        return m2Refuse(world, m2_errorInvalid);
     }
     int32_t index = m2AllocateJoint(world);
     if (index < 0)
     {
-        m2Refuse(world, m2_errorCapacity);
-        return m2_nullJointId;
+        return m2Refuse(world, m2_errorCapacity);
     }
     // The grab point is where the target sits at creation, in B's
     // local frame (the single f64 crossing).
@@ -84,12 +93,16 @@ m2JointId m2CreateMouseJoint(m2WorldId worldId, const m2MouseJointDef* def)
         record.expected = jointId;
         m2JournalRecord(world, m2_opCreateMouseJoint, &record, (int32_t)sizeof(record));
     }
-    return jointId;
+    *jointOut = jointId;
+    return m2_success;
 }
 
-void m2MouseJoint_SetTarget(m2JointId jointId, m2Pos2 target)
+void m2MouseJoint_SetTarget(m2World* world, m2JointId jointId, m2Pos2 target)
 {
-    m2World* world = m2WorldFromTag(jointId.world);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_mouseJoint);
     if (index < 0)
     {
@@ -113,17 +126,15 @@ void m2MouseJoint_SetTarget(m2JointId jointId, m2Pos2 target)
     m2WakeIfDynamic(world, bodyB);
 }
 
-m2Pos2 m2MouseJoint_GetTarget(m2JointId jointId)
+m2Pos2 m2MouseJoint_GetTarget(const m2World* world, m2JointId jointId)
 {
-    m2World* world = m2WorldFromTag(jointId.world);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_mouseJoint);
     m2Pos2 zero = {0.0, 0.0};
     return index >= 0 ? world->joints.jointTargets[index] : zero;
 }
 
-float m2MouseJoint_GetMaxForce(m2JointId jointId)
+float m2MouseJoint_GetMaxForce(const m2World* world, m2JointId jointId)
 {
-    m2World* world = m2WorldFromTag(jointId.world);
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_mouseJoint);
     return index >= 0 ? world->joints.jointLength[index] : 0.0f;
 }

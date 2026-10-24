@@ -8,9 +8,6 @@
 
 #include "world_internal.h"
 
-// The world a body id names (its world tag), or NULL when it is gone.
-m2World* m2GetBodyWorld(m2BodyId id);
-
 // The slot of a live body, or -1 for a stale or foreign id.
 int32_t m2BodySlot(const m2World* world, m2BodyId id);
 

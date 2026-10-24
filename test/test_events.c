@@ -6,6 +6,7 @@
 // order, restore-clears-buffers with identical re-emission on replay,
 // and the event stream hash across CI cells.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul2d/base.h"
@@ -16,14 +17,14 @@
 #include <stdlib.h>
 #include <string.h>
 
-static m2BodyId AddSlab(m2WorldId world)
+static m2BodyId AddSlab(m2World* world)
 {
     m2BodyDef fd = m2DefaultBodyDef();
     fd.position = (m2Pos2){0.0, -0.5};
-    m2BodyId body = m2CreateBody(world, &fd);
+    m2BodyId body = NewBody(world, &fd);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(20.0f, 0.5f);
-    m2CreatePolygonShape(body, &sd, &slab);
+    NewPolygonShape(world, body, &sd, &slab);
     return body;
 }
 
@@ -32,16 +33,16 @@ static void TestLifecycleSymmetry(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     AddSlab(world);
 
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){0.0, 2.0};
-    m2BodyId ball = m2CreateBody(world, &bd);
+    m2BodyId ball = NewBody(world, &bd);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Circle circle = {{0.0f, 0.0f}, 0.4f};
-    m2ShapeId ballShape = m2CreateCircleShape(ball, &sd, &circle);
+    m2ShapeId ballShape = NewCircleShape(world, ball, &sd, &circle);
 
     // Fall until begin fires; exactly one begin, no end yet.
     int32_t begins = 0;
@@ -64,7 +65,7 @@ static void TestLifecycleSymmetry(void)
     CHECK(begins == 1 && ends == 0, "landing produces exactly one begin");
 
     // Launch it away: exactly one end.
-    m2Body_SetLinearVelocity(ball, (m2Vec2){0.0f, 30.0f});
+    m2Body_SetLinearVelocity(world, ball, (m2Vec2){0.0f, 30.0f});
     for (int32_t i = 0; i < 60; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
@@ -85,16 +86,16 @@ static void TestDestroyBookending(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     AddSlab(world);
 
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){0.0, 0.85};
-    m2BodyId box = m2CreateBody(world, &bd);
+    m2BodyId box = NewBody(world, &bd);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Polygon unit = m2MakeBox(0.5f, 0.5f);
-    m2ShapeId boxShape = m2CreatePolygonShape(box, &sd, &unit);
+    m2ShapeId boxShape = NewPolygonShape(world, box, &sd, &unit);
 
     int32_t begins = 0;
     for (int32_t i = 0; i < 30; ++i)
@@ -106,7 +107,7 @@ static void TestDestroyBookending(void)
 
     // Destroy BETWEEN steps, while touching.
     uint16_t generationAtDestroy = boxShape.generation;
-    m2DestroyBody(box);
+    DestroyBody(world, box);
     m2World_Step(world, 1.0f / 60.0f, 4);
     m2ContactEvents ev = m2World_GetContactEvents(world);
     CHECK(ev.endCount == 1, "destroy-while-touching emits the end event");
@@ -129,7 +130,7 @@ static void TestRestoreClearsAndReplays(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     AddSlab(world);
     m2ShapeDef sd = m2DefaultShapeDef();
     sd.restitution = 0.6f;
@@ -138,14 +139,14 @@ static void TestRestoreClearsAndReplays(void)
         m2BodyDef bd = m2DefaultBodyDef();
         bd.type = m2_dynamicBody;
         bd.position = (m2Pos2){-2.0 + 1.4 * (double)i, 1.0 + 0.8 * (double)i};
-        m2BodyId body = m2CreateBody(world, &bd);
+        m2BodyId body = NewBody(world, &bd);
         m2Circle c = {{0.0f, 0.0f}, 0.35f};
-        m2CreateCircleShape(body, &sd, &c);
+        NewCircleShape(world, body, &sd, &c);
     }
 
     int32_t size = m2World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
-    CHECK(m2World_Snapshot(world, snap, size) == size, "snapshot");
+    CHECK(Snapshot(world, snap, size) == size, "snapshot");
 
     // Record the event stream (bouncy balls churn begins/ends).
     uint64_t streamA = M2_HASH_INIT;
@@ -158,7 +159,7 @@ static void TestRestoreClearsAndReplays(void)
         streamA = m2Hash64(streamA, ev.endEvents, ev.endCount * (int32_t)sizeof(m2ContactEndEvent));
     }
 
-    CHECK(m2World_Restore(world, snap, size), "restore");
+    CHECK(Restore(world, snap, size), "restore");
     m2ContactEvents cleared = m2World_GetContactEvents(world);
     CHECK(cleared.beginCount == 0 && cleared.endCount == 0, "restore clears event buffers");
 
@@ -185,24 +186,24 @@ static void TestDestroyShapeBookends(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
 
     m2BodyDef fd = m2DefaultBodyDef();
     fd.position = (m2Pos2){0.0, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
+    m2BodyId floor = NewBody(world, &fd);
     m2ShapeDef fs = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(10.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
+    NewPolygonShape(world, floor, &fs, &slab);
 
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){0.0, 0.55};
-    m2BodyId body = m2CreateBody(world, &bd);
+    m2BodyId body = NewBody(world, &bd);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Polygon foot = m2MakeBox(0.4f, 0.4f);
-    m2ShapeId footId = m2CreatePolygonShape(body, &sd, &foot);
+    m2ShapeId footId = NewPolygonShape(world, body, &sd, &foot);
     m2Circle hat = {{0.0f, 0.9f}, 0.3f};
-    m2ShapeId hatId = m2CreateCircleShape(body, &sd, &hat);
+    m2ShapeId hatId = NewCircleShape(world, body, &sd, &hat);
 
     for (int32_t i = 0; i < 60; ++i)
     {
@@ -210,10 +211,10 @@ static void TestDestroyShapeBookends(void)
     }
 
     // Destroy the touching foot between steps.
-    m2DestroyShape(footId);
-    CHECK(!m2Shape_IsValid(footId), "destroyed shape id dies");
-    CHECK(m2Shape_IsValid(hatId), "sibling shape lives");
-    CHECK(m2Body_IsValid(body), "body survives losing a shape");
+    DestroyShape(world, footId);
+    CHECK(!m2Shape_IsValid(world, footId), "destroyed shape id dies");
+    CHECK(m2Shape_IsValid(world, hatId), "sibling shape lives");
+    CHECK(m2Body_IsValid(world, body), "body survives losing a shape");
 
     m2World_Step(world, 1.0f / 60.0f, 4);
     m2ContactEvents events = m2World_GetContactEvents(world);
@@ -235,31 +236,31 @@ static void TestTypeChangeBookends(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyDef fd = m2DefaultBodyDef();
     fd.position = (m2Pos2){0.0, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
+    m2BodyId floor = NewBody(world, &fd);
     m2ShapeDef fs = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(10.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
+    NewPolygonShape(world, floor, &fs, &slab);
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){0.0, 0.55};
-    m2BodyId a = m2CreateBody(world, &bd);
+    m2BodyId a = NewBody(world, &bd);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Polygon unit = m2MakeBox(0.4f, 0.4f);
-    m2ShapeId shapeA = m2CreatePolygonShape(a, &sd, &unit);
+    m2ShapeId shapeA = NewPolygonShape(world, a, &sd, &unit);
     bd.position = (m2Pos2){0.0, 1.37};
-    m2BodyId b = m2CreateBody(world, &bd);
-    m2ShapeId shapeB = m2CreatePolygonShape(b, &sd, &unit);
+    m2BodyId b = NewBody(world, &bd);
+    m2ShapeId shapeB = NewPolygonShape(world, b, &sd, &unit);
 
     for (int32_t i = 0; i < 60; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
 
-    m2Body_SetType(a, m2_staticBody);
-    m2Body_SetType(b, m2_staticBody);
+    m2Body_SetType(world, a, m2_staticBody);
+    m2Body_SetType(world, b, m2_staticBody);
     m2World_Step(world, 1.0f / 60.0f, 4);
     m2ContactEvents events = m2World_GetContactEvents(world);
     bool sawEnd = false;
@@ -285,30 +286,30 @@ static void TestSensors(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
 
     m2BodyDef fd = m2DefaultBodyDef();
     fd.position = (m2Pos2){0.0, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
+    m2BodyId floor = NewBody(world, &fd);
     m2ShapeDef fs = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(10.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
+    NewPolygonShape(world, floor, &fs, &slab);
 
     m2BodyDef zd = m2DefaultBodyDef();
     zd.position = (m2Pos2){0.0, 3.0};
-    m2BodyId zoneBody = m2CreateBody(world, &zd);
+    m2BodyId zoneBody = NewBody(world, &zd);
     m2ShapeDef zs = m2DefaultShapeDef();
     zs.isSensor = true;
     m2Polygon zone = m2MakeBox(1.5f, 0.5f);
-    m2ShapeId zoneId = m2CreatePolygonShape(zoneBody, &zs, &zone);
+    m2ShapeId zoneId = NewPolygonShape(world, zoneBody, &zs, &zone);
 
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){0.0, 6.0};
-    m2BodyId runner = m2CreateBody(world, &bd);
+    m2BodyId runner = NewBody(world, &bd);
     m2ShapeDef rs = m2DefaultShapeDef();
     m2Circle ball = {{0.0f, 0.0f}, 0.3f};
-    m2CreateCircleShape(runner, &rs, &ball);
+    NewCircleShape(world, runner, &rs, &ball);
 
     bool sawEnter = false;
     bool sawExit = false;
@@ -347,7 +348,7 @@ static void TestSensors(void)
     CHECK(sawEnter, "the zone reports the runner entering");
     CHECK(sawExit, "and leaving out the bottom");
     CHECK(!contactStreamPolluted, "the contact stream never hears about sensors");
-    CHECK(m2Body_GetPosition(runner).y < 1.0, "the runner fell straight through the zone");
+    CHECK(m2Body_GetPosition(world, runner).y < 1.0, "the runner fell straight through the zone");
     CHECK(enterPointCount > 0, "the sensor begin carries the overlap hit point");
     CHECK(enterPointY > 2.0 && enterPointY < 4.0, "the hit point sits at the zone overlap");
 
@@ -355,27 +356,27 @@ static void TestSensors(void)
     // hold anyone awake).
     m2BodyDef pd = m2DefaultBodyDef();
     pd.position = (m2Pos2){5.0, 0.6};
-    m2BodyId parkZoneBody = m2CreateBody(world, &pd);
+    m2BodyId parkZoneBody = NewBody(world, &pd);
     m2ShapeDef ps = m2DefaultShapeDef();
     ps.isSensor = true;
     m2Polygon parkZone = m2MakeBox(1.0f, 1.0f);
-    m2CreatePolygonShape(parkZoneBody, &ps, &parkZone);
+    NewPolygonShape(world, parkZoneBody, &ps, &parkZone);
     bd.position = (m2Pos2){5.0, 0.45};
-    m2BodyId parked = m2CreateBody(world, &bd);
+    m2BodyId parked = NewBody(world, &bd);
     m2ShapeDef qs = m2DefaultShapeDef();
     m2Polygon unit = m2MakeBox(0.4f, 0.4f);
-    m2CreatePolygonShape(parked, &qs, &unit);
+    NewPolygonShape(world, parked, &qs, &unit);
     bool slept = false;
     for (int32_t i = 0; i < 300 && !slept; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
-        slept = !m2Body_IsAwake(parked);
+        slept = !m2Body_IsAwake(world, parked);
     }
     CHECK(slept, "a body parked inside a sensor still sleeps");
 
     // For sensors: destroy the park zone while overlapped - the
     // sensor end must be witnessed in the next window.
-    m2DestroyBody(parkZoneBody);
+    DestroyBody(world, parkZoneBody);
     m2World_Step(world, 1.0f / 60.0f, 4);
     m2SensorEvents after = m2World_GetSensorEvents(world);
     bool sawDestroyEnd = false;
@@ -396,22 +397,22 @@ static void TestBeginEventPayload(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
 
     m2BodyDef fd = m2DefaultBodyDef();
     fd.position = (m2Pos2){50.0, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
+    m2BodyId floor = NewBody(world, &fd);
     m2ShapeDef fs = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(10.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
+    NewPolygonShape(world, floor, &fs, &slab);
 
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){50.0, 2.25}; // ball bottom 2m above the floor top
-    m2BodyId ball = m2CreateBody(world, &bd);
+    m2BodyId ball = NewBody(world, &bd);
     m2ShapeDef bs = m2DefaultShapeDef();
     m2Circle circle = {{0.0f, 0.0f}, 0.25f};
-    m2CreateCircleShape(ball, &bs, &circle);
+    NewCircleShape(world, ball, &bs, &circle);
 
     bool sawBegin = false;
     m2ContactBeginEvent hit;
@@ -447,16 +448,16 @@ static void TestSensorOverlapQuery(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     def.bodyCapacity = 8;
 
     m2BodyDef zd = m2DefaultBodyDef();
     zd.position = (m2Pos2){0.0, 0.0};
-    m2BodyId zoneBody = m2CreateBody(world, &zd);
+    m2BodyId zoneBody = NewBody(world, &zd);
     m2ShapeDef zs = m2DefaultShapeDef();
     zs.isSensor = true;
     m2Polygon zone = m2MakeBox(2.0f, 2.0f);
-    m2ShapeId zoneId = m2CreatePolygonShape(zoneBody, &zs, &zone);
+    m2ShapeId zoneId = NewPolygonShape(world, zoneBody, &zs, &zone);
 
     m2ShapeId visitors[3];
     double xs[3] = {-0.5, 0.5, 10.0}; // third is far away
@@ -465,10 +466,10 @@ static void TestSensorOverlapQuery(void)
         m2BodyDef bd = m2DefaultBodyDef();
         bd.type = m2_kinematicBody; // hang in place, no gravity fall
         bd.position = (m2Pos2){xs[i], 0.0};
-        m2BodyId body = m2CreateBody(world, &bd);
+        m2BodyId body = NewBody(world, &bd);
         m2ShapeDef sd = m2DefaultShapeDef();
         m2Circle c = {{0.0f, 0.0f}, 0.3f};
-        visitors[i] = m2CreateCircleShape(body, &sd, &c);
+        visitors[i] = NewCircleShape(world, body, &sd, &c);
     }
     for (int32_t i = 0; i < 5; ++i)
     {
@@ -476,12 +477,12 @@ static void TestSensorOverlapQuery(void)
     }
 
     m2ShapeId inside[4];
-    int32_t total = m2Shape_GetSensorOverlaps(zoneId, inside, 4);
+    int32_t total = m2Shape_GetSensorOverlaps(world, zoneId, inside, 4);
     CHECK(total == 2, "two visitors inside");
     CHECK(inside[0].index1 == visitors[0].index1 && inside[1].index1 == visitors[1].index1,
           "canonical order");
-    CHECK(m2Shape_GetSensorOverlaps(zoneId, inside, 1) == 2, "truthful beyond capacity");
-    CHECK(m2Shape_GetSensorOverlaps(visitors[0], inside, 4) == 0,
+    CHECK(m2Shape_GetSensorOverlaps(world, zoneId, inside, 1) == 2, "truthful beyond capacity");
+    CHECK(m2Shape_GetSensorOverlaps(world, visitors[0], inside, 4) == 0,
           "a non-sensor shape reports nothing");
 
     m2DestroyWorld(world);

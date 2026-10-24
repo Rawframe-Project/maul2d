@@ -76,6 +76,7 @@ static float DistanceToShape(const m2World* world, int32_t shape, m2Pos2 wp, flo
 }
 
 // Sweep one bullet from p0 toward its current position; clamp on impact.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity): one bullet sweep over its candidates
 static void SweepBullet(m2World* world, int32_t body, m2Pos2 p0)
 {
     m2Pos2 p1 = world->bodies.transforms[body].p;

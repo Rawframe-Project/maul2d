@@ -12,7 +12,7 @@
 #define BENCH_DT       (1.0f / 60.0f)
 #define BENCH_SUBSTEPS 4
 
-typedef m2WorldId BenchSceneFn(void);
+typedef m2World* BenchSceneFn(void);
 
 typedef struct BenchScene
 {
@@ -26,6 +26,6 @@ typedef struct BenchScene
 const BenchScene* BenchScenes(int32_t* count);
 
 // The fastest body's speed, to tell a scene that blew up.
-float BenchMaxBodySpeed(m2WorldId world);
+float BenchMaxBodySpeed(m2World* world);
 
 #endif // MAUL2D_BENCH_SCENES_H

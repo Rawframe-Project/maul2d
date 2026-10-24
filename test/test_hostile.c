@@ -6,7 +6,9 @@
 // leave the world as it was; and the corner cases of stale particle ids,
 // resurrected machinery, chains, sleep and type changes behave.
 
+#include "helpers.h"
 #include "test_harness.h"
+#include "test_task_pool.h"
 
 #include "maul2d/base.h"
 #include "maul2d/maul2d.h"
@@ -16,17 +18,17 @@
 #include <stdlib.h>
 #include <string.h>
 
-static m2BodyId AddBox(m2WorldId world, double x, double y)
+static m2BodyId AddBox(m2World* world, double x, double y)
 {
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){x, y};
-    m2BodyId body = m2CreateBody(world, &bd);
+    m2BodyId body = NewBody(world, &bd);
     if (body.index1 != 0)
     {
         m2ShapeDef sd = m2DefaultShapeDef();
         m2Polygon box = m2MakeBox(0.4f, 0.4f);
-        m2CreatePolygonShape(body, &sd, &box);
+        NewPolygonShape(world, body, &sd, &box);
     }
     return body;
 }
@@ -42,29 +44,29 @@ static void TestParticleStaleIds(void)
     def.shapeCapacity = 8;
     def.jointCapacity = 4;
     def.particleCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2ParticleId ids[8];
     for (int32_t i = 0; i < 8; ++i)
     {
-        ids[i] = m2World_EmitParticle(world, (m2Pos2){(double)i, 0.0}, (m2Vec2){0.0f, 0.0f}, 0);
+        ids[i] = EmitParticle(world, (m2Pos2){(double)i, 0.0}, (m2Vec2){0.0f, 0.0f}, 0);
     }
     for (int32_t i = 0; i < 8; ++i)
     {
-        m2DestroyParticle(ids[i]);
+        DestroyParticle(world, ids[i]);
     }
     // Drain the FIFO so every original slot is reborn once.
     m2ParticleId reborn[8];
     for (int32_t i = 0; i < 8; ++i)
     {
-        reborn[i] = m2World_EmitParticle(world, (m2Pos2){0.0, (double)i}, (m2Vec2){0.0f, 0.0f}, 0);
-        CHECK(m2Particle_IsValid(reborn[i]), "reborn slots are live");
+        reborn[i] = EmitParticle(world, (m2Pos2){0.0, (double)i}, (m2Vec2){0.0f, 0.0f}, 0);
+        CHECK(m2Particle_IsValid(world, reborn[i]), "reborn slots are live");
     }
     for (int32_t i = 0; i < 8; ++i)
     {
-        CHECK(!m2Particle_IsValid(ids[i]), "dead ids stay dead after rebirth");
-        m2Pos2 p = m2Particle_GetPosition(ids[i]);
+        CHECK(!m2Particle_IsValid(world, ids[i]), "dead ids stay dead after rebirth");
+        m2Pos2 p = m2Particle_GetPosition(world, ids[i]);
         CHECK(p.x == 0.0 && p.y == 0.0, "stale reads return zero, never the tenant's data");
-        CHECK(m2Particle_GetFlags(ids[i]) == 0, "stale flags read zero");
+        CHECK(m2Particle_GetFlags(world, ids[i]) == 0, "stale flags read zero");
     }
     m2DestroyWorld(world);
 }
@@ -79,12 +81,12 @@ static void TestJellyRollbackStorm(void)
     def.shapeCapacity = 8;
     def.jointCapacity = 4;
     def.particleCapacity = 128;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2BodyDef fd = m2DefaultBodyDef();
     fd.position = (m2Pos2){0.0, -0.2};
     m2Polygon slab = m2MakeBox(6.0f, 0.2f);
-    m2CreatePolygonShape(m2CreateBody(world, &fd), &sd, &slab);
+    NewPolygonShape(world, NewBody(world, &fd), &sd, &slab);
     m2Polygon blob = m2MakeBox(0.25f, 0.25f);
     m2World_FillPolygonWithParticles(world, &blob, (m2Pos2){0.0, 0.8}, (m2Vec2){0.0f, 0.0f},
                                      m2_springParticle | m2_elasticParticle);
@@ -94,19 +96,19 @@ static void TestJellyRollbackStorm(void)
     }
     int32_t size = m2World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
-    m2World_Snapshot(world, snap, size);
+    Snapshot(world, snap, size);
 
     // The doomed future: tear holes in the net and shove survivors.
     m2ParticleId ids[128];
     int32_t n = m2World_GetParticles(world, ids, 128);
     for (int32_t i = 0; i < n; i += 5)
     {
-        m2DestroyParticle(ids[i]);
+        DestroyParticle(world, ids[i]);
     }
     n = m2World_GetParticles(world, ids, 128);
     for (int32_t i = 0; i < n; i += 3)
     {
-        m2Particle_SetVelocity(ids[i], (m2Vec2){4.0f, 4.0f});
+        m2Particle_SetVelocity(world, ids[i], (m2Vec2){4.0f, 4.0f});
     }
     for (int32_t i = 0; i < 40; ++i)
     {
@@ -114,13 +116,13 @@ static void TestJellyRollbackStorm(void)
     }
 
     // Roll back and run the canonical future twice: identical bits.
-    CHECK(m2World_Restore(world, snap, size), "the storm snapshot restores");
+    CHECK(Restore(world, snap, size), "the storm snapshot restores");
     for (int32_t i = 0; i < 40; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
     uint64_t first = m2World_Hash(world);
-    CHECK(m2World_Restore(world, snap, size), "the second restore lands too");
+    CHECK(Restore(world, snap, size), "the second restore lands too");
     for (int32_t i = 0; i < 40; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
@@ -139,10 +141,10 @@ static void TestJellyJournalStorm(void)
     def.shapeCapacity = 8;
     def.jointCapacity = 4;
     def.particleCapacity = 128;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     int32_t cap = 1 << 20;
     void* tape = malloc((size_t)cap);
-    CHECK(m2World_StartJournal(world, tape, cap), "the storm tape starts");
+    CHECK(StartJournal(world, tape, cap), "the storm tape starts");
     m2Polygon blob = m2MakeBox(0.2f, 0.2f);
     m2World_FillPolygonWithParticles(world, &blob, (m2Pos2){0.0, 1.0}, (m2Vec2){0.0f, 0.0f},
                                      m2_springParticle);
@@ -154,7 +156,7 @@ static void TestJellyJournalStorm(void)
     int32_t n = m2World_GetParticles(world, ids, 128);
     for (int32_t i = 0; i < n; i += 4)
     {
-        m2DestroyParticle(ids[i]);
+        DestroyParticle(world, ids[i]);
     }
     m2World_FillPolygonWithParticles(world, &blob, (m2Pos2){1.0, 1.0}, (m2Vec2){0.0f, -1.0f},
                                      m2_elasticParticle);
@@ -162,11 +164,11 @@ static void TestJellyJournalStorm(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t used = m2World_StopJournal(world);
+    int32_t used = StopJournal(world);
     CHECK(used > 0, "the storm tape closed");
     uint64_t recorded = m2World_Hash(world);
-    m2WorldId fresh = m2CreateWorld(&def);
-    CHECK(m2World_ReplayJournal(fresh, tape, used), "the storm tape replays");
+    m2World* fresh = NewWorld(&def);
+    CHECK(ReplayJournal(fresh, tape, used), "the storm tape replays");
     CHECK(m2World_Hash(fresh) == recorded, "torn nets replay onto the same bits");
     m2DestroyWorld(fresh);
     m2DestroyWorld(world);
@@ -183,7 +185,7 @@ static void TestHostileFills(void)
     def.jointCapacity = 4;
     def.particleCapacity = 32;
     def.gravity = (m2Vec2){0.0f, 0.0f};
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
 
     // Smaller than one stride: zero particles, zero nets, no crash.
     m2Polygon speck = m2MakeBox(0.02f, 0.02f);
@@ -209,7 +211,7 @@ static void TestHostileFills(void)
     int32_t n = m2World_GetParticles(world, ids, 32);
     for (int32_t i = 0; i < n; ++i)
     {
-        m2Pos2 p = m2Particle_GetPosition(ids[i]);
+        m2Pos2 p = m2Particle_GetPosition(world, ids[i]);
         CHECK(p.x == p.x && p.y == p.y, "a truncated lattice stays finite");
     }
     m2DestroyWorld(world);
@@ -224,7 +226,7 @@ static void TestMachineryResurrection(void)
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
     def.jointCapacity = 16;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2Circle disc = {{0.0f, 0.0f}, 0.4f};
     m2BodyId wheels[3];
     m2JointId pins[3];
@@ -232,13 +234,13 @@ static void TestMachineryResurrection(void)
     {
         m2BodyDef pd = m2DefaultBodyDef();
         pd.position = (m2Pos2){(double)i * 2.0, 2.0};
-        m2BodyId post = m2CreateBody(world, &pd);
+        m2BodyId post = NewBody(world, &pd);
         m2BodyDef wd = m2DefaultBodyDef();
         wd.type = m2_dynamicBody;
         wd.position = (m2Pos2){(double)i * 2.0, 2.0};
-        wheels[i] = m2CreateBody(world, &wd);
+        wheels[i] = NewBody(world, &wd);
         m2ShapeDef sd = m2DefaultShapeDef();
-        m2CreateCircleShape(wheels[i], &sd, &disc);
+        NewCircleShape(world, wheels[i], &sd, &disc);
         m2RevoluteJointDef rj = m2DefaultRevoluteJointDef();
         rj.bodyIdA = post;
         rj.bodyIdB = wheels[i];
@@ -248,32 +250,32 @@ static void TestMachineryResurrection(void)
             rj.motorSpeed = 2.0f;
             rj.maxMotorTorque = 50.0f;
         }
-        pins[i] = m2CreateRevoluteJoint(world, &rj);
+        pins[i] = NewRevoluteJoint(world, &rj);
     }
     (void)pins;
     m2GearJointDef gd = m2DefaultGearJointDef();
     gd.bodyIdA = wheels[0];
     gd.bodyIdB = wheels[1];
     gd.ratio = 1.5f;
-    m2JointId gear = m2CreateGearJoint(world, &gd);
+    m2JointId gear = NewGearJoint(world, &gd);
     m2RatchetJointDef rd = m2DefaultRatchetJointDef();
     rd.bodyIdA = wheels[1];
     rd.bodyIdB = wheels[2];
     rd.ratchet = 0.4f;
-    m2JointId pawl = m2CreateRatchetJoint(world, &rd);
+    m2JointId pawl = NewRatchetJoint(world, &rd);
     for (int32_t i = 0; i < 60; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
     int32_t size = m2World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
-    m2World_Snapshot(world, snap, size);
+    Snapshot(world, snap, size);
 
     // The knife: cut the gear, kill the ratchet's far wheel (its
     // joints must die with it), keep stepping.
-    m2DestroyJoint(gear);
-    m2DestroyBody(wheels[2]);
-    CHECK(!m2Joint_IsValid(pawl), "the ratchet dies with its wheel");
+    DestroyJoint(world, gear);
+    DestroyBody(world, wheels[2]);
+    CHECK(!m2Joint_IsValid(world, pawl), "the ratchet dies with its wheel");
     for (int32_t i = 0; i < 30; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
@@ -282,15 +284,15 @@ static void TestMachineryResurrection(void)
 
     // Resurrection: the workshop returns, gear ratio, ratchet tooth
     // and all, and the future is deterministic twice over.
-    CHECK(m2World_Restore(world, snap, size), "the workshop restores");
-    CHECK(m2Joint_IsValid(gear) && m2Joint_IsValid(pawl), "the machines came back");
-    CHECK(m2GearJoint_GetRatio(gear) == 1.5f, "the gear remembers its ratio");
+    CHECK(Restore(world, snap, size), "the workshop restores");
+    CHECK(m2Joint_IsValid(world, gear) && m2Joint_IsValid(world, pawl), "the machines came back");
+    CHECK(m2GearJoint_GetRatio(world, gear) == 1.5f, "the gear remembers its ratio");
     for (int32_t i = 0; i < 30; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
     uint64_t first = m2World_Hash(world);
-    m2World_Restore(world, snap, size);
+    Restore(world, snap, size);
     for (int32_t i = 0; i < 30; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
@@ -311,38 +313,38 @@ static void TestRatchetMotorWar(void)
         def.shapeCapacity = 8;
         def.jointCapacity = 8;
         def.gravity = (m2Vec2){0.0f, 0.0f};
-        m2WorldId world = m2CreateWorld(&def);
+        m2World* world = NewWorld(&def);
         m2BodyDef pd = m2DefaultBodyDef();
         pd.position = (m2Pos2){0.0, 2.0};
-        m2BodyId post = m2CreateBody(world, &pd);
+        m2BodyId post = NewBody(world, &pd);
         m2BodyDef wd = m2DefaultBodyDef();
         wd.type = m2_dynamicBody;
         wd.position = (m2Pos2){0.0, 2.0};
-        m2BodyId wheel = m2CreateBody(world, &wd);
+        m2BodyId wheel = NewBody(world, &wd);
         m2ShapeDef sd = m2DefaultShapeDef();
         m2Circle disc = {{0.0f, 0.0f}, 0.4f};
-        m2CreateCircleShape(wheel, &sd, &disc);
+        NewCircleShape(world, wheel, &sd, &disc);
         m2RevoluteJointDef rj = m2DefaultRevoluteJointDef();
         rj.bodyIdA = post;
         rj.bodyIdB = wheel;
         rj.enableMotor = true;
         rj.motorSpeed = 3.0f;
         rj.maxMotorTorque = 40.0f;
-        m2JointId pin = m2CreateRevoluteJoint(world, &rj);
+        m2JointId pin = NewRevoluteJoint(world, &rj);
         m2RatchetJointDef rd = m2DefaultRatchetJointDef();
         rd.bodyIdA = post;
         rd.bodyIdB = wheel;
         rd.ratchet = 0.3f;
-        m2CreateRatchetJoint(world, &rd);
+        NewRatchetJoint(world, &rd);
         for (int32_t i = 0; i < 240; ++i)
         {
             if (i % 30 == 0)
             {
-                m2Joint_SetMotorSpeed(pin, i % 60 == 0 ? 3.0f : -3.0f);
+                m2Joint_SetMotorSpeed(world, pin, i % 60 == 0 ? 3.0f : -3.0f);
             }
             m2World_Step(world, 1.0f / 60.0f, 4);
         }
-        m2Vec2 v = {m2Body_GetAngularVelocity(wheel), 0.0f};
+        m2Vec2 v = {m2Body_GetAngularVelocity(world, wheel), 0.0f};
         CHECK(v.x == v.x, "the war stays finite");
         hashes[run] = m2World_Hash(world);
         m2DestroyWorld(world);
@@ -359,7 +361,7 @@ static void TestDecomposeAdversaries(void)
                        {2.4f, 0.5f}, {1.8f, 0.5f}, {1.8f, 2.0f}, {1.2f, 2.0f},
                        {1.2f, 0.5f}, {0.6f, 0.5f}, {0.6f, 2.0f}, {0.0f, 2.0f}};
     m2Polygon pieces[24];
-    int32_t n = m2DecomposeOutline(comb, 12, pieces, 24);
+    int32_t n = DecomposeOutline(comb, 12, pieces, 24);
     CHECK(n >= 3, "the comb splits");
     float area = 0.0f;
     for (int32_t i = 0; i < n; ++i)
@@ -379,7 +381,7 @@ static void TestDecomposeAdversaries(void)
     // Collinear runs on the hull: straight vertices clip for free.
     m2Vec2 ruler[8] = {{0.0f, 0.0f}, {1.0f, 0.0f}, {2.0f, 0.0f}, {3.0f, 0.0f},
                        {3.0f, 1.0f}, {2.0f, 1.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}};
-    n = m2DecomposeOutline(ruler, 8, pieces, 24);
+    n = DecomposeOutline(ruler, 8, pieces, 24);
     CHECK(n >= 1, "the ruler decomposes");
     area = 0.0f;
     for (int32_t i = 0; i < n; ++i)
@@ -410,9 +412,9 @@ static void TestDecomposeAdversaries(void)
     }
     blade[62] = (m2Vec2){6.3f, 1.2f};
     blade[63] = (m2Vec2){0.0f, 1.2f};
-    n = m2DecomposeOutline(blade, 64, pieces, 24);
+    n = DecomposeOutline(blade, 64, pieces, 24);
     CHECK(n > 0, "the full 64-point budget decomposes");
-    int32_t total = m2DecomposeOutline(blade, 64, NULL, 0);
+    int32_t total = DecomposeOutline(blade, 64, NULL, 0);
     CHECK(total == n || total > 24, "count queries agree with fills");
 }
 
@@ -423,44 +425,44 @@ static void TestJournalDefenses(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     uint8_t buffer[1 << 16];
-    m2World_StartJournal(world, buffer, (int32_t)sizeof(buffer));
+    StartJournal(world, buffer, (int32_t)sizeof(buffer));
 
     m2BodyId box = AddBox(world, 0.0, 4.0);
-    m2Body_SetLinearVelocity(box, (m2Vec2){1.5f, 0.0f});
+    m2Body_SetLinearVelocity(world, box, (m2Vec2){1.5f, 0.0f});
     for (int32_t i = 0; i < 30; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t bytes = m2World_StopJournal(world);
+    int32_t bytes = StopJournal(world);
     CHECK(bytes > 0, "journal captured");
     uint64_t recordedHash = m2World_Hash(world);
     m2DestroyWorld(world);
 
-    m2WorldId fresh = m2CreateWorld(&def);
+    m2World* fresh = NewWorld(&def);
 
     uint8_t corrupt[1 << 16];
     memcpy(corrupt, buffer, (size_t)bytes);
     corrupt[0] ^= 0xFF; // magic
-    CHECK(!m2World_ReplayJournal(fresh, corrupt, bytes), "corrupt magic rejected");
+    CHECK(!ReplayJournal(fresh, corrupt, bytes), "corrupt magic rejected");
 
     memcpy(corrupt, buffer, (size_t)bytes);
     corrupt[4] ^= 0x01; // version
-    CHECK(!m2World_ReplayJournal(fresh, corrupt, bytes), "wrong version rejected");
+    CHECK(!ReplayJournal(fresh, corrupt, bytes), "wrong version rejected");
 
-    CHECK(!m2World_ReplayJournal(fresh, buffer, 16), "truncated header rejected");
+    CHECK(!ReplayJournal(fresh, buffer, 16), "truncated header rejected");
 
     m2WorldDef small = m2DefaultWorldDef();
     small.bodyCapacity = 4;
     small.shapeCapacity = 4;
-    m2WorldId wrongCapacity = m2CreateWorld(&small);
-    CHECK(!m2World_ReplayJournal(wrongCapacity, buffer, bytes), "capacity mismatch rejected");
+    m2World* wrongCapacity = NewWorld(&small);
+    CHECK(!ReplayJournal(wrongCapacity, buffer, bytes), "capacity mismatch rejected");
     m2DestroyWorld(wrongCapacity);
 
-    CHECK(m2World_ReplayJournal(fresh, buffer, bytes), "healthy replay works");
+    CHECK(ReplayJournal(fresh, buffer, bytes), "healthy replay works");
     CHECK(m2World_Hash(fresh) == recordedHash, "replay lands on the recorded bits");
-    CHECK(m2World_ReplayJournal(fresh, buffer, bytes), "second replay works");
+    CHECK(ReplayJournal(fresh, buffer, bytes), "second replay works");
     CHECK(m2World_Hash(fresh) == recordedHash, "second replay lands on the same bits");
 
     m2DestroyWorld(fresh);
@@ -476,65 +478,64 @@ static void TestParameterChannels(void)
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
     def.jointCapacity = 4;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyDef gd = m2DefaultBodyDef();
-    m2BodyId ground = m2CreateBody(world, &gd);
+    m2BodyId ground = NewBody(world, &gd);
     m2BodyId box = AddBox(world, 0.0, 4.0);
     m2ShapeId shape;
-    m2Body_GetShapes(box, &shape, 1);
+    m2Body_GetShapes(world, box, &shape, 1);
     m2RevoluteJointDef rj = m2DefaultRevoluteJointDef();
     rj.bodyIdA = ground;
     rj.bodyIdB = box;
-    m2JointId pin = m2CreateRevoluteJoint(world, &rj);
+    m2JointId pin = NewRevoluteJoint(world, &rj);
 
     uint64_t misuse = m2World_GetCounters(world).misuse;
-    m2Joint_SetMotorSpeed(pin, NAN);
-    m2Joint_SetMaxMotor(pin, -1.0f);
-    m2Joint_SetLimits(pin, 1.0f, -1.0f);
-    m2DistanceJoint_SetLength(pin, 2.0f); // a revolute has no length
-    m2Shape_SetFriction(shape, INFINITY);
-    m2Body_SetGravityScale(box, NAN);
+    m2Joint_SetMotorSpeed(world, pin, NAN);
+    m2Joint_SetMaxMotor(world, pin, -1.0f);
+    m2Joint_SetLimits(world, pin, 1.0f, -1.0f);
+    m2DistanceJoint_SetLength(world, pin, 2.0f); // a revolute has no length
+    m2Shape_SetFriction(world, shape, INFINITY);
+    m2Body_SetGravityScale(world, box, NAN);
     CHECK(m2World_GetCounters(world).misuse == misuse + 6, "each hostile parameter refuses once");
-    CHECK(m2LastResult() == m2_errorInvalid, "as invalid");
 
-    m2Joint_SetLimits(pin, -1.0f, 1.0f);
-    m2Shape_SetFriction(shape, 0.3f);
-    m2Body_SetGravityScale(box, 0.5f);
+    m2Joint_SetLimits(world, pin, -1.0f, 1.0f);
+    m2Shape_SetFriction(world, shape, 0.3f);
+    m2Body_SetGravityScale(world, box, 0.5f);
     CHECK(m2World_GetCounters(world).misuse == misuse + 6, "honest parameters pass");
 
-    m2Body_SetLinearDamping(box, -1.0f);
-    CHECK(m2Body_GetLinearDamping(box) == 0.0f, "a negative damping still clamps to zero");
+    m2Body_SetLinearDamping(world, box, -1.0f);
+    CHECK(m2Body_GetLinearDamping(world, box) == 0.0f, "a negative damping still clamps to zero");
 
     uint8_t tape[1 << 16];
     int32_t bytes = 0;
-    m2World_StartJournal(world, tape, (int32_t)sizeof(tape));
-    m2Body_SetLinearDamping(box, 0.25f);
-    bytes = m2World_StopJournal(world);
+    StartJournal(world, tape, (int32_t)sizeof(tape));
+    m2Body_SetLinearDamping(world, box, 0.25f);
+    bytes = StopJournal(world);
     // The last record is op 25 (body param) and a 16-byte payload whose
     // channel byte sits at offset 12.
     CHECK(bytes > 17 && tape[bytes - 17] == 25, "the tape ends in a body-param record");
     tape[bytes - 4] = 200;
-    CHECK(!m2World_ReplayJournal(world, tape, bytes), "an unknown body channel is rejected");
-    CHECK(m2LastResult() == m2_errorInvalid, "as invalid");
+    CHECK(m2World_ReplayJournal(world, tape, bytes) == m2_errorInvalid,
+          "an unknown body channel is rejected as invalid");
 
-    m2World_StartJournal(world, tape, (int32_t)sizeof(tape));
-    m2Shape_SetRestitution(shape, 0.5f);
-    bytes = m2World_StopJournal(world);
+    StartJournal(world, tape, (int32_t)sizeof(tape));
+    m2Shape_SetRestitution(world, shape, 0.5f);
+    bytes = StopJournal(world);
     CHECK(bytes > 17 && tape[bytes - 17] == 22, "the tape ends in a shape-param record");
     tape[bytes - 4] = 7;
-    CHECK(!m2World_ReplayJournal(world, tape, bytes), "an unknown shape channel is rejected");
+    CHECK(!ReplayJournal(world, tape, bytes), "an unknown shape channel is rejected");
 
     m2WorldDef other = def;
     other.bodyCapacity = 4;
-    m2WorldId elsewhere = m2CreateWorld(&other);
-    CHECK(!m2World_ReplayJournal(elsewhere, tape, bytes), "a tape for another world shape");
-    CHECK(m2LastResult() == m2_errorConfig, "is refused as a configuration mismatch");
+    m2World* elsewhere = NewWorld(&other);
+    CHECK(m2World_ReplayJournal(elsewhere, tape, bytes) == m2_errorInvalid,
+          "a tape for another world shape is refused as invalid");
     m2DestroyWorld(elsewhere);
 
     misuse = m2World_GetCounters(world).misuse;
-    m2DestroyJoint(pin);
-    m2DestroyJoint(pin);
-    m2Joint_SetMotorSpeed(pin, 1.0f);
+    DestroyJoint(world, pin);
+    DestroyJoint(world, pin);
+    m2Joint_SetMotorSpeed(world, pin, 1.0f);
     CHECK(m2World_GetCounters(world).misuse == misuse + 2, "stale joint calls refuse and count");
     m2DestroyWorld(world);
 }
@@ -548,7 +549,7 @@ static void TestHostileQueries(void)
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
     def.particleCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyId box = AddBox(world, 0.0, 0.0);
     m2QueryFilter filter = m2DefaultQueryFilter();
     m2Transform pose = {{0.0, 3.0}, {1.0f, 0.0f}};
@@ -585,10 +586,12 @@ static void TestHostileQueries(void)
 
     CHECK(m2World_CastCircleClosest(world, &ball, pose, down, filter).hit,
           "an honest cast still hits");
-    m2Body_SetTransform(box, (m2Pos2){1.0, 0.0}, (m2Rot){2.0f, 0.0f});
-    CHECK(m2LastResult() == m2_errorInvalid, "a teleport with a sheared rotation is refused");
-    m2Body_SetLinearVelocity(box, (m2Vec2){INFINITY, 0.0f});
-    CHECK(m2Body_GetLinearVelocity(box).x == 0.0f, "an infinite velocity never lands");
+    uint64_t beforeTeleport = m2World_GetCounters(world).misuse;
+    m2Body_SetTransform(world, box, (m2Pos2){1.0, 0.0}, (m2Rot){2.0f, 0.0f});
+    CHECK(m2World_GetCounters(world).misuse == beforeTeleport + 1,
+          "a teleport with a sheared rotation is refused");
+    m2Body_SetLinearVelocity(world, box, (m2Vec2){INFINITY, 0.0f});
+    CHECK(m2Body_GetLinearVelocity(world, box).x == 0.0f, "an infinite velocity never lands");
     m2World_SetGravity(world, (m2Vec2){0.0f, NAN});
     CHECK(m2World_GetGravity(world).y == def.gravity.y, "a NaN gravity never lands");
     m2DestroyWorld(world);
@@ -603,9 +606,9 @@ static void TestHostileJointDefs(void)
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
     def.jointCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyDef gd = m2DefaultBodyDef();
-    m2BodyId ground = m2CreateBody(world, &gd);
+    m2BodyId ground = NewBody(world, &gd);
     m2BodyId box = AddBox(world, 0.0, 2.0);
     uint64_t misuse = m2World_GetCounters(world).misuse;
 
@@ -613,34 +616,34 @@ static void TestHostileJointDefs(void)
     rj.bodyIdA = ground;
     rj.bodyIdB = box;
     rj.localAnchorA = (m2Vec2){NAN, 0.0f};
-    CHECK(m2CreateRevoluteJoint(world, &rj).index1 == 0, "a NaN anchor is refused");
+    CHECK(NewRevoluteJoint(world, &rj).index1 == 0, "a NaN anchor is refused");
     rj.localAnchorA = (m2Vec2){0.0f, 0.0f};
     rj.lowerAngle = 1.0f;
     rj.upperAngle = -1.0f;
-    CHECK(m2CreateRevoluteJoint(world, &rj).index1 == 0, "an inverted angle range is refused");
+    CHECK(NewRevoluteJoint(world, &rj).index1 == 0, "an inverted angle range is refused");
 
     m2DistanceJointDef dj = m2DefaultDistanceJointDef();
     dj.bodyIdA = ground;
     dj.bodyIdB = box;
     dj.hertz = -2.0f;
-    CHECK(m2CreateDistanceJoint(world, &dj).index1 == 0, "a negative stiffness is refused");
+    CHECK(NewDistanceJoint(world, &dj).index1 == 0, "a negative stiffness is refused");
 
     m2MotorJointDef mj = m2DefaultMotorJointDef();
     mj.bodyIdA = ground;
     mj.bodyIdB = box;
     mj.correctionFactor = 2.0f;
-    CHECK(m2CreateMotorJoint(world, &mj).index1 == 0, "a correction factor past one is refused");
+    CHECK(NewMotorJoint(world, &mj).index1 == 0, "a correction factor past one is refused");
 
     m2MouseJointDef sj = m2DefaultMouseJointDef();
     sj.bodyIdA = ground;
     sj.bodyIdB = box;
     sj.target = (m2Pos2){(double)INFINITY, 0.0};
-    CHECK(m2CreateMouseJoint(world, &sj).index1 == 0, "an infinite target is refused");
+    CHECK(NewMouseJoint(world, &sj).index1 == 0, "an infinite target is refused");
     CHECK(m2World_GetCounters(world).misuse == misuse + 5, "each refusal counts once");
 
     rj.lowerAngle = -1.0f;
     rj.upperAngle = 1.0f;
-    CHECK(m2CreateRevoluteJoint(world, &rj).index1 != 0, "an honest def still creates");
+    CHECK(NewRevoluteJoint(world, &rj).index1 != 0, "an honest def still creates");
     m2DestroyWorld(world);
 }
 
@@ -655,17 +658,17 @@ static void TestHostileSnapshotWords(void)
     def.bodyCapacity = 4;
     def.shapeCapacity = 4;
     def.jointCapacity = 2;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyDef gd = m2DefaultBodyDef();
-    m2BodyId ground = m2CreateBody(world, &gd);
+    m2BodyId ground = NewBody(world, &gd);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Polygon floor = m2MakeBox(5.0f, 0.5f);
-    m2CreatePolygonShape(ground, &sd, &floor);
+    NewPolygonShape(world, ground, &sd, &floor);
     m2BodyId box = AddBox(world, 0.0, 1.2);
     m2RevoluteJointDef rj = m2DefaultRevoluteJointDef();
     rj.bodyIdA = ground;
     rj.bodyIdB = box;
-    m2CreateRevoluteJoint(world, &rj);
+    NewRevoluteJoint(world, &rj);
     m2World_Step(world, 1.0f / 60.0f, 4);
 
     int32_t size = m2World_SnapshotSize(world);
@@ -678,7 +681,7 @@ static void TestHostileSnapshotWords(void)
         free(poisoned);
         return;
     }
-    m2World_Snapshot(world, clean, size);
+    Snapshot(world, clean, size);
     uint64_t cleanHash = m2World_Hash(world);
     int32_t refused = 0;
     int32_t untouched = 0;
@@ -687,13 +690,13 @@ static void TestHostileSnapshotWords(void)
         memcpy(poisoned, clean, (size_t)size);
         int32_t huge = 0x7FFFFFFF;
         memcpy(poisoned + at, &huge, sizeof(huge));
-        if (!m2World_Restore(world, poisoned, size))
+        if (!Restore(world, poisoned, size))
         {
             refused += 1;
             untouched += m2World_Hash(world) == cleanHash ? 1 : 0;
             continue;
         }
-        m2World_Restore(world, clean, size);
+        Restore(world, clean, size);
     }
     CHECK(refused > 0, "hostile words are refused");
     CHECK(untouched == refused, "a refused restore leaves the world as it was");
@@ -707,7 +710,7 @@ static void TestQueryEdges(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
 
     // Empty world: everything misses quietly.
     m2RayCastResult miss = m2World_CastRayClosest(world, (m2Pos2){0.0, 0.0}, (m2Vec2){5.0f, 0.0f},
@@ -727,7 +730,7 @@ static void TestQueryEdges(void)
     CHECK(inside.normal.x == 0.0f && inside.normal.y == 0.0f, "initial overlap has no normal");
 
     // Destroyed shapes drop out of query results after the flush.
-    m2DestroyBody(box);
+    DestroyBody(world, box);
     m2World_Step(world, 1.0f / 60.0f, 4);
     CHECK(m2World_OverlapAabb(world, (m2Pos2){-1.0, -1.0}, (m2Pos2){1.0, 1.0}, results, 4,
                               m2DefaultQueryFilter()) == 0,
@@ -743,8 +746,8 @@ static void TestMultiWorldIsolation(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
-    m2WorldId w1 = m2CreateWorld(&def);
-    m2WorldId w2 = m2CreateWorld(&def);
+    m2World* w1 = NewWorld(&def);
+    m2World* w2 = NewWorld(&def);
     for (int32_t i = 0; i < 5; ++i)
     {
         AddBox(w1, (double)i, 6.0 + 0.7 * (double)i);
@@ -760,7 +763,7 @@ static void TestMultiWorldIsolation(void)
     uint64_t expected[20];
     {
         // Reference trajectory from a third twin, no destruction around.
-        m2WorldId w3 = m2CreateWorld(&def);
+        m2World* w3 = NewWorld(&def);
         for (int32_t i = 0; i < 5; ++i)
         {
             AddBox(w3, (double)i, 6.0 + 0.7 * (double)i);
@@ -793,33 +796,34 @@ static void TestWakeAfterFrozenEra(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyDef fd = m2DefaultBodyDef();
     fd.position = (m2Pos2){0.0, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
+    m2BodyId floor = NewBody(world, &fd);
     m2ShapeDef fs = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(15.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
+    NewPolygonShape(world, floor, &fs, &slab);
     m2BodyId box = AddBox(world, 0.0, 0.5);
     for (int32_t i = 0; i < 150; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(!m2Body_IsAwake(box), "asleep deep in the frozen era");
-    double x0 = m2Body_GetPosition(box).x;
+    CHECK(!m2Body_IsAwake(world, box), "asleep deep in the frozen era");
+    double x0 = m2Body_GetPosition(world, box).x;
 
-    m2Body_ApplyLinearImpulseAtPoint(box, (m2Vec2){2.0f, 0.0f}, m2Body_GetPosition(box));
+    m2Body_ApplyLinearImpulseAtPoint(world, box, (m2Vec2){2.0f, 0.0f},
+                                     m2Body_GetPosition(world, box));
     for (int32_t i = 0; i < 30; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m2Body_GetPosition(box).x > x0 + 0.5, "the shoved sleeper actually moves");
+    CHECK(m2Body_GetPosition(world, box).x > x0 + 0.5, "the shoved sleeper actually moves");
 
     bool sleptAgain = false;
     for (int32_t i = 0; i < 300 && !sleptAgain; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
-        sleptAgain = !m2Body_IsAwake(box);
+        sleptAgain = !m2Body_IsAwake(world, box);
     }
     CHECK(sleptAgain, "and earns its sleep back");
     m2DestroyWorld(world);
@@ -833,13 +837,13 @@ static void TestTeleportOntoSleepers(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyDef fd = m2DefaultBodyDef();
     fd.position = (m2Pos2){0.0, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
+    m2BodyId floor = NewBody(world, &fd);
     m2ShapeDef fs = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(15.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
+    NewPolygonShape(world, floor, &fs, &slab);
     m2BodyId a = AddBox(world, 0.0, 0.5);
     m2BodyId b = AddBox(world, 0.0, 1.42);
     m2BodyId intruder = AddBox(world, 8.0, 0.5);
@@ -847,18 +851,18 @@ static void TestTeleportOntoSleepers(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(!m2Body_IsAwake(a) && !m2Body_IsAwake(b), "stack asleep");
+    CHECK(!m2Body_IsAwake(world, a) && !m2Body_IsAwake(world, b), "stack asleep");
 
-    m2Body_SetTransform(intruder, (m2Pos2){0.1, 0.9}, (m2Rot){1.0f, 0.0f}); // into the stack
+    m2Body_SetTransform(world, intruder, (m2Pos2){0.1, 0.9}, (m2Rot){1.0f, 0.0f}); // into the stack
     bool exploded = false;
     for (int32_t i = 0; i < 120; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
-        m2Vec2 v = m2Body_GetLinearVelocity(b);
+        m2Vec2 v = m2Body_GetLinearVelocity(world, b);
         exploded = exploded || v.x * v.x + v.y * v.y > 100.0f;
     }
     CHECK(!exploded, "overlap resolves without an explosion");
-    CHECK(m2Body_GetPosition(b).y > 0.3, "the stack sorts itself out");
+    CHECK(m2Body_GetPosition(world, b).y > 0.3, "the stack sorts itself out");
     m2DestroyWorld(world);
 }
 
@@ -870,13 +874,13 @@ static void TestSetTypeEdges(void)
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
     def.jointCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyDef fd = m2DefaultBodyDef();
     fd.position = (m2Pos2){0.0, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
+    m2BodyId floor = NewBody(world, &fd);
     m2ShapeDef fs = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(15.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
+    NewPolygonShape(world, floor, &fs, &slab);
 
     // Sleeping conversion round trip.
     m2BodyId sleeper = AddBox(world, 0.0, 0.5);
@@ -884,16 +888,16 @@ static void TestSetTypeEdges(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(!m2Body_IsAwake(sleeper), "asleep before conversion");
-    m2Body_SetType(sleeper, m2_staticBody);
-    m2Body_SetType(sleeper, m2_dynamicBody);
+    CHECK(!m2Body_IsAwake(world, sleeper), "asleep before conversion");
+    m2Body_SetType(world, sleeper, m2_staticBody);
+    m2Body_SetType(world, sleeper, m2_dynamicBody);
     m2World_Step(world, 1.0f / 60.0f, 4);
-    CHECK(m2Body_IsAwake(sleeper), "round-trip conversion wakes it");
+    CHECK(m2Body_IsAwake(world, sleeper), "round-trip conversion wakes it");
     bool resleeps = false;
     for (int32_t i = 0; i < 200 && !resleeps; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
-        resleeps = !m2Body_IsAwake(sleeper);
+        resleeps = !m2Body_IsAwake(world, sleeper);
     }
     CHECK(resleeps, "and it earns sleep again with real mass");
 
@@ -901,26 +905,26 @@ static void TestSetTypeEdges(void)
     m2BodyDef ad = m2DefaultBodyDef();
     ad.type = m2_dynamicBody;
     ad.position = (m2Pos2){5.0, 4.0};
-    m2BodyId pivot = m2CreateBody(world, &ad);
+    m2BodyId pivot = NewBody(world, &ad);
     m2ShapeDef ps = m2DefaultShapeDef();
     m2Circle pc = {{0.0f, 0.0f}, 0.2f};
-    m2CreateCircleShape(pivot, &ps, &pc);
+    NewCircleShape(world, pivot, &ps, &pc);
     m2BodyId bob = AddBox(world, 6.5, 4.0);
     m2RevoluteJointDef jd = m2DefaultRevoluteJointDef();
     jd.bodyIdA = pivot;
     jd.bodyIdB = bob;
     jd.localAnchorB = (m2Vec2){-1.5f, 0.0f};
-    m2JointId hinge = m2CreateRevoluteJoint(world, &jd);
-    m2Body_SetType(pivot, m2_staticBody); // becomes a wall anchor
+    m2JointId hinge = NewRevoluteJoint(world, &jd);
+    m2Body_SetType(world, pivot, m2_staticBody); // becomes a wall anchor
     for (int32_t i = 0; i < 120; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m2Joint_IsValid(hinge), "the joint survives its anchor turning static");
-    m2Pos2 pp = m2Body_GetPosition(pivot);
+    CHECK(m2Joint_IsValid(world, hinge), "the joint survives its anchor turning static");
+    m2Pos2 pp = m2Body_GetPosition(world, pivot);
     CHECK(pp.x == 5.0 && pp.y == 4.0, "the static anchor holds its ground");
-    double dx = m2Body_GetPosition(bob).x - pp.x;
-    double dy = m2Body_GetPosition(bob).y - pp.y;
+    double dx = m2Body_GetPosition(world, bob).x - pp.x;
+    double dy = m2Body_GetPosition(world, bob).y - pp.y;
     double rod = dx * dx + dy * dy;
     CHECK(rod > 1.9 && rod < 2.6, "the bob still hangs from it");
 
@@ -930,17 +934,17 @@ static void TestSetTypeEdges(void)
     bulletDef.isBullet = true;
     bulletDef.position = (m2Pos2){-8.0, 2.0};
     bulletDef.linearVelocity = (m2Vec2){60.0f, 0.0f};
-    m2BodyId bullet = m2CreateBody(world, &bulletDef);
+    m2BodyId bullet = NewBody(world, &bulletDef);
     m2ShapeDef bs = m2DefaultShapeDef();
     m2Circle bc = {{0.0f, 0.0f}, 0.1f};
-    m2CreateCircleShape(bullet, &bs, &bc);
+    NewCircleShape(world, bullet, &bs, &bc);
     m2World_Step(world, 1.0f / 60.0f, 4);
-    m2Body_SetType(bullet, m2_staticBody);
+    m2Body_SetType(world, bullet, m2_staticBody);
     for (int32_t i = 0; i < 30; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4); // must not crash the sweep
     }
-    CHECK(m2Body_GetLinearVelocity(bullet).x == 0.0f, "a static bullet is just a pebble");
+    CHECK(m2Body_GetLinearVelocity(world, bullet).x == 0.0f, "a static bullet is just a pebble");
 
     m2DestroyWorld(world);
 }
@@ -952,34 +956,35 @@ static void TestLoopChainBowl(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 16;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyDef gd = m2DefaultBodyDef();
     gd.position = (m2Pos2){0.0, 0.0};
-    m2BodyId frame = m2CreateBody(world, &gd);
+    m2BodyId frame = NewBody(world, &gd);
     // Diamond wound clockwise so the solid side faces INWARD.
     m2Vec2 diamond[4] = {{0.0f, 3.0f}, {3.0f, 0.0f}, {0.0f, -3.0f}, {-3.0f, 0.0f}};
     m2ChainDef chain = m2DefaultChainDef();
     chain.points = diamond;
     chain.count = 4;
     chain.isLoop = true;
-    m2ChainId bowlChain = m2CreateChain(frame, &chain);
-    CHECK(m2Chain_GetSegmentCount(bowlChain) == 4, "a loop of four points makes four segments");
+    m2ChainId bowlChain = NewChain(world, frame, &chain);
+    CHECK(m2Chain_GetSegmentCount(world, bowlChain) == 4,
+          "a loop of four points makes four segments");
 
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){0.3, 1.5};
-    m2BodyId ball = m2CreateBody(world, &bd);
+    m2BodyId ball = NewBody(world, &bd);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Circle c = {{0.0f, 0.0f}, 0.3f};
-    m2CreateCircleShape(ball, &sd, &c);
+    NewCircleShape(world, ball, &sd, &c);
     bool rested = false;
     for (int32_t i = 0; i < 600 && !rested; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
-        rested = !m2Body_IsAwake(ball);
+        rested = !m2Body_IsAwake(world, ball);
     }
     CHECK(rested, "the ball settles inside the bowl");
-    CHECK(m2Body_GetPosition(ball).y > -3.0, "and did not leak out the bottom");
+    CHECK(m2Body_GetPosition(world, ball).y > -3.0, "and did not leak out the bottom");
 
     m2DestroyWorld(world);
 }
@@ -993,31 +998,31 @@ static void TestBreakStorm(void)
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
     def.jointCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2JointId ropes[4];
     for (int32_t i = 0; i < 4; ++i)
     {
         m2BodyDef ad = m2DefaultBodyDef();
         ad.position = (m2Pos2){(double)i * 3.0, 6.0};
-        m2BodyId hook = m2CreateBody(world, &ad);
+        m2BodyId hook = NewBody(world, &ad);
         m2BodyDef cd = m2DefaultBodyDef();
         cd.type = m2_dynamicBody;
         cd.position = (m2Pos2){(double)i * 3.0, 4.0};
-        m2BodyId crate = m2CreateBody(world, &cd);
+        m2BodyId crate = NewBody(world, &cd);
         m2ShapeDef sd = m2DefaultShapeDef();
         sd.density = 5.0f;
         m2Polygon box = m2MakeBox(0.5f, 0.5f);
-        m2CreatePolygonShape(crate, &sd, &box);
+        NewPolygonShape(world, crate, &sd, &box);
         m2DistanceJointDef jd = m2DefaultDistanceJointDef();
         jd.bodyIdA = hook;
         jd.bodyIdB = crate;
-        ropes[i] = m2CreateDistanceJoint(world, &jd);
-        m2Joint_SetBreakLimits(ropes[i], 30.0f, 0.0f);
+        ropes[i] = NewDistanceJoint(world, &jd);
+        m2Joint_SetBreakLimits(world, ropes[i], 30.0f, 0.0f);
     }
 
     int32_t size = m2World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
-    CHECK(m2World_Snapshot(world, snap, size) == size, "snapshot");
+    CHECK(Snapshot(world, snap, size) == size, "snapshot");
 
     int32_t stormStep = -1;
     for (int32_t i = 0; i < 60 && stormStep < 0; ++i)
@@ -1038,10 +1043,10 @@ static void TestBreakStorm(void)
     }
     CHECK(stormStep >= 0, "the storm came");
 
-    CHECK(m2World_Restore(world, snap, size), "rollback before the storm");
+    CHECK(Restore(world, snap, size), "rollback before the storm");
     for (int32_t i = 0; i < 4; ++i)
     {
-        CHECK(m2Joint_IsValid(ropes[i]), "restore resurrects the curtain");
+        CHECK(m2Joint_IsValid(world, ropes[i]), "restore resurrects the curtain");
     }
     int32_t stormAgain = -1;
     for (int32_t i = 0; i < 60 && stormAgain < 0; ++i)
@@ -1066,44 +1071,44 @@ static void TestKinematicSensorHibernation(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyDef fd = m2DefaultBodyDef();
     fd.position = (m2Pos2){0.0, -0.5};
-    m2BodyId floor = m2CreateBody(world, &fd);
+    m2BodyId floor = NewBody(world, &fd);
     m2ShapeDef fs = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(10.0f, 0.5f);
-    m2CreatePolygonShape(floor, &fs, &slab);
+    NewPolygonShape(world, floor, &fs, &slab);
     m2BodyId sleeperBox = AddBox(world, 3.0, 0.5);
 
     m2BodyDef zd = m2DefaultBodyDef();
     zd.position = (m2Pos2){-3.0, 1.0};
-    m2BodyId zoneBody = m2CreateBody(world, &zd);
+    m2BodyId zoneBody = NewBody(world, &zd);
     m2ShapeDef zs = m2DefaultShapeDef();
     zs.isSensor = true;
     m2Polygon zone = m2MakeBox(1.5f, 1.5f);
-    m2ShapeId zoneId = m2CreatePolygonShape(zoneBody, &zs, &zone);
+    m2ShapeId zoneId = NewPolygonShape(world, zoneBody, &zs, &zone);
 
     m2BodyDef kd = m2DefaultBodyDef();
     kd.type = m2_kinematicBody;
     kd.position = (m2Pos2){-3.0, 1.0};
-    m2BodyId guard = m2CreateBody(world, &kd);
+    m2BodyId guard = NewBody(world, &kd);
     m2ShapeDef gs = m2DefaultShapeDef();
     m2Circle body = {{0.0f, 0.0f}, 0.3f};
-    m2CreateCircleShape(guard, &gs, &body);
+    NewCircleShape(world, guard, &gs, &body);
 
     for (int32_t i = 0; i < 250; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(!m2Body_IsAwake(sleeperBox), "the dynamic box sleeps");
+    CHECK(!m2Body_IsAwake(world, sleeperBox), "the dynamic box sleeps");
     m2ShapeId inside[2];
-    CHECK(m2Shape_GetSensorOverlaps(zoneId, inside, 2) == 1,
+    CHECK(m2Shape_GetSensorOverlaps(world, zoneId, inside, 2) == 1,
           "the resting guard still shows in the roll call");
     m2Profile profile = m2World_GetProfile(world);
     CHECK(profile.contactsMs == 0.0f && profile.solveMs == 0.0f,
           "a resting guard does not hold the world out of hibernation");
 
-    m2Body_SetLinearVelocity(guard, (m2Vec2){4.0f, 0.0f});
+    m2Body_SetLinearVelocity(world, guard, (m2Vec2){4.0f, 0.0f});
     bool sawExit = false;
     for (int32_t i = 0; i < 60 && !sawExit; ++i)
     {
@@ -1123,43 +1128,45 @@ static void TestBulletThroughOneWayChain(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 16;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyDef gd = m2DefaultBodyDef();
     gd.position = (m2Pos2){0.0, 2.0};
-    m2BodyId platform = m2CreateBody(world, &gd);
+    m2BodyId platform = NewBody(world, &gd);
     m2Vec2 pts[5] = {{6.0f, 0.0f}, {3.0f, 0.0f}, {0.0f, 0.0f}, {-3.0f, 0.0f}, {-6.0f, 0.0f}};
     m2ChainDef chain = m2DefaultChainDef();
     chain.points = pts;
     chain.count = 5; // right-to-left: solid side up
-    m2ChainId shelfChain = m2CreateChain(platform, &chain);
-    CHECK(m2Chain_GetSegmentCount(shelfChain) == 2, "two live segments");
+    m2ChainId shelfChain = NewChain(world, platform, &chain);
+    CHECK(m2Chain_GetSegmentCount(world, shelfChain) == 2, "two live segments");
 
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.isBullet = true;
     bd.position = (m2Pos2){0.5, -6.0};
     bd.linearVelocity = (m2Vec2){0.0f, 80.0f}; // straight up through the ghost side
-    m2BodyId riser = m2CreateBody(world, &bd);
+    m2BodyId riser = NewBody(world, &bd);
     m2ShapeDef bs = m2DefaultShapeDef();
     m2Circle ball = {{0.0f, 0.0f}, 0.1f};
-    m2CreateCircleShape(riser, &bs, &ball);
+    NewCircleShape(world, riser, &bs, &ball);
 
     for (int32_t i = 0; i < 12; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m2Body_GetPosition(riser).y > 4.0, "the rising bullet passed the one-way platform");
-    CHECK(m2Body_GetLinearVelocity(riser).y > 60.0f, "without losing its speed to the ghost");
+    CHECK(m2Body_GetPosition(world, riser).y > 4.0,
+          "the rising bullet passed the one-way platform");
+    CHECK(m2Body_GetLinearVelocity(world, riser).y > 60.0f,
+          "without losing its speed to the ghost");
 
     bd.position = (m2Pos2){-0.5, 10.0};
     bd.linearVelocity = (m2Vec2){0.0f, -80.0f};
-    m2BodyId diver = m2CreateBody(world, &bd);
-    m2CreateCircleShape(diver, &bs, &ball);
+    m2BodyId diver = NewBody(world, &bd);
+    NewCircleShape(world, diver, &bs, &ball);
     for (int32_t i = 0; i < 30; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m2Body_GetPosition(diver).y > 1.9, "the diving bullet stopped on the solid side");
+    CHECK(m2Body_GetPosition(world, diver).y > 1.9, "the diving bullet stopped on the solid side");
 
     m2DestroyWorld(world);
 }
@@ -1175,15 +1182,15 @@ static void TestChainSurgicalWake(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 32;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyDef gd = m2DefaultBodyDef();
-    m2BodyId ground = m2CreateBody(world, &gd);
+    m2BodyId ground = NewBody(world, &gd);
     m2Vec2 pts[6] = {{6.0f, 0.0f}, {4.0f, 0.0f},  {2.0f, 0.0f},
                      {0.0f, 0.0f}, {-2.0f, 0.0f}, {-4.0f, 0.0f}};
     m2ChainDef chain = m2DefaultChainDef();
     chain.points = pts;
     chain.count = 6;
-    m2ChainId chainId = m2CreateChain(ground, &chain);
+    m2ChainId chainId = NewChain(world, ground, &chain);
     m2ShapeDef fs = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(2.0f, 0.5f);
     m2Polygon shifted = slab;
@@ -1192,7 +1199,7 @@ static void TestChainSurgicalWake(void)
         shifted.vertices[v].x += 12.0f;
         shifted.vertices[v].y -= 0.5f;
     }
-    m2CreatePolygonShape(ground, &fs, &shifted);
+    NewPolygonShape(world, ground, &fs, &shifted);
 
     m2BodyId onChain = AddBox(world, 1.0, 0.45);
     m2BodyId onSlab = AddBox(world, 12.0, 0.45);
@@ -1200,17 +1207,17 @@ static void TestChainSurgicalWake(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(!m2Body_IsAwake(onChain) && !m2Body_IsAwake(onSlab), "both sleep");
+    CHECK(!m2Body_IsAwake(world, onChain) && !m2Body_IsAwake(world, onSlab), "both sleep");
 
-    m2DestroyChain(chainId);
-    m2DestroyChain(chainId); // double destroy: generation miss, silent
+    DestroyChain(world, chainId);
+    DestroyChain(world, chainId); // double destroy: generation miss, silent
     for (int32_t i = 0; i < 90; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m2Body_GetPosition(onChain).y < -2.0, "the chain rider wakes and falls");
-    CHECK(!m2Body_IsAwake(onSlab), "the slab sleeper never stirs");
-    CHECK(m2Body_GetPosition(onSlab).y > 0.0, "and stays put");
+    CHECK(m2Body_GetPosition(world, onChain).y < -2.0, "the chain rider wakes and falls");
+    CHECK(!m2Body_IsAwake(world, onSlab), "the slab sleeper never stirs");
+    CHECK(m2Body_GetPosition(world, onSlab).y > 0.0, "and stays put");
     m2DestroyWorld(world);
 }
 
@@ -1222,15 +1229,15 @@ static void TestChainRollbackResurrection(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 32;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyDef gd = m2DefaultBodyDef();
-    m2BodyId ground = m2CreateBody(world, &gd);
+    m2BodyId ground = NewBody(world, &gd);
     m2Vec2 pts[6] = {{6.0f, 0.0f}, {4.0f, 0.0f},  {2.0f, 0.0f},
                      {0.0f, 0.0f}, {-2.0f, 0.0f}, {-4.0f, 0.0f}};
     m2ChainDef chain = m2DefaultChainDef();
     chain.points = pts;
     chain.count = 6;
-    m2ChainId chainId = m2CreateChain(ground, &chain);
+    m2ChainId chainId = NewChain(world, ground, &chain);
     AddBox(world, 1.0, 0.45);
     for (int32_t i = 0; i < 120; ++i)
     {
@@ -1239,25 +1246,25 @@ static void TestChainRollbackResurrection(void)
 
     int32_t size = m2World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
-    CHECK(m2World_Snapshot(world, snap, size) == size, "snapshot before the demolition");
+    CHECK(Snapshot(world, snap, size) == size, "snapshot before the demolition");
 
-    m2DestroyChain(chainId);
+    DestroyChain(world, chainId);
     uint64_t hashes[40];
     for (int32_t i = 0; i < 40; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
         hashes[i] = m2World_Hash(world);
     }
-    CHECK(!m2Chain_IsValid(chainId), "gone after the demolition");
+    CHECK(!m2Chain_IsValid(world, chainId), "gone after the demolition");
 
-    CHECK(m2World_Restore(world, snap, size), "restore");
-    CHECK(m2Chain_IsValid(chainId), "the rolled-back chain id lives again");
-    CHECK(m2Chain_GetSegmentCount(chainId) == 3, "with all its segments");
+    CHECK(Restore(world, snap, size), "restore");
+    CHECK(m2Chain_IsValid(world, chainId), "the rolled-back chain id lives again");
+    CHECK(m2Chain_GetSegmentCount(world, chainId) == 3, "with all its segments");
     m2RayCastResult ray = m2World_CastRayClosest(world, (m2Pos2){1.0, 2.0}, (m2Vec2){0.0f, -4.0f},
                                                  m2DefaultQueryFilter());
     CHECK(ray.hit, "segments answer rays again");
 
-    m2DestroyChain(chainId);
+    DestroyChain(world, chainId);
     for (int32_t i = 0; i < 40; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
@@ -1275,31 +1282,32 @@ static void TestReactionRollbackReading(void)
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
     def.jointCapacity = 4;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyDef ad = m2DefaultBodyDef();
     ad.position = (m2Pos2){0.0, 6.0};
-    m2BodyId hook = m2CreateBody(world, &ad);
+    m2BodyId hook = NewBody(world, &ad);
     m2BodyId bob = AddBox(world, 2.0, 6.0); // horizontal start: it swings
     m2DistanceJointDef jd = m2DefaultDistanceJointDef();
     jd.bodyIdA = hook;
     jd.bodyIdB = bob;
-    m2JointId rope = m2CreateDistanceJoint(world, &jd);
+    m2JointId rope = NewDistanceJoint(world, &jd);
     for (int32_t i = 0; i < 60; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    float midSwing = m2Joint_GetReactionForce(rope);
+    float midSwing = m2Joint_GetReactionForce(world, rope);
     CHECK(midSwing > 0.0f, "a swinging rope carries load");
 
     int32_t size = m2World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
-    CHECK(m2World_Snapshot(world, snap, size) == size, "snapshot mid-swing");
+    CHECK(Snapshot(world, snap, size) == size, "snapshot mid-swing");
     for (int32_t i = 0; i < 30; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m2World_Restore(world, snap, size), "restore");
-    CHECK(m2Joint_GetReactionForce(rope) == midSwing, "the restored reading matches to the bit");
+    CHECK(Restore(world, snap, size), "restore");
+    CHECK(m2Joint_GetReactionForce(world, rope) == midSwing,
+          "the restored reading matches to the bit");
     free(snap);
     m2DestroyWorld(world);
 }
@@ -1312,13 +1320,13 @@ static void TestReactionAllTypes(void)
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
     def.jointCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
 
     // Prismatic elevator: vertical axis, limits locked at zero, so the
     // limit rows carry the cabin's weight.
     m2BodyDef pd = m2DefaultBodyDef();
     pd.position = (m2Pos2){0.0, 4.0};
-    m2BodyId post = m2CreateBody(world, &pd);
+    m2BodyId post = NewBody(world, &pd);
     m2BodyId cabin = AddBox(world, 0.0, 4.0);
     m2PrismaticJointDef pj = m2DefaultPrismaticJointDef();
     pj.bodyIdA = post;
@@ -1327,33 +1335,33 @@ static void TestReactionAllTypes(void)
     pj.enableLimit = true;
     pj.lowerTranslation = 0.0f;
     pj.upperTranslation = 0.0f;
-    m2JointId lift = m2CreatePrismaticJoint(world, &pj);
+    m2JointId lift = NewPrismaticJoint(world, &pj);
 
     // Wheel on a spring: the suspension row carries the hanging wheel.
     m2BodyDef cd = m2DefaultBodyDef();
     cd.position = (m2Pos2){6.0, 4.0};
-    m2BodyId strut = m2CreateBody(world, &cd);
+    m2BodyId strut = NewBody(world, &cd);
     m2BodyId hub = AddBox(world, 6.0, 4.0);
     m2WheelJointDef wj = m2DefaultWheelJointDef();
     wj.bodyIdA = strut;
     wj.bodyIdB = hub;
     wj.localAxisA = (m2Vec2){0.0f, 1.0f};
     wj.enableSpring = true;
-    m2JointId spring = m2CreateWheelJoint(world, &wj);
+    m2JointId spring = NewWheelJoint(world, &wj);
 
     // Revolute holding motor: a level arm pinned at its end, the motor
     // (speed zero, big budget) holds it against gravity.
     m2BodyDef hd = m2DefaultBodyDef();
     hd.position = (m2Pos2){12.0, 4.0};
-    m2BodyId pin = m2CreateBody(world, &hd);
+    m2BodyId pin = NewBody(world, &hd);
     m2BodyDef armDef = m2DefaultBodyDef();
     armDef.type = m2_dynamicBody;
     armDef.position = (m2Pos2){13.0, 4.0};
-    m2BodyId arm = m2CreateBody(world, &armDef);
+    m2BodyId arm = NewBody(world, &armDef);
     m2ShapeDef as = m2DefaultShapeDef();
     as.density = 2.0f;
     m2Polygon bar = m2MakeBox(1.0f, 0.1f);
-    m2CreatePolygonShape(arm, &as, &bar);
+    NewPolygonShape(world, arm, &as, &bar);
     m2RevoluteJointDef rj = m2DefaultRevoluteJointDef();
     rj.bodyIdA = pin;
     rj.bodyIdB = arm;
@@ -1361,20 +1369,20 @@ static void TestReactionAllTypes(void)
     rj.enableMotor = true;
     rj.motorSpeed = 0.0f;
     rj.maxMotorTorque = 100.0f;
-    m2JointId shoulder = m2CreateRevoluteJoint(world, &rj);
+    m2JointId shoulder = NewRevoluteJoint(world, &rj);
 
     for (int32_t i = 0; i < 120; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(m2Joint_GetReactionForce(lift) > 1.0f, "the prismatic lock carries the cabin");
-    CHECK(m2Joint_GetReactionForce(spring) > 1.0f, "the wheel spring carries the hub");
-    CHECK(m2Joint_GetReactionTorque(shoulder) > 1.0f, "the holding motor reads torque");
-    CHECK(m2Joint_GetReactionForce(shoulder) > 1.0f, "and the pin carries the arm");
+    CHECK(m2Joint_GetReactionForce(world, lift) > 1.0f, "the prismatic lock carries the cabin");
+    CHECK(m2Joint_GetReactionForce(world, spring) > 1.0f, "the wheel spring carries the hub");
+    CHECK(m2Joint_GetReactionTorque(world, shoulder) > 1.0f, "the holding motor reads torque");
+    CHECK(m2Joint_GetReactionForce(world, shoulder) > 1.0f, "and the pin carries the arm");
 
-    m2JointId never = {5, shoulder.world, 999};
-    CHECK(m2Joint_GetReactionForce(never) == 0.0f, "a bogus id reads zero force");
-    CHECK(m2Joint_GetReactionTorque(never) == 0.0f, "and zero torque");
+    m2JointId never = {5, 999};
+    CHECK(m2Joint_GetReactionForce(world, never) == 0.0f, "a bogus id reads zero force");
+    CHECK(m2Joint_GetReactionTorque(world, never) == 0.0f, "and zero torque");
     m2DestroyWorld(world);
 }
 
@@ -1390,22 +1398,23 @@ static void TestVelocityCapUnderRollback(void)
     for (int32_t wc = 0; wc < 2; ++wc)
     {
         m2WorldDef def = m2DefaultWorldDef();
-        def.workerCount = wc == 0 ? 1 : 4;
-        m2WorldId world = m2CreateWorld(&def);
+        static int32_t s_twinWorkers[2] = {1, 4};
+        TpUseWorkers(&def, &s_twinWorkers[wc]);
+        m2World* world = NewWorld(&def);
         m2BodyId body = AddBox(world, 0.0, 100.0);
-        m2Body_SetLinearVelocity(body, (m2Vec2){70000.0f, 4000.0f});
-        m2Body_SetAngularVelocity(body, 9000.0f);
+        m2Body_SetLinearVelocity(world, body, (m2Vec2){70000.0f, 4000.0f});
+        m2Body_SetAngularVelocity(world, body, 9000.0f);
         int32_t size = m2World_SnapshotSize(world);
         void* snap = malloc((size_t)size);
-        m2World_Snapshot(world, snap, size);
+        Snapshot(world, snap, size);
         m2World_Step(world, 1.0f / 60.0f, 4);
-        m2Vec2 v = m2Body_GetLinearVelocity(body);
-        float av = m2Body_GetAngularVelocity(body);
+        m2Vec2 v = m2Body_GetLinearVelocity(world, body);
+        float av = m2Body_GetAngularVelocity(world, body);
         CHECK(v.x * v.x + v.y * v.y < 460.0f * 460.0f, "the cap bounds an absurd linear speed");
         CHECK(av < 200.0f && av > -200.0f, "the cap bounds an absurd spin");
         CHECK(v.x == v.x && v.y == v.y && av == av, "the capped step leaves no NaN");
         uint64_t after = m2World_Hash(world);
-        CHECK(m2World_Restore(world, snap, size), "the capped world restores");
+        CHECK(Restore(world, snap, size), "the capped world restores");
         m2World_Step(world, 1.0f / 60.0f, 4);
         CHECK(m2World_Hash(world) == after, "the capped step replays bit for bit");
         caps[wc] = after;
@@ -1423,34 +1432,34 @@ static void TestBeltWakeReplayStorm(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyDef fd = m2DefaultBodyDef();
     fd.position = (m2Pos2){0.0, 0.0};
-    m2BodyId belt = m2CreateBody(world, &fd);
+    m2BodyId belt = NewBody(world, &fd);
     m2ShapeDef bsd = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(4.0f, 0.25f);
-    m2ShapeId beltShape = m2CreatePolygonShape(belt, &bsd, &slab);
-    m2Shape_SetTangentSpeed(beltShape, 0.0f);
+    m2ShapeId beltShape = NewPolygonShape(world, belt, &bsd, &slab);
+    m2Shape_SetTangentSpeed(world, beltShape, 0.0f);
     m2BodyId rider = AddBox(world, 0.0, 0.65);
-    for (int32_t i = 0; i < 400 && m2Body_IsAwake(rider); ++i)
+    for (int32_t i = 0; i < 400 && m2Body_IsAwake(world, rider); ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    CHECK(!m2Body_IsAwake(rider), "the rider sleeps on the stopped belt");
+    CHECK(!m2Body_IsAwake(world, rider), "the rider sleeps on the stopped belt");
     int32_t cap = 1 << 18;
     void* tape = malloc((size_t)cap);
-    CHECK(m2World_StartJournal(world, tape, cap), "the belt tape starts");
-    m2Shape_SetTangentSpeed(beltShape, 3.0f);
-    CHECK(m2Body_IsAwake(rider), "starting the belt wakes the sleeping rider");
+    CHECK(StartJournal(world, tape, cap), "the belt tape starts");
+    m2Shape_SetTangentSpeed(world, beltShape, 3.0f);
+    CHECK(m2Body_IsAwake(world, rider), "starting the belt wakes the sleeping rider");
     for (int32_t i = 0; i < 30; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t used = m2World_StopJournal(world);
+    int32_t used = StopJournal(world);
     CHECK(used > 0, "the belt tape closed");
     uint64_t recorded = m2World_Hash(world);
-    m2WorldId fresh = m2CreateWorld(&def);
-    CHECK(m2World_ReplayJournal(fresh, tape, used), "the belt tape replays");
+    m2World* fresh = NewWorld(&def);
+    CHECK(ReplayJournal(fresh, tape, used), "the belt tape replays");
     CHECK(m2World_Hash(fresh) == recorded, "the belt-wake side effect replays onto the same bits");
     m2DestroyWorld(fresh);
     m2DestroyWorld(world);
@@ -1467,23 +1476,24 @@ static void TestOffCenterInertiaPrismatic(void)
     for (int32_t wc = 0; wc < 2; ++wc)
     {
         m2WorldDef def = m2DefaultWorldDef();
-        def.workerCount = wc == 0 ? 1 : 4;
+        static int32_t s_twinWorkers[2] = {1, 4};
+        TpUseWorkers(&def, &s_twinWorkers[wc]);
         def.bodyCapacity = 8;
         def.jointCapacity = 4;
-        m2WorldId world = m2CreateWorld(&def);
+        m2World* world = NewWorld(&def);
         m2ShapeDef sd = m2DefaultShapeDef();
         m2BodyDef kd = m2DefaultBodyDef();
         kd.type = m2_kinematicBody;
         kd.angularVelocity = 6.0f;
-        m2BodyId base = m2CreateBody(world, &kd);
+        m2BodyId base = NewBody(world, &kd);
         m2Polygon bx = m2MakeBox(0.3f, 0.3f);
-        m2CreatePolygonShape(base, &sd, &bx);
+        NewPolygonShape(world, base, &sd, &bx);
         m2BodyDef dd = m2DefaultBodyDef();
         dd.type = m2_dynamicBody;
         dd.position = (m2Pos2){1.5, 0.0};
-        m2BodyId body = m2CreateBody(world, &dd);
+        m2BodyId body = NewBody(world, &dd);
         m2Circle off = {{3.0f, 0.0f}, 0.4f};
-        m2CreateCircleShape(body, &sd, &off);
+        NewCircleShape(world, body, &sd, &off);
         m2PrismaticJointDef pj = m2DefaultPrismaticJointDef();
         pj.bodyIdA = base;
         pj.bodyIdB = body;
@@ -1491,28 +1501,28 @@ static void TestOffCenterInertiaPrismatic(void)
         pj.enableLimit = true;
         pj.lowerTranslation = -4.0f;
         pj.upperTranslation = 4.0f;
-        m2CreatePrismaticJoint(world, &pj);
+        NewPrismaticJoint(world, &pj);
         m2PrismaticJointDef pj2 = pj;
         pj2.localAxisA = (m2Vec2){0.0f, 1.0f};
-        m2CreatePrismaticJoint(world, &pj2);
+        NewPrismaticJoint(world, &pj2);
         int32_t size = 0;
         void* snap = NULL;
         for (int32_t i = 0; i < 120; ++i)
         {
             m2World_Step(world, 1.0f / 60.0f, 4);
-            m2Vec2 v = m2Body_GetLinearVelocity(body);
-            float av = m2Body_GetAngularVelocity(body);
+            m2Vec2 v = m2Body_GetLinearVelocity(world, body);
+            float av = m2Body_GetAngularVelocity(world, body);
             CHECK(v.x == v.x && v.y == v.y && av == av,
                   "the off-center stressed body stays finite");
             if (i == 60)
             {
                 size = m2World_SnapshotSize(world);
                 snap = malloc((size_t)size);
-                m2World_Snapshot(world, snap, size);
+                Snapshot(world, snap, size);
             }
         }
         uint64_t after = m2World_Hash(world);
-        CHECK(m2World_Restore(world, snap, size), "the off-center stressed body restores");
+        CHECK(Restore(world, snap, size), "the off-center stressed body restores");
         for (int32_t i = 61; i < 120; ++i)
         {
             m2World_Step(world, 1.0f / 60.0f, 4);
@@ -1533,38 +1543,42 @@ static void TestChainRefusals(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 4;
     def.shapeCapacity = 4;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyDef gd = m2DefaultBodyDef();
-    m2BodyId ground = m2CreateBody(world, &gd);
+    m2BodyId ground = NewBody(world, &gd);
     m2Vec2 pts[4] = {{3.0f, 0.0f}, {1.0f, 0.0f}, {-1.0f, 0.0f}, {-3.0f, 0.0f}};
     m2ChainDef chain = m2DefaultChainDef();
     chain.points = pts;
     chain.count = 4;
+    m2ChainId made = m2_nullChainId;
     pts[1].x = NAN;
-    CHECK(m2CreateChain(ground, &chain).index1 == 0, "a NaN chain point refuses");
-    CHECK(m2LastResult() == m2_errorInvalid, "as invalid input");
+    CHECK(m2CreateChain(world, ground, &chain, &made) == m2_errorInvalid,
+          "a NaN chain point refuses as invalid input");
+    CHECK(made.index1 == 0, "and leaves the null id");
     pts[1] = pts[2];
-    CHECK(m2CreateChain(ground, &chain).index1 == 0, "a zero-length segment refuses");
-    CHECK(m2LastResult() == m2_errorInvalid, "as invalid input too");
+    CHECK(m2CreateChain(world, ground, &chain, &made) == m2_errorInvalid,
+          "a zero-length segment refuses as invalid input");
     pts[1] = (m2Vec2){1.0f, 0.0f};
     m2Circle ball = {{0.0f, 0.0f}, 0.5f};
     m2ShapeDef sd = m2DefaultShapeDef();
     for (int32_t i = 0; i < 4; ++i)
     {
-        m2CreateCircleShape(ground, &sd, &ball);
+        NewCircleShape(world, ground, &sd, &ball);
     }
-    CHECK(m2CreateChain(ground, &chain).index1 == 0, "a full shape pool refuses a chain");
-    CHECK(m2LastResult() == m2_errorCapacity, "as a capacity limit");
+    CHECK(m2CreateChain(world, ground, &chain, &made) == m2_errorCapacity,
+          "a full shape pool refuses a chain as a capacity limit");
     sd.friction = INFINITY;
     m2DestroyWorld(world);
 
-    world = m2CreateWorld(&def);
-    ground = m2CreateBody(world, &gd);
-    CHECK(m2CreateCircleShape(ground, &sd, &ball).index1 == 0, "infinite friction refuses");
+    world = NewWorld(&def);
+    ground = NewBody(world, &gd);
+    m2ShapeId shape = m2_nullShapeId;
+    CHECK(m2CreateCircleShape(world, ground, &sd, &ball, &shape) == m2_errorInvalid,
+          "infinite friction refuses as invalid input");
     sd = m2DefaultShapeDef();
     sd.tangentSpeed = NAN;
-    CHECK(m2CreateCircleShape(ground, &sd, &ball).index1 == 0, "a NaN belt speed refuses");
-    CHECK(m2LastResult() == m2_errorInvalid, "both as invalid input");
+    CHECK(m2CreateCircleShape(world, ground, &sd, &ball, &shape) == m2_errorInvalid,
+          "a NaN belt speed refuses as invalid input");
     m2DestroyWorld(world);
 }
 

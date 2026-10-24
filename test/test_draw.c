@@ -12,6 +12,7 @@
 // exactly as drawn. Draw carries no gated hash: it produces no state,
 // so it is a pure pass/fail suite.
 
+#include "helpers.h"
 #include "test_harness.h"
 
 #include "maul2d/maul2d.h"
@@ -142,18 +143,18 @@ static m2DebugDraw FullDraw(Rec* r)
     return d;
 }
 
-static m2BodyId AddBody(m2WorldId world, m2BodyType type, double x, double y)
+static m2BodyId AddBody(m2World* world, m2BodyType type, double x, double y)
 {
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = type;
     bd.position = (m2Pos2){x, y};
-    return m2CreateBody(world, &bd);
+    return NewBody(world, &bd);
 }
 
 static void TestShapeCounts(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
 
     // One of every geometry, on its own dynamic body, plus a static
     // box, a kinematic box, a sensor circle and a bullet box so every
@@ -162,37 +163,37 @@ static void TestShapeCounts(void)
 
     m2BodyId circleBody = AddBody(world, m2_dynamicBody, 0.0, 5.0);
     m2Circle circle = {{0.0f, 0.0f}, 0.5f};
-    m2CreateCircleShape(circleBody, &sd, &circle);
+    NewCircleShape(world, circleBody, &sd, &circle);
 
     m2BodyId boxBody = AddBody(world, m2_dynamicBody, 2.0, 5.0);
     m2Polygon box = m2MakeBox(0.4f, 0.4f);
-    m2CreatePolygonShape(boxBody, &sd, &box);
+    NewPolygonShape(world, boxBody, &sd, &box);
 
     m2BodyId capBody = AddBody(world, m2_dynamicBody, 4.0, 5.0);
     m2Capsule capsule = {{-0.3f, 0.0f}, {0.3f, 0.0f}, 0.2f};
-    m2CreateCapsuleShape(capBody, &sd, &capsule);
+    NewCapsuleShape(world, capBody, &sd, &capsule);
 
     m2BodyId segBody = AddBody(world, m2_staticBody, 6.0, 5.0);
     m2Segment segment = {{-1.0f, 0.0f}, {1.0f, 0.0f}};
-    m2CreateSegmentShape(segBody, &sd, &segment);
+    NewSegmentShape(world, segBody, &sd, &segment);
 
     m2BodyId kinBody = AddBody(world, m2_kinematicBody, 8.0, 5.0);
     m2Polygon kbox = m2MakeBox(0.3f, 0.3f);
-    m2CreatePolygonShape(kinBody, &sd, &kbox);
+    NewPolygonShape(world, kinBody, &sd, &kbox);
 
     m2ShapeDef sensorDef = m2DefaultShapeDef();
     sensorDef.isSensor = true;
     m2BodyId senBody = AddBody(world, m2_dynamicBody, 10.0, 5.0);
     m2Circle senCircle = {{0.0f, 0.0f}, 0.4f};
-    m2CreateCircleShape(senBody, &sensorDef, &senCircle);
+    NewCircleShape(world, senBody, &sensorDef, &senCircle);
 
     m2BodyDef bulletDef = m2DefaultBodyDef();
     bulletDef.type = m2_dynamicBody;
     bulletDef.isBullet = true;
     bulletDef.position = (m2Pos2){12.0, 5.0};
-    m2BodyId bulletBody = m2CreateBody(world, &bulletDef);
+    m2BodyId bulletBody = NewBody(world, &bulletDef);
     m2Polygon bbox = m2MakeBox(0.3f, 0.3f);
-    m2CreatePolygonShape(bulletBody, &sd, &bbox);
+    NewPolygonShape(world, bulletBody, &sd, &bbox);
 
     // Isolate the shape walk: joints/contacts/aabbs off.
     Rec r = {0};
@@ -264,19 +265,19 @@ static bool Near(m2Pos2 a, m2Pos2 b)
 static void TestWorldSpacePositions(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2ShapeDef sd = m2DefaultShapeDef();
 
     m2BodyDef bd = m2DefaultBodyDef();
     bd.position = (m2Pos2){100.0, -40.0};
     bd.rotation = m2MakeRot(0.6f);
-    m2BodyId boxBody = m2CreateBody(world, &bd);
+    m2BodyId boxBody = NewBody(world, &bd);
     m2Polygon box = m2MakeBox(0.5f, 0.25f);
-    m2CreatePolygonShape(boxBody, &sd, &box);
+    NewPolygonShape(world, boxBody, &sd, &box);
 
     m2BodyId ballBody = AddBody(world, m2_staticBody, -250.0, 30.0);
     m2Circle circle = {{0.0f, 0.0f}, 0.5f};
-    m2CreateCircleShape(ballBody, &sd, &circle);
+    NewCircleShape(world, ballBody, &sd, &circle);
 
     Placement p;
     memset(&p, 0, sizeof(p));
@@ -292,30 +293,31 @@ static void TestWorldSpacePositions(void)
     bool placed = p.polygonVertices > 0;
     for (int32_t i = 0; i < p.polygonVertices && i < box.count; ++i)
     {
-        placed = placed && Near(p.polygon[i], m2Body_GetWorldPoint(boxBody, box.vertices[i]));
+        placed =
+            placed && Near(p.polygon[i], m2Body_GetWorldPoint(world, boxBody, box.vertices[i]));
     }
     CHECK(placed, "polygon vertices land at the body's world points");
     CHECK(p.polygonVertices > 0 && p.polygon[0].x > 90.0 && p.polygon[0].x < 110.0,
           "local vertices compose with the f64 origin to world space");
-    CHECK(p.circleSeen && Near(p.circle, m2Body_GetPosition(ballBody)),
+    CHECK(p.circleSeen && Near(p.circle, m2Body_GetPosition(world, ballBody)),
           "a circle draws at its body's world position");
 
     m2DestroyWorld(world);
 }
 
-static m2BodyId PairBody(m2WorldId world, double x)
+static m2BodyId PairBody(m2World* world, double x)
 {
     m2BodyId body = AddBody(world, m2_dynamicBody, x, 5.0);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Polygon box = m2MakeBox(0.3f, 0.3f);
-    m2CreatePolygonShape(body, &sd, &box);
+    NewPolygonShape(world, body, &sd, &box);
     return body;
 }
 
 static void TestJointDrawing(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
 
     m2BodyId a = PairBody(world, 0.0);
     m2BodyId b = PairBody(world, 1.0);
@@ -324,7 +326,7 @@ static void TestJointDrawing(void)
     m2FilterJointDef fj = m2DefaultFilterJointDef();
     fj.bodyIdA = a;
     fj.bodyIdB = b;
-    m2CreateFilterJoint(world, &fj);
+    NewFilterJoint(world, &fj);
 
     // Distance joint: one segment, two anchor points.
     m2DistanceJointDef dj = m2DefaultDistanceJointDef();
@@ -332,41 +334,41 @@ static void TestJointDrawing(void)
     dj.bodyIdB = b;
     dj.localAnchorA = (m2Vec2){0.1f, 0.0f};
     dj.localAnchorB = (m2Vec2){-0.1f, 0.0f};
-    m2CreateDistanceJoint(world, &dj);
+    NewDistanceJoint(world, &dj);
 
     // Gear: hub to hub, one segment, no points.
     m2GearJointDef gj = m2DefaultGearJointDef();
     gj.bodyIdA = a;
     gj.bodyIdB = b;
     gj.ratio = 1.5f;
-    m2CreateGearJoint(world, &gj);
+    NewGearJoint(world, &gj);
 
     // Ratchet: hub to hub, one segment, no points.
     m2RatchetJointDef rj = m2DefaultRatchetJointDef();
     rj.bodyIdA = a;
     rj.bodyIdB = b;
     rj.ratchet = 0.3f;
-    m2CreateRatchetJoint(world, &rj);
+    NewRatchetJoint(world, &rj);
 
     // Mouse: from the world target to B, one segment, two points.
     m2MouseJointDef mj = m2DefaultMouseJointDef();
     mj.bodyIdA = a;
     mj.bodyIdB = b;
-    m2Pos2 bp = m2Body_GetPosition(b);
+    m2Pos2 bp = m2Body_GetPosition(world, b);
     mj.target = (m2Pos2){bp.x + 0.5, bp.y + 0.5};
     mj.maxForce = 50.0f;
-    m2CreateMouseJoint(world, &mj);
+    NewMouseJoint(world, &mj);
 
     // Pulley: three segments (two ropes + crossbar) and two ground points.
     m2PulleyJointDef pj = m2DefaultPulleyJointDef();
     pj.bodyIdA = a;
     pj.bodyIdB = b;
-    m2Pos2 pa = m2Body_GetPosition(a);
-    m2Pos2 pbp = m2Body_GetPosition(b);
+    m2Pos2 pa = m2Body_GetPosition(world, a);
+    m2Pos2 pbp = m2Body_GetPosition(world, b);
     pj.groundAnchorA = (m2Pos2){pa.x, pa.y + 3.0};
     pj.groundAnchorB = (m2Pos2){pbp.x, pbp.y + 3.0};
     pj.ratio = 1.0f;
-    m2CreatePulleyJoint(world, &pj);
+    NewPulleyJoint(world, &pj);
 
     // Isolate the joint walk.
     Rec r = {0};
@@ -402,14 +404,14 @@ static void TestChainDrawing(void)
     // A one-sided loop chain of four points becomes four chain-segment
     // shapes, each drawn as a segment; on a static body they are gray.
     m2WorldDef def = m2DefaultWorldDef();
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2BodyId ground = AddBody(world, m2_staticBody, 0.0, 0.0);
     m2Vec2 loop[4] = {{-2.0f, -2.0f}, {2.0f, -2.0f}, {2.0f, 2.0f}, {-2.0f, 2.0f}};
     m2ChainDef cd = m2DefaultChainDef();
     cd.points = loop;
     cd.count = 4;
     cd.isLoop = true;
-    m2CreateChain(ground, &cd);
+    NewChain(world, ground, &cd);
 
     Rec r = {0};
     m2DebugDraw d = FullDraw(&r);
@@ -426,16 +428,16 @@ static void TestChainDrawing(void)
 static void TestContactsAndAABBs(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2ShapeDef sd = m2DefaultShapeDef();
 
     m2BodyId floor = AddBody(world, m2_staticBody, 0.0, 0.0);
     m2Polygon slab = m2MakeBox(10.0f, 0.5f);
-    m2CreatePolygonShape(floor, &sd, &slab);
+    NewPolygonShape(world, floor, &sd, &slab);
 
     m2BodyId box = AddBody(world, m2_dynamicBody, 0.0, 0.9);
     m2Polygon b = m2MakeBox(0.5f, 0.5f);
-    m2CreatePolygonShape(box, &sd, &b);
+    NewPolygonShape(world, box, &sd, &b);
 
     // A sensor sitting over the box: its overlap is a touching pair the
     // contact pass must SKIP (sensors are not contacts), exercising the
@@ -444,7 +446,7 @@ static void TestContactsAndAABBs(void)
     sensorDef.isSensor = true;
     m2BodyId sensor = AddBody(world, m2_staticBody, 0.0, 0.9);
     m2Polygon sbox = m2MakeBox(0.6f, 0.6f);
-    m2CreatePolygonShape(sensor, &sensorDef, &sbox);
+    NewPolygonShape(world, sensor, &sensorDef, &sbox);
 
     // Settle enough to make a real touching manifold.
     for (int i = 0; i < 30; ++i)
@@ -466,8 +468,8 @@ static void TestContactsAndAABBs(void)
     // shapes remain in the tree: floor, box, sensor.
     m2BodyId ghost = AddBody(world, m2_dynamicBody, 5.0, 5.0);
     m2Polygon gb = m2MakeBox(0.3f, 0.3f);
-    m2CreatePolygonShape(ghost, &sd, &gb);
-    m2Body_Disable(ghost);
+    NewPolygonShape(world, ghost, &sd, &gb);
+    m2Body_Disable(world, ghost);
 
     Rec ra = {0};
     m2DebugDraw da = FullDraw(&ra);
@@ -485,15 +487,15 @@ static void TestContactsAndAABBs(void)
 static void TestContactForces(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2ShapeDef sd = m2DefaultShapeDef();
 
     m2BodyId floor = AddBody(world, m2_staticBody, 0.0, 0.0);
     m2Polygon slab = m2MakeBox(10.0f, 0.5f);
-    m2CreatePolygonShape(floor, &sd, &slab);
+    NewPolygonShape(world, floor, &sd, &slab);
     m2BodyId box = AddBody(world, m2_dynamicBody, 0.0, 0.9);
     m2Polygon b = m2MakeBox(0.5f, 0.5f);
-    m2CreatePolygonShape(box, &sd, &b);
+    NewPolygonShape(world, box, &sd, &b);
     for (int i = 0; i < 30; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
@@ -530,18 +532,18 @@ static void TestContactForces(void)
 static void TestReadOnlyAndRepeatable(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
     m2ShapeDef sd = m2DefaultShapeDef();
 
     m2BodyId floor = AddBody(world, m2_staticBody, 0.0, 0.0);
     m2Polygon slab = m2MakeBox(6.0f, 0.5f);
-    m2CreatePolygonShape(floor, &sd, &slab);
+    NewPolygonShape(world, floor, &sd, &slab);
     for (int i = 0; i < 6; ++i)
     {
         m2BodyId box =
             AddBody(world, m2_dynamicBody, (double)i * 0.3 - 0.75, 1.0 + (double)i * 0.6);
         m2Polygon b = m2MakeBox(0.25f, 0.25f);
-        m2CreatePolygonShape(box, &sd, &b);
+        NewPolygonShape(world, box, &sd, &b);
     }
     for (int i = 0; i < 40; ++i)
     {
@@ -570,13 +572,13 @@ static void TestReadOnlyAndRepeatable(void)
 static void TestNullAndEmpty(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NewWorld(&def);
 
     // A null draw pointer and a null world are both no-ops, not crashes.
     m2World_Draw(world, NULL);
     Rec r = {0};
     m2DebugDraw d = FullDraw(&r);
-    m2World_Draw(m2_nullWorldId, &d);
+    m2World_Draw(NULL, &d);
     CHECK(r.polygons == 0 && r.segments == 0, "drawing a null world emits nothing");
 
     // An empty world draws nothing.
@@ -588,10 +590,10 @@ static void TestNullAndEmpty(void)
     m2ShapeDef sd = m2DefaultShapeDef();
     m2BodyId body = AddBody(world, m2_dynamicBody, 0.0, 0.0);
     m2Circle circle = {{0.0f, 0.0f}, 0.5f};
-    m2CreateCircleShape(body, &sd, &circle);
+    NewCircleShape(world, body, &sd, &circle);
     m2BodyId boxBody = AddBody(world, m2_dynamicBody, 2.0, 0.0);
     m2Polygon box = m2MakeBox(0.3f, 0.3f);
-    m2CreatePolygonShape(boxBody, &sd, &box);
+    NewPolygonShape(world, boxBody, &sd, &box);
 
     Rec r2 = {0};
     m2DebugDraw partial;

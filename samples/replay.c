@@ -10,9 +10,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-static void Shove(m2BodyId body, float impulseX)
+// Stops the program when a call fails; a sample has nothing to fall back
+// to.
+static void Require(m2Result result, const char* what)
 {
-    m2Body_ApplyLinearImpulseAtPoint(body, (m2Vec2){impulseX, 0.0f}, m2Body_GetPosition(body));
+    if (result != m2_success)
+    {
+        fprintf(stderr, "%s: %s\n", what, m2ResultName(result));
+        exit(1);
+    }
+}
+
+static void Shove(m2World* world, m2BodyId body, float impulseX)
+{
+    m2Body_ApplyLinearImpulseAtPoint(world, body, (m2Vec2){impulseX, 0.0f},
+                                     m2Body_GetPosition(world, body));
 }
 
 int main(void)
@@ -23,24 +35,27 @@ int main(void)
     def.bodyCapacity = 64;
     def.shapeCapacity = 64;
     def.jointCapacity = 8;
-    m2WorldId world = m2CreateWorld(&def);
+    m2World* world = NULL;
+    Require(m2CreateWorld(&def, &world), "create the world");
 
     int tapeCapacity = m2World_GetJournalBaseSize(world) + (1 << 16);
     unsigned char* journal = malloc((size_t)tapeCapacity);
-    if (!m2World_StartJournal(world, journal, tapeCapacity))
+    if (journal == NULL)
     {
-        printf("journal would not start - tape too small?\n");
         return 1;
     }
+    Require(m2World_StartJournal(world, journal, tapeCapacity), "start the journal");
 
     // Everything from here on is being recorded: creation, physics
     // steps, impulses, even destruction.
     m2BodyDef groundDef = m2DefaultBodyDef();
     groundDef.position = (m2Pos2){0.0, -0.5};
-    m2BodyId ground = m2CreateBody(world, &groundDef);
+    m2BodyId ground = m2_nullBodyId;
+    Require(m2CreateBody(world, &groundDef, &ground), "create the ground");
     m2ShapeDef groundShape = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(20.0f, 0.5f);
-    m2CreatePolygonShape(ground, &groundShape, &slab);
+    m2ShapeId shape = m2_nullShapeId;
+    Require(m2CreatePolygonShape(world, ground, &groundShape, &slab, &shape), "shape the ground");
 
     m2BodyId boxes[5];
     for (int i = 0; i < 5; ++i)
@@ -48,33 +63,35 @@ int main(void)
         m2BodyDef bd = m2DefaultBodyDef();
         bd.type = m2_dynamicBody;
         bd.position = (m2Pos2){-2.0 + (double)i, 2.0 + 0.5 * (double)i};
-        boxes[i] = m2CreateBody(world, &bd);
+        Require(m2CreateBody(world, &bd, &boxes[i]), "create a box");
         m2ShapeDef sd = m2DefaultShapeDef();
         m2Polygon unit = m2MakeBox(0.4f, 0.4f);
-        m2CreatePolygonShape(boxes[i], &sd, &unit);
+        Require(m2CreatePolygonShape(world, boxes[i], &sd, &unit, &shape), "shape a box");
     }
 
     for (int step = 0; step < 60; ++step)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    Shove(boxes[2], 3.0f);   // meddle mid-session
-    m2DestroyBody(boxes[4]); // and destroy something, why not
+    Shove(world, boxes[2], 3.0f);                             // meddle mid-session
+    Require(m2DestroyBody(world, boxes[4]), "destroy a box"); // and destroy something
     for (int step = 0; step < 60; ++step)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
 
-    int bytes = m2World_StopJournal(world);
+    int bytes = 0;
+    Require(m2World_StopJournal(world, &bytes), "stop the journal");
     unsigned long long recorded = (unsigned long long)m2World_Hash(world);
     printf("recorded %d bytes of session, end hash %016llx\n", bytes, recorded);
 
     // A brand-new world, same capacities, replay the tape.
-    m2WorldId fresh = m2CreateWorld(&def);
-    bool ok = m2World_ReplayJournal(fresh, journal, bytes);
+    m2World* fresh = NULL;
+    Require(m2CreateWorld(&def, &fresh), "create the fresh world");
+    Require(m2World_ReplayJournal(fresh, journal, bytes), "replay the tape");
     unsigned long long replayed = (unsigned long long)m2World_Hash(fresh);
     printf("replayed into a fresh world,  end hash %016llx\n", replayed);
-    printf(ok && recorded == replayed ? "bit-exact match.\n" : "MISMATCH - file a bug!\n");
+    printf(recorded == replayed ? "bit-exact match.\n" : "MISMATCH - file a bug!\n");
 
     m2DestroyWorld(fresh);
     m2DestroyWorld(world);

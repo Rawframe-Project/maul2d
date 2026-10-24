@@ -11,6 +11,8 @@
 #include "solver_base.h"
 #include "world_internal.h"
 
+#include <stddef.h>
+
 // A step's contact work: the constraints, their colors and blocks.
 typedef struct m2ContactPlan
 {
@@ -34,6 +36,6 @@ void m2RunContactStage(m2World* world, const m2ContactPlan* plan, m2ContactStage
 int32_t m2ContactConstraintSize(void);
 
 // Bytes of the block scratch for a pair capacity.
-int32_t m2ContactBlockScratchBytes(int32_t pairCapacity);
+size_t m2ContactBlockScratchBytes(int32_t pairCapacity);
 
 #endif // MAUL2D_SRC_CONTACT_SOLVER_H

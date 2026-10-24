@@ -1,107 +1,36 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
+//
+// The library version and the names of the result codes.
 
 #include "core.h"
 
 #include "maul2d/base.h"
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-
-// The host hooks: set before the first world, constant while worlds
-// live. Hooked memory may arrive uninitialized, so the zeroing happens
-// here either way.
-static m2AllocFn* s_hookAlloc = NULL;
-static m2FreeFn* s_hookFree = NULL;
-static void* s_hookContext = NULL;
-
-void m2SetAllocator(m2AllocFn* allocFn, m2FreeFn* freeFn, void* context)
+m2Version m2GetVersion(void)
 {
-    // Both or neither: a mismatched pair would free with the wrong
-    // authority.
-    if ((allocFn == NULL) != (freeFn == NULL))
+    return (m2Version){M2_VERSION_MAJOR, M2_VERSION_MINOR, M2_VERSION_PATCH};
+}
+
+const char* m2ResultName(m2Result result)
+{
+    switch (result)
     {
-        m2SetLastResult(m2_errorInvalid);
-        return;
+    case m2_success:
+        return "m2_success";
+    case m2_errorInvalid:
+        return "m2_errorInvalid";
+    case m2_errorCapacity:
+        return "m2_errorCapacity";
+    case m2_errorStale:
+        return "m2_errorStale";
+    case m2_errorUnsupported:
+        return "m2_errorUnsupported";
+    case m2_errorState:
+        return "m2_errorState";
+    case m2_errorVersion:
+        return "m2_errorVersion";
+    default:
+        return "unknown m2Result";
     }
-    s_hookAlloc = allocFn;
-    s_hookFree = freeFn;
-    s_hookContext = context;
-}
-
-// Internal faces (world_internal.h).
-void* m2AllocZeroed(size_t bytes)
-{
-    if (s_hookAlloc == NULL)
-    {
-        return calloc(1, bytes);
-    }
-    void* memory = s_hookAlloc(bytes, s_hookContext);
-    if (memory != NULL)
-    {
-        memset(memory, 0, bytes);
-    }
-    return memory;
-}
-
-void m2Free(void* memory)
-{
-    if (s_hookFree == NULL)
-    {
-        free(memory);
-    }
-    else
-    {
-        s_hookFree(memory, s_hookContext);
-    }
-}
-
-int32_t m2GetVersion(void)
-{
-    return M2_VERSION_MAJOR * 10000 + M2_VERSION_MINOR * 100 + M2_VERSION_PATCH;
-}
-
-#if defined(_MSC_VER)
-#define M2_THREAD_LOCAL __declspec(thread)
-#else
-#define M2_THREAD_LOCAL _Thread_local
-#endif
-
-// One slot per thread: a refusal on one thread never overwrites the
-// reason another thread is about to read.
-static M2_THREAD_LOCAL m2Result s_lastResult = m2_success;
-
-m2Result m2LastResult(void)
-{
-    return s_lastResult;
-}
-
-void m2SetLastResult(m2Result reason)
-{
-    s_lastResult = reason;
-}
-
-static m2AssertFn* s_assertHandler = NULL;
-static void* s_assertContext = NULL;
-
-void m2SetAssertHandler(m2AssertFn* handler, void* context)
-{
-    s_assertHandler = handler;
-    s_assertContext = context;
-}
-
-int m2ReportToHost(const char* message, const char* where)
-{
-    return s_assertHandler != NULL && s_assertHandler(message, where, 0, s_assertContext) != 0;
-}
-
-void m2AssertFail(const char* condition, const char* file, int line)
-{
-    if (s_assertHandler != NULL && s_assertHandler(condition, file, line, s_assertContext) != 0)
-    {
-        return; // the host handled it
-    }
-    fprintf(stderr, "maul2d assertion failed: %s (%s:%d)\n", condition, file, line);
-    abort();
 }

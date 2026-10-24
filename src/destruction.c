@@ -11,7 +11,6 @@
 #include "journal.h"
 #include "object_ids.h"
 #include "world_internal.h"
-#include "world_registry.h"
 
 #include "maul2d/base.h"
 
@@ -83,9 +82,12 @@ static void BlastShape(m2World* world, const m2ExplosionDef* def, int32_t s)
     world->bodies.sleepTimes[body] = 0.0f;
 }
 
-void m2World_Explode(m2WorldId worldId, const m2ExplosionDef* def)
+void m2World_Explode(m2World* world, const m2ExplosionDef* def)
 {
-    m2World* world = m2GetWorld(worldId);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
     if (world == NULL || def == NULL || def->internalValue != M2_EXPLODE_COOKIE ||
         !(def->radius >= 0.0f) || !(def->falloff > 0.0f))
     {
@@ -145,10 +147,16 @@ static m2BodyId CreatePiece(m2World* world, int32_t parent, const m2ShapeDef* sh
     bd.gravityScale = world->bodies.gravityScales[parent];
     bd.linearDamping = world->bodies.linearDampings[parent];
     bd.angularDamping = world->bodies.angularDampings[parent];
-    m2BodyId piece =
-        m2CreateBody((m2WorldId){(uint16_t)(world->slot + 1), world->worldGeneration}, &bd);
-    m2CreatePolygonShape(piece, shapeDef, polygon);
-    int32_t index = piece.index1 - 1;
+    // The caller checked both pools, and the trees hold two nodes per
+    // shape slot, so neither create can fail.
+    m2BodyId piece = m2_nullBodyId;
+    m2Result made = m2CreateBody(world, &bd, &piece);
+    M2_ASSERT(made == m2_success);
+    m2ShapeId shape = m2_nullShapeId;
+    made = m2CreatePolygonShape(world, piece, shapeDef, polygon, &shape);
+    M2_ASSERT(made == m2_success);
+    (void)made;
+    int32_t index = (int32_t)piece.index1 - 1;
     m2Vec2 lc = world->bodies.localCenters[index];
     m2Vec2 arm = {xf.q.c * lc.x - xf.q.s * lc.y, xf.q.s * lc.x + xf.q.c * lc.y};
     float rx = arm.x - comArm.x;
@@ -159,10 +167,13 @@ static m2BodyId CreatePiece(m2World* world, int32_t parent, const m2ShapeDef* sh
     return piece;
 }
 
-int32_t m2World_ShatterBody(m2BodyId bodyId, const m2Polygon* pieces, int32_t pieceCount,
-                            m2BodyId* outBodies, int32_t capacity)
+int32_t m2World_ShatterBody(m2World* world, m2BodyId bodyId, const m2Polygon* pieces,
+                            int32_t pieceCount, m2BodyId* bodiesOut, int32_t capacity)
 {
-    m2World* world = m2WorldFromTag(bodyId.world);
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return 0;
+    }
     int32_t parent = world != NULL ? m2BodySlot(world, bodyId) : -1;
     bool valid = parent >= 0 && pieces != NULL && pieceCount >= 1 && pieceCount <= 64 &&
                  world->bodies.types[parent] == (uint8_t)m2_dynamicBody;
@@ -187,13 +198,15 @@ int32_t m2World_ShatterBody(m2BodyId bodyId, const m2Polygon* pieces, int32_t pi
     for (int32_t i = 0; i < pieceCount; ++i)
     {
         m2BodyId piece = CreatePiece(world, parent, &shapeDef, &pieces[i]);
-        firstIndex1 = i == 0 ? piece.index1 : firstIndex1;
-        if (outBodies != NULL && i < capacity)
+        firstIndex1 = i == 0 ? (int32_t)piece.index1 : firstIndex1;
+        if (bodiesOut != NULL && i < capacity)
         {
-            outBodies[i] = piece;
+            bodiesOut[i] = piece;
         }
     }
-    m2DestroyBody(bodyId); // joints die with it, touching sleepers wake
+    m2Result destroyed = m2DestroyBody(world, bodyId); // joints die with it, sleepers wake
+    M2_ASSERT(destroyed == m2_success);
+    (void)destroyed;
     world->recorder.journalActive = journalWasActive;
     m2JournalRecordShatter(world, bodyId, pieces, pieceCount, firstIndex1);
     return pieceCount;
