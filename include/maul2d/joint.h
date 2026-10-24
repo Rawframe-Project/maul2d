@@ -306,10 +306,14 @@ extern "C"
     /// already gone. Thread class: writer.
     M2_NODISCARD M2_API m2Result m2DestroyJoint(m2World* world, m2JointId jointId);
 
-    /// Runtime joint tuning. Motor speed is rad/s on revolute and
+    /// Runtime joint tuning. Motors and limits belong to the revolute,
+    /// prismatic and wheel joints; m2Joint_SetMaxMotor also sets a motor
+    /// joint's torque budget. On any other joint these calls change
+    /// nothing and count one misuse. Motor speed is rad/s on revolute and
     /// wheel joints, m/s on prismatic; max motor is a torque or force
     /// budget accordingly. Every change wakes both bodies and is
-    /// journaled. Distance joints ignore motor and limit parameters.
+    /// journaled. A distance joint's range is set with
+    /// m2DistanceJoint_SetLengthRange.
     M2_API void m2Joint_SetMotorSpeed(m2World* world, m2JointId jointId, float speed);
     M2_API void m2Joint_SetMaxMotor(m2World* world, m2JointId jointId, float maxTorqueOrForce);
     M2_API void m2Joint_EnableMotor(m2World* world, m2JointId jointId, bool enable);
@@ -351,9 +355,9 @@ extern "C"
 
     /// Parameter readback, completing the integrator surface: a world
     /// can be reconstructed from public getters alone (the mirror test
-    /// proves it). Type-specific getters are loud on the wrong type;
-    /// motor and limit reads on a distance joint return zero quietly,
-    /// mirroring the setters that ignore them.
+    /// proves it). Type-specific getters count one misuse on the wrong
+    /// type and return zero, the motor and limit reads included;
+    /// m2Joint_GetLimits also reads a distance joint's length range.
     M2_API m2Vec2 m2Joint_GetLocalAnchorA(const m2World* world, m2JointId jointId);
     M2_API m2Vec2 m2Joint_GetLocalAnchorB(const m2World* world, m2JointId jointId);
     M2_API m2Vec2 m2Joint_GetLocalAxisA(const m2World* world,

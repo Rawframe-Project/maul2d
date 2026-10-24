@@ -190,6 +190,14 @@ m2JointId m2FinishJoint(m2World* world, int32_t index, uint8_t type, int32_t bod
     return id;
 }
 
+// The joint kinds with a motor and limits (bit n = m2JointType n). The
+// motor joint's torque budget rides the max motor channel too. Other
+// kinds may keep their own state where these kinds keep limits (the
+// ratchet's tooth), so the channels refuse them.
+#define M2_MOTOR_LIMIT_KINDS                                                                       \
+    ((1u << m2_revoluteJoint) | (1u << m2_prismaticJoint) | (1u << m2_wheelJoint))
+#define M2_MAX_MOTOR_KINDS (M2_MOTOR_LIMIT_KINDS | (1u << m2_motorJoint))
+
 // One journaled channel for every runtime joint parameter: replay
 // re-drives the same setters through the same records.
 // The contract of each joint parameter channel: the joint kinds that
@@ -197,17 +205,18 @@ m2JointId m2FinishJoint(m2World* world, int32_t index, uint8_t type, int32_t bod
 // both pass through it, so a tape can never write what the API refuses.
 static bool JointParamValid(uint8_t type, uint8_t param, float value)
 {
+    bool motorAndLimits = (M2_MOTOR_LIMIT_KINDS & (1u << type)) != 0;
     switch (param)
     {
     case m2_jointParamEnableMotor:
     case m2_jointParamEnableLimit:
-        return value == 0.0f || value == 1.0f;
+        return motorAndLimits && (value == 0.0f || value == 1.0f);
     case m2_jointParamMotorSpeed:
     case m2_jointParamLower:
     case m2_jointParamUpper:
-        return m2FiniteF(value);
+        return motorAndLimits && m2FiniteF(value);
     case m2_jointParamMaxMotor:
-        return m2FiniteF(value) && value >= 0.0f;
+        return (M2_MAX_MOTOR_KINDS & (1u << type)) != 0 && m2FiniteF(value) && value >= 0.0f;
     case m2_jointParamBreakForce:
     case m2_jointParamBreakTorque:
         return value >= 0.0f; // zero turns breaking off; infinity never breaks
@@ -718,25 +727,25 @@ float m2Joint_GetAngularDampingRatio(const m2World* world, m2JointId jointId)
 
 float m2Joint_GetMotorSpeed(const m2World* world, m2JointId jointId)
 {
-    int32_t index = JointSlotRefusing(world, jointId);
+    int32_t index = JointSlotOfKind(world, jointId, M2_MOTOR_LIMIT_KINDS);
     return index >= 0 ? world->joints.jointMotorSpeed[index] : 0.0f;
 }
 
 float m2Joint_GetMaxMotor(const m2World* world, m2JointId jointId)
 {
-    int32_t index = JointSlotRefusing(world, jointId);
+    int32_t index = JointSlotOfKind(world, jointId, M2_MAX_MOTOR_KINDS);
     return index >= 0 ? world->joints.jointMaxMotor[index] : 0.0f;
 }
 
 bool m2Joint_IsMotorEnabled(const m2World* world, m2JointId jointId)
 {
-    int32_t index = JointSlotRefusing(world, jointId);
+    int32_t index = JointSlotOfKind(world, jointId, M2_MOTOR_LIMIT_KINDS);
     return index >= 0 && (world->joints.jointFlags[index] & M2_JOINT_MOTOR) != 0;
 }
 
 bool m2Joint_IsLimitEnabled(const m2World* world, m2JointId jointId)
 {
-    int32_t index = JointSlotRefusing(world, jointId);
+    int32_t index = JointSlotOfKind(world, jointId, M2_MOTOR_LIMIT_KINDS);
     return index >= 0 && (world->joints.jointFlags[index] & M2_JOINT_LIMIT) != 0;
 }
 
@@ -748,7 +757,9 @@ bool m2Joint_IsSpringEnabled(const m2World* world, m2JointId jointId)
 
 void m2Joint_GetLimits(const m2World* world, m2JointId jointId, float* lowerOut, float* upperOut)
 {
-    int32_t index = JointSlotRefusing(world, jointId);
+    // A distance joint reads its length range here.
+    int32_t index =
+        JointSlotOfKind(world, jointId, M2_MOTOR_LIMIT_KINDS | (1u << m2_distanceJoint));
     if (lowerOut != NULL)
     {
         *lowerOut = index >= 0 ? world->joints.jointLower[index] : 0.0f;
