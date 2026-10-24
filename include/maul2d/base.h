@@ -172,6 +172,11 @@ extern "C"
 // The seed of an m2Hash64 chain.
 #define M2_HASH_INIT 0xCBF29CE484222325ull
 
+// The most solver substeps m2World_Step takes in one step. The tuned
+// default is 4; the cap keeps one call, or one record of an untrusted
+// tape, from running without bound.
+#define M2_MAX_SUBSTEPS 64
+
 #ifdef __cplusplus
 }
 #endif
