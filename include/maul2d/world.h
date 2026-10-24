@@ -117,8 +117,10 @@ extern "C"
     /// from host code the world is running. Untrusted input is not misuse:
     /// a snapshot or journal tape that fails its checks, and a value one of
     /// a tape's ops refuses while it replays, return m2_errorInvalid and
-    /// count nothing, so bytes from outside cannot inflate the counter. A
-    /// full pool counts nothing either.
+    /// count nothing, so bytes from outside cannot inflate the counter.
+    /// Host code a replay runs (a task hook, the allocator) is the calling
+    /// code's: what it gets wrong counts, replay or not. A full pool counts
+    /// nothing either.
 
     /// The library's default world def, with the version left zero. Use
     /// m2DefaultWorldDef, which stamps the version of the program's

@@ -1869,6 +1869,76 @@ static void TestAllocatorCannotWrite(void)
     free(tape);
 }
 
+// Host code a replay runs is the caller's: a task hook that reads a stale
+// id while a tape's step replays counts misuse as it would anywhere else.
+typedef struct Peeker
+{
+    m2World* world;
+    m2BodyId stale;
+    int32_t calls;
+} Peeker;
+
+static void* PeekingEnqueue(m2TaskFn* task, int32_t itemCount, int32_t minRange, void* taskContext,
+                            void* userContext)
+{
+    (void)minRange;
+    Peeker* peek = (Peeker*)userContext;
+    if (peek->world != NULL)
+    {
+        peek->calls += 1;
+        (void)m2Body_GetLinearVelocity(peek->world, peek->stale);
+    }
+    task(0, itemCount, taskContext);
+    return NULL;
+}
+
+static void PeekingFinish(void* userTask, void* userContext)
+{
+    (void)userTask;
+    (void)userContext;
+}
+
+static void TestHostCodeMistakesCountMidReplay(void)
+{
+    Peeker peek = {NULL, {9u, 1u}, 0};
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 16;
+    def.enqueueTask = PeekingEnqueue;
+    def.finishTask = PeekingFinish;
+    def.userTaskContext = &peek;
+    m2World* world = NewWorld(&def);
+    m2BodyDef gd = m2DefaultBodyDef();
+    m2Polygon slab = m2MakeBox(4.0f, 0.5f);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    NewPolygonShape(world, NewBody(world, &gd), &sd, &slab);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    bd.position = (m2Pos2){0.0, 0.99};
+    m2Circle ball = {{0.0f, 0.0f}, 0.5f};
+    NewCircleShape(world, NewBody(world, &bd), &sd, &ball);
+
+    // The ball rests on the slab, so the recorded step hands work to the
+    // task hook, and so does its replay.
+    int32_t capacity = m2World_GetJournalBaseSize(world) + 1024;
+    void* tape = malloc((size_t)capacity);
+    CHECK(StartJournal(world, tape, capacity), "the journal starts");
+    m2World_Step(world, 1.0f / 60.0f, 4);
+    int32_t bytes = StopJournal(world);
+    CHECK(bytes > 0, "the journal stops");
+
+    m2World* fresh = NewWorld(&def);
+    peek.world = fresh;
+    uint64_t misuse = m2World_GetCounters(fresh).misuse;
+    CHECK(ReplayJournal(fresh, tape, bytes), "the tape replays");
+    CHECK(peek.calls > 0, "the replayed step ran the task hook");
+    CHECK(m2World_GetCounters(fresh).misuse == misuse + (uint64_t)peek.calls,
+          "each stale read from the hook counts, mid-replay too");
+    peek.world = NULL;
+    m2DestroyWorld(fresh);
+    m2DestroyWorld(world);
+    free(tape);
+}
+
 // Untrusted bytes are refused with a status and count no misuse: a
 // corrupt snapshot, a corrupt tape, and a tape op whose value the setter
 // refuses during the replay.
@@ -2667,6 +2737,7 @@ int main(void)
     TestHostCodeCannotWrite();
     TestAllocatorCannotWrite();
     TestCorruptInputIsNotMisuse();
+    TestHostCodeMistakesCountMidReplay();
     TestStaleIdsInStatusCalls();
     TestStaleIdsCountInEveryCall();
     TestRuntimeGravity();

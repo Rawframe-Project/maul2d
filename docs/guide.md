@@ -70,7 +70,9 @@ program never passes, a dead id, a change from inside code the world is
 running. Read it in release builds to find them. Bytes from outside are
 not misuse: a snapshot or journal tape that fails its checks is refused
 with `m2_errorInvalid` and counts nothing, so a corrupt file or a
-hostile peer cannot inflate the counter.
+hostile peer cannot inflate the counter. Code the world runs for you, a
+task hook or your allocator, is still yours during a replay: what it
+gets wrong counts.
 
 ## Positions are doubles
 
