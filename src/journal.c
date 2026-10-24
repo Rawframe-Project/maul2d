@@ -289,7 +289,8 @@ m2Result m2World_ReplayJournal(m2World* world, const void* data, int32_t size)
     (void)snapshot;
     // The ops re-enter the public calls with the tape's values; a value
     // they refuse is the tape's fault, not the caller's, and counts nothing
-    // (m2Refuse). Host code calling back into the world still counts.
+    // (m2Refuse). Host code the replay runs is the caller's and still
+    // counts, whatever it gets wrong.
     world->replaying = 1;
     m2Result result = ReplayOps(world, data, size);
     if (result != m2_success)
