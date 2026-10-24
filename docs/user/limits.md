@@ -1,6 +1,6 @@
 # Limits
 
-Every number the step multiplies has a range, in meters, kilograms and seconds. The ranges keep every product the solver forms finite in 32-bit floats, and each leaves realistic game values far inside it. A value outside its range is refused, whether it arrives in a def, a setter, a journal tape or a snapshot. A def or setter refuses it with `m2_errorInvalid` (or, for a call that returns nothing, by changing nothing), and it counts one misuse wherever a bad argument counts one. The constants are in `maul2d/base.h`.
+Every number the step multiplies has a range, in meters, kilograms and seconds. Each leaves realistic game values far inside it, and each is chosen against the products the solver forms in 32-bit floats. A value outside its range is refused, whether it arrives in a def, a setter or a journal tape. A def or setter refuses it with `m2_errorInvalid` (or, for a call that returns nothing, by changing nothing), and it counts one misuse wherever a bad argument counts one. The constants are in `maul2d/base.h`.
 
 ## The ranges
 
@@ -17,7 +17,7 @@ Every number the step multiplies has a range, in meters, kilograms and seconds. 
 | `M2_MIN_MASS`, `M2_MAX_MASS` | 1e-9 to 1e12 kg | a dynamic body's mass; a particle's mass | a 1 g bullet to a 1e8 kg ship |
 | `M2_MIN_INERTIA`, `M2_MAX_INERTIA` | 1e-12 to 1e24 kg m^2, or 0 | a dynamic body's rotational inertia about its center of mass; 0 does not rotate | a 5 mm disc at density 1 is about 1e-9 |
 | `M2_MAX_FORCE` | 1e20 N, N m | a force or torque per axis, a body's accumulated load, a motor's or mouse's budget | a rocket engine is about 1e7 N |
-| `M2_IMPULSE_LIMIT` | 1e15 N s | an impulse per axis | a 1e8 kg ship stopping from 100 m/s takes 1e10 |
+| `M2_IMPULSE_LIMIT` | 1e15 N s | an impulse per axis that one call applies | a 1e8 kg ship stopping from 100 m/s takes 1e10 |
 | `M2_MIN_TIME_STEP`, `M2_MAX_TIME_STEP` | 1e-6 to 10 s | `m2World_Step`'s and `m2Body_SetTargetTransform`'s time step | 1/240 to 1/20 |
 | `M2_MAX_ANGLE` | 1e5 rad | a joint's angle limits, angular offset, a ratchet's tooth and phase | within a few turns |
 | `M2_MIN_RATCHET_TOOTH` | 1e-3 rad | a ratchet's tooth, by magnitude | 2 pi / 12 to 2 pi / 360 |
@@ -35,4 +35,4 @@ Two kinds of value are held to their ranges instead of refused:
 
 ## Why these values
 
-The bounds are budgeted against `FLT_MAX`, about 3.4e38. The tightest product is the push a joint row gives a body's spin: inverse inertia times impulse times lever. At the smallest inertia, the largest impulse and the longest joint lever that is at most 1e12 x 2e15 x 1e9 = 2e36, two orders of magnitude below `FLT_MAX`. Making `M2_MIN_INERTIA` smaller or `M2_JOINT_REACH` larger would have to make the impulse limit smaller to match. The other bounds leave more room. A row's effective mass is at most `M2_MAX_MASS` along a line and `M2_MAX_INERTIA` about a turn, and its speed at most `M2_MAX_SPEED` times its lever, so a row's impulse before its clamp stays below about 1e36. Gravity, forces and drag over the longest substep add at most 1e30 to a velocity before the speed saturates.
+The bounds are chosen against `FLT_MAX`, about 3.4e38. The tightest product among them is the push a joint row gives a body's spin: inverse inertia times impulse times lever. At the smallest inertia, twice the impulse limit (the change between two impulses within it) and the longest joint lever, that is 1e12 x 2e15 x 1e9 = 2e36, two orders of magnitude below `FLT_MAX`. Making `M2_MIN_INERTIA` smaller or `M2_JOINT_REACH` larger would have to make the impulse limit smaller to match. The other bounds leave more room: the largest force over the longest substep on the lightest body is 10 x 1e9 x 1e20 = 1e30.

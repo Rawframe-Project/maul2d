@@ -555,6 +555,93 @@ static void TestLoadEdges(void)
     m2DestroyWorld(world);
 }
 
+// An explosion's impulse, radius, falloff and position at their edges: a
+// blast at its edge lands, one float past any of them, or a NaN, is
+// refused, counted and changes nothing.
+static void TestExplosionEdges(void)
+{
+    m2World* world = LimitsWorld();
+    m2World_SetGravity(world, (m2Vec2){0.0f, 0.0f});
+    m2BodyId body = Box(world, m2_dynamicBody, 0.0f);
+    m2ExplosionDef edge = m2DefaultExplosionDef();
+    edge.position = (m2Pos2){0.0, 0.0};
+    edge.radius = M2_HUGE;
+    edge.falloff = M2_HUGE;
+    edge.impulse = -M2_IMPULSE_LIMIT;
+    uint64_t misuse = Misuse(world);
+    m2World_Explode(world, &edge);
+    m2Vec2 v = m2Body_GetLinearVelocity(world, body);
+    CHECK(Misuse(world) == misuse && fabsf(v.y) == M2_MAX_SPEED,
+          "a blast at its edges lands and saturates the body's velocity");
+
+    m2Body_SetLinearVelocity(world, body, (m2Vec2){0.0f, 0.0f});
+    for (int32_t field = 0; field < 7; ++field)
+    {
+        m2ExplosionDef bad = edge;
+        switch (field)
+        {
+        case 0:
+            bad.impulse = Past(-M2_IMPULSE_LIMIT);
+            break;
+        case 1:
+            bad.impulse = NAN;
+            break;
+        case 2:
+            bad.radius = Past(M2_HUGE);
+            break;
+        case 3:
+            bad.falloff = Past(M2_HUGE);
+            break;
+        case 4:
+            bad.falloff = 0.0f;
+            break;
+        case 5:
+            bad.position.x = (double)NAN;
+            break;
+        default:
+            bad.position.y = (double)INFINITY;
+            break;
+        }
+        misuse = Misuse(world);
+        m2World_Explode(world, &bad);
+        v = m2Body_GetLinearVelocity(world, body);
+        CHECK(Misuse(world) == misuse + 1 && v.x == 0.0f && v.y == 0.0f,
+              "a blast one past an edge is refused, counted and changes nothing");
+    }
+    ExpectRestores(world);
+    m2DestroyWorld(world);
+}
+
+// A force or impulse at a world point farther than M2_JOINT_REACH acts
+// with its arm clamped to the reach: the same as at the reach, and
+// finite, where an unclamped 1e300 m arm would be infinite.
+static void TestFarPointsClampTheArm(void)
+{
+    m2World* world = LimitsWorld();
+    m2World_SetGravity(world, (m2Vec2){0.0f, 0.0f});
+    m2BodyId far = Box(world, m2_dynamicBody, 0.0f);
+    m2BodyId reach = Box(world, m2_dynamicBody, 10.0f);
+    m2Pos2 centerFar = m2Body_GetWorldCenterOfMass(world, far);
+    m2Pos2 centerReach = m2Body_GetWorldCenterOfMass(world, reach);
+    m2Vec2 tiny = {0.0f, 1.0e-12f};
+    m2Body_ApplyLinearImpulseAtPoint(world, far, tiny, (m2Pos2){1.0e300, centerFar.y});
+    m2Body_ApplyLinearImpulseAtPoint(world, reach, tiny,
+                                     (m2Pos2){centerReach.x + M2_JOINT_REACH, centerReach.y});
+    float wFar = m2Body_GetAngularVelocity(world, far);
+    CHECK(isfinite(wFar) && wFar > 0.0f && wFar == m2Body_GetAngularVelocity(world, reach),
+          "an impulse at a far point turns the body as one at the reach does");
+
+    m2Body_ApplyForceAtPoint(world, far, tiny, (m2Pos2){-1.0e300, centerFar.y});
+    m2Body_ApplyForceAtPoint(world, reach, tiny,
+                             (m2Pos2){centerReach.x - M2_JOINT_REACH, centerReach.y});
+    m2World_Step(world, 1.0f / 60.0f, 4);
+    wFar = m2Body_GetAngularVelocity(world, far);
+    CHECK(isfinite(wFar) && wFar == m2Body_GetAngularVelocity(world, reach),
+          "a force at a far point turns the body as one at the reach does");
+    ExpectRestores(world);
+    m2DestroyWorld(world);
+}
+
 // The step and a target's time step at their edges.
 static void TestTimeStepEdges(void)
 {
@@ -595,6 +682,8 @@ int main(void)
     TestMassEdges();
     TestLoadEdges();
     TestTimeStepEdges();
+    TestExplosionEdges();
+    TestFarPointsClampTheArm();
     if (s_failures > 0)
     {
         printf("%d failure(s)\n", s_failures);

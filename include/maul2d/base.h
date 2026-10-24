@@ -186,10 +186,10 @@ extern "C"
 #define M2_HUGE 100000.0f
 
 // The ranges of every number the step multiplies, in meters, kilograms
-// and seconds. Each leaves realistic game values far inside it; together
-// they keep every product the solver forms finite in 32-bit floats.
-// docs/user/limits.md derives them. A def or setter value outside its
-// range is refused, and so is a snapshot that holds one.
+// and seconds. Each leaves realistic game values far inside it, and each
+// is chosen against the products the solver forms in 32-bit floats, as
+// docs/user/limits.md derives. A def or setter value outside its range
+// is refused.
 
 // The largest speed: a body's linear speed per axis (m/s) and angular
 // speed (rad/s), a conveyor, a motor, the wind, a flow, a particle.
@@ -229,8 +229,8 @@ extern "C"
 // body's accumulated load and a motor's budget.
 #define M2_MAX_FORCE 1.0e20f
 
-// The largest impulse per axis, in N s (or N m s): one call, and every
-// impulse a body or joint accumulates.
+// The largest impulse per axis, in N s (or N m s), that one call
+// applies.
 #define M2_IMPULSE_LIMIT 1.0e15f
 
 // The range of a step's or a target's time step, in seconds.

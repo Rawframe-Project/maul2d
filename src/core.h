@@ -55,7 +55,7 @@ static inline bool m2LocalLength(float x)
     return x >= 0.0f && x <= M2_HUGE;
 }
 // The ranges of base.h, one check per quantity, shared by the defs, the
-// setters, replay and restore. NaN fails every one of them.
+// setters and replay. NaN fails every one of them.
 static inline bool m2WithinF(float x, float lo, float hi)
 {
     return x >= lo && x <= hi;
