@@ -3069,8 +3069,8 @@ static void TestSetMassDataChecksEveryField(void)
     m2Body_SetMassData(world, body, good);
     const m2MassData before = m2Body_GetMassData(world, body);
 
-    m2MassData bad[8];
-    for (int32_t i = 0; i < 8; ++i)
+    m2MassData bad[10];
+    for (int32_t i = 0; i < 10; ++i)
     {
         bad[i] = good;
     }
@@ -3083,9 +3083,11 @@ static void TestSetMassDataChecksEveryField(void)
     bad[6].rotationalInertia = 0.25f; // below 2 kg at 0.5 m, 0.5
     bad[7].mass = 1.0f;
     bad[7].center = (m2Vec2){0.0f, 0.0f};
-    bad[7].rotationalInertia = 1e-45f; // its inverse about the center overflows
+    bad[7].rotationalInertia = 1e-45f;                  // its inverse about the center overflows
+    bad[8] = (m2MassData){FLT_MAX, {0.0f, 0.0f}, 1.0f}; // its inverse's inverse overflows
+    bad[9] = (m2MassData){1.0f, {0.0f, 0.0f}, FLT_MAX}; // so does the inertia's
     uint64_t misuse = m2World_GetCounters(world).misuse;
-    for (int32_t i = 0; i < 8; ++i)
+    for (int32_t i = 0; i < 10; ++i)
     {
         m2Body_SetMassData(world, body, bad[i]);
         m2MassData after = m2Body_GetMassData(world, body);
@@ -3107,11 +3109,34 @@ static void TestSetMassDataChecksEveryField(void)
     m2Body_SetMassData(world, body, distant);
     m2MassData back = m2Body_GetMassData(world, body);
     m2Body_SetMassData(world, body, back);
-    CHECK(m2World_GetCounters(world).misuse == misuse + 8, "data read back sets again");
+    CHECK(m2World_GetCounters(world).misuse == misuse + 10, "data read back sets again");
 
-    m2Body_SetMassData(world, body, good);
+    // Any override the setter accepts is one a restore accepts: extreme
+    // masses and inertias either set and round-trip, or are refused.
+    const float extremes[] = {1e-30f, 1e-20f, 1.0f, 1e30f, 1e38f, 3e38f, FLT_MAX};
+    const int32_t extremeCount = (int32_t)(sizeof(extremes) / sizeof(extremes[0]));
     int32_t size = m2World_SnapshotSize(world);
     void* snapshot = malloc((size_t)size);
+    for (int32_t i = 0; i < extremeCount && snapshot != NULL; ++i)
+    {
+        for (int32_t k = 0; k < extremeCount; ++k)
+        {
+            uint64_t counted = m2World_GetCounters(world).misuse;
+            m2Body_SetMassData(world, body, (m2MassData){extremes[i], {0.0f, 0.0f}, extremes[k]});
+            bool accepted = m2World_GetCounters(world).misuse == counted;
+            if (accepted &&
+                !(Snapshot(world, snapshot, size) == size && Restore(world, snapshot, size) &&
+                  m2Body_GetMass(world, body) <= FLT_MAX))
+            {
+                printf("mass %g, inertia %g\n", (double)extremes[i], (double)extremes[k]);
+                CHECK(false, "an accepted override restores and reads back finite");
+            }
+        }
+    }
+    free(snapshot);
+
+    m2Body_SetMassData(world, body, good);
+    snapshot = malloc((size_t)size);
     CHECK(snapshot != NULL && Snapshot(world, snapshot, size) == size &&
               Restore(world, snapshot, size),
           "a body with an override snapshots and restores");

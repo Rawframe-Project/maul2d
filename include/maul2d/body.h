@@ -284,8 +284,10 @@ extern "C"
     /// stale id, a body that is not dynamic, a mass that is not positive
     /// and finite, a center beyond M2_HUGE, a rotational inertia that is
     /// not finite or is below mass times the squared distance of the
-    /// center, or a mass or inertia about the center so small that its
-    /// inverse overflows, changes nothing and counts one misuse. An inertia
+    /// center, or a mass or inertia about the center too small or too large
+    /// for the world to keep its inverse and read it back finite (1e-45 and
+    /// FLT_MAX are both refused), changes nothing and counts one misuse.
+    /// Every override this accepts survives a snapshot. An inertia
     /// of exactly mass times the squared distance leaves the body unable
     /// to turn. Journaled.
     ///

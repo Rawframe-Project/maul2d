@@ -10,14 +10,12 @@
 // Deterministic: walks the body's shape list in stored (insertion) order,
 // which the snapshot preserves. Dynamic bodies get the minimum-mass floor
 // (a zero-density dynamic body must not get an infinite inverse mass).
-void m2RecomputeMass(m2World* world, int32_t bodyIndex)
+m2BodyMass m2BodyMassFromShapes(uint8_t type, bool fixedRotation, const m2MassShapes* shapes)
 {
-    if (world->bodies.types[bodyIndex] != (uint8_t)m2_dynamicBody)
+    m2BodyMass result = {0.0f, 0.0f, {0.0f, 0.0f}};
+    if (type != (uint8_t)m2_dynamicBody)
     {
-        world->bodies.invMass[bodyIndex] = 0.0f;
-        world->bodies.invInertia[bodyIndex] = 0.0f;
-        world->bodies.localCenters[bodyIndex] = (m2Vec2){0.0f, 0.0f};
-        return;
+        return result;
     }
 
     // First pass: total mass and the mass-weighted center. Shape mass now
@@ -26,11 +24,9 @@ void m2RecomputeMass(m2World* world, int32_t bodyIndex)
     // big-minus-big cancellation.
     float mass = 0.0f;
     m2Vec2 center = {0.0f, 0.0f};
-    for (int32_t s = world->bodies.bodyShapeHead[bodyIndex]; s != -1;
-         s = world->shapes.shapeNext[s])
+    for (int32_t s = shapes->head; s != -1; s = shapes->next(shapes->context, s))
     {
-        m2MassData data =
-            m2ComputeShapeMass(&world->shapes.shapeGeometry[s], world->shapes.shapeDensity[s]);
+        m2MassData data = shapes->mass(shapes->context, s);
         mass += data.mass;
         center.x += data.mass * data.center.x;
         center.y += data.mass * data.center.y;
@@ -40,10 +36,8 @@ void m2RecomputeMass(m2World* world, int32_t bodyIndex)
     {
         // Floor: shapeless or zero-density dynamic bodies weigh 1 kg and
         // do not rotate from impulses (deterministic fallback, no NaN).
-        world->bodies.invMass[bodyIndex] = 1.0f;
-        world->bodies.invInertia[bodyIndex] = 0.0f;
-        world->bodies.localCenters[bodyIndex] = (m2Vec2){0.0f, 0.0f};
-        return;
+        result.invMass = 1.0f;
+        return result;
     }
 
     float invMass = 1.0f / mass;
@@ -59,20 +53,48 @@ void m2RecomputeMass(m2World* world, int32_t bodyIndex)
     // centroid inertia plus mass times the (small) offset from the COM,
     // in the same canonical shape-list order.
     float inertiaCenter = 0.0f;
-    for (int32_t s = world->bodies.bodyShapeHead[bodyIndex]; s != -1;
-         s = world->shapes.shapeNext[s])
+    for (int32_t s = shapes->head; s != -1; s = shapes->next(shapes->context, s))
     {
-        m2MassData data =
-            m2ComputeShapeMass(&world->shapes.shapeGeometry[s], world->shapes.shapeDensity[s]);
+        m2MassData data = shapes->mass(shapes->context, s);
         float ox = center.x - data.center.x;
         float oy = center.y - data.center.y;
         inertiaCenter += data.rotationalInertia + data.mass * (ox * ox + oy * oy);
     }
-    world->bodies.invMass[bodyIndex] = invMass;
-    world->bodies.invInertia[bodyIndex] =
-        world->bodies.fixedRotations[bodyIndex] == 0 && inertiaCenter > 0.0f ? 1.0f / inertiaCenter
-                                                                             : 0.0f;
+    result.invMass = invMass;
+    result.invInertia = !fixedRotation && inertiaCenter > 0.0f ? 1.0f / inertiaCenter : 0.0f;
+    result.center = center;
+    return result;
+}
+
+bool m2MassInversesValid(float invMass, float invInertia)
+{
+    return m2FiniteF(invMass) && invMass > 0.0f && m2FiniteF(1.0f / invMass) &&
+           m2FiniteF(invInertia) && invInertia >= 0.0f &&
+           (invInertia == 0.0f || m2FiniteF(1.0f / invInertia));
+}
+
+static int32_t WorldNext(const void* context, int32_t shape)
+{
+    return ((const m2World*)context)->shapes.shapeNext[shape];
+}
+
+static m2MassData WorldShapeMass(const void* context, int32_t shape)
+{
+    const m2World* world = context;
+    return m2ComputeShapeMass(&world->shapes.shapeGeometry[shape],
+                              world->shapes.shapeDensity[shape]);
+}
+
+void m2RecomputeMass(m2World* world, int32_t bodyIndex)
+{
+    m2MassShapes shapes = {world, world->bodies.bodyShapeHead[bodyIndex], WorldNext,
+                           WorldShapeMass};
+    m2BodyMass mass = m2BodyMassFromShapes(world->bodies.types[bodyIndex],
+                                           world->bodies.fixedRotations[bodyIndex] != 0, &shapes);
+    world->bodies.invMass[bodyIndex] = mass.invMass;
+    world->bodies.invInertia[bodyIndex] = mass.invInertia;
     // The body now rotates about this point: velocities, solver
     // anchors and integration all live in the COM frame.
-    world->bodies.localCenters[bodyIndex] = center;
+    world->bodies.localCenters[bodyIndex] = mass.center;
+    world->bodies.massOverrides[bodyIndex] = 0;
 }

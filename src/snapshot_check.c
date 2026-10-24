@@ -9,6 +9,8 @@
 //   - each free queue holds every dead slot that is not retired, once;
 //   - each body's shape list holds exactly its live shapes, with no cycle;
 //   - shapes, chains and joints point at live owners;
+//   - each body's mass data is what its shapes give it, bit for bit, or
+//     an override m2Body_SetMassData would have accepted;
 //   - each broadphase tree is a balanced tree whose leaves are exactly the
 //     live shapes of enabled bodies of its type, with boxes that contain
 //     their children, and its free list holds every other node;
@@ -24,6 +26,7 @@
 #include "core.h"
 #include "dynamic_tree.h"
 #include "geometry.h"
+#include "mass.h"
 #include "world_state.h"
 
 #include "maul2d/base.h"
@@ -358,6 +361,88 @@ static bool CheckGeometry(const m2World* world, const uint8_t* in)
     return true;
 }
 
+// --- Mass data ---------------------------------------------------------------
+
+// A body's shapes in the incoming bytes, for the mass sum.
+typedef struct IncomingShapes
+{
+    const uint8_t* next;
+    const uint8_t* geometries;
+    const uint8_t* densities;
+} IncomingShapes;
+
+static int32_t IncomingNext(const void* context, int32_t shape)
+{
+    return ReadI32(((const IncomingShapes*)context)->next, shape);
+}
+
+static m2MassData IncomingShapeMass(const void* context, int32_t shape)
+{
+    const IncomingShapes* shapes = context;
+    m2ShapeGeometry geometry;
+    memcpy(&geometry, shapes->geometries + (size_t)shape * sizeof(geometry), sizeof(geometry));
+    float density;
+    memcpy(&density, shapes->densities + (size_t)shape * sizeof(density), sizeof(density));
+    return m2ComputeShapeMass(&geometry, density);
+}
+
+static float ReadF32(const uint8_t* array, int32_t index)
+{
+    float value;
+    memcpy(&value, array + (size_t)index * sizeof(value), sizeof(value));
+    return value;
+}
+
+// Mass data set by m2Body_SetMassData: a dynamic body's, with inverses a
+// float can invert back, as the setter's own rules leave them.
+static bool OverrideValid(float invMass, float invInertia, bool dynamic, bool fixedRotation)
+{
+    return dynamic && m2MassInversesValid(invMass, invInertia) &&
+           (!fixedRotation || invInertia == 0.0f);
+}
+
+// Every live body's mass data is what its shapes give it, bit for bit, or
+// a valid override: derived data a world would never hold cannot land.
+static bool CheckMass(const m2World* world, const uint8_t* in)
+{
+    const uint8_t* alive = M2_IN(bodies.alive);
+    const uint8_t* types = M2_IN(bodies.types);
+    const uint8_t* fixed = M2_IN(bodies.fixedRotations);
+    const uint8_t* overrides = M2_IN(bodies.massOverrides);
+    const uint8_t* heads = M2_IN(bodies.bodyShapeHead);
+    const uint8_t* invMass = M2_IN(bodies.invMass);
+    const uint8_t* invInertia = M2_IN(bodies.invInertia);
+    const uint8_t* centers = M2_IN(bodies.localCenters);
+    IncomingShapes source = {M2_IN(shapes.shapeNext), M2_IN(shapes.shapeGeometry),
+                             M2_IN(shapes.shapeDensity)};
+    for (int32_t b = 0; b < world->bodies.bodyCapacity; ++b)
+    {
+        if (alive[b] == 0)
+        {
+            continue;
+        }
+        m2BodyMass stored = {ReadF32(invMass, b), ReadF32(invInertia, b), {0.0f, 0.0f}};
+        memcpy(&stored.center, centers + (size_t)b * sizeof(m2Vec2), sizeof(m2Vec2));
+        if (overrides[b] != 0)
+        {
+            if (!OverrideValid(stored.invMass, stored.invInertia,
+                               types[b] == (uint8_t)m2_dynamicBody, fixed[b] != 0))
+            {
+                return false;
+            }
+            continue;
+        }
+        m2MassShapes shapes = {&source, ReadI32(heads, b), IncomingNext, IncomingShapeMass};
+        m2BodyMass derived = m2BodyMassFromShapes(types[b], fixed[b] != 0, &shapes);
+        // NOLINTNEXTLINE(bugprone-suspicious-memory-comparison): bit-exact compare
+        if (memcmp(&derived, &stored, sizeof(derived)) != 0)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 // --- Broadphase trees -------------------------------------------------------
 
 // What a tree's leaves must agree with: the shapes and the bodies they
@@ -596,6 +681,6 @@ static bool CheckPairs(const m2World* world, const uint8_t* in)
 bool m2SnapshotCheck(m2World* world, const uint8_t* in)
 {
     return CheckPools(world, in) && CheckShapeLists(world, in) && CheckChains(world, in) &&
-           CheckJoints(world, in) && CheckGeometry(world, in) && CheckTrees(world, in) &&
-           CheckMoved(world, in) && CheckPairs(world, in);
+           CheckJoints(world, in) && CheckGeometry(world, in) && CheckMass(world, in) &&
+           CheckTrees(world, in) && CheckMoved(world, in) && CheckPairs(world, in);
 }

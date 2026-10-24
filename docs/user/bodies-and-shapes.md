@@ -26,7 +26,7 @@ A body with a higher dominance (`m2Body_SetDominance`) cannot be pushed by a low
 
 `m2Body_Disable` takes a body out of the simulation without destroying it: its contacts end, whatever rested on it wakes, queries stop seeing it, and its joints wait. `m2Body_Enable` puts it back where it stood.
 
-A dynamic body's mass comes from its shapes' densities. `m2Body_SetMassData` overrides it until a shape change, a fixed-rotation change or `m2Body_ApplyMassFromShapes` computes it from the shapes again. The override takes a positive finite mass, a center within `M2_HUGE` and a rotational inertia about the origin no smaller than the mass times the center's squared distance (exactly that much makes a body that cannot turn); anything else is refused and counts one misuse.
+A dynamic body's mass comes from its shapes' densities. `m2Body_SetMassData` overrides it until a shape change, a fixed-rotation change or `m2Body_ApplyMassFromShapes` computes it from the shapes again. The override takes a positive finite mass whose inverse, and that inverse's inverse, a float holds (so not 1e-45 and not `FLT_MAX`), a center within `M2_HUGE` and a rotational inertia about the origin no smaller than the mass times the center's squared distance (exactly that much makes a body that cannot turn); anything else is refused and counts one misuse.
 
 ## Shapes and materials
 
