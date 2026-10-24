@@ -155,8 +155,9 @@ static void PrepareMouse(m2World* world, m2JointConstraint* c, const m2JointFram
     int32_t j = f->joint;
     m2Vec2 center = m2RotateVec2(f->qB, world->bodies.localCenters[c->bodyB]);
     m2Pos2 origin = world->bodies.transforms[c->bodyB].p;
-    c->gap = (m2Vec2){(float)(origin.x - world->joints.jointTargets[j].x) + center.x + c->armB.x,
-                      (float)(origin.y - world->joints.jointTargets[j].y) + center.y + c->armB.y};
+    c->gap = (m2Vec2){
+        m2JointSeparation(origin.x - world->joints.jointTargets[j].x) + center.x + c->armB.x,
+        m2JointSeparation(origin.y - world->joints.jointTargets[j].y) + center.y + c->armB.y};
     c->spring = m2MakeSoft(0.5f, 0.1f, f->h);
     m2JointBodies onlyB = {{0.0f, 0.0f},
                            0.0f,

@@ -77,8 +77,8 @@ m2Result m2CreateDistanceJoint(m2World* world, const m2DistanceJointDef* def, m2
                      xfA.q.s * def->localAnchorA.x + xfA.q.c * def->localAnchorA.y};
         m2Vec2 wB = {xfB.q.c * def->localAnchorB.x - xfB.q.s * def->localAnchorB.y,
                      xfB.q.s * def->localAnchorB.x + xfB.q.c * def->localAnchorB.y};
-        float dx = (float)(xfB.p.x - xfA.p.x) + wB.x - wA.x;
-        float dy = (float)(xfB.p.y - xfA.p.y) + wB.y - wA.y;
+        float dx = m2JointSeparation(xfB.p.x - xfA.p.x) + wB.x - wA.x;
+        float dy = m2JointSeparation(xfB.p.y - xfA.p.y) + wB.y - wA.y;
         length = sqrtf(dx * dx + dy * dy);
     }
     m2JointId jointId =

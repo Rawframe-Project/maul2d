@@ -26,6 +26,25 @@
 #define M2_MAX_LINEAR_SPEED      400.0f
 #define M2_RESTITUTION_THRESHOLD 1.0f
 
+// The largest separation, per axis, between two world points that a joint
+// takes in, in meters. World positions are 64-bit and unbounded, and their
+// difference can pass what a float holds; it would reach the rows as
+// infinity and leave NaN in the bodies. Clamped here, the joint's own
+// lengths stay far below the float range: with body-local lengths within
+// M2_HUGE, a joint's squared length is at most about 2e30, which leaves
+// eight orders of magnitude below FLT_MAX for the factors a row multiplies
+// it by. A joint stretched this far no longer holds its bodies together
+// anyway: at M2_MAX_LINEAR_SPEED, closing 1e15 m takes 80,000 years.
+#define M2_JOINT_REACH 1.0e15
+
+// A world-space difference, clamped to M2_JOINT_REACH, as a float.
+static inline float m2JointSeparation(double d)
+{
+    d = d < M2_JOINT_REACH ? d : M2_JOINT_REACH;
+    d = d > -M2_JOINT_REACH ? d : -M2_JOINT_REACH;
+    return (float)d;
+}
+
 // A soft row: the constraint behaves as a spring of frequency hertz and
 // damping ratio zeta on the row's effective mass m.
 typedef struct m2Softness
