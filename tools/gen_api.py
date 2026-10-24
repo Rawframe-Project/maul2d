@@ -113,6 +113,47 @@ def collect(lines):
     return entries
 
 
+def render_comment(comment):
+    """A documentation comment as Markdown. The prose comes first; the
+    tags check_docs.py requires become a parameter list, a Returns line
+    and a paragraph per @par, each tag running on to the next tag or
+    blank line."""
+    prose, params, returns, pars = [[]], [], [], []
+    current = None  # the list a continuation line extends
+    for line in comment:
+        if not line:
+            current = None
+            if prose[-1]:
+                prose.append([])
+            continue
+        tag = re.match(r"@(param|returns?|par)(?:\[\w+\])?(?=\s|$)\s*(.*)$", line)
+        if tag and tag.group(1).startswith("param"):
+            name, _, text = tag.group(2).partition(" ")
+            params.append([name, text.strip()])
+            current = params[-1]
+        elif tag and tag.group(1).startswith("return"):
+            returns.append(tag.group(2))
+            current = returns
+        elif tag:
+            pars.append([tag.group(2), ""])
+            current = pars[-1]
+        elif current is not None:
+            current[-1] = (current[-1] + " " + line).strip()
+        else:
+            prose[-1].append(line)
+    out = []
+    for paragraph in prose:
+        if paragraph:
+            out += [" ".join(paragraph), ""]
+    if params:
+        out += ["Parameters:", ""] + ["- `%s`: %s" % (name, text) for name, text in params] + [""]
+    if returns:
+        out += ["Returns: " + " ".join(returns), ""]
+    for title, text in pars:
+        out += ["*" + title + ".* " + text if title else text, ""]
+    return out
+
+
 def render():
     """The API reference as Markdown: a contents list, then each header."""
     body = []
@@ -133,10 +174,7 @@ def render():
             contents.append("- [`%s`](#%s)" % (name, re.sub(r"[^a-z0-9]+", "", name.lower())))
             body += [level + "`" + name + "`", "", summary(lines), ""]
             for comment, sig in entries:
-                body += ["```c", sig, "```"]
-                if comment:
-                    body.append(" ".join(comment))
-                body.append("")
+                body += ["```c", sig, "```", ""] + render_comment(comment)
                 total += 1
     head = [
         "# " + TITLE + " API reference",
