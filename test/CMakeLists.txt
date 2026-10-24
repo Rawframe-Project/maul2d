@@ -12,6 +12,7 @@ maul_add_test(islands)
 maul_add_test(joints THREADS)
 maul_add_test(journal)
 maul_add_test(restore WHITEBOX)
+maul_add_test(fpenv WHITEBOX)
 maul_add_test(queries)
 maul_add_test(hostile THREADS)
 maul_add_test(shapes)
@@ -23,6 +24,7 @@ maul_add_test(guide)
 maul_add_test(concurrency POSIX)
 maul_add_test(soak MANUAL)
 maul_add_header_tests()
+maul_add_exports_test()
 
 # The golden scenes check the benchmark scenes too, and take their
 # committed values from test/hashes.txt: each line M2_<NAME>_HASH=<hex>

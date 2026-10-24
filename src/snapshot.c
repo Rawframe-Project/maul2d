@@ -6,6 +6,7 @@
 
 #include "snapshot.h"
 
+#include "fpenv.h"
 #include "joint.h"
 #include "joint_edges.h"
 #include "journal.h"
@@ -72,7 +73,7 @@ static int32_t BlockBytes(const m2World* world)
     return m2StateWalk((m2World*)world, NULL, NULL, 2);
 }
 
-int32_t m2World_SnapshotSize(const m2World* world)
+static M2_NOINLINE int32_t WorldSnapshotSizeWorker(const m2World* world)
 {
     if (world == NULL)
     {
@@ -81,10 +82,19 @@ int32_t m2World_SnapshotSize(const m2World* world)
     return (int32_t)sizeof(m2SnapshotHeader) + BlockBytes(world);
 }
 
+int32_t m2World_SnapshotSize(const m2World* world)
+{
+    uint64_t env = m2FloatEnvEnter();
+    int32_t result = WorldSnapshotSizeWorker(world);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
 // The block walk is shared by Snapshot and Restore so the layouts can
 // never drift apart (direction 0 = write, 1 = read).
 
-m2Result m2World_Snapshot(const m2World* world, void* buffer, int32_t capacity, int32_t* bytesOut)
+static M2_NOINLINE m2Result WorldSnapshotWorker(const m2World* world, void* buffer,
+                                                int32_t capacity, int32_t* bytesOut)
 {
     if (bytesOut == NULL)
     {
@@ -118,7 +128,15 @@ m2Result m2World_Snapshot(const m2World* world, void* buffer, int32_t capacity, 
     return m2_success;
 }
 
-m2Result m2World_Restore(m2World* world, const void* buffer, int32_t size)
+m2Result m2World_Snapshot(const m2World* world, void* buffer, int32_t capacity, int32_t* bytesOut)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = WorldSnapshotWorker(world, buffer, capacity, bytesOut);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE m2Result WorldRestoreWorker(m2World* world, const void* buffer, int32_t size)
 {
     m2Result writer = m2CheckWriter(world);
     if (writer != m2_success)
@@ -177,14 +195,30 @@ m2Result m2World_Restore(m2World* world, const void* buffer, int32_t size)
     return m2_success;
 }
 
-uint64_t m2World_Hash(const m2World* world)
+m2Result m2World_Restore(m2World* world, const void* buffer, int32_t size)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = WorldRestoreWorker(world, buffer, size);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE uint64_t WorldHashWorker(const m2World* world)
 {
     return world != NULL ? m2StateHash(world, m2_hashAll) : 0;
 }
 
+uint64_t m2World_Hash(const m2World* world)
+{
+    uint64_t env = m2FloatEnvEnter();
+    uint64_t result = WorldHashWorker(world);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
 // Subsystem hashes: independent seeds on purpose (the total is not
 // a function of the parts).
-m2WorldHashParts m2World_GetHashParts(const m2World* world)
+static M2_NOINLINE m2WorldHashParts WorldGetHashPartsWorker(const m2World* world)
 {
     m2WorldHashParts parts;
     memset(&parts, 0, sizeof(parts));
@@ -199,4 +233,12 @@ m2WorldHashParts m2World_GetHashParts(const m2World* world)
     parts.particles = m2StateHash(world, m2_hashParticles);
     parts.volumes = m2StateHash(world, m2_hashVolumes);
     return parts;
+}
+
+m2WorldHashParts m2World_GetHashParts(const m2World* world)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2WorldHashParts result = WorldGetHashPartsWorker(world);
+    m2FloatEnvLeave(env);
+    return result;
 }

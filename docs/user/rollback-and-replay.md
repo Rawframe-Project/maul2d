@@ -2,7 +2,7 @@
 
 Maul2D promises three things together:
 
-1. **The same bits everywhere.** The same calls on the same world reach the same bits on Linux, Windows, macOS and WebAssembly, on x64, arm64 and wasm32, under GCC, Clang and clang-cl, in Debug and Release, at every worker count. Every CI cell checks it on every commit.
+1. **The same bits everywhere.** The same calls on the same world reach the same bits on Linux, Windows, macOS and WebAssembly, on x64, arm64 and wasm32, under GCC, Clang and clang-cl, in Debug and Release, at every worker count, and whatever rounding mode or flush-to-zero setting the host's threads run in. Every CI cell checks it on every commit.
 2. **Exact rollback.** `m2World_Snapshot` captures the whole simulation as one flat block, and `m2World_Restore` brings it back exactly. Simulating again from a snapshot reproduces the original run to the last bit, events included.
 3. **Replayable history.** The journal records everything done to a world (creation, steps, impulses, teleports, tuning, even restores) and replays it into a fresh world onto the same bits.
 

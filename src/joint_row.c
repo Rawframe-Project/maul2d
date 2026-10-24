@@ -5,6 +5,8 @@
 
 #include "joint_row.h"
 
+#include "math_functions.h"
+
 #include "maul2d/base.h"
 
 #include <math.h>
@@ -152,5 +154,5 @@ float m2RelativeJointAngle(m2Rot qA, m2Rot qB)
 {
     float sin = qA.c * qB.s - qA.s * qB.c;
     float cos = qA.c * qB.c + qA.s * qB.s;
-    return m2Atan2(sin, cos);
+    return m2Atan2Work(sin, cos);
 }

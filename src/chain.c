@@ -5,6 +5,7 @@
 
 #include "chain.h"
 
+#include "fpenv.h"
 #include "geometry.h"
 #include "island.h"
 #include "journal.h"
@@ -125,7 +126,8 @@ static int32_t CreateSegments(m2World* world, m2BodyId bodyId, const m2ChainDef*
     return created;
 }
 
-m2Result m2CreateChain(m2World* world, m2BodyId bodyId, const m2ChainDef* def, m2ChainId* chainOut)
+static M2_NOINLINE m2Result CreateChainWorker(m2World* world, m2BodyId bodyId,
+                                              const m2ChainDef* def, m2ChainId* chainOut)
 {
     if (chainOut == NULL)
     {
@@ -182,6 +184,14 @@ m2Result m2CreateChain(m2World* world, m2BodyId bodyId, const m2ChainDef* def, m
     return m2_success;
 }
 
+m2Result m2CreateChain(m2World* world, m2BodyId bodyId, const m2ChainDef* def, m2ChainId* chainOut)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = CreateChainWorker(world, bodyId, def, chainOut);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
 static int32_t ChainSlot(const m2World* world, m2ChainId chainId)
 {
     int32_t index = (int32_t)chainId.index1 - 1;
@@ -193,7 +203,7 @@ static int32_t ChainSlot(const m2World* world, m2ChainId chainId)
     return index;
 }
 
-m2Result m2DestroyChain(m2World* world, m2ChainId chainId)
+static M2_NOINLINE m2Result DestroyChainWorker(m2World* world, m2ChainId chainId)
 {
     m2Result writer = m2CheckWriter(world);
     if (writer != m2_success)
@@ -239,6 +249,14 @@ m2Result m2DestroyChain(m2World* world, m2ChainId chainId)
     m2RecomputeMass(world, bodyIndex);
     m2WakeIfDynamic(world, bodyIndex);
     return m2_success;
+}
+
+m2Result m2DestroyChain(m2World* world, m2ChainId chainId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = DestroyChainWorker(world, chainId);
+    m2FloatEnvLeave(env);
+    return result;
 }
 
 bool m2Chain_IsValid(const m2World* world, m2ChainId chainId)
@@ -292,7 +310,7 @@ static void ChainMaterialInternal(m2World* world, m2ChainId chainId, int32_t cha
     }
 }
 
-void m2Chain_SetFriction(m2World* world, m2ChainId chainId, float friction)
+static M2_NOINLINE void ChainSetFrictionWorker(m2World* world, m2ChainId chainId, float friction)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -307,7 +325,15 @@ void m2Chain_SetFriction(m2World* world, m2ChainId chainId, float friction)
     ChainMaterialInternal(world, chainId, index, m2_opChainFriction, friction);
 }
 
-void m2Chain_SetRestitution(m2World* world, m2ChainId chainId, float restitution)
+void m2Chain_SetFriction(m2World* world, m2ChainId chainId, float friction)
+{
+    uint64_t env = m2FloatEnvEnter();
+    ChainSetFrictionWorker(world, chainId, friction);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void ChainSetRestitutionWorker(m2World* world, m2ChainId chainId,
+                                                  float restitution)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -320,6 +346,13 @@ void m2Chain_SetRestitution(m2World* world, m2ChainId chainId, float restitution
         return;
     }
     ChainMaterialInternal(world, chainId, index, m2_opChainRestitution, restitution);
+}
+
+void m2Chain_SetRestitution(m2World* world, m2ChainId chainId, float restitution)
+{
+    uint64_t env = m2FloatEnvEnter();
+    ChainSetRestitutionWorker(world, chainId, restitution);
+    m2FloatEnvLeave(env);
 }
 
 int32_t m2Chain_GetShapes(const m2World* world, m2ChainId chainId, m2ShapeId* ids, int32_t capacity)

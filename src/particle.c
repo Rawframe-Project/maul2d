@@ -6,6 +6,7 @@
 
 #include "particle.h"
 
+#include "fpenv.h"
 #include "journal.h"
 #include "world_internal.h"
 
@@ -28,8 +29,9 @@ static int32_t ParticleSlot(const m2World* world, m2ParticleId id)
     return index;
 }
 
-m2Result m2World_EmitParticle(m2World* world, m2Pos2 position, m2Vec2 velocity, uint32_t flags,
-                              m2ParticleId* particleOut)
+static M2_NOINLINE m2Result WorldEmitParticleWorker(m2World* world, m2Pos2 position,
+                                                    m2Vec2 velocity, uint32_t flags,
+                                                    m2ParticleId* particleOut)
 {
     if (particleOut == NULL)
     {
@@ -86,7 +88,16 @@ m2Result m2World_EmitParticle(m2World* world, m2Pos2 position, m2Vec2 velocity, 
     return m2_success;
 }
 
-m2Result m2DestroyParticle(m2World* world, m2ParticleId particleId)
+m2Result m2World_EmitParticle(m2World* world, m2Pos2 position, m2Vec2 velocity, uint32_t flags,
+                              m2ParticleId* particleOut)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = WorldEmitParticleWorker(world, position, velocity, flags, particleOut);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE m2Result DestroyParticleWorker(m2World* world, m2ParticleId particleId)
 {
     m2Result writer = m2CheckWriter(world);
     if (writer != m2_success)
@@ -104,6 +115,14 @@ m2Result m2DestroyParticle(m2World* world, m2ParticleId particleId)
     }
     m2DestroyParticleInternal(world, index);
     return m2_success;
+}
+
+m2Result m2DestroyParticle(m2World* world, m2ParticleId particleId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = DestroyParticleWorker(world, particleId);
+    m2FloatEnvLeave(env);
+    return result;
 }
 
 void m2DestroyParticleInternal(m2World* world, int32_t index)
@@ -162,21 +181,38 @@ bool m2Particle_IsValid(const m2World* world, m2ParticleId particleId)
     return ParticleSlot(world, particleId) >= 0;
 }
 
-m2Pos2 m2Particle_GetPosition(const m2World* world, m2ParticleId particleId)
+static M2_NOINLINE m2Pos2 ParticleGetPositionWorker(const m2World* world, m2ParticleId particleId)
 {
     m2Pos2 zero = {0.0, 0.0};
     int32_t index = ParticleSlot(world, particleId);
     return index >= 0 ? world->particles.particlePositions[index] : zero;
 }
 
-m2Vec2 m2Particle_GetVelocity(const m2World* world, m2ParticleId particleId)
+m2Pos2 m2Particle_GetPosition(const m2World* world, m2ParticleId particleId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Pos2 result = ParticleGetPositionWorker(world, particleId);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE m2Vec2 ParticleGetVelocityWorker(const m2World* world, m2ParticleId particleId)
 {
     m2Vec2 zero = {0.0f, 0.0f};
     int32_t index = ParticleSlot(world, particleId);
     return index >= 0 ? world->particles.particleVelocities[index] : zero;
 }
 
-void m2Particle_SetVelocity(m2World* world, m2ParticleId particleId, m2Vec2 velocity)
+m2Vec2 m2Particle_GetVelocity(const m2World* world, m2ParticleId particleId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Vec2 result = ParticleGetVelocityWorker(world, particleId);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE void ParticleSetVelocityWorker(m2World* world, m2ParticleId particleId,
+                                                  m2Vec2 velocity)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -203,13 +239,21 @@ void m2Particle_SetVelocity(m2World* world, m2ParticleId particleId, m2Vec2 velo
     world->particles.particleVelocities[index] = velocity;
 }
 
+void m2Particle_SetVelocity(m2World* world, m2ParticleId particleId, m2Vec2 velocity)
+{
+    uint64_t env = m2FloatEnvEnter();
+    ParticleSetVelocityWorker(world, particleId, velocity);
+    m2FloatEnvLeave(env);
+}
+
 uint32_t m2Particle_GetFlags(const m2World* world, m2ParticleId particleId)
 {
     int32_t index = ParticleSlot(world, particleId);
     return index >= 0 ? world->particles.particleFlags[index] : 0;
 }
 
-void m2Particle_SetLifetime(m2World* world, m2ParticleId particleId, float seconds)
+static M2_NOINLINE void ParticleSetLifetimeWorker(m2World* world, m2ParticleId particleId,
+                                                  float seconds)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -236,10 +280,25 @@ void m2Particle_SetLifetime(m2World* world, m2ParticleId particleId, float secon
     world->particles.particleLifetime[index] = seconds;
 }
 
-float m2Particle_GetLifetime(const m2World* world, m2ParticleId particleId)
+void m2Particle_SetLifetime(m2World* world, m2ParticleId particleId, float seconds)
+{
+    uint64_t env = m2FloatEnvEnter();
+    ParticleSetLifetimeWorker(world, particleId, seconds);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE float ParticleGetLifetimeWorker(const m2World* world, m2ParticleId particleId)
 {
     int32_t index = ParticleSlot(world, particleId);
     return index >= 0 ? world->particles.particleLifetime[index] : 0.0f;
+}
+
+float m2Particle_GetLifetime(const m2World* world, m2ParticleId particleId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = ParticleGetLifetimeWorker(world, particleId);
+    m2FloatEnvLeave(env);
+    return result;
 }
 
 void m2Particle_SetUserData(m2World* world, m2ParticleId particleId, uint64_t userData)
@@ -438,8 +497,10 @@ static bool FillRow(m2World* world, FillBatch* batch, const m2Polygon* polygon, 
 
 // Fill a convex polygon with particles at 0.75 diameters, row-major from
 // the bottom-left of its bounds: a pool in one call.
-int32_t m2World_FillPolygonWithParticles(m2World* world, const m2Polygon* polygon, m2Pos2 position,
-                                         m2Vec2 velocity, uint32_t flags)
+static M2_NOINLINE int32_t WorldFillPolygonWithParticlesWorker(m2World* world,
+                                                               const m2Polygon* polygon,
+                                                               m2Pos2 position, m2Vec2 velocity,
+                                                               uint32_t flags)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -501,11 +562,21 @@ int32_t m2World_FillPolygonWithParticles(m2World* world, const m2Polygon* polygo
     return batch.count;
 }
 
+int32_t m2World_FillPolygonWithParticles(m2World* world, const m2Polygon* polygon, m2Pos2 position,
+                                         m2Vec2 velocity, uint32_t flags)
+{
+    uint64_t env = m2FloatEnvEnter();
+    int32_t result = WorldFillPolygonWithParticlesWorker(world, polygon, position, velocity, flags);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
 // Region query over the pool: a plain ascending scan. Particles
 // carry no tree (their grid is step-transient); a linear
 // walk over a fixed-capacity pool is deterministic and cheap.
-int32_t m2World_OverlapParticlesAabb(const m2World* world, m2Pos2 lower, m2Pos2 upper,
-                                     m2ParticleId* ids, int32_t capacity)
+static M2_NOINLINE int32_t WorldOverlapParticlesAabbWorker(const m2World* world, m2Pos2 lower,
+                                                           m2Pos2 upper, m2ParticleId* ids,
+                                                           int32_t capacity)
 {
     if (world == NULL || !m2FinitePos2(lower) || !m2FinitePos2(upper))
     {
@@ -531,4 +602,13 @@ int32_t m2World_OverlapParticlesAabb(const m2World* world, m2Pos2 lower, m2Pos2 
         total += 1;
     }
     return total;
+}
+
+int32_t m2World_OverlapParticlesAabb(const m2World* world, m2Pos2 lower, m2Pos2 upper,
+                                     m2ParticleId* ids, int32_t capacity)
+{
+    uint64_t env = m2FloatEnvEnter();
+    int32_t result = WorldOverlapParticlesAabbWorker(world, lower, upper, ids, capacity);
+    m2FloatEnvLeave(env);
+    return result;
 }

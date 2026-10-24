@@ -22,7 +22,9 @@
 
 #include "buoyancy.h"
 
+#include "fpenv.h"
 #include "journal.h"
+#include "math_functions.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -35,7 +37,7 @@ static float Acos(float x)
 {
     float s = 1.0f - x * x;
     s = s > 0.0f ? sqrtf(s) : 0.0f;
-    return m2Atan2(s, x);
+    return m2Atan2Work(s, x);
 }
 
 static m2Vec2 Rotate(m2Rot q, m2Vec2 v)
@@ -158,7 +160,7 @@ static int32_t RoundedOutline(const m2Vec2* verts, const m2Vec2* normals, int32_
     {
         m2Vec2 from = normals[i > 0 ? i - 1 : count - 1];
         m2Vec2 to = normals[i];
-        float turn = m2Atan2(from.x * to.y - from.y * to.x, from.x * to.x + from.y * to.y);
+        float turn = m2Atan2Work(from.x * to.y - from.y * to.x, from.x * to.x + from.y * to.y);
         turn = turn < 0.0f ? turn + 2.0f * (float)M2_PI : turn; // a half turn may read as -pi
         // The world builds every normal from an edge at least
         // M2_MIN_EDGE_LENGTH long within M2_HUGE, so the turn is finite and
@@ -167,7 +169,7 @@ static int32_t RoundedOutline(const m2Vec2* verts, const m2Vec2* normals, int32_
         int32_t steps = (int32_t)ceilf(turn * (8.0f / (float)M2_PI));
         steps = steps < 2 ? 2 : steps;
         M2_ASSERT(steps <= 17);
-        m2Rot rot = m2MakeRot(turn / (float)steps);
+        m2Rot rot = m2MakeRotWork(turn / (float)steps);
         float inner = FanRadius(radius, steps, turn / (float)steps, rot.s);
         m2Vec2 dir = from;
         for (int32_t k = 0; k <= steps && n < M2_OUTLINE_MAX; ++k)
@@ -226,8 +228,8 @@ m2FluidVolumeDef m2DefaultFluidVolumeDef(void)
     return def;
 }
 
-m2Result m2CreateFluidVolume(m2World* world, const m2FluidVolumeDef* def,
-                             m2FluidVolumeId* volumeOut)
+static M2_NOINLINE m2Result CreateFluidVolumeWorker(m2World* world, const m2FluidVolumeDef* def,
+                                                    m2FluidVolumeId* volumeOut)
 {
     if (volumeOut == NULL)
     {
@@ -282,6 +284,15 @@ m2Result m2CreateFluidVolume(m2World* world, const m2FluidVolumeDef* def,
     return m2_success;
 }
 
+m2Result m2CreateFluidVolume(m2World* world, const m2FluidVolumeDef* def,
+                             m2FluidVolumeId* volumeOut)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = CreateFluidVolumeWorker(world, def, volumeOut);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
 static int32_t FvSlot(const m2World* world, m2FluidVolumeId id)
 {
     int32_t index = (int32_t)id.index1 - 1;
@@ -293,7 +304,7 @@ static int32_t FvSlot(const m2World* world, m2FluidVolumeId id)
     return index;
 }
 
-m2Result m2DestroyFluidVolume(m2World* world, m2FluidVolumeId volumeId)
+static M2_NOINLINE m2Result DestroyFluidVolumeWorker(m2World* world, m2FluidVolumeId volumeId)
 {
     m2Result writer = m2CheckWriter(world);
     if (writer != m2_success)
@@ -317,12 +328,21 @@ m2Result m2DestroyFluidVolume(m2World* world, m2FluidVolumeId volumeId)
     return m2_success;
 }
 
+m2Result m2DestroyFluidVolume(m2World* world, m2FluidVolumeId volumeId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = DestroyFluidVolumeWorker(world, volumeId);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
 bool m2FluidVolume_IsValid(const m2World* world, m2FluidVolumeId volumeId)
 {
     return FvSlot(world, volumeId) >= 0;
 }
 
-void m2FluidVolume_SetSurface(m2World* world, m2FluidVolumeId volumeId, double surface)
+static M2_NOINLINE void FluidVolumeSetSurfaceWorker(m2World* world, m2FluidVolumeId volumeId,
+                                                    double surface)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -345,7 +365,15 @@ void m2FluidVolume_SetSurface(m2World* world, m2FluidVolumeId volumeId, double s
     world->volumes.fvSurface[index] = surface;
 }
 
-double m2FluidVolume_GetSurface(const m2World* world, m2FluidVolumeId volumeId)
+void m2FluidVolume_SetSurface(m2World* world, m2FluidVolumeId volumeId, double surface)
+{
+    uint64_t env = m2FloatEnvEnter();
+    FluidVolumeSetSurfaceWorker(world, volumeId, surface);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE double FluidVolumeGetSurfaceWorker(const m2World* world,
+                                                      m2FluidVolumeId volumeId)
 {
     int32_t index = FvSlot(world, volumeId);
     if (index < 0)
@@ -354,6 +382,14 @@ double m2FluidVolume_GetSurface(const m2World* world, m2FluidVolumeId volumeId)
         return 0.0;
     }
     return world->volumes.fvSurface[index];
+}
+
+double m2FluidVolume_GetSurface(const m2World* world, m2FluidVolumeId volumeId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    double result = FluidVolumeGetSurfaceWorker(world, volumeId);
+    m2FloatEnvLeave(env);
+    return result;
 }
 
 uint64_t m2FluidVolume_GetUserData(const m2World* world, m2FluidVolumeId volumeId)

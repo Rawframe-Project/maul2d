@@ -15,7 +15,9 @@
 #   nothing, no unsafe string functions, nothing locale-dependent) and
 #   none the library bans in tools/source-bans.txt;
 # - src/ keeps no thread-local or mutable file-scope state and assigns
-#   nothing inside a condition;
+#   nothing inside a condition; src/fpenv.c, the family's floating-point
+#   environment module, alone keeps the thread's saved control register
+#   and entry depth, which mirror the processor's per-thread register;
 # - C file names are snake_case.
 #
 # Directories listed in tools/source-dirs.txt hold more of the library's
@@ -79,6 +81,10 @@ FAMILY_BANS = {
 # The one place a zeroed allocator reaches the C library.
 ALLOCATOR_FILE = "allocator.c"
 ALLOCATOR_CALLS = {"malloc", "calloc", "realloc", "free", "aligned_alloc"}
+# The family's floating-point environment module keeps the thread's saved
+# control register and entry depth: state that mirrors the processor's
+# own per-thread register and carries no failure.
+FLOAT_ENV_FILE = "src/fpenv.c"
 
 THREAD_LOCAL = re.compile(r"\b(_Thread_local|thread_local|__thread)\b|__declspec\s*\(\s*thread\s*\)")
 FILE_SCOPE_STATE = re.compile(r"^static\s+(?!const\b)(?!inline\b)(?![^(=;]*\()[^=;]*[=;]")
@@ -243,9 +249,11 @@ def check_c_file(path, rel, in_src, bans, findings):
                     f"{rel}:{number}: libm call {name}() not in tools/libm-allowed.txt:"
                     " its results may differ between C libraries"
                 )
-        if THREAD_LOCAL.search(code):
+        if rel.replace(os.sep, "/") == FLOAT_ENV_FILE:
+            pass
+        elif THREAD_LOCAL.search(code):
             findings.append(f"{rel}:{number}: no thread-local state; failures are returned")
-        if FILE_SCOPE_STATE.match(code):
+        elif FILE_SCOPE_STATE.match(code):
             findings.append(f"{rel}:{number}: mutable file-scope state: {line.strip()}")
         if ASSIGN_IN_CONDITION.search(code):
             findings.append(f"{rel}:{number}: assignment inside a condition: {line.strip()}")

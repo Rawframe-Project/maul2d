@@ -6,6 +6,7 @@
 
 #include "body.h"
 #include "broadphase.h"
+#include "fpenv.h"
 #include "island.h"
 #include "joint.h"
 #include "joint_solver.h"
@@ -45,7 +46,8 @@ static bool DefValid(const m2MotorJointDef* def)
            m2ValidCoefficient(def->dampingRatio);
 }
 
-m2Result m2CreateMotorJoint(m2World* world, const m2MotorJointDef* def, m2JointId* jointOut)
+static M2_NOINLINE m2Result CreateMotorJointWorker(m2World* world, const m2MotorJointDef* def,
+                                                   m2JointId* jointOut)
 {
     if (jointOut == NULL)
     {
@@ -107,8 +109,16 @@ m2Result m2CreateMotorJoint(m2World* world, const m2MotorJointDef* def, m2JointI
     return m2_success;
 }
 
-void m2MotorJoint_SetOffsets(m2World* world, m2JointId jointId, m2Vec2 linearOffset,
-                             float angularOffset)
+m2Result m2CreateMotorJoint(m2World* world, const m2MotorJointDef* def, m2JointId* jointOut)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = CreateMotorJointWorker(world, def, jointOut);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE void MotorJointSetOffsetsWorker(m2World* world, m2JointId jointId,
+                                                   m2Vec2 linearOffset, float angularOffset)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -142,29 +152,70 @@ void m2MotorJoint_SetOffsets(m2World* world, m2JointId jointId, m2Vec2 linearOff
     m2WakeIfDynamic(world, bodyB);
 }
 
-m2Vec2 m2MotorJoint_GetLinearOffset(const m2World* world, m2JointId jointId)
+void m2MotorJoint_SetOffsets(m2World* world, m2JointId jointId, m2Vec2 linearOffset,
+                             float angularOffset)
+{
+    uint64_t env = m2FloatEnvEnter();
+    MotorJointSetOffsetsWorker(world, jointId, linearOffset, angularOffset);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE m2Vec2 MotorJointGetLinearOffsetWorker(const m2World* world, m2JointId jointId)
 {
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
     m2Vec2 zero = {0.0f, 0.0f};
     return index >= 0 ? world->joints.jointLocalAxisA[index] : zero;
 }
 
-float m2MotorJoint_GetAngularOffset(const m2World* world, m2JointId jointId)
+m2Vec2 m2MotorJoint_GetLinearOffset(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Vec2 result = MotorJointGetLinearOffsetWorker(world, jointId);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE float MotorJointGetAngularOffsetWorker(const m2World* world, m2JointId jointId)
 {
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
     return index >= 0 ? world->joints.jointRefAngle[index] : 0.0f;
 }
 
-float m2MotorJoint_GetMaxForce(const m2World* world, m2JointId jointId)
+float m2MotorJoint_GetAngularOffset(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = MotorJointGetAngularOffsetWorker(world, jointId);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE float MotorJointGetMaxForceWorker(const m2World* world, m2JointId jointId)
 {
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
     return index >= 0 ? world->joints.jointLength[index] : 0.0f;
 }
 
-float m2MotorJoint_GetCorrectionFactor(const m2World* world, m2JointId jointId)
+float m2MotorJoint_GetMaxForce(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = MotorJointGetMaxForceWorker(world, jointId);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE float MotorJointGetCorrectionFactorWorker(const m2World* world,
+                                                             m2JointId jointId)
 {
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
     return index >= 0 ? world->joints.jointDamping[index] : 0.0f;
+}
+
+float m2MotorJoint_GetCorrectionFactor(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = MotorJointGetCorrectionFactorWorker(world, jointId);
+    m2FloatEnvLeave(env);
+    return result;
 }
 
 // --- Solver ---------------------------------------------------------------
