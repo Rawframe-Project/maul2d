@@ -142,6 +142,12 @@ void m2DistanceJoint_SetLengthRange(m2World* world, m2JointId jointId, float min
     }
 }
 
+bool m2DistanceJoint_IsSpringEnabled(const m2World* world, m2JointId jointId)
+{
+    int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_distanceJoint);
+    return index >= 0 && (world->joints.jointFlags[index] & M2_JOINT_ROPE) != 0;
+}
+
 // --- Solver ---------------------------------------------------------------
 //
 // One row along the line between the anchors: the rest length (impulse.x)

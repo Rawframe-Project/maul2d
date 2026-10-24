@@ -618,6 +618,18 @@ extern "C"
     M2_API void m2DistanceJoint_SetLengthRange(m2World* world, m2JointId jointId, float minLength,
                                                float maxLength);
 
+    /// Tells whether a distance joint was created with enableSpring, which
+    /// makes it a slack rope or a strut while its hertz is 0.
+    ///
+    /// @param world    The world.
+    /// @param jointId  A distance joint.
+    /// @return True when its spring toggle is on; false for another joint
+    ///         type or a stale id, which count one misuse.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M2_API bool m2DistanceJoint_IsSpringEnabled(const m2World* world, m2JointId jointId);
+
     /// Reads the force a joint carried on the last step: its stored
     /// impulses over that step's substep length. The break pass compares
     /// the same number with the break limits, bit for bit, so a threshold
@@ -826,7 +838,8 @@ extern "C"
     /// several readers at once.
     M2_API bool m2Joint_IsLimitEnabled(const m2World* world, m2JointId jointId);
 
-    /// Tells whether a wheel joint's suspension spring is on.
+    /// Tells whether a wheel joint's suspension spring is on. A distance
+    /// joint's toggle reads through m2DistanceJoint_IsSpringEnabled.
     ///
     /// @param world    The world.
     /// @param jointId  The joint.
