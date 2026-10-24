@@ -13,10 +13,24 @@
 #include <intrin.h> // interlocked counters
 #endif
 
+// How deep the world is in host code it runs; readers may ask from
+// several threads at once.
+static long HostCodeDepth(const m2World* world)
+{
+#if defined(_MSC_VER)
+    return _InterlockedCompareExchange((volatile long*)&world->busy, 0, 0);
+#else
+    return __atomic_load_n(&world->busy, __ATOMIC_RELAXED);
+#endif
+}
+
 m2Result m2Refuse(const m2World* world, m2Result reason)
 {
-    bool misuse = world != NULL && reason != m2_errorCapacity &&
-                  (world->replaying == 0 || reason == m2_errorState);
+    // A refusal on a replay's own path is the tape's data at fault, not the
+    // caller's code; host code the replay runs (a task hook, the allocator)
+    // is the caller's and still counts.
+    bool tapeDriven = world != NULL && world->replaying != 0 && HostCodeDepth(world) == 0;
+    bool misuse = world != NULL && reason != m2_errorCapacity && !tapeDriven;
     if (misuse)
     {
         // Reader calls refuse too, possibly on several threads at once, so
@@ -82,12 +96,7 @@ m2Result m2CheckWriter(const m2World* world)
     {
         return m2_errorInvalid;
     }
-#if defined(_MSC_VER)
-    long busy = _InterlockedCompareExchange((volatile long*)&world->busy, 0, 0);
-#else
-    long busy = __atomic_load_n(&world->busy, __ATOMIC_RELAXED);
-#endif
-    if (busy != 0)
+    if (HostCodeDepth(world) != 0)
     {
         return m2Refuse(world, m2_errorState);
     }

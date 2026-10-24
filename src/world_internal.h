@@ -366,7 +366,7 @@ typedef struct m2World
         misuseCount;     // cumulative misuse; atomic access only (m2Refuse, m2MisuseCount)
     int64_t memoryBytes; // persistent footprint, from create
     volatile long busy;  // host code running: a step's tasks, debug draws; atomic access only
-    uint8_t replaying;   // applying a journal tape, whose refused values count no misuse
+    uint8_t replaying;   // applying a journal tape: refusals outside host code count no misuse
 } m2World;
 
 // Refuses a caller's call against a world and returns the reason, so a
