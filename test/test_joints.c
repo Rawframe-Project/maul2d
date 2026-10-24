@@ -2104,6 +2104,25 @@ static void TestLocalAnchorsAreBounded(void)
           "every joint def past M2_HUGE is refused");
     CHECK(m2World_GetCounters(world).misuse == misuse + 7, "each refusal counts one misuse");
 
+    // The mouse joint's grab point is where the target lies in B's frame:
+    // a target past M2_HUGE from B would make an anchor no snapshot keeps.
+    m2MouseJointDef mouse = m2DefaultMouseJointDef();
+    mouse.bodyIdA = a;
+    mouse.bodyIdB = b;
+    mouse.target = (m2Pos2){2.0 + 2.0 * (double)M2_HUGE, 0.0};
+    CHECK(m2CreateMouseJoint(world, &mouse, &joint) == m2_errorInvalid &&
+              m2World_GetCounters(world).misuse == misuse + 8,
+          "a mouse target past M2_HUGE from its body is refused");
+    mouse.target = (m2Pos2){2.0 + (double)M2_HUGE, 0.0};
+    CHECK(m2CreateMouseJoint(world, &mouse, &joint) == m2_success, "one at M2_HUGE is created");
+    misuse += 1;
+    int32_t size = m2World_SnapshotSize(world);
+    void* snapshot = malloc((size_t)size);
+    CHECK(snapshot != NULL && Snapshot(world, snapshot, size) == size &&
+              Restore(world, snapshot, size),
+          "and its world's snapshot restores");
+    free(snapshot);
+
     motor.linearOffset = (m2Vec2){1.0f, 0.0f};
     m2JointId mover = NewMotorJoint(world, &motor);
     m2MotorJoint_SetOffsets(world, mover, beyond, 0.0f);

@@ -183,7 +183,8 @@ extern "C"
 
     /// A soft spring pulling a point of body B toward a world target: the
     /// way to drag a body. Body A only anchors the bookkeeping. The grabbed
-    /// point is where the target lies at creation.
+    /// point is where the target lies at creation, so the target starts
+    /// within M2_HUGE of body B's origin.
     typedef struct m2MouseJointDef
     {
         m2BodyId bodyIdA;
