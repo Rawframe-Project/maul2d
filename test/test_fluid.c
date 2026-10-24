@@ -814,10 +814,10 @@ static void TestFarParticlesStep(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.particleCapacity = 8;
     m2World* world = NewWorld(&def);
-    const m2Pos2 far[] = {{1.0e129, 0.0}, {-1.0e300, 5.0}, {0.0, 1.0e200}, {3.0e9, -3.0e9}};
-    for (size_t i = 0; i < sizeof(far) / sizeof(far[0]); ++i)
+    const m2Pos2 distant[] = {{1.0e129, 0.0}, {-1.0e300, 5.0}, {0.0, 1.0e200}, {3.0e9, -3.0e9}};
+    for (size_t i = 0; i < sizeof(distant) / sizeof(distant[0]); ++i)
     {
-        CHECK(EmitParticle(world, far[i], (m2Vec2){0.0f, 0.0f}, 0).index1 != 0,
+        CHECK(EmitParticle(world, distant[i], (m2Vec2){0.0f, 0.0f}, 0).index1 != 0,
               "a far particle is emitted");
     }
     EmitParticle(world, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f}, 0);
