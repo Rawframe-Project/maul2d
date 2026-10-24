@@ -35,6 +35,7 @@ typedef enum m2Extent
     m2_extent_fluidVolume,
     m2_extent_constraintBytes,
     m2_extent_contactBlockBytes,
+    m2_extent_markBytes,
 } m2Extent;
 
 #define M2_STATE_SNAPSHOT  0x01u // walked by snapshots and restores
@@ -356,6 +357,7 @@ static const m2StateArray s_state[] = {
     M2_STATE_BYTES(particles.particleProxiesTmp, 16, particle, M2_STATE_PARTICLES),
     M2_STATE_BYTES(solver.constraintScratch, 1, constraintBytes, 0),
     M2_STATE_BYTES(solver.contactBlocks, 1, contactBlockBytes, 0),
+    M2_STATE_BYTES(restoreMarks, 1, markBytes, 0),
 };
 
 static size_t ExtentCount(const m2World* world, uint8_t extent)
@@ -401,6 +403,17 @@ static size_t ExtentCount(const m2World* world, uint8_t extent)
     }
     case m2_extent_contactBlockBytes:
         return m2ContactBlockScratchBytes(world->contacts.pairCapacity);
+    case m2_extent_markBytes:
+    {
+        int32_t most = world->bodies.bodyCapacity;
+        const int32_t others[] = {world->shapes.shapeCapacity, world->joints.jointCapacity,
+                                  world->particles.particleCapacity, world->volumes.fvCapacity};
+        for (size_t i = 0; i < sizeof(others) / sizeof(others[0]); ++i)
+        {
+            most = others[i] > most ? others[i] : most;
+        }
+        return (size_t)most;
+    }
     }
     M2_ASSERT(false);
     return 0;
@@ -753,4 +766,26 @@ bool m2StateBodyValid(const m2World* world, int32_t index)
         }
     }
     return true;
+}
+
+const uint8_t* m2StateIncoming(const m2World* world, const uint8_t* in, const void* field)
+{
+    size_t offset = (size_t)((const uint8_t*)field - (const uint8_t*)world);
+    size_t cursor = 0;
+    for (size_t i = 0; i < sizeof(s_state) / sizeof(s_state[0]); ++i)
+    {
+        const m2StateArray* array = &s_state[i];
+        if ((array->flags & M2_STATE_SNAPSHOT) == 0 || !Present(world, array->flags))
+        {
+            continue;
+        }
+        if (array->offset == offset)
+        {
+            return in + cursor;
+        }
+        bool pointer = (array->flags & M2_STATE_POINTER) != 0;
+        cursor +=
+            pointer ? ExtentCount(world, array->extent) * array->elementSize : array->elementSize;
+    }
+    return NULL;
 }

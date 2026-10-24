@@ -118,6 +118,7 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/ray_cast.c
     src/shape.c
     src/snapshot.c
+    src/snapshot_check.c
     src/solver.c
     src/world.c
     src/world_internal.c
