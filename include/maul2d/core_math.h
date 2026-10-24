@@ -18,8 +18,8 @@ extern "C"
 {
 #endif
 
-    // Everything in this header is pure math: no world, no state, no
-    // side effects. Thread class: reader (pure), all of it.
+    // Everything in this header is pure math: no world, no state, no side
+    // effects.
 
 #define M2_PI 3.14159265359f
 
@@ -124,33 +124,64 @@ extern "C"
         return m2MaxF(lo, m2MinF(a, hi));
     }
 
-    /// Map an angle to [-pi, pi] (boundary within one rounding step of pi).
-    /// Deterministic on every platform (uses only +, -, *, / and floorf).
-    /// Beyond about |radians| = 1.0e6f an angle cannot fold precisely in
-    /// float; such input returns the clamped boundary, deterministically
-    /// and never NaN.
+    /// Maps an angle to [-pi, pi], using only +, -, *, / and floorf, so the
+    /// bits agree everywhere. The boundary lands within one rounding step
+    /// of pi.
+    ///
+    /// @param radians  Any angle. Beyond about 1.0e6 in magnitude a float
+    ///                 cannot fold precisely; such an angle returns the
+    ///                 boundary, never NaN.
+    /// @return The same angle in [-pi, pi].
+    /// @par Thread safety
+    /// Safe from any thread.
     M2_API float m2UnwindAngle(float radians);
 
-    /// Build a rotation from an angle. Deterministic across platforms:
-    /// does not call libm; never returns NaN (out-of-range input falls
-    /// back deterministically, see m2UnwindAngle). Accurate to about
-    /// 4e-7, with identical bits everywhere.
+    /// Builds a rotation from an angle without calling the C library, so the
+    /// bits agree everywhere. Accurate to about 4e-7.
+    ///
+    /// @param radians  Any angle; it is unwound first (m2UnwindAngle), so an
+    ///                 out-of-range or non-finite angle never yields NaN.
+    /// @return A unit rotation.
+    /// @par Thread safety
+    /// Safe from any thread.
     M2_API m2Rot m2MakeRot(float radians);
 
-    /// Deterministic atan2 replacement, accurate to about 3e-7. Returns 0
-    /// for (0, 0) instead of NaN.
+    /// The engine's atan2, accurate to about 3e-7, with the same bits
+    /// everywhere.
+    ///
+    /// @param y  The sine side.
+    /// @param x  The cosine side.
+    /// @return The angle in [-pi, pi]; 0 for (0, 0) instead of NaN.
+    /// @par Thread safety
+    /// Safe from any thread.
     M2_API float m2Atan2(float y, float x);
 
-    /// Renormalize a rotation. Every rotation composition site must call
-    /// this immediately (drift control is part of the determinism contract).
-    /// A degenerate input (zero or non-finite magnitude) returns the
-    /// identity rotation - never NaN, never a non-unit result.
+    /// Renormalizes a rotation. Every composition of rotations renormalizes
+    /// at once: bounded drift is part of the determinism contract.
+    ///
+    /// @param q  Any rotation.
+    /// @return The unit rotation of q; the identity when q has zero or
+    ///         non-finite length, never NaN.
+    /// @par Thread safety
+    /// Safe from any thread.
     M2_API m2Rot m2NormalizeRot(m2Rot q);
 
-    /// Compose two rotations (q followed by r), renormalized.
+    /// Composes two rotations, q followed by r, and renormalizes.
+    ///
+    /// @param q  The first rotation.
+    /// @param r  The rotation applied after q.
+    /// @return The unit rotation of both.
+    /// @par Thread safety
+    /// Safe from any thread.
     M2_API m2Rot m2MulRot(m2Rot q, m2Rot r);
 
-    /// True if the rotation is unit length within tolerance.
+    /// Tells whether a rotation is unit length within the engine's
+    /// tolerance.
+    ///
+    /// @param q  The rotation to test.
+    /// @return 1 when q is unit length, 0 otherwise.
+    /// @par Thread safety
+    /// Safe from any thread.
     M2_API int m2IsNormalizedRot(m2Rot q);
 
 #ifdef __cplusplus
