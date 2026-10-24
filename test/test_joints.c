@@ -1136,6 +1136,71 @@ static void TestMotorAndMouseJoints(void)
 
 // The richer distance joint (parity bucket 2): a hard length range
 // over the spring, runtime retargeting, and runtime softness.
+// A slack rope: a distance joint with its spring toggle on, hertz 0 and a
+// maximum length, holding a ball that starts inside the rope's reach.
+static m2World* RopeWorld(const m2DistanceJointDef* rope, m2JointId* ropeOut)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    m2BodyDef hookDef = m2DefaultBodyDef();
+    hookDef.position = (m2Pos2){0.0, 5.0};
+    m2BodyId hook = NewBody(world, &hookDef);
+    m2BodyDef ballDef = m2DefaultBodyDef();
+    ballDef.type = m2_dynamicBody;
+    ballDef.position = (m2Pos2){1.0, 5.0};
+    m2BodyId ball = NewBody(world, &ballDef);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Circle disc = {{0.0f, 0.0f}, 0.25f};
+    NewCircleShape(world, ball, &sd, &disc);
+    m2DistanceJointDef jd = *rope;
+    jd.bodyIdA = hook;
+    jd.bodyIdB = ball;
+    *ropeOut = NewDistanceJoint(world, &jd);
+    return world;
+}
+
+// Every setting of a distance joint reads back, the spring toggle
+// included: a rope rebuilt from its getters swings like the original.
+static void TestDistanceSpringToggleReadsBack(void)
+{
+    m2DistanceJointDef rope = m2DefaultDistanceJointDef();
+    rope.enableSpring = true;
+    rope.maxLength = 3.0f;
+    m2JointId original;
+    m2World* world = RopeWorld(&rope, &original);
+    CHECK(m2DistanceJoint_IsSpringEnabled(world, original), "the rope's toggle reads back");
+
+    m2DistanceJointDef copy = m2DefaultDistanceJointDef();
+    copy.length = m2Joint_GetLength(world, original);
+    m2Joint_GetLimits(world, original, &copy.minLength, &copy.maxLength);
+    copy.hertz = m2Joint_GetSpringHertz(world, original);
+    copy.dampingRatio = m2Joint_GetSpringDampingRatio(world, original);
+    copy.enableSpring = m2DistanceJoint_IsSpringEnabled(world, original);
+    m2JointId rebuilt;
+    m2World* twin = RopeWorld(&copy, &rebuilt);
+    for (int32_t i = 0; i < 90; ++i)
+    {
+        m2World_Step(world, 1.0f / 60.0f, 4);
+        m2World_Step(twin, 1.0f / 60.0f, 4);
+    }
+    CHECK(m2World_Hash(world) == m2World_Hash(twin), "the rebuilt rope falls slack the same way");
+
+    m2DistanceJointDef rod = m2DefaultDistanceJointDef();
+    m2JointId plain;
+    m2World* rodWorld = RopeWorld(&rod, &plain);
+    CHECK(!m2DistanceJoint_IsSpringEnabled(rodWorld, plain), "a plain rod reads off");
+    m2RevoluteJointDef pin = m2DefaultRevoluteJointDef();
+    pin.bodyIdA = m2Joint_GetBodyA(rodWorld, plain);
+    pin.bodyIdB = m2Joint_GetBodyB(rodWorld, plain);
+    m2JointId hinge = NewRevoluteJoint(rodWorld, &pin);
+    uint64_t misuse = m2World_GetCounters(rodWorld).misuse;
+    CHECK(!m2DistanceJoint_IsSpringEnabled(rodWorld, hinge), "a hinge has no rope toggle");
+    CHECK(m2World_GetCounters(rodWorld).misuse == misuse + 1, "and asking counts one misuse");
+    m2DestroyWorld(rodWorld);
+    m2DestroyWorld(twin);
+    m2DestroyWorld(world);
+}
+
 static void TestDistanceRange(void)
 {
     // The hard range rows run on the stiff default softness, so when
@@ -2009,6 +2074,7 @@ int main(void)
     TestMotorAndMouseJoints();
     TestMotorSpring();
     TestDistanceRange();
+    TestDistanceSpringToggleReadsBack();
     TestGearJoint();
     TestRatchetJoint();
     TestMotorAndLimitCallsNeedTheirJoint();

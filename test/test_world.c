@@ -783,6 +783,7 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.collideConnected = m2Joint_GetCollideConnected(source, id);
             jd.hertz = m2Joint_GetHertz(source, id);
             jd.dampingRatio = m2Joint_GetDampingRatio(source, id);
+            jd.enableSpring = m2DistanceJoint_IsSpringEnabled(source, id);
             made = NewDistanceJoint(mirror, &jd);
         }
         else if (type == m2_revoluteJoint)
