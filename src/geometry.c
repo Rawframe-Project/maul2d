@@ -561,9 +561,18 @@ static bool DecompPointInTriangle(m2Vec2 a, m2Vec2 b, m2Vec2 c, m2Vec2 p)
            DecompCross(c, a, p) >= 0.0f;
 }
 
-// Proper or improper intersection of segments ab and cd, endpoints
-// included; used to reject self-intersecting outlines loudly.
-static bool DecompSegmentsCross(m2Vec2 a, m2Vec2 b, m2Vec2 c, m2Vec2 d)
+// Whether p, collinear with segment ab, lies on it, endpoints included.
+static bool DecompOnSegment(m2Vec2 a, m2Vec2 b, m2Vec2 p)
+{
+    return (a.x <= b.x ? a.x <= p.x && p.x <= b.x : b.x <= p.x && p.x <= a.x) &&
+           (a.y <= b.y ? a.y <= p.y && p.y <= b.y : b.y <= p.y && p.y <= a.y);
+}
+
+// Whether segments ab and cd meet: they cross, or one's endpoint lies on
+// the other (a vertex on an edge, a repeated vertex, a collinear
+// overlap). An outline whose edges meet anywhere but at their shared
+// corners is not simple, and its pieces could cover what it cuts out.
+static bool DecompSegmentsMeet(m2Vec2 a, m2Vec2 b, m2Vec2 c, m2Vec2 d)
 {
     float d1 = DecompCross(c, d, a);
     float d2 = DecompCross(c, d, b);
@@ -574,7 +583,43 @@ static bool DecompSegmentsCross(m2Vec2 a, m2Vec2 b, m2Vec2 c, m2Vec2 d)
     {
         return true;
     }
-    return false;
+    return (d1 == 0.0f && DecompOnSegment(c, d, a)) || (d2 == 0.0f && DecompOnSegment(c, d, b)) ||
+           (d3 == 0.0f && DecompOnSegment(a, b, c)) || (d4 == 0.0f && DecompOnSegment(a, b, d));
+}
+
+// Whether the corner at b folds the outline straight back over the edge
+// it arrived on: a spike of zero width.
+static bool DecompFoldsBack(m2Vec2 a, m2Vec2 b, m2Vec2 c)
+{
+    return DecompCross(a, b, c) == 0.0f &&
+           (b.x - a.x) * (c.x - b.x) + (b.y - a.y) * (c.y - b.y) < 0.0f;
+}
+
+// Whether an outline is simple: no corner folds back, and no two edges
+// meet except adjacent ones at their shared corner.
+static bool DecompSimple(const m2Vec2* points, int32_t count)
+{
+    for (int32_t i = 0; i < count; ++i)
+    {
+        if (DecompFoldsBack(points[(i + count - 1) % count], points[i], points[(i + 1) % count]))
+        {
+            return false;
+        }
+        for (int32_t j = i + 1; j < count; ++j)
+        {
+            // Skip adjacent segments (they share an endpoint).
+            if ((j + 1) % count == i || (i + 1) % count == j)
+            {
+                continue;
+            }
+            if (DecompSegmentsMeet(points[i], points[(i + 1) % count], points[j],
+                                   points[(j + 1) % count]))
+            {
+                return false;
+            }
+        }
+    }
+    return true;
 }
 
 // The decomposition behind m2DecomposeOutline: the true piece total, or
@@ -601,21 +646,9 @@ static int32_t Decompose(const m2Vec2* points, int32_t count, m2Polygon* pieces,
     {
         return -1; // clockwise or degenerate outline
     }
-    for (int32_t i = 0; i < count; ++i)
+    if (!DecompSimple(points, count))
     {
-        for (int32_t j = i + 1; j < count; ++j)
-        {
-            // Skip adjacent segments (they share an endpoint).
-            if (j == i || (j + 1) % count == i || (i + 1) % count == j)
-            {
-                continue;
-            }
-            if (DecompSegmentsCross(points[i], points[(i + 1) % count], points[j],
-                                    points[(j + 1) % count]))
-            {
-                return -1; // self-intersecting outline
-            }
-        }
+        return -1;
     }
 
     // Ear clipping. The ring holds original indices; each pass clips
