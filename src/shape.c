@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Shapes: creation and destruction, materials, filters, geometry
-// changes and shape readback.
+// Shapes: creation and destruction, materials, filters and geometry
+// changes, and the readers that share their checks; shape_read.c holds
+// the rest of the readback.
 
 #include "shape.h"
 
 #include "broadphase.h"
 #include "distance.h"
+#include "fpenv.h"
 #include "island.h"
 #include "journal.h"
 #include "mass.h"
@@ -17,21 +19,6 @@
 #include "maul2d/base.h"
 
 #include <string.h>
-
-static int32_t ShapeSlot(const m2World* world, m2ShapeId id)
-{
-    int32_t index = (int32_t)id.index1 - 1;
-    if (index < 0 || index >= world->shapes.shapeCapacity)
-    {
-        return -1;
-    }
-    if (world->shapes.shapeAlive[index] == 0 ||
-        world->shapes.shapeGenerations[index] != id.generation)
-    {
-        return -1;
-    }
-    return index;
-}
 
 // Shared by destroy and disable: end every touching
 // contact of this shape, wake its riders, drop the proxy, prune pairs.
@@ -93,7 +80,7 @@ void m2DestroyShapeInternal(m2World* world, int32_t shapeIndex)
     world->shapes.shapeFreeCount += 1;
 }
 
-m2Result m2DestroyShape(m2World* world, m2ShapeId shapeId)
+static M2_NOINLINE m2Result DestroyShapeWorker(m2World* world, m2ShapeId shapeId)
 {
     m2Result writer = m2CheckWriter(world);
     if (writer != m2_success)
@@ -133,6 +120,14 @@ m2Result m2DestroyShape(m2World* world, m2ShapeId shapeId)
     m2RecomputeMass(world, bodyIndex);
     m2WakeIfDynamic(world, bodyIndex);
     return m2_success;
+}
+
+m2Result m2DestroyShape(m2World* world, m2ShapeId shapeId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = DestroyShapeWorker(world, shapeId);
+    m2FloatEnvLeave(env);
+    return result;
 }
 
 // --- Shapes ---------------------------------------------------------------------
@@ -251,9 +246,12 @@ m2Result m2CreateShape(m2World* world, m2BodyId bodyId, const m2ShapeDef* def,
     return m2_success;
 }
 
+// Each constructor enters the floating-point environment around a worker
+// that does its work, as every public function that computes does.
 #define M2_SHAPE_CTOR(name, geomType, enumValue, validator, member)                                \
-    m2Result name(m2World* world, m2BodyId bodyId, const m2ShapeDef* def, const geomType* geom,    \
-                  m2ShapeId* shapeOut)                                                             \
+    static M2_NOINLINE m2Result name##Worker(m2World* world, m2BodyId bodyId,                      \
+                                             const m2ShapeDef* def, const geomType* geom,          \
+                                             m2ShapeId* shapeOut)                                  \
     {                                                                                              \
         if (shapeOut == NULL)                                                                      \
         {                                                                                          \
@@ -278,6 +276,14 @@ m2Result m2CreateShape(m2World* world, m2BodyId bodyId, const m2ShapeDef* def,
             return m2Refuse(world, m2_errorInvalid);                                               \
         }                                                                                          \
         return m2CreateShape(world, bodyId, def, &geometry, shapeOut);                             \
+    }                                                                                              \
+    m2Result name(m2World* world, m2BodyId bodyId, const m2ShapeDef* def, const geomType* geom,    \
+                  m2ShapeId* shapeOut)                                                             \
+    {                                                                                              \
+        uint64_t env = m2FloatEnvEnter();                                                          \
+        m2Result result = name##Worker(world, bodyId, def, geom, shapeOut);                        \
+        m2FloatEnvLeave(env);                                                                      \
+        return result;                                                                             \
     }
 
 M2_SHAPE_CTOR(m2CreateCircleShape, m2Circle, m2_circleShape, m2ValidateCircle, circle)
@@ -290,12 +296,12 @@ M2_SHAPE_CTOR(m2CreateSegmentShape, m2Segment, m2_segmentShape, m2ValidateSegmen
 
 bool m2Shape_IsValid(const m2World* world, m2ShapeId shapeId)
 {
-    return world != NULL && ShapeSlot(world, shapeId) >= 0;
+    return world != NULL && m2ShapeSlot(world, shapeId) >= 0;
 }
 
 m2BodyId m2Shape_GetBody(const m2World* world, m2ShapeId shapeId)
 {
-    int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;
+    int32_t index = world != NULL ? m2ShapeSlot(world, shapeId) : -1;
     if (index < 0)
     {
         m2Refuse(world, m2_errorInvalid);
@@ -308,7 +314,7 @@ m2BodyId m2Shape_GetBody(const m2World* world, m2ShapeId shapeId)
 
 uint64_t m2Shape_GetUserData(const m2World* world, m2ShapeId shapeId)
 {
-    int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;
+    int32_t index = world != NULL ? m2ShapeSlot(world, shapeId) : -1;
     if (index < 0)
     {
         m2Refuse(world, m2_errorInvalid);
@@ -410,7 +416,7 @@ bool m2SetShapeParamInternal(m2World* world, m2ShapeId shapeId, uint8_t param, f
     return true;
 }
 
-void m2Shape_SetTangentSpeed(m2World* world, m2ShapeId shapeId, float speed)
+static M2_NOINLINE void ShapeSetTangentSpeedWorker(m2World* world, m2ShapeId shapeId, float speed)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -419,7 +425,14 @@ void m2Shape_SetTangentSpeed(m2World* world, m2ShapeId shapeId, float speed)
     m2SetShapeParamInternal(world, shapeId, m2_shapeParamTangentSpeed, speed);
 }
 
-float m2Shape_GetTangentSpeed(const m2World* world, m2ShapeId shapeId)
+void m2Shape_SetTangentSpeed(m2World* world, m2ShapeId shapeId, float speed)
+{
+    uint64_t env = m2FloatEnvEnter();
+    ShapeSetTangentSpeedWorker(world, shapeId, speed);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE float ShapeGetTangentSpeedWorker(const m2World* world, m2ShapeId shapeId)
 {
     int32_t index = (int32_t)shapeId.index1 - 1;
     if (world == NULL || index < 0 || index >= world->shapes.shapeCapacity ||
@@ -432,7 +445,15 @@ float m2Shape_GetTangentSpeed(const m2World* world, m2ShapeId shapeId)
     return world->shapes.shapeTangentSpeed[index];
 }
 
-void m2Shape_SetFriction(m2World* world, m2ShapeId shapeId, float friction)
+float m2Shape_GetTangentSpeed(const m2World* world, m2ShapeId shapeId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = ShapeGetTangentSpeedWorker(world, shapeId);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE void ShapeSetFrictionWorker(m2World* world, m2ShapeId shapeId, float friction)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -441,7 +462,15 @@ void m2Shape_SetFriction(m2World* world, m2ShapeId shapeId, float friction)
     m2SetShapeParamInternal(world, shapeId, m2_shapeParamFriction, friction);
 }
 
-void m2Shape_SetRestitution(m2World* world, m2ShapeId shapeId, float restitution)
+void m2Shape_SetFriction(m2World* world, m2ShapeId shapeId, float friction)
+{
+    uint64_t env = m2FloatEnvEnter();
+    ShapeSetFrictionWorker(world, shapeId, friction);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void ShapeSetRestitutionWorker(m2World* world, m2ShapeId shapeId,
+                                                  float restitution)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -450,7 +479,14 @@ void m2Shape_SetRestitution(m2World* world, m2ShapeId shapeId, float restitution
     m2SetShapeParamInternal(world, shapeId, m2_shapeParamRestitution, restitution);
 }
 
-float m2Shape_GetFriction(const m2World* world, m2ShapeId shapeId)
+void m2Shape_SetRestitution(m2World* world, m2ShapeId shapeId, float restitution)
+{
+    uint64_t env = m2FloatEnvEnter();
+    ShapeSetRestitutionWorker(world, shapeId, restitution);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE float ShapeGetFrictionWorker(const m2World* world, m2ShapeId shapeId)
 {
     int32_t index = ShapeSlotChecked(world, shapeId);
     if (index < 0)
@@ -461,7 +497,15 @@ float m2Shape_GetFriction(const m2World* world, m2ShapeId shapeId)
     return world->shapes.shapeFriction[index];
 }
 
-float m2Shape_GetRestitution(const m2World* world, m2ShapeId shapeId)
+float m2Shape_GetFriction(const m2World* world, m2ShapeId shapeId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = ShapeGetFrictionWorker(world, shapeId);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE float ShapeGetRestitutionWorker(const m2World* world, m2ShapeId shapeId)
 {
     int32_t index = ShapeSlotChecked(world, shapeId);
     if (index < 0)
@@ -472,8 +516,17 @@ float m2Shape_GetRestitution(const m2World* world, m2ShapeId shapeId)
     return world->shapes.shapeRestitution[index];
 }
 
-void m2Shape_SetFilter(m2World* world, m2ShapeId shapeId, uint64_t categoryBits, uint64_t maskBits,
-                       int32_t groupIndex)
+float m2Shape_GetRestitution(const m2World* world, m2ShapeId shapeId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = ShapeGetRestitutionWorker(world, shapeId);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE void ShapeSetFilterWorker(m2World* world, m2ShapeId shapeId,
+                                             uint64_t categoryBits, uint64_t maskBits,
+                                             int32_t groupIndex)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -522,6 +575,14 @@ void m2Shape_SetFilter(m2World* world, m2ShapeId shapeId, uint64_t categoryBits,
     m2PushMoved(world, index); // the pair rebuild purges and re-collects
 }
 
+void m2Shape_SetFilter(m2World* world, m2ShapeId shapeId, uint64_t categoryBits, uint64_t maskBits,
+                       int32_t groupIndex)
+{
+    uint64_t env = m2FloatEnvEnter();
+    ShapeSetFilterWorker(world, shapeId, categoryBits, maskBits, groupIndex);
+    m2FloatEnvLeave(env);
+}
+
 // One shared road for runtime geometry: validate outside, then swap
 // the union (memset first: deterministic tail bytes), wake whoever
 // was touching it, refresh mass and broadphase.
@@ -562,7 +623,8 @@ static void SetGeometryInternal(m2World* world, m2ShapeId shapeId, int32_t index
     }
 }
 
-void m2Shape_SetCircle(m2World* world, m2ShapeId shapeId, const m2Circle* circle)
+static M2_NOINLINE void ShapeSetCircleWorker(m2World* world, m2ShapeId shapeId,
+                                             const m2Circle* circle)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -582,7 +644,15 @@ void m2Shape_SetCircle(m2World* world, m2ShapeId shapeId, const m2Circle* circle
     SetGeometryInternal(world, shapeId, index, &g);
 }
 
-void m2Shape_SetCapsule(m2World* world, m2ShapeId shapeId, const m2Capsule* capsule)
+void m2Shape_SetCircle(m2World* world, m2ShapeId shapeId, const m2Circle* circle)
+{
+    uint64_t env = m2FloatEnvEnter();
+    ShapeSetCircleWorker(world, shapeId, circle);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void ShapeSetCapsuleWorker(m2World* world, m2ShapeId shapeId,
+                                              const m2Capsule* capsule)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -602,7 +672,15 @@ void m2Shape_SetCapsule(m2World* world, m2ShapeId shapeId, const m2Capsule* caps
     SetGeometryInternal(world, shapeId, index, &g);
 }
 
-void m2Shape_SetPolygon(m2World* world, m2ShapeId shapeId, const m2Polygon* polygon)
+void m2Shape_SetCapsule(m2World* world, m2ShapeId shapeId, const m2Capsule* capsule)
+{
+    uint64_t env = m2FloatEnvEnter();
+    ShapeSetCapsuleWorker(world, shapeId, capsule);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void ShapeSetPolygonWorker(m2World* world, m2ShapeId shapeId,
+                                              const m2Polygon* polygon)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -622,7 +700,15 @@ void m2Shape_SetPolygon(m2World* world, m2ShapeId shapeId, const m2Polygon* poly
     SetGeometryInternal(world, shapeId, index, &g);
 }
 
-void m2Shape_SetSegment(m2World* world, m2ShapeId shapeId, const m2Segment* segment)
+void m2Shape_SetPolygon(m2World* world, m2ShapeId shapeId, const m2Polygon* polygon)
+{
+    uint64_t env = m2FloatEnvEnter();
+    ShapeSetPolygonWorker(world, shapeId, polygon);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void ShapeSetSegmentWorker(m2World* world, m2ShapeId shapeId,
+                                              const m2Segment* segment)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -642,9 +728,16 @@ void m2Shape_SetSegment(m2World* world, m2ShapeId shapeId, const m2Segment* segm
     SetGeometryInternal(world, shapeId, index, &g);
 }
 
-bool m2Shape_TestPoint(const m2World* world, m2ShapeId shapeId, m2Pos2 point)
+void m2Shape_SetSegment(m2World* world, m2ShapeId shapeId, const m2Segment* segment)
 {
-    int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;
+    uint64_t env = m2FloatEnvEnter();
+    ShapeSetSegmentWorker(world, shapeId, segment);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE bool ShapeTestPointWorker(const m2World* world, m2ShapeId shapeId, m2Pos2 point)
+{
+    int32_t index = world != NULL ? m2ShapeSlot(world, shapeId) : -1;
     if (index < 0)
     {
         m2Refuse(world, m2_errorInvalid);
@@ -664,9 +757,18 @@ bool m2Shape_TestPoint(const m2World* world, m2ShapeId shapeId, m2Pos2 point)
     return d.distance - target.radius <= 0.005f;
 }
 
-m2Pos2 m2Shape_GetClosestPoint(const m2World* world, m2ShapeId shapeId, m2Pos2 point)
+bool m2Shape_TestPoint(const m2World* world, m2ShapeId shapeId, m2Pos2 point)
 {
-    int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;
+    uint64_t env = m2FloatEnvEnter();
+    bool result = ShapeTestPointWorker(world, shapeId, point);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE m2Pos2 ShapeGetClosestPointWorker(const m2World* world, m2ShapeId shapeId,
+                                                     m2Pos2 point)
+{
+    int32_t index = world != NULL ? m2ShapeSlot(world, shapeId) : -1;
     if (index < 0)
     {
         m2Refuse(world, m2_errorInvalid);
@@ -692,9 +794,17 @@ m2Pos2 m2Shape_GetClosestPoint(const m2World* world, m2ShapeId shapeId, m2Pos2 p
     return (m2Pos2){xf.p.x + (double)out.x, xf.p.y + (double)out.y};
 }
 
-m2ChainId m2Shape_GetParentChain(const m2World* world, m2ShapeId shapeId)
+m2Pos2 m2Shape_GetClosestPoint(const m2World* world, m2ShapeId shapeId, m2Pos2 point)
 {
-    int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;
+    uint64_t env = m2FloatEnvEnter();
+    m2Pos2 result = ShapeGetClosestPointWorker(world, shapeId, point);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE m2ChainId ShapeGetParentChainWorker(const m2World* world, m2ShapeId shapeId)
+{
+    int32_t index = world != NULL ? m2ShapeSlot(world, shapeId) : -1;
     m2ChainId id = {0, 0};
     if (index < 0)
     {
@@ -711,10 +821,18 @@ m2ChainId m2Shape_GetParentChain(const m2World* world, m2ShapeId shapeId)
     return id;
 }
 
-m2AabbResult m2Shape_GetAabb(const m2World* world, m2ShapeId shapeId)
+m2ChainId m2Shape_GetParentChain(const m2World* world, m2ShapeId shapeId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2ChainId result = ShapeGetParentChainWorker(world, shapeId);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE m2AabbResult ShapeGetAabbWorker(const m2World* world, m2ShapeId shapeId)
 {
     m2AabbResult result = {{0.0, 0.0}, {0.0, 0.0}};
-    int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;
+    int32_t index = world != NULL ? m2ShapeSlot(world, shapeId) : -1;
     if (index < 0)
     {
         m2Refuse(world, m2_errorInvalid);
@@ -727,7 +845,15 @@ m2AabbResult m2Shape_GetAabb(const m2World* world, m2ShapeId shapeId)
     return result;
 }
 
-void m2Shape_SetDensity(m2World* world, m2ShapeId shapeId, float density)
+m2AabbResult m2Shape_GetAabb(const m2World* world, m2ShapeId shapeId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2AabbResult result = ShapeGetAabbWorker(world, shapeId);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE void ShapeSetDensityWorker(m2World* world, m2ShapeId shapeId, float density)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -753,6 +879,13 @@ void m2Shape_SetDensity(m2World* world, m2ShapeId shapeId, float density)
     m2WakeIfDynamic(world, body);
 }
 
+void m2Shape_SetDensity(m2World* world, m2ShapeId shapeId, float density)
+{
+    uint64_t env = m2FloatEnvEnter();
+    ShapeSetDensityWorker(world, shapeId, density);
+    m2FloatEnvLeave(env);
+}
+
 void m2Shape_SetUserData(m2World* world, m2ShapeId shapeId, uint64_t userData)
 {
     if (m2CheckWriter(world) != m2_success)
@@ -774,95 +907,4 @@ void m2Shape_SetUserData(m2World* world, m2ShapeId shapeId, uint64_t userData)
         m2JournalRecord(world, m2_opShapeUserData, &record, (int32_t)sizeof(record));
     }
     world->shapes.shapeUserData[index] = userData;
-}
-
-m2ShapeType m2Shape_GetType(const m2World* world, m2ShapeId shapeId)
-{
-    int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;
-    if (index < 0)
-    {
-        m2Refuse(world, m2_errorInvalid);
-        return m2_circleShape;
-    }
-    return (m2ShapeType)world->shapes.shapeGeometry[index].type;
-}
-
-bool m2Shape_IsSensor(const m2World* world, m2ShapeId shapeId)
-{
-    int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;
-    if (index < 0)
-    {
-        m2Refuse(world, m2_errorInvalid);
-        return false;
-    }
-    return world->shapes.shapeSensor[index] != 0;
-}
-
-void m2Shape_GetFilter(const m2World* world, m2ShapeId shapeId, uint64_t* categoryBitsOut,
-                       uint64_t* maskBitsOut, int32_t* groupIndexOut)
-{
-    int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;
-    uint64_t category = 0;
-    uint64_t mask = 0;
-    int32_t group = 0;
-    if (index >= 0)
-    {
-        category = world->shapes.shapeCategory[index];
-        mask = world->shapes.shapeMask[index];
-        group = world->shapes.shapeGroup[index];
-    }
-    else
-    {
-        m2Refuse(world, m2_errorInvalid);
-    }
-    if (categoryBitsOut != NULL)
-    {
-        *categoryBitsOut = category;
-    }
-    if (maskBitsOut != NULL)
-    {
-        *maskBitsOut = mask;
-    }
-    if (groupIndexOut != NULL)
-    {
-        *groupIndexOut = group;
-    }
-}
-
-// Geometry readback: exact stored bits, loud on a type mismatch.
-#define M2_GEOMETRY_GETTER(name, fieldType, field, enumValue)                                      \
-    fieldType name(const m2World* world, m2ShapeId shapeId)                                        \
-    {                                                                                              \
-        fieldType zero;                                                                            \
-        memset(&zero, 0, sizeof(zero));                                                            \
-        int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;                            \
-        if (index < 0 || world->shapes.shapeGeometry[index].type != (int32_t)(enumValue))          \
-        {                                                                                          \
-            m2Refuse(world, m2_errorInvalid);                                                      \
-            return zero;                                                                           \
-        }                                                                                          \
-        return world->shapes.shapeGeometry[index].field;                                           \
-    }
-
-M2_GEOMETRY_GETTER(m2Shape_GetCircle, m2Circle, circle, m2_circleShape)
-
-M2_GEOMETRY_GETTER(m2Shape_GetCapsule, m2Capsule, capsule, m2_capsuleShape)
-
-M2_GEOMETRY_GETTER(m2Shape_GetPolygon, m2Polygon, polygon, m2_polygonShape)
-
-M2_GEOMETRY_GETTER(m2Shape_GetSegment, m2Segment, segment, m2_segmentShape)
-
-M2_GEOMETRY_GETTER(m2Shape_GetChainSegment, m2ChainSegment, chainSegment, m2_chainSegmentShape)
-
-#undef M2_GEOMETRY_GETTER
-
-float m2Shape_GetDensity(const m2World* world, m2ShapeId shapeId)
-{
-    int32_t index = world != NULL ? ShapeSlot(world, shapeId) : -1;
-    if (index < 0)
-    {
-        m2Refuse(world, m2_errorInvalid);
-        return 0.0f;
-    }
-    return world->shapes.shapeDensity[index];
 }

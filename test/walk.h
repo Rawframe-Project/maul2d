@@ -32,6 +32,9 @@ static uint64_t s_rng;
 // journal format is pinned with the world's bits.
 static uint64_t s_walkTapeHash = M2_HASH_INIT;
 
+// The size of the last tape the walk recorded.
+static int32_t s_walkTapeSize = 0;
+
 static uint64_t NextU64(void)
 {
     uint64_t x = s_rng;
@@ -745,24 +748,33 @@ static void DoRandomOp(m2World* world)
 
 // One full walk. With a journal the walk is recorded and must replay
 // onto its own bits; the rollback identity is enforced either way.
-static uint64_t RunScenario(uint64_t seed, uint8_t* journal, int32_t journalCapacity,
-                            int32_t workerCount)
+static int32_t s_walkWorkers;
+
+// The def every walk's world is made from, so its tape replays onto the
+// same world.
+static m2WorldDef WalkWorldDef(int32_t workerCount)
 {
-    s_rng = seed;
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 16;
     def.shapeCapacity = 32;
     def.jointCapacity = 8;
     def.particleCapacity = 128; // the walks drive water too
     def.fluidVolumeCapacity = 2;
-    static int32_t s_fuzzWorkers;
-    s_fuzzWorkers = workerCount;
+    s_walkWorkers = workerCount;
     if (workerCount > 1)
     {
         def.enqueueTask = TpEnqueue;
         def.finishTask = TpFinish;
-        def.userTaskContext = &s_fuzzWorkers;
+        def.userTaskContext = &s_walkWorkers;
     }
+    return def;
+}
+
+static uint64_t RunScenario(uint64_t seed, uint8_t* journal, int32_t journalCapacity,
+                            int32_t workerCount)
+{
+    s_rng = seed;
+    m2WorldDef def = WalkWorldDef(workerCount);
     m2World* world = NewWorld(&def);
     if (journal != NULL)
     {
@@ -800,6 +812,7 @@ static uint64_t RunScenario(uint64_t seed, uint8_t* journal, int32_t journalCapa
         int32_t bytes = StopJournal(world);
         CHECK(bytes > 0, "the walk fits the journal");
         s_walkTapeHash = m2Hash64(s_walkTapeHash, journal, bytes);
+        s_walkTapeSize = bytes;
         m2World* fresh = NewWorld(&def);
         CHECK(ReplayJournal(fresh, journal, bytes), "the walk replays");
         CHECK(m2World_Hash(fresh) == endHash, "replay lands on the recorded bits");

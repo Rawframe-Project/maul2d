@@ -7,6 +7,7 @@
 // world position leaves here as f64 so the renderer can subtract the
 // camera before dropping to floats.
 
+#include "fpenv.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -24,6 +25,46 @@ enum
     m2_colorFriction = 0x5fd8d8,
     m2_colorAabb = 0x3f4f3f,
 };
+
+// The callbacks are host code: each runs in the host's floating-point
+// environment, through a helper whose body is only that call.
+static M2_NOINLINE void DrawPolygon(const m2DebugDraw* draw, const m2Vec2* vertices, int32_t count,
+                                    m2Pos2 origin, m2Rot rotation, uint32_t color)
+{
+    m2FloatHost host = m2FloatHostEnter();
+    draw->drawPolygon(vertices, count, origin, rotation, color, draw->context);
+    m2FloatHostLeave(host);
+}
+
+static M2_NOINLINE void DrawCircle(const m2DebugDraw* draw, m2Pos2 center, float radius,
+                                   m2Rot rotation, uint32_t color)
+{
+    m2FloatHost host = m2FloatHostEnter();
+    draw->drawCircle(center, radius, rotation, color, draw->context);
+    m2FloatHostLeave(host);
+}
+
+static M2_NOINLINE void DrawCapsule(const m2DebugDraw* draw, m2Pos2 p1, m2Pos2 p2, float radius,
+                                    uint32_t color)
+{
+    m2FloatHost host = m2FloatHostEnter();
+    draw->drawCapsule(p1, p2, radius, color, draw->context);
+    m2FloatHostLeave(host);
+}
+
+static M2_NOINLINE void DrawSegment(const m2DebugDraw* draw, m2Pos2 p1, m2Pos2 p2, uint32_t color)
+{
+    m2FloatHost host = m2FloatHostEnter();
+    draw->drawSegment(p1, p2, color, draw->context);
+    m2FloatHostLeave(host);
+}
+
+static M2_NOINLINE void DrawPoint(const m2DebugDraw* draw, m2Pos2 p, float size, uint32_t color)
+{
+    m2FloatHost host = m2FloatHostEnter();
+    draw->drawPoint(p, size, color, draw->context);
+    m2FloatHostLeave(host);
+}
 
 static uint32_t BodyColor(const m2World* world, int32_t body)
 {
@@ -63,38 +104,37 @@ static void DrawShape(const m2World* world, const m2DebugDraw* draw, int32_t sha
     case m2_circleShape:
         if (draw->drawCircle != NULL)
         {
-            draw->drawCircle(LocalToWorld(xf, geometry->circle.center), geometry->circle.radius,
-                             xf.q, color, draw->context);
+            DrawCircle(draw, LocalToWorld(xf, geometry->circle.center), geometry->circle.radius,
+                       xf.q, color);
         }
         break;
     case m2_capsuleShape:
         if (draw->drawCapsule != NULL)
         {
-            draw->drawCapsule(LocalToWorld(xf, geometry->capsule.point1),
-                              LocalToWorld(xf, geometry->capsule.point2), geometry->capsule.radius,
-                              color, draw->context);
+            DrawCapsule(draw, LocalToWorld(xf, geometry->capsule.point1),
+                        LocalToWorld(xf, geometry->capsule.point2), geometry->capsule.radius,
+                        color);
         }
         break;
     case m2_segmentShape:
         if (draw->drawSegment != NULL)
         {
-            draw->drawSegment(LocalToWorld(xf, geometry->segment.point1),
-                              LocalToWorld(xf, geometry->segment.point2), color, draw->context);
+            DrawSegment(draw, LocalToWorld(xf, geometry->segment.point1),
+                        LocalToWorld(xf, geometry->segment.point2), color);
         }
         break;
     case m2_chainSegmentShape:
         if (draw->drawSegment != NULL)
         {
-            draw->drawSegment(LocalToWorld(xf, geometry->chainSegment.segment.point1),
-                              LocalToWorld(xf, geometry->chainSegment.segment.point2), color,
-                              draw->context);
+            DrawSegment(draw, LocalToWorld(xf, geometry->chainSegment.segment.point1),
+                        LocalToWorld(xf, geometry->chainSegment.segment.point2), color);
         }
         break;
     default:
         if (draw->drawPolygon != NULL)
         {
-            draw->drawPolygon(geometry->polygon.vertices, geometry->polygon.count, xf.p, xf.q,
-                              color, draw->context);
+            DrawPolygon(draw, geometry->polygon.vertices, geometry->polygon.count, xf.p, xf.q,
+                        color);
         }
         break;
     }
@@ -113,7 +153,7 @@ static void DrawJoint(const m2World* world, const m2DebugDraw* draw, int32_t j)
     {
         // The anchor slots carry phase-tracking rotation state, not
         // anchors; draw the coupling hub to hub.
-        draw->drawSegment(xfA.p, xfB.p, m2_colorJoint, draw->context);
+        DrawSegment(draw, xfA.p, xfB.p, m2_colorJoint);
         return;
     }
     m2Pos2 a = LocalToWorld(xfA, world->joints.jointLocalAnchorA[j]);
@@ -123,9 +163,9 @@ static void DrawJoint(const m2World* world, const m2DebugDraw* draw, int32_t j)
         // Two ropes up to the ground anchors and the crossbar between them.
         m2Pos2 ga = world->joints.jointTargets[j];
         m2Pos2 gb = world->joints.jointTargetsB[j];
-        draw->drawSegment(a, ga, m2_colorJoint, draw->context);
-        draw->drawSegment(b, gb, m2_colorJoint, draw->context);
-        draw->drawSegment(ga, gb, m2_colorJoint, draw->context);
+        DrawSegment(draw, a, ga, m2_colorJoint);
+        DrawSegment(draw, b, gb, m2_colorJoint);
+        DrawSegment(draw, ga, gb, m2_colorJoint);
         a = ga;
         b = gb;
     }
@@ -135,12 +175,12 @@ static void DrawJoint(const m2World* world, const m2DebugDraw* draw, int32_t j)
         {
             a = world->joints.jointTargets[j]; // the spring runs from the target
         }
-        draw->drawSegment(a, b, m2_colorJoint, draw->context);
+        DrawSegment(draw, a, b, m2_colorJoint);
     }
     if (draw->drawPoint != NULL)
     {
-        draw->drawPoint(a, 4.0f, m2_colorJoint, draw->context);
-        draw->drawPoint(b, 4.0f, m2_colorJoint, draw->context);
+        DrawPoint(draw, a, 4.0f, m2_colorJoint);
+        DrawPoint(draw, b, 4.0f, m2_colorJoint);
     }
 }
 
@@ -170,8 +210,7 @@ static void DrawContactPoints(const m2World* world, const m2DebugDraw* draw)
         const m2Manifold* manifold = DrawnManifold(world, i, &xfA);
         for (int32_t k = 0; manifold != NULL && k < manifold->pointCount; ++k)
         {
-            draw->drawPoint(LocalToWorld(xfA, manifold->points[k].anchorA), 5.0f, m2_colorContact,
-                            draw->context);
+            DrawPoint(draw, LocalToWorld(xfA, manifold->points[k].anchorA), 5.0f, m2_colorContact);
         }
     }
 }
@@ -198,10 +237,10 @@ static void DrawContactForces(const m2World* world, const m2DebugDraw* draw)
             m2Pos2 p = LocalToWorld(xfA, manifold->points[k].anchorA);
             float ni = manifold->points[k].normalImpulse * scale;
             m2Pos2 nEnd = {p.x + (double)(n.x * ni), p.y + (double)(n.y * ni)};
-            draw->drawSegment(p, nEnd, m2_colorContact, draw->context);
+            DrawSegment(draw, p, nEnd, m2_colorContact);
             float ti = manifold->points[k].tangentImpulse * scale;
             m2Pos2 tEnd = {p.x + (double)(t.x * ti), p.y + (double)(t.y * ti)};
-            draw->drawSegment(p, tEnd, m2_colorFriction, draw->context);
+            DrawSegment(draw, p, tEnd, m2_colorFriction);
         }
     }
 }
@@ -222,16 +261,16 @@ static void DrawAabbs(const m2World* world, const m2DebugDraw* draw)
         m2Pos2 c2 = {box.upperBound.x, box.lowerBound.y};
         m2Pos2 c3 = {box.upperBound.x, box.upperBound.y};
         m2Pos2 c4 = {box.lowerBound.x, box.upperBound.y};
-        draw->drawSegment(c1, c2, m2_colorAabb, draw->context);
-        draw->drawSegment(c2, c3, m2_colorAabb, draw->context);
-        draw->drawSegment(c3, c4, m2_colorAabb, draw->context);
-        draw->drawSegment(c4, c1, m2_colorAabb, draw->context);
+        DrawSegment(draw, c1, c2, m2_colorAabb);
+        DrawSegment(draw, c2, c3, m2_colorAabb);
+        DrawSegment(draw, c3, c4, m2_colorAabb);
+        DrawSegment(draw, c4, c1, m2_colorAabb);
     }
 }
 
 static void DrawWorld(const m2World* world, const m2DebugDraw* draw);
 
-void m2World_Draw(const m2World* world, const m2DebugDraw* draw)
+static M2_NOINLINE void WorldDrawWorker(const m2World* world, const m2DebugDraw* draw)
 {
     if (world == NULL || draw == NULL)
     {
@@ -242,6 +281,13 @@ void m2World_Draw(const m2World* world, const m2DebugDraw* draw)
     m2EnterHostCode(world);
     DrawWorld(world, draw);
     m2LeaveHostCode(world);
+}
+
+void m2World_Draw(const m2World* world, const m2DebugDraw* draw)
+{
+    uint64_t env = m2FloatEnvEnter();
+    WorldDrawWorker(world, draw);
+    m2FloatEnvLeave(env);
 }
 
 // The walk itself: shapes, joints, contacts and proxies.

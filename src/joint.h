@@ -25,6 +25,14 @@
 int32_t m2JointSlotChecked(const m2World* world, m2JointId jointId);
 int32_t m2TypedJointSlot(const m2World* world, m2JointId jointId, uint8_t type);
 
+// The joint kinds with a motor and limits (bit n = m2JointType n). The
+// motor joint's torque budget rides the max motor channel too. Other
+// kinds may keep their own state where these kinds keep limits (the
+// ratchet's tooth), so the channels refuse them.
+#define M2_MOTOR_LIMIT_KINDS                                                                       \
+    ((1u << m2_revoluteJoint) | (1u << m2_prismaticJoint) | (1u << m2_wheelJoint))
+#define M2_MAX_MOTOR_KINDS (M2_MOTOR_LIMIT_KINDS | (1u << m2_motorJoint))
+
 // Creation: a free slot (or -1), then the fields every joint starts
 // with, linked into both bodies' lists, both bodies awake.
 int32_t m2AllocateJoint(m2World* world);

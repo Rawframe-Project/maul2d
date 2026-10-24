@@ -6,6 +6,7 @@
 
 #include "body.h"
 #include "broadphase.h"
+#include "fpenv.h"
 #include "joint.h"
 #include "joint_solver.h"
 #include "journal.h"
@@ -40,7 +41,8 @@ static bool DefValid(const m2RatchetJointDef* def)
     return m2WithinF(tooth, M2_MIN_RATCHET_TOOTH, M2_MAX_ANGLE) && m2ValidAngle(def->phase);
 }
 
-m2Result m2CreateRatchetJoint(m2World* world, const m2RatchetJointDef* def, m2JointId* jointOut)
+static M2_NOINLINE m2Result CreateRatchetJointWorker(m2World* world, const m2RatchetJointDef* def,
+                                                     m2JointId* jointOut)
 {
     if (jointOut == NULL)
     {
@@ -102,16 +104,40 @@ m2Result m2CreateRatchetJoint(m2World* world, const m2RatchetJointDef* def, m2Jo
     return m2_success;
 }
 
-float m2RatchetJoint_GetRatchet(const m2World* world, m2JointId jointId)
+m2Result m2CreateRatchetJoint(m2World* world, const m2RatchetJointDef* def, m2JointId* jointOut)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = CreateRatchetJointWorker(world, def, jointOut);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE float RatchetJointGetRatchetWorker(const m2World* world, m2JointId jointId)
 {
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_ratchetJoint);
     return index >= 0 ? world->joints.jointLength[index] : 0.0f;
 }
 
-float m2RatchetJoint_GetPhase(const m2World* world, m2JointId jointId)
+float m2RatchetJoint_GetRatchet(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = RatchetJointGetRatchetWorker(world, jointId);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE float RatchetJointGetPhaseWorker(const m2World* world, m2JointId jointId)
 {
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_ratchetJoint);
     return index >= 0 ? world->joints.jointRefAngle[index] : 0.0f;
+}
+
+float m2RatchetJoint_GetPhase(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = RatchetJointGetPhaseWorker(world, jointId);
+    m2FloatEnvLeave(env);
+    return result;
 }
 
 // --- Solver ---------------------------------------------------------------

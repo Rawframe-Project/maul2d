@@ -11,8 +11,15 @@
 // regeneration:
 //
 //   out/<preset>/test_golden | grep -E '^M2_[A-Z0-9_]+_HASH=' > test/hashes.txt
+//
+// The scenes then run again on a hostile host, each under another of the
+// floating-point settings test_fenv.h plays (every rounding mode, with
+// flush-to-zero and denormals-are-zero off and on): the library computes
+// in its own setting, so they reach the same values, and the host's
+// setting is as the host left it after each scene.
 
 #include "helpers.h"
+#include "test_fenv.h"
 #include "test_harness.h"
 #include "test_task_pool.h"
 #include "walk.h"
@@ -78,8 +85,22 @@ static uint64_t Mix(uint64_t hash, uint64_t value)
 
 static int32_t s_expected = 0;
 
+// The host setting of the second pass, -1 in the first, which alone
+// prints and counts the lines.
+static int s_host = -1;
+
 static void Expect(const char* name, uint64_t actual, uint64_t expected)
 {
+    if (s_host >= 0)
+    {
+        if (actual != expected)
+        {
+            printf("FAIL: %s moved to %016llx on host setting %d\n", name,
+                   (unsigned long long)actual, s_host);
+            s_failures += 1;
+        }
+        return;
+    }
     s_expected += 1;
     printf("M2_%s_HASH=%016llx\n", name, (unsigned long long)actual);
     if (expected == 0)
@@ -502,14 +523,29 @@ static void SceneRollback(void)
 // replayed, with an unjournaled and a threaded twin (walk.h). The tapes'
 // bytes are pinned on their own line (JOURNAL_TAPE), since they are a
 // format.
+#define WALK_SEEDS ((int32_t)(sizeof(s_walkSeeds) / sizeof(s_walkSeeds[0])))
+
+// The walks' tapes, kept for the hostile host to replay.
+static uint8_t* s_tapes[WALK_SEEDS];
+static int32_t s_tapeSizes[WALK_SEEDS];
+
+static uint64_t JournalHash(uint64_t hash, uint64_t walk)
+{
+    return hash ^ (walk + 0x9E3779B97F4A7C15ull + (hash << 6) + (hash >> 2));
+}
+
 static void SceneJournal(void)
 {
     uint8_t* journal = malloc(WALK_JOURNAL_CAPACITY);
     uint64_t hash = 0x9E3779B97F4A7C15ull;
-    for (int32_t i = 0; i < 10; ++i)
+    s_walkTapeHash = M2_HASH_INIT;
+    for (int32_t i = 0; i < WALK_SEEDS; ++i)
     {
-        uint64_t recorded = WalkSeed(s_walkSeeds[i], journal);
-        hash ^= recorded + 0x9E3779B97F4A7C15ull + (hash << 6) + (hash >> 2);
+        hash = JournalHash(hash, WalkSeed(s_walkSeeds[i], journal));
+        free(s_tapes[i]);
+        s_tapes[i] = malloc((size_t)s_walkTapeSize);
+        memcpy(s_tapes[i], journal, (size_t)s_walkTapeSize);
+        s_tapeSizes[i] = s_walkTapeSize;
     }
     free(journal);
     Expect("JOURNAL", hash, M2_GOLDEN_JOURNAL);
@@ -545,6 +581,62 @@ static void SceneBench(void)
     }
 }
 
+// The walks' tapes replayed on host setting h, serially and on three
+// workers whose threads the host starts in its setting: the calls are the
+// ones recorded, so the host's own rounding cannot reach their arguments.
+static void ReplayWalks(void)
+{
+    for (int32_t workers = 1; workers <= 3; workers += 2)
+    {
+        uint64_t hash = 0x9E3779B97F4A7C15ull;
+        for (int32_t i = 0; i < WALK_SEEDS; ++i)
+        {
+            m2WorldDef def = WalkWorldDef(workers);
+            m2World* world = NewWorld(&def);
+            CHECK(ReplayJournal(world, s_tapes[i], s_tapeSizes[i]), "a walk replays");
+            hash = JournalHash(hash, m2World_Hash(world));
+            m2DestroyWorld(world);
+        }
+        Expect("JOURNAL", hash, M2_GOLDEN_JOURNAL);
+    }
+}
+
+// The scenes on a hostile host. The test's own arithmetic rounds in the
+// host's mode too, so the scenes run whole only under the settings that
+// keep its rounding mode and add flush-to-zero and denormals-are-zero,
+// which none of their inputs reach. Under every setting, the walks'
+// recorded calls replay. After each, the host's setting is as it was.
+static void HostilePass(void)
+{
+    void (*const scenes[])(void) = {SceneStack,    SceneContacts, SceneFluid,
+                                    SceneRollback, SceneJournal,  SceneBench};
+    int sceneCount = (int)(sizeof(scenes) / sizeof(scenes[0]));
+    TestFloatSetting start = TestFloatGet();
+    for (s_host = 0; s_host < TestFloatHostileCount(); ++s_host)
+    {
+        TestFloatSetting host = TestFloatHostileAt(s_host);
+        bool whole = host.rounding == start.rounding && !TestFloatSame(host, start);
+        for (int k = 0; whole && k < sceneCount; ++k)
+        {
+            TestFloatSet(host);
+            scenes[k]();
+            TestFloatSetting after = TestFloatGet();
+            TestFloatSet(start);
+            CHECK(TestFloatSame(after, host), "the host's setting after a scene");
+        }
+        TestFloatSet(host);
+        ReplayWalks();
+        TestFloatSetting after = TestFloatGet();
+        TestFloatSet(start);
+        CHECK(TestFloatSame(after, host), "the host's setting after the replays");
+    }
+    s_host = -1;
+    for (int32_t i = 0; i < WALK_SEEDS; ++i)
+    {
+        free(s_tapes[i]);
+    }
+}
+
 int main(void)
 {
     SceneStack();
@@ -553,6 +645,7 @@ int main(void)
     SceneRollback();
     SceneJournal();
     SceneBench();
+    HostilePass();
     // Every checked value is present (a missing one reads as zero and
     // fails), so equal counts mean no line of test/hashes.txt is stale.
     if (s_expected != M2_GOLDEN_LINES)

@@ -9,6 +9,7 @@
 
 #include "joint_solver.h"
 
+#include "math_functions.h"
 #include "solver_base.h"
 #include "world_internal.h"
 
@@ -109,7 +110,7 @@ static void PrepareCommon(const m2World* world, m2JointConstraint* c, int32_t j,
     c->pointMass = m2MakePointMass(c->armA, c->armB, &masses);
     m2Rot qA = world->bodies.transforms[c->bodyA].q;
     m2Rot qB = world->bodies.transforms[c->bodyB].q;
-    c->angle = m2UnwindAngle(m2RelativeJointAngle(qA, qB) - joints->jointRefAngle[j]);
+    c->angle = m2UnwindAngleWork(m2RelativeJointAngle(qA, qB) - joints->jointRefAngle[j]);
 }
 
 int32_t m2PrepareJoints(m2World* world, m2JointConstraint* joints, float h)
@@ -235,7 +236,7 @@ m2JointRow m2AxisRow(const m2JointPose* pose, m2Vec2 gap, m2Vec2 axis)
 
 float m2PoseAngle(const m2JointConstraint* c, const m2JointPose* pose)
 {
-    return m2UnwindAngle(c->angle + m2RelativeJointAngle(pose->turnA, pose->turnB));
+    return m2UnwindAngleWork(c->angle + m2RelativeJointAngle(pose->turnA, pose->turnB));
 }
 
 void m2SolveLimits(m2JointConstraint* c, const m2JointRow* row, float value, m2Softness soft,

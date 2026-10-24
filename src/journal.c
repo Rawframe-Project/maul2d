@@ -10,6 +10,7 @@
 
 #include "journal.h"
 
+#include "fpenv.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -116,7 +117,7 @@ void m2JournalRecordChain(m2World* world, m2BodyId bodyId, const m2ChainDef* def
     memcpy(out + sizeof(header), def->points, (size_t)pointBytes);
 }
 
-int32_t m2World_GetJournalBaseSize(const m2World* world)
+static M2_NOINLINE int32_t WorldGetJournalBaseSizeWorker(const m2World* world)
 {
     int32_t snapshot = m2World_SnapshotSize(world);
     if (snapshot <= 0)
@@ -126,7 +127,15 @@ int32_t m2World_GetJournalBaseSize(const m2World* world)
     return (int32_t)sizeof(m2JournalHeader) + snapshot;
 }
 
-m2Result m2World_StartJournal(m2World* world, void* buffer, int32_t capacity)
+int32_t m2World_GetJournalBaseSize(const m2World* world)
+{
+    uint64_t env = m2FloatEnvEnter();
+    int32_t result = WorldGetJournalBaseSizeWorker(world);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE m2Result WorldStartJournalWorker(m2World* world, void* buffer, int32_t capacity)
 {
     m2Result writer = m2CheckWriter(world);
     if (writer != m2_success)
@@ -172,7 +181,15 @@ m2Result m2World_StartJournal(m2World* world, void* buffer, int32_t capacity)
     return m2_success;
 }
 
-m2Result m2World_StopJournal(m2World* world, int32_t* bytesOut)
+m2Result m2World_StartJournal(m2World* world, void* buffer, int32_t capacity)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = WorldStartJournalWorker(world, buffer, capacity);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE m2Result WorldStopJournalWorker(m2World* world, int32_t* bytesOut)
 {
     if (bytesOut == NULL)
     {
@@ -201,6 +218,14 @@ m2Result m2World_StopJournal(m2World* world, int32_t* bytesOut)
     }
     *bytesOut = size;
     return m2_success;
+}
+
+m2Result m2World_StopJournal(m2World* world, int32_t* bytesOut)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = WorldStopJournalWorker(world, bytesOut);
+    m2FloatEnvLeave(env);
+    return result;
 }
 
 // Applies a tape to a world: header, snapshot, then one command per op.
@@ -260,7 +285,7 @@ static m2Result ReplayOps(m2World* world, const uint8_t* data, int32_t size)
     return m2_success;
 }
 
-m2Result m2World_ReplayJournal(m2World* world, const void* data, int32_t size)
+static M2_NOINLINE m2Result WorldReplayJournalWorker(m2World* world, const void* data, int32_t size)
 {
     m2Result writer = m2CheckWriter(world);
     if (writer != m2_success)
@@ -308,5 +333,13 @@ m2Result m2World_ReplayJournal(m2World* world, const void* data, int32_t size)
     }
     world->replaying = 0;
     m2WorldFree(world, backup, (size_t)backupSize);
+    return result;
+}
+
+m2Result m2World_ReplayJournal(m2World* world, const void* data, int32_t size)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = WorldReplayJournalWorker(world, data, size);
+    m2FloatEnvLeave(env);
     return result;
 }

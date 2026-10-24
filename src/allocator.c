@@ -6,6 +6,8 @@
 
 #include "allocator.h"
 
+#include "fpenv.h"
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -34,9 +36,26 @@ m2Allocator m2ResolveAllocator(const m2Allocator* requested)
     return *requested;
 }
 
+// The allocator is host code: it runs in the host's floating-point
+// environment, through a helper whose body is only that call.
+static M2_NOINLINE void* HostAlloc(const m2Allocator* allocator, size_t bytes)
+{
+    m2FloatHost host = m2FloatHostEnter();
+    void* memory = allocator->alloc(bytes, M2_ALLOC_ALIGNMENT, allocator->context);
+    m2FloatHostLeave(host);
+    return memory;
+}
+
+static M2_NOINLINE void HostFree(const m2Allocator* allocator, void* memory, size_t bytes)
+{
+    m2FloatHost host = m2FloatHostEnter();
+    allocator->free(memory, bytes, M2_ALLOC_ALIGNMENT, allocator->context);
+    m2FloatHostLeave(host);
+}
+
 void* m2AllocZeroed(const m2Allocator* allocator, size_t bytes)
 {
-    void* memory = allocator->alloc(bytes, M2_ALLOC_ALIGNMENT, allocator->context);
+    void* memory = HostAlloc(allocator, bytes);
     if (memory != NULL)
     {
         memset(memory, 0, bytes);
@@ -48,6 +67,6 @@ void m2Free(const m2Allocator* allocator, void* memory, size_t bytes)
 {
     if (memory != NULL)
     {
-        allocator->free(memory, bytes, M2_ALLOC_ALIGNMENT, allocator->context);
+        HostFree(allocator, memory, bytes);
     }
 }

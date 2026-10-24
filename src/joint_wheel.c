@@ -6,6 +6,7 @@
 
 #include "body.h"
 #include "broadphase.h"
+#include "fpenv.h"
 #include "joint.h"
 #include "joint_solver.h"
 #include "journal.h"
@@ -41,7 +42,8 @@ static bool DefValid(const m2WheelJointDef* def)
            m2ValidReach(def->upperTranslation) && def->lowerTranslation <= def->upperTranslation;
 }
 
-m2Result m2CreateWheelJoint(m2World* world, const m2WheelJointDef* def, m2JointId* jointOut)
+static M2_NOINLINE m2Result CreateWheelJointWorker(m2World* world, const m2WheelJointDef* def,
+                                                   m2JointId* jointOut)
 {
     if (jointOut == NULL)
     {
@@ -106,6 +108,14 @@ m2Result m2CreateWheelJoint(m2World* world, const m2WheelJointDef* def, m2JointI
     }
     *jointOut = jointId;
     return m2_success;
+}
+
+m2Result m2CreateWheelJoint(m2World* world, const m2WheelJointDef* def, m2JointId* jointOut)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = CreateWheelJointWorker(world, def, jointOut);
+    m2FloatEnvLeave(env);
+    return result;
 }
 
 // --- Solver ---------------------------------------------------------------

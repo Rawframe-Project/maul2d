@@ -11,6 +11,9 @@
 // The slot of a live body, or -1 for a stale or foreign id.
 int32_t m2BodySlot(const m2World* world, m2BodyId id);
 
+// The slot of a live shape, or -1 for a stale or foreign id.
+int32_t m2ShapeSlot(const m2World* world, m2ShapeId id);
+
 // The public id of a shape slot.
 m2ShapeId m2MakeShapeId(const m2World* world, int32_t shapeIndex);
 

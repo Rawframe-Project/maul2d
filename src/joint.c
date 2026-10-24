@@ -1,17 +1,19 @@
 // SPDX-License-Identifier: MIT
 // Copyright (c) 2026 Sirac Ozmen
 //
-// Joints: creation, destruction, the per-body joint lists, parameters
-// and readback for every joint type.
+// Joints: creation, destruction, the per-body joint lists and parameters
+// for every joint type; joint_read.c reads them back.
 
 #include "joint.h"
 
 #include "broadphase.h"
+#include "fpenv.h"
 #include "island.h"
 #include "joint_edges.h"
 #include "joint_row.h"
 #include "joint_solver.h"
 #include "journal.h"
+#include "math_functions.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -57,7 +59,7 @@ void m2Joint_SetUserData(m2World* world, m2JointId jointId, uint64_t userData)
     world->joints.jointUserData[index] = userData;
 }
 
-float m2Joint_GetLinearSeparation(const m2World* world, m2JointId jointId)
+static M2_NOINLINE float JointGetLinearSeparationWorker(const m2World* world, m2JointId jointId)
 {
     int32_t j = (int32_t)jointId.index1 - 1;
     if (world == NULL || j < 0 || j >= world->joints.jointCapacity ||
@@ -112,7 +114,15 @@ float m2Joint_GetLinearSeparation(const m2World* world, m2JointId jointId)
     }
 }
 
-float m2Joint_GetAngularSeparation(const m2World* world, m2JointId jointId)
+float m2Joint_GetLinearSeparation(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = JointGetLinearSeparationWorker(world, jointId);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE float JointGetAngularSeparationWorker(const m2World* world, m2JointId jointId)
 {
     int32_t j = (int32_t)jointId.index1 - 1;
     if (world == NULL || j < 0 || j >= world->joints.jointCapacity ||
@@ -129,7 +139,15 @@ float m2Joint_GetAngularSeparation(const m2World* world, m2JointId jointId)
     }
     m2Rot qA = world->bodies.transforms[world->joints.jointBodyA[j]].q;
     m2Rot qB = world->bodies.transforms[world->joints.jointBodyB[j]].q;
-    return m2AbsF(m2UnwindAngle(m2RelativeJointAngle(qA, qB) - world->joints.jointRefAngle[j]));
+    return m2AbsF(m2UnwindAngleWork(m2RelativeJointAngle(qA, qB) - world->joints.jointRefAngle[j]));
+}
+
+float m2Joint_GetAngularSeparation(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = JointGetAngularSeparationWorker(world, jointId);
+    m2FloatEnvLeave(env);
+    return result;
 }
 
 int32_t m2AllocateJoint(m2World* world)
@@ -189,14 +207,6 @@ m2JointId m2FinishJoint(m2World* world, int32_t index, uint8_t type, int32_t bod
     m2JointId id = {(uint32_t)(index + 1), world->joints.jointGenerations[index]};
     return id;
 }
-
-// The joint kinds with a motor and limits (bit n = m2JointType n). The
-// motor joint's torque budget rides the max motor channel too. Other
-// kinds may keep their own state where these kinds keep limits (the
-// ratchet's tooth), so the channels refuse them.
-#define M2_MOTOR_LIMIT_KINDS                                                                       \
-    ((1u << m2_revoluteJoint) | (1u << m2_prismaticJoint) | (1u << m2_wheelJoint))
-#define M2_MAX_MOTOR_KINDS (M2_MOTOR_LIMIT_KINDS | (1u << m2_motorJoint))
 
 // One journaled channel for every runtime joint parameter: replay
 // re-drives the same setters through the same records.
@@ -361,7 +371,7 @@ bool m2SetJointParamInternal(m2World* world, m2JointId jointId, uint8_t param, f
     return true;
 }
 
-void m2Joint_SetMotorSpeed(m2World* world, m2JointId jointId, float speed)
+static M2_NOINLINE void JointSetMotorSpeedWorker(m2World* world, m2JointId jointId, float speed)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -370,7 +380,15 @@ void m2Joint_SetMotorSpeed(m2World* world, m2JointId jointId, float speed)
     m2SetJointParamInternal(world, jointId, m2_jointParamMotorSpeed, speed);
 }
 
-void m2Joint_SetMaxMotor(m2World* world, m2JointId jointId, float maxTorqueOrForce)
+void m2Joint_SetMotorSpeed(m2World* world, m2JointId jointId, float speed)
+{
+    uint64_t env = m2FloatEnvEnter();
+    JointSetMotorSpeedWorker(world, jointId, speed);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void JointSetMaxMotorWorker(m2World* world, m2JointId jointId,
+                                               float maxTorqueOrForce)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -379,7 +397,14 @@ void m2Joint_SetMaxMotor(m2World* world, m2JointId jointId, float maxTorqueOrFor
     m2SetJointParamInternal(world, jointId, m2_jointParamMaxMotor, maxTorqueOrForce);
 }
 
-void m2Joint_EnableMotor(m2World* world, m2JointId jointId, bool enable)
+void m2Joint_SetMaxMotor(m2World* world, m2JointId jointId, float maxTorqueOrForce)
+{
+    uint64_t env = m2FloatEnvEnter();
+    JointSetMaxMotorWorker(world, jointId, maxTorqueOrForce);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void JointEnableMotorWorker(m2World* world, m2JointId jointId, bool enable)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -388,7 +413,14 @@ void m2Joint_EnableMotor(m2World* world, m2JointId jointId, bool enable)
     m2SetJointParamInternal(world, jointId, m2_jointParamEnableMotor, enable ? 1.0f : 0.0f);
 }
 
-void m2Joint_EnableLimit(m2World* world, m2JointId jointId, bool enable)
+void m2Joint_EnableMotor(m2World* world, m2JointId jointId, bool enable)
+{
+    uint64_t env = m2FloatEnvEnter();
+    JointEnableMotorWorker(world, jointId, enable);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void JointEnableLimitWorker(m2World* world, m2JointId jointId, bool enable)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -397,7 +429,15 @@ void m2Joint_EnableLimit(m2World* world, m2JointId jointId, bool enable)
     m2SetJointParamInternal(world, jointId, m2_jointParamEnableLimit, enable ? 1.0f : 0.0f);
 }
 
-void m2Joint_SetLimits(m2World* world, m2JointId jointId, float lower, float upper)
+void m2Joint_EnableLimit(m2World* world, m2JointId jointId, bool enable)
+{
+    uint64_t env = m2FloatEnvEnter();
+    JointEnableLimitWorker(world, jointId, enable);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void JointSetLimitsWorker(m2World* world, m2JointId jointId, float lower,
+                                             float upper)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -419,7 +459,14 @@ void m2Joint_SetLimits(m2World* world, m2JointId jointId, float lower, float upp
     }
 }
 
-void m2Joint_SetSpringHertz(m2World* world, m2JointId jointId, float hertz)
+void m2Joint_SetLimits(m2World* world, m2JointId jointId, float lower, float upper)
+{
+    uint64_t env = m2FloatEnvEnter();
+    JointSetLimitsWorker(world, jointId, lower, upper);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void JointSetSpringHertzWorker(m2World* world, m2JointId jointId, float hertz)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -428,7 +475,15 @@ void m2Joint_SetSpringHertz(m2World* world, m2JointId jointId, float hertz)
     m2SetJointParamInternal(world, jointId, m2_jointParamHertz, hertz);
 }
 
-void m2Joint_SetSpringDampingRatio(m2World* world, m2JointId jointId, float dampingRatio)
+void m2Joint_SetSpringHertz(m2World* world, m2JointId jointId, float hertz)
+{
+    uint64_t env = m2FloatEnvEnter();
+    JointSetSpringHertzWorker(world, jointId, hertz);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void JointSetSpringDampingRatioWorker(m2World* world, m2JointId jointId,
+                                                         float dampingRatio)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -437,7 +492,15 @@ void m2Joint_SetSpringDampingRatio(m2World* world, m2JointId jointId, float damp
     m2SetJointParamInternal(world, jointId, m2_jointParamDamping, dampingRatio);
 }
 
-void m2Joint_SetAngularSpringHertz(m2World* world, m2JointId jointId, float hertz)
+void m2Joint_SetSpringDampingRatio(m2World* world, m2JointId jointId, float dampingRatio)
+{
+    uint64_t env = m2FloatEnvEnter();
+    JointSetSpringDampingRatioWorker(world, jointId, dampingRatio);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void JointSetAngularSpringHertzWorker(m2World* world, m2JointId jointId,
+                                                         float hertz)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -446,7 +509,15 @@ void m2Joint_SetAngularSpringHertz(m2World* world, m2JointId jointId, float hert
     m2SetJointParamInternal(world, jointId, m2_jointParamAngularHertz, hertz);
 }
 
-void m2Joint_SetAngularSpringDampingRatio(m2World* world, m2JointId jointId, float dampingRatio)
+void m2Joint_SetAngularSpringHertz(m2World* world, m2JointId jointId, float hertz)
+{
+    uint64_t env = m2FloatEnvEnter();
+    JointSetAngularSpringHertzWorker(world, jointId, hertz);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void JointSetAngularSpringDampingRatioWorker(m2World* world, m2JointId jointId,
+                                                                float dampingRatio)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -455,7 +526,15 @@ void m2Joint_SetAngularSpringDampingRatio(m2World* world, m2JointId jointId, flo
     m2SetJointParamInternal(world, jointId, m2_jointParamAngularDamping, dampingRatio);
 }
 
-void m2Joint_SetBreakLimits(m2World* world, m2JointId jointId, float maxForce, float maxTorque)
+void m2Joint_SetAngularSpringDampingRatio(m2World* world, m2JointId jointId, float dampingRatio)
+{
+    uint64_t env = m2FloatEnvEnter();
+    JointSetAngularSpringDampingRatioWorker(world, jointId, dampingRatio);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void JointSetBreakLimitsWorker(m2World* world, m2JointId jointId, float maxForce,
+                                                  float maxTorque)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -472,7 +551,14 @@ void m2Joint_SetBreakLimits(m2World* world, m2JointId jointId, float maxForce, f
     }
 }
 
-m2Result m2DestroyJoint(m2World* world, m2JointId jointId)
+void m2Joint_SetBreakLimits(m2World* world, m2JointId jointId, float maxForce, float maxTorque)
+{
+    uint64_t env = m2FloatEnvEnter();
+    JointSetBreakLimitsWorker(world, jointId, maxForce, maxTorque);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE m2Result DestroyJointWorker(m2World* world, m2JointId jointId)
 {
     m2Result writer = m2CheckWriter(world);
     if (writer != m2_success)
@@ -487,6 +573,14 @@ m2Result m2DestroyJoint(m2World* world, m2JointId jointId)
     m2JournalRecord(world, m2_opDestroyJoint, &jointId, (int32_t)sizeof(jointId));
     m2DestroyJointInternal(world, index);
     return m2_success;
+}
+
+m2Result m2DestroyJoint(m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = DestroyJointWorker(world, jointId);
+    m2FloatEnvLeave(env);
+    return result;
 }
 
 // The guts, shared with the solver's break pass (which must not
@@ -529,7 +623,7 @@ int32_t m2TypedJointSlot(const m2World* world, m2JointId jointId, uint8_t type)
     return index;
 }
 
-bool m2Joint_GetCollideConnected(const m2World* world, m2JointId jointId)
+static M2_NOINLINE bool JointGetCollideConnectedWorker(const m2World* world, m2JointId jointId)
 {
     int32_t index = (int32_t)jointId.index1 - 1;
     if (world == NULL || index < 0 || index >= world->joints.jointCapacity ||
@@ -542,7 +636,15 @@ bool m2Joint_GetCollideConnected(const m2World* world, m2JointId jointId)
     return world->joints.jointCollide[index] != 0;
 }
 
-float m2Joint_GetReactionForce(const m2World* world, m2JointId jointId)
+bool m2Joint_GetCollideConnected(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    bool result = JointGetCollideConnectedWorker(world, jointId);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE float JointGetReactionForceWorker(const m2World* world, m2JointId jointId)
 {
     int32_t index = (int32_t)jointId.index1 - 1;
     if (world == NULL || index < 0 || index >= world->joints.jointCapacity ||
@@ -558,7 +660,15 @@ float m2Joint_GetReactionForce(const m2World* world, m2JointId jointId)
     return force;
 }
 
-float m2Joint_GetReactionTorque(const m2World* world, m2JointId jointId)
+float m2Joint_GetReactionForce(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = JointGetReactionForceWorker(world, jointId);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE float JointGetReactionTorqueWorker(const m2World* world, m2JointId jointId)
 {
     int32_t index = (int32_t)jointId.index1 - 1;
     if (world == NULL || index < 0 || index >= world->joints.jointCapacity ||
@@ -572,6 +682,14 @@ float m2Joint_GetReactionTorque(const m2World* world, m2JointId jointId)
     float torque = 0.0f;
     m2JointReactionMagnitudes(world, index, world->lastInvH, &force, &torque);
     return torque;
+}
+
+float m2Joint_GetReactionTorque(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = JointGetReactionTorqueWorker(world, jointId);
+    m2FloatEnvLeave(env);
+    return result;
 }
 
 bool m2Joint_IsValid(const m2World* world, m2JointId jointId)
@@ -638,182 +756,4 @@ m2BodyId m2Joint_GetBodyB(const m2World* world, m2JointId jointId)
     int32_t b = world->joints.jointBodyB[index];
     m2BodyId id = {(uint32_t)(b + 1), world->bodies.generations[b]};
     return id;
-}
-
-// Joint parameter readback: with these, a world is
-// reconstructible from public getters alone; the mirror test in
-// test_world.c holds that promise to hash equality.
-
-static int32_t JointSlotRefusing(const m2World* world, m2JointId jointId)
-{
-    int32_t index = world != NULL ? m2JointSlotChecked(world, jointId) : -1;
-    if (index < 0)
-    {
-        m2Refuse(world, m2_errorInvalid);
-    }
-    return index;
-}
-
-// Like JointSlotRefusing, but the joint must also be one of the
-// kinds in the mask (bit n = m2JointType n). Refuses exactly once.
-static int32_t JointSlotOfKind(const m2World* world, m2JointId jointId, uint32_t kindMask)
-{
-    int32_t index = JointSlotRefusing(world, jointId);
-    if (index >= 0 && (kindMask & (1u << world->joints.jointType[index])) == 0)
-    {
-        m2Refuse(world, m2_errorInvalid);
-        return -1;
-    }
-    return index;
-}
-
-m2Vec2 m2Joint_GetLocalAnchorA(const m2World* world, m2JointId jointId)
-{
-    int32_t index = JointSlotRefusing(world, jointId);
-    m2Vec2 zero = {0.0f, 0.0f};
-    return index >= 0 ? world->joints.jointLocalAnchorA[index] : zero;
-}
-
-m2Vec2 m2Joint_GetLocalAnchorB(const m2World* world, m2JointId jointId)
-{
-    int32_t index = JointSlotRefusing(world, jointId);
-    m2Vec2 zero = {0.0f, 0.0f};
-    return index >= 0 ? world->joints.jointLocalAnchorB[index] : zero;
-}
-
-m2Vec2 m2Joint_GetLocalAxisA(const m2World* world, m2JointId jointId)
-{
-    int32_t index =
-        JointSlotOfKind(world, jointId, (1u << m2_prismaticJoint) | (1u << m2_wheelJoint));
-    m2Vec2 zero = {0.0f, 0.0f};
-    if (index < 0)
-    {
-        return zero;
-    }
-    return world->joints.jointLocalAxisA[index];
-}
-
-float m2Joint_GetLength(const m2World* world, m2JointId jointId)
-{
-    int32_t index = JointSlotOfKind(world, jointId, 1u << m2_distanceJoint);
-    if (index < 0)
-    {
-        return 0.0f;
-    }
-    return world->joints.jointLength[index];
-}
-
-float m2Joint_GetHertz(const m2World* world, m2JointId jointId)
-{
-    int32_t index = JointSlotRefusing(world, jointId);
-    return index >= 0 ? world->joints.jointHertz[index] : 0.0f;
-}
-
-float m2Joint_GetDampingRatio(const m2World* world, m2JointId jointId)
-{
-    int32_t index = JointSlotRefusing(world, jointId);
-    return index >= 0 ? world->joints.jointDamping[index] : 0.0f;
-}
-
-float m2Joint_GetAngularHertz(const m2World* world, m2JointId jointId)
-{
-    int32_t index =
-        JointSlotOfKind(world, jointId, (1u << m2_weldJoint) | (1u << m2_revoluteJoint));
-    if (index < 0)
-    {
-        return 0.0f;
-    }
-    return world->joints.jointHertz2[index];
-}
-
-float m2Joint_GetAngularDampingRatio(const m2World* world, m2JointId jointId)
-{
-    int32_t index =
-        JointSlotOfKind(world, jointId, (1u << m2_weldJoint) | (1u << m2_revoluteJoint));
-    if (index < 0)
-    {
-        return 0.0f;
-    }
-    return world->joints.jointDamping2[index];
-}
-
-float m2Joint_GetMotorSpeed(const m2World* world, m2JointId jointId)
-{
-    int32_t index = JointSlotOfKind(world, jointId, M2_MOTOR_LIMIT_KINDS);
-    return index >= 0 ? world->joints.jointMotorSpeed[index] : 0.0f;
-}
-
-float m2Joint_GetMaxMotor(const m2World* world, m2JointId jointId)
-{
-    int32_t index = JointSlotOfKind(world, jointId, M2_MAX_MOTOR_KINDS);
-    return index >= 0 ? world->joints.jointMaxMotor[index] : 0.0f;
-}
-
-bool m2Joint_IsMotorEnabled(const m2World* world, m2JointId jointId)
-{
-    int32_t index = JointSlotOfKind(world, jointId, M2_MOTOR_LIMIT_KINDS);
-    return index >= 0 && (world->joints.jointFlags[index] & M2_JOINT_MOTOR) != 0;
-}
-
-bool m2Joint_IsLimitEnabled(const m2World* world, m2JointId jointId)
-{
-    int32_t index = JointSlotOfKind(world, jointId, M2_MOTOR_LIMIT_KINDS);
-    return index >= 0 && (world->joints.jointFlags[index] & M2_JOINT_LIMIT) != 0;
-}
-
-bool m2Joint_IsSpringEnabled(const m2World* world, m2JointId jointId)
-{
-    int32_t index = JointSlotRefusing(world, jointId);
-    return index >= 0 && (world->joints.jointFlags[index] & M2_JOINT_SPRING) != 0;
-}
-
-void m2Joint_GetLimits(const m2World* world, m2JointId jointId, float* lowerOut, float* upperOut)
-{
-    // A distance joint reads its length range here.
-    int32_t index =
-        JointSlotOfKind(world, jointId, M2_MOTOR_LIMIT_KINDS | (1u << m2_distanceJoint));
-    if (lowerOut != NULL)
-    {
-        *lowerOut = index >= 0 ? world->joints.jointLower[index] : 0.0f;
-    }
-    if (upperOut != NULL)
-    {
-        *upperOut = index >= 0 ? world->joints.jointUpper[index] : 0.0f;
-    }
-}
-
-void m2Joint_GetBreakLimits(const m2World* world, m2JointId jointId, float* maxForceOut,
-                            float* maxTorqueOut)
-{
-    int32_t index = JointSlotRefusing(world, jointId);
-    if (maxForceOut != NULL)
-    {
-        *maxForceOut = index >= 0 ? world->joints.jointBreakForce[index] : 0.0f;
-    }
-    if (maxTorqueOut != NULL)
-    {
-        *maxTorqueOut = index >= 0 ? world->joints.jointBreakTorque[index] : 0.0f;
-    }
-}
-
-// Spring-named getter aliases: the setters say Spring, the readers
-// now can too. Same slots, same validation.
-float m2Joint_GetSpringHertz(const m2World* world, m2JointId jointId)
-{
-    return m2Joint_GetHertz(world, jointId);
-}
-
-float m2Joint_GetSpringDampingRatio(const m2World* world, m2JointId jointId)
-{
-    return m2Joint_GetDampingRatio(world, jointId);
-}
-
-float m2Joint_GetAngularSpringHertz(const m2World* world, m2JointId jointId)
-{
-    return m2Joint_GetAngularHertz(world, jointId);
-}
-
-float m2Joint_GetAngularSpringDampingRatio(const m2World* world, m2JointId jointId)
-{
-    return m2Joint_GetAngularDampingRatio(world, jointId);
 }

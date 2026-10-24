@@ -34,17 +34,17 @@ env:
 jobs:
   # Whether anything beyond documentation changed; the builds skip when not.
   changes:
-    uses: Rawframe-Project/.github/.github/workflows/changes.yml@e75683076741e3a2499e0f3c112081a3dc95a66f # v0.0.11
+    uses: Rawframe-Project/.github/.github/workflows/changes.yml@927292043ce9cd831a92a80486da8b377b05f4ae # v0.0.15
     permissions:
       pull-requests: read
 
   docs:
-    uses: Rawframe-Project/.github/.github/workflows/docs-check.yml@e75683076741e3a2499e0f3c112081a3dc95a66f # v0.0.11
+    uses: Rawframe-Project/.github/.github/workflows/docs-check.yml@927292043ce9cd831a92a80486da8b377b05f4ae # v0.0.15
     permissions:
       contents: read
 
   zizmor:
-    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@e75683076741e3a2499e0f3c112081a3dc95a66f # v0.0.11
+    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@927292043ce9cd831a92a80486da8b377b05f4ae # v0.0.15
     permissions:
       contents: read
 
@@ -77,6 +77,7 @@ jobs:
           python3 tools/check_docs.py
           python3 tools/check_lengths.py
           python3 tools/check_guide.py
+          python3 tools/check_float_env.py
       - name: The documentation site builds
         run: python3 tools/build_docs.py
       - name: clang-tidy
@@ -109,7 +110,7 @@ jobs:
           - { preset: macos-clang, runner: macos-15 }
           - { preset: windows-clang-cl, runner: windows-2025 }
           - { preset: windows-arm64-clang-cl, runner: windows-11-arm }
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@e75683076741e3a2499e0f3c112081a3dc95a66f # v0.0.11
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@927292043ce9cd831a92a80486da8b377b05f4ae # v0.0.15
     permissions:
       contents: read
     with:
@@ -122,7 +123,7 @@ jobs:
   testbed:
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@e75683076741e3a2499e0f3c112081a3dc95a66f # v0.0.11
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@927292043ce9cd831a92a80486da8b377b05f4ae # v0.0.15
     permissions:
       contents: read
     with:

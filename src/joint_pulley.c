@@ -6,6 +6,7 @@
 
 #include "body.h"
 #include "broadphase.h"
+#include "fpenv.h"
 #include "joint.h"
 #include "joint_solver.h"
 #include "journal.h"
@@ -57,7 +58,8 @@ static bool DefValid(const m2PulleyJointDef* def)
            m2ValidRatio(def->ratio) && def->ratio > 0.0f;
 }
 
-m2Result m2CreatePulleyJoint(m2World* world, const m2PulleyJointDef* def, m2JointId* jointOut)
+static M2_NOINLINE m2Result CreatePulleyJointWorker(m2World* world, const m2PulleyJointDef* def,
+                                                    m2JointId* jointOut)
 {
     if (jointOut == NULL)
     {
@@ -113,7 +115,15 @@ m2Result m2CreatePulleyJoint(m2World* world, const m2PulleyJointDef* def, m2Join
     return m2_success;
 }
 
-void m2PulleyJoint_SetRatio(m2World* world, m2JointId jointId, float ratio)
+m2Result m2CreatePulleyJoint(m2World* world, const m2PulleyJointDef* def, m2JointId* jointOut)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = CreatePulleyJointWorker(world, def, jointOut);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE void PulleyJointSetRatioWorker(m2World* world, m2JointId jointId, float ratio)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -122,36 +132,83 @@ void m2PulleyJoint_SetRatio(m2World* world, m2JointId jointId, float ratio)
     m2SetJointParamInternal(world, jointId, m2_jointParamPulleyRatio, ratio);
 }
 
-float m2PulleyJoint_GetRatio(const m2World* world, m2JointId jointId)
+void m2PulleyJoint_SetRatio(m2World* world, m2JointId jointId, float ratio)
+{
+    uint64_t env = m2FloatEnvEnter();
+    PulleyJointSetRatioWorker(world, jointId, ratio);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE float PulleyJointGetRatioWorker(const m2World* world, m2JointId jointId)
 {
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_pulleyJoint);
     return index >= 0 ? world->joints.jointLength[index] : 0.0f;
 }
 
-float m2PulleyJoint_GetLengthA(const m2World* world, m2JointId jointId)
+float m2PulleyJoint_GetRatio(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = PulleyJointGetRatioWorker(world, jointId);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE float PulleyJointGetLengthAWorker(const m2World* world, m2JointId jointId)
 {
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_pulleyJoint);
     return index >= 0 ? m2PulleyLiveLength(world, index, 0) : 0.0f;
 }
 
-float m2PulleyJoint_GetLengthB(const m2World* world, m2JointId jointId)
+float m2PulleyJoint_GetLengthA(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = PulleyJointGetLengthAWorker(world, jointId);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE float PulleyJointGetLengthBWorker(const m2World* world, m2JointId jointId)
 {
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_pulleyJoint);
     return index >= 0 ? m2PulleyLiveLength(world, index, 1) : 0.0f;
 }
 
-m2Pos2 m2PulleyJoint_GetGroundAnchorA(const m2World* world, m2JointId jointId)
+float m2PulleyJoint_GetLengthB(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = PulleyJointGetLengthBWorker(world, jointId);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE m2Pos2 PulleyJointGetGroundAnchorAWorker(const m2World* world, m2JointId jointId)
 {
     m2Pos2 zero = {0.0, 0.0};
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_pulleyJoint);
     return index >= 0 ? world->joints.jointTargets[index] : zero;
 }
 
-m2Pos2 m2PulleyJoint_GetGroundAnchorB(const m2World* world, m2JointId jointId)
+m2Pos2 m2PulleyJoint_GetGroundAnchorA(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Pos2 result = PulleyJointGetGroundAnchorAWorker(world, jointId);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE m2Pos2 PulleyJointGetGroundAnchorBWorker(const m2World* world, m2JointId jointId)
 {
     m2Pos2 zero = {0.0, 0.0};
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_pulleyJoint);
     return index >= 0 ? world->joints.jointTargetsB[index] : zero;
+}
+
+m2Pos2 m2PulleyJoint_GetGroundAnchorB(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Pos2 result = PulleyJointGetGroundAnchorBWorker(world, jointId);
+    m2FloatEnvLeave(env);
+    return result;
 }
 
 // --- Solver ---------------------------------------------------------------
