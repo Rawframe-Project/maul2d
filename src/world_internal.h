@@ -39,6 +39,7 @@ typedef struct m2Bodies
     float* linearDampings;   // Pade-damped in integrate (snapshot state)
     float* angularDampings;  // (snapshot state)
     uint8_t* fixedRotations; // invInertia forced 0 (snapshot state)
+    uint8_t* massOverrides;  // mass data from m2Body_SetMassData, not the shapes
     uint8_t* motionLocks;    // M2_LOCK_LINEAR_X | M2_LOCK_LINEAR_Y (snapshot state)
     uint8_t* sleepEnables;   // 0 = this body never sleeps (snapshot state)
     m2Vec2* forces;          // accumulated, cleared at step end (snapshot state)

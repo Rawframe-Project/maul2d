@@ -274,6 +274,7 @@ static const m2StateArray s_state[] = {
     M2_STATE_CHECKED(bodies.disabled, uint8_t, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH, bool,
                      one),
     M2_STATE_ARRAY(bodies.dominances, int8_t, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH),
+    M2_STATE_CHECKED(bodies.massOverrides, uint8_t, body, 0, M2_STATE_SNAPSHOT, bool, one),
     M2_STATE_CHECKED(shapes.shapeChain, int32_t, shape, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
                      indexOrNone, shape),
     M2_STATE_CHECKED(chains.chainAlive, uint8_t, chain, 0, M2_STATE_SNAPSHOT, bool, one),

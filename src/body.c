@@ -116,6 +116,7 @@ m2Result m2CreateBody(m2World* world, const m2BodyDef* def, m2BodyId* bodyOut)
     world->bodies.invMass[index] = def->type == m2_dynamicBody ? 1.0f : 0.0f; // shapeless floor
     world->bodies.localCenters[index] = (m2Vec2){0.0f, 0.0f};
     world->bodies.invInertia[index] = 0.0f;
+    world->bodies.massOverrides[index] = 0;
     world->bodies.asleep[index] = 0;
     world->bodies.sleepTimes[index] = 0.0f;
     world->bodies.sleepStreak[index] = 0;
@@ -726,6 +727,7 @@ void m2Body_SetMassData(m2World* world, m2BodyId bodyId, m2MassData massData)
     world->bodies.invMass[index] = invMass;
     world->bodies.invInertia[index] = world->bodies.fixedRotations[index] == 0 ? invInertia : 0.0f;
     world->bodies.localCenters[index] = massData.center;
+    world->bodies.massOverrides[index] = 1;
     world->bodies.asleep[index] = 0;
     world->bodies.sleepTimes[index] = 0.0f;
 }

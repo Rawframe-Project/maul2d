@@ -219,6 +219,43 @@ static void BodyCenterTooFar(const Scene* scene, uint8_t* block)
     memcpy(centers + (size_t)(scene->boxA.index1 - 1) * sizeof(center), &center, sizeof(center));
 }
 
+// One float of a body's mass data, as stored.
+static void PutBodyFloat(const Scene* scene, uint8_t* block, const void* field, m2BodyId body,
+                         float value)
+{
+    uint8_t* bytes = At(scene, block, field);
+    memcpy(bytes + (size_t)(body.index1 - 1) * sizeof(float), &value, sizeof(value));
+}
+
+// A dynamic box's inverse mass doubles: no longer what its shape gives it.
+static void DerivedMassLies(const Scene* scene, uint8_t* block)
+{
+    float invMass = scene->world->bodies.invMass[scene->boxA.index1 - 1];
+    PutBodyFloat(scene, block, &scene->world->bodies.invMass, scene->boxA, 2.0f * invMass);
+}
+
+// A dynamic box's center of mass moves a millimeter off its shape's.
+static void DerivedCenterMoves(const Scene* scene, uint8_t* block)
+{
+    m2Vec2 center = scene->world->bodies.localCenters[scene->boxA.index1 - 1];
+    m2Vec2 moved = {center.x + 0.001f, center.y};
+    uint8_t* centers = At(scene, block, &scene->world->bodies.localCenters);
+    memcpy(centers + (size_t)(scene->boxA.index1 - 1) * sizeof(moved), &moved, sizeof(moved));
+}
+
+// The static ground claims an override, which only a dynamic body takes.
+static void StaticOverride(const Scene* scene, uint8_t* block)
+{
+    At(scene, block, &scene->world->bodies.massOverrides)[scene->ground.index1 - 1] = 1;
+}
+
+// A dynamic box claims an override with a negative inverse mass.
+static void OverrideNegativeMass(const Scene* scene, uint8_t* block)
+{
+    At(scene, block, &scene->world->bodies.massOverrides)[scene->boxA.index1 - 1] = 1;
+    PutBodyFloat(scene, block, &scene->world->bodies.invMass, scene->boxA, -1.0f);
+}
+
 // The pin's anchor on its first body moves past M2_HUGE.
 static void JointAnchorTooFar(const Scene* scene, uint8_t* block)
 {
@@ -459,6 +496,10 @@ static void TestHostileStructures(void)
     ExpectRefused(&scene, JointToADeadBody, "a joint to a dead body is refused");
     ExpectRefused(&scene, JointAnchorTooFar, "a joint anchor beyond M2_HUGE is refused");
     ExpectRefused(&scene, BodyCenterTooFar, "a center of mass beyond M2_HUGE is refused");
+    ExpectRefused(&scene, DerivedMassLies, "mass data its shapes do not give is refused");
+    ExpectRefused(&scene, DerivedCenterMoves, "a center its shapes do not give is refused");
+    ExpectRefused(&scene, StaticOverride, "an override on a static body is refused");
+    ExpectRefused(&scene, OverrideNegativeMass, "an override no setter would take is refused");
     ExpectRefused(&scene, TreeChildDisownsParent,
                   "a tree child that disowns its parent is refused");
     ExpectRefused(&scene, TreeLoopsToRoot, "a tree that loops is refused");
