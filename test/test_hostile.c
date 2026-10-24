@@ -503,8 +503,17 @@ static void TestParameterChannels(void)
     m2Body_SetGravityScale(world, box, 0.5f);
     CHECK(m2World_GetCounters(world).misuse == misuse + 6, "honest parameters pass");
 
+    m2Body_SetLinearDamping(world, box, 0.5f);
+    m2Body_SetAngularDamping(world, box, 0.5f);
+    misuse = m2World_GetCounters(world).misuse;
     m2Body_SetLinearDamping(world, box, -1.0f);
-    CHECK(m2Body_GetLinearDamping(world, box) == 0.0f, "a negative damping still clamps to zero");
+    m2Body_SetLinearDamping(world, box, -INFINITY);
+    m2Body_SetAngularDamping(world, box, -1.0f);
+    m2Body_SetAngularDamping(world, box, -INFINITY);
+    CHECK(m2World_GetCounters(world).misuse == misuse + 4, "each negative damping counts once");
+    CHECK(m2Body_GetLinearDamping(world, box) == 0.5f &&
+              m2Body_GetAngularDamping(world, box) == 0.5f,
+          "a negative damping changes nothing");
 
     uint8_t tape[1 << 16];
     int32_t bytes = 0;

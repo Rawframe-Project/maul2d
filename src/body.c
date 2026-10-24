@@ -335,8 +335,7 @@ void m2Body_SetLinearDamping(m2World* world, m2BodyId bodyId, float damping)
     {
         return;
     }
-    m2SetBodyParamInternal(world, bodyId, m2_bodyParamLinearDamping,
-                           damping < 0.0f ? 0.0f : damping);
+    m2SetBodyParamInternal(world, bodyId, m2_bodyParamLinearDamping, damping);
 }
 
 M2_BODY_GETTER(float, m2Body_GetLinearDamping, world->bodies.linearDampings[index], 0.0f)
@@ -347,8 +346,7 @@ void m2Body_SetAngularDamping(m2World* world, m2BodyId bodyId, float damping)
     {
         return;
     }
-    m2SetBodyParamInternal(world, bodyId, m2_bodyParamAngularDamping,
-                           damping < 0.0f ? 0.0f : damping);
+    m2SetBodyParamInternal(world, bodyId, m2_bodyParamAngularDamping, damping);
 }
 
 M2_BODY_GETTER(float, m2Body_GetAngularDamping, world->bodies.angularDampings[index], 0.0f)
