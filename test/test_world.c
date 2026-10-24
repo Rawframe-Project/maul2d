@@ -3049,8 +3049,76 @@ static void TestWind(void)
     CHECK(hashes[0] == hashes[1], "wind is worker-count deterministic");
 }
 
+// m2Body_SetMassData refuses mass data the world could not keep: each
+// refusal counts one misuse and leaves the mass data as it was, bit for
+// bit. Data read back from a body always sets again.
+static void TestSetMassDataChecksEveryField(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    m2BodyDef bodyDef = m2DefaultBodyDef();
+    bodyDef.type = m2_dynamicBody;
+    m2BodyId body = NewBody(world, &bodyDef);
+    m2Polygon box = m2MakeBox(0.5f, 0.5f);
+    m2ShapeDef shapeDef = m2DefaultShapeDef();
+    NewPolygonShape(world, body, &shapeDef, &box);
+    const m2MassData good = {2.0f, {0.5f, 0.0f}, 1.0f};
+    m2Body_SetMassData(world, body, good);
+    const m2MassData before = m2Body_GetMassData(world, body);
+
+    m2MassData bad[8];
+    for (int32_t i = 0; i < 8; ++i)
+    {
+        bad[i] = good;
+    }
+    bad[0].center.x = NAN;
+    bad[1].center.x = 2.0f * M2_HUGE;
+    bad[2].rotationalInertia = NAN;
+    bad[3].rotationalInertia = INFINITY;
+    bad[4].mass = 1e-45f; // its inverse overflows
+    bad[5].mass = INFINITY;
+    bad[6].rotationalInertia = 0.25f; // below 2 kg at 0.5 m, 0.5
+    bad[7].mass = 1.0f;
+    bad[7].center = (m2Vec2){0.0f, 0.0f};
+    bad[7].rotationalInertia = 1e-45f; // its inverse about the center overflows
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    for (int32_t i = 0; i < 8; ++i)
+    {
+        m2Body_SetMassData(world, body, bad[i]);
+        m2MassData after = m2Body_GetMassData(world, body);
+        if (m2World_GetCounters(world).misuse != misuse + (uint64_t)i + 1 ||
+            memcmp(&after, &before, sizeof(after)) != 0)
+        {
+            printf("mass data case %d\n", (int)i);
+            CHECK(false, "bad mass data is refused, counted and changes nothing");
+        }
+    }
+
+    // A fixed-rotation body reads back exactly the mass at its center, and
+    // a far center rounds its inertia away: both set again.
+    m2Body_SetFixedRotation(world, body, true);
+    m2MassData fixed = m2Body_GetMassData(world, body);
+    m2Body_SetMassData(world, body, fixed);
+    m2Body_SetFixedRotation(world, body, false);
+    m2MassData distant = {1.0f, {M2_HUGE, 0.0f}, 1.0f + M2_HUGE * M2_HUGE};
+    m2Body_SetMassData(world, body, distant);
+    m2MassData back = m2Body_GetMassData(world, body);
+    m2Body_SetMassData(world, body, back);
+    CHECK(m2World_GetCounters(world).misuse == misuse + 8, "data read back sets again");
+
+    m2Body_SetMassData(world, body, good);
+    int32_t size = m2World_SnapshotSize(world);
+    void* snapshot = malloc((size_t)size);
+    CHECK(snapshot != NULL && Snapshot(world, snapshot, size) == size &&
+              Restore(world, snapshot, size),
+          "a body with an override snapshots and restores");
+    free(snapshot);
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
+    TestSetMassDataChecksEveryField();
     TestCreateWorldOutOfMemory();
     TestInfiniteInputIsRefused();
     TestDefsMatchWhatARestoreAccepts();

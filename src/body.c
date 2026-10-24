@@ -680,6 +680,26 @@ void m2Body_SetDominance(m2World* world, m2BodyId bodyId, int8_t dominance)
     m2WakeIfDynamic(world, index);
 }
 
+// The inverses a body keeps for mass data, or false when the data has
+// none a float holds: a mass that is not positive or finite, a center
+// beyond M2_HUGE, a rotational inertia that is not finite or falls below
+// what the mass at the center gives, or an inverse that overflows. An
+// inertia of exactly the mass at the center gives a body that cannot turn.
+static bool MassDataInverses(m2MassData massData, float* invMass, float* invInertia)
+{
+    if (!m2FiniteF(massData.mass) || !(massData.mass > 0.0f) || !m2LocalVec2(massData.center) ||
+        !m2FiniteF(massData.rotationalInertia))
+    {
+        return false;
+    }
+    float inertiaCenter =
+        massData.rotationalInertia - massData.mass * (massData.center.x * massData.center.x +
+                                                      massData.center.y * massData.center.y);
+    *invMass = 1.0f / massData.mass;
+    *invInertia = inertiaCenter > 0.0f ? 1.0f / inertiaCenter : 0.0f;
+    return inertiaCenter >= 0.0f && m2FiniteF(*invMass) && m2FiniteF(*invInertia);
+}
+
 void m2Body_SetMassData(m2World* world, m2BodyId bodyId, m2MassData massData)
 {
     if (m2CheckWriter(world) != m2_success)
@@ -687,8 +707,10 @@ void m2Body_SetMassData(m2World* world, m2BodyId bodyId, m2MassData massData)
         return;
     }
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
+    float invMass = 0.0f;
+    float invInertia = 0.0f;
     if (index < 0 || world->bodies.types[index] != (uint8_t)m2_dynamicBody ||
-        !(massData.mass > 0.0f))
+        !MassDataInverses(massData, &invMass, &invInertia))
     {
         m2Refuse(world, m2_errorInvalid);
         return;
@@ -701,13 +723,8 @@ void m2Body_SetMassData(m2World* world, m2BodyId bodyId, m2MassData massData)
         record.data = massData;
         m2JournalRecord(world, m2_opSetMassData, &record, (int32_t)sizeof(record));
     }
-    world->bodies.invMass[index] = 1.0f / massData.mass;
-    float inertiaCenter =
-        massData.rotationalInertia - massData.mass * (massData.center.x * massData.center.x +
-                                                      massData.center.y * massData.center.y);
-    world->bodies.invInertia[index] =
-        world->bodies.fixedRotations[index] == 0 && inertiaCenter > 0.0f ? 1.0f / inertiaCenter
-                                                                         : 0.0f;
+    world->bodies.invMass[index] = invMass;
+    world->bodies.invInertia[index] = world->bodies.fixedRotations[index] == 0 ? invInertia : 0.0f;
     world->bodies.localCenters[index] = massData.center;
     world->bodies.asleep[index] = 0;
     world->bodies.sleepTimes[index] = 0.0f;
