@@ -471,6 +471,11 @@ typedef struct m2JournalCommand
 {
     int32_t payloadSize; // fixed part; 0 marks an unknown op
     m2ReplayApplyFn* apply;
+    // Offsets of the payload's bool members. Replay checks that each of
+    // these bytes is 0 or 1 before the payload is read as its struct: a
+    // bool holding any other byte is undefined to read.
+    const uint16_t* bools;
+    int32_t boolCount;
 } m2JournalCommand;
 
 // The command for an op code, or NULL for a code no build ever wrote.
