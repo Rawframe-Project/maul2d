@@ -22,6 +22,7 @@ typedef enum m2Extent
     m2_extent_one,
     m2_extent_body,
     m2_extent_shape,
+    m2_extent_chain, // chain slots: as many as shape slots
     m2_extent_joint,
     m2_extent_jointEdge,
     m2_extent_pair,
@@ -42,6 +43,7 @@ typedef enum m2Extent
 #define M2_STATE_PARTICLES 0x02u // exists only when the world has particles
 #define M2_STATE_FLUIDS    0x04u // exists only when the world has fluid volumes
 #define M2_STATE_POINTER   0x08u // the field points at the array; else it is inline
+#define M2_STATE_HASH      0x10u // folded into m2World_Hash (m2StateHash)
 
 // What a restore checks in an incoming block before any of it lands, so
 // hostile snapshot bytes can never index out of bounds.
@@ -117,10 +119,10 @@ typedef struct m2StateArray
 static const m2StateArray s_state[] = {
     // Snapshot state, in snapshot byte order: the world scalars and the
     // pool cursors first, each checked before any byte lands.
-    M2_STATE_INLINE(stepCount, M2_STATE_SNAPSHOT),
-    M2_STATE_INLINE_CHECKED(gravity, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_INLINE_CHECKED(windVelocity, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_INLINE_CHECKED(windLinearDrag, M2_STATE_SNAPSHOT, finite32, one),
+    M2_STATE_INLINE(stepCount, M2_STATE_SNAPSHOT | M2_STATE_HASH),
+    M2_STATE_INLINE_CHECKED(gravity, M2_STATE_SNAPSHOT | M2_STATE_HASH, finite32, one),
+    M2_STATE_INLINE_CHECKED(windVelocity, M2_STATE_SNAPSHOT | M2_STATE_HASH, finite32, one),
+    M2_STATE_INLINE_CHECKED(windLinearDrag, M2_STATE_SNAPSHOT | M2_STATE_HASH, finite32, one),
     M2_STATE_INLINE_CHECKED(bodies.maxBodyIndex, M2_STATE_SNAPSHOT, count, body),
     M2_STATE_INLINE_CHECKED(bodies.freeHead, M2_STATE_SNAPSHOT, cursor, body),
     M2_STATE_INLINE_CHECKED(bodies.freeTail, M2_STATE_SNAPSHOT, cursor, body),
@@ -133,38 +135,56 @@ static const m2StateArray s_state[] = {
     M2_STATE_INLINE_CHECKED(shapes.shapeRetiredCount, M2_STATE_SNAPSHOT, count, shape),
     M2_STATE_INLINE_CHECKED(broadphase.movedCount, M2_STATE_SNAPSHOT, count, shape),
     M2_STATE_INLINE_CHECKED(contacts.pairCount, M2_STATE_SNAPSHOT, count, pair),
-    M2_STATE_CHECKED(bodies.transforms, m2Transform, body, 0, M2_STATE_SNAPSHOT, transform, one),
-    M2_STATE_CHECKED(bodies.linearVelocities, m2Vec2, body, 1, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(bodies.angularVelocities, float, body, 1, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(bodies.gravityScales, float, body, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(bodies.invMass, float, body, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(bodies.invInertia, float, body, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(bodies.localCenters, m2Vec2, body, 0, M2_STATE_SNAPSHOT, local, one),
-    M2_STATE_CHECKED(bodies.asleep, uint8_t, body, 0, M2_STATE_SNAPSHOT, bool, one),
-    M2_STATE_CHECKED(bodies.sleepTimes, float, body, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_ARRAY(bodies.sleepStreak, uint8_t, body, 0, M2_STATE_SNAPSHOT),
-    M2_STATE_CHECKED(bodies.bullets, uint8_t, body, 0, M2_STATE_SNAPSHOT, bool, one),
+    M2_STATE_CHECKED(bodies.transforms, m2Transform, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     transform, one),
+    M2_STATE_CHECKED(bodies.linearVelocities, m2Vec2, body, 1, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite32, one),
+    M2_STATE_CHECKED(bodies.angularVelocities, float, body, 1, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite32, one),
+    M2_STATE_CHECKED(bodies.gravityScales, float, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite32, one),
+    M2_STATE_CHECKED(bodies.invMass, float, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH, finite32,
+                     one),
+    M2_STATE_CHECKED(bodies.invInertia, float, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH, finite32,
+                     one),
+    M2_STATE_CHECKED(bodies.localCenters, m2Vec2, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH, local,
+                     one),
+    M2_STATE_CHECKED(bodies.asleep, uint8_t, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH, bool, one),
+    M2_STATE_CHECKED(bodies.sleepTimes, float, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH, finite32,
+                     one),
+    M2_STATE_ARRAY(bodies.sleepStreak, uint8_t, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH),
+    M2_STATE_CHECKED(bodies.bullets, uint8_t, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH, bool,
+                     one),
     M2_STATE_ARRAY(bodies.userData, uint64_t, body, 0, M2_STATE_SNAPSHOT),
-    M2_STATE_CHECKED(bodies.types, uint8_t, body, 1, M2_STATE_SNAPSHOT, bodyType, one),
+    M2_STATE_CHECKED(bodies.types, uint8_t, body, 1, M2_STATE_SNAPSHOT | M2_STATE_HASH, bodyType,
+                     one),
     M2_STATE_CHECKED(bodies.alive, uint8_t, body, 0, M2_STATE_SNAPSHOT, bool, one),
-    M2_STATE_CHECKED(bodies.bodyShapeHead, int32_t, body, 0, M2_STATE_SNAPSHOT, indexOrNone, shape),
+    M2_STATE_CHECKED(bodies.bodyShapeHead, int32_t, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     indexOrNone, shape),
     M2_STATE_ARRAY(bodies.generations, uint16_t, body, 0, M2_STATE_SNAPSHOT),
     M2_STATE_CHECKED(bodies.freeQueue, int32_t, body, 0, M2_STATE_SNAPSHOT, index, body),
-    M2_STATE_CHECKED(shapes.shapeGeometry, m2ShapeGeometry, shape, 0, M2_STATE_SNAPSHOT, geometry,
-                     one),
-    M2_STATE_CHECKED(shapes.shapeDensity, float, shape, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(shapes.shapeFriction, float, shape, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(shapes.shapeRestitution, float, shape, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(shapes.shapeTangentSpeed, float, shape, 0, M2_STATE_SNAPSHOT, finite32, one),
+    M2_STATE_CHECKED(shapes.shapeGeometry, m2ShapeGeometry, shape, 0,
+                     M2_STATE_SNAPSHOT | M2_STATE_HASH, geometry, one),
+    M2_STATE_CHECKED(shapes.shapeDensity, float, shape, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite32, one),
+    M2_STATE_CHECKED(shapes.shapeFriction, float, shape, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite32, one),
+    M2_STATE_CHECKED(shapes.shapeRestitution, float, shape, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite32, one),
+    M2_STATE_CHECKED(shapes.shapeTangentSpeed, float, shape, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite32, one),
     M2_STATE_ARRAY(shapes.shapeUserData, uint64_t, shape, 0, M2_STATE_SNAPSHOT),
-    M2_STATE_CHECKED(shapes.shapeBody, int32_t, shape, 0, M2_STATE_SNAPSHOT, indexOrNone, body),
-    M2_STATE_CHECKED(shapes.shapeNext, int32_t, shape, 0, M2_STATE_SNAPSHOT, indexOrNone, shape),
+    M2_STATE_CHECKED(shapes.shapeBody, int32_t, shape, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     indexOrNone, body),
+    M2_STATE_CHECKED(shapes.shapeNext, int32_t, shape, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     indexOrNone, shape),
     M2_STATE_CHECKED(shapes.shapeAlive, uint8_t, shape, 0, M2_STATE_SNAPSHOT, bool, one),
     M2_STATE_ARRAY(shapes.shapeGenerations, uint16_t, shape, 0, M2_STATE_SNAPSHOT),
-    M2_STATE_ARRAY(shapes.shapeCategory, uint64_t, shape, 0, M2_STATE_SNAPSHOT),
-    M2_STATE_ARRAY(shapes.shapeMask, uint64_t, shape, 0, M2_STATE_SNAPSHOT),
-    M2_STATE_ARRAY(shapes.shapeGroup, int32_t, shape, 0, M2_STATE_SNAPSHOT),
-    M2_STATE_CHECKED(shapes.shapeSensor, uint8_t, shape, 0, M2_STATE_SNAPSHOT, bool, one),
+    M2_STATE_ARRAY(shapes.shapeCategory, uint64_t, shape, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH),
+    M2_STATE_ARRAY(shapes.shapeMask, uint64_t, shape, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH),
+    M2_STATE_ARRAY(shapes.shapeGroup, int32_t, shape, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH),
+    M2_STATE_CHECKED(shapes.shapeSensor, uint8_t, shape, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH, bool,
+                     one),
     M2_STATE_CHECKED(shapes.shapeFreeQueue, int32_t, shape, 0, M2_STATE_SNAPSHOT, index, shape),
     M2_STATE_CHECKED(broadphase.proxyIds, int32_t, shape, 0, M2_STATE_SNAPSHOT, indexOrNone,
                      treeNode),
@@ -175,35 +195,59 @@ static const m2StateArray s_state[] = {
     M2_STATE_INLINE_CHECKED(joints.jointFreeTail, M2_STATE_SNAPSHOT, cursor, joint),
     M2_STATE_INLINE_CHECKED(joints.jointFreeCount, M2_STATE_SNAPSHOT, count, joint),
     M2_STATE_INLINE_CHECKED(joints.jointRetiredCount, M2_STATE_SNAPSHOT, count, joint),
-    M2_STATE_CHECKED(joints.jointType, uint8_t, joint, 0, M2_STATE_SNAPSHOT, jointType, one),
+    M2_STATE_CHECKED(joints.jointType, uint8_t, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     jointType, one),
     M2_STATE_CHECKED(joints.jointAlive, uint8_t, joint, 0, M2_STATE_SNAPSHOT, bool, one),
-    M2_STATE_CHECKED(joints.jointBodyA, int32_t, joint, 0, M2_STATE_SNAPSHOT, indexOrNone, body),
-    M2_STATE_CHECKED(joints.jointBodyB, int32_t, joint, 0, M2_STATE_SNAPSHOT, indexOrNone, body),
-    M2_STATE_CHECKED(joints.jointLocalAnchorA, m2Vec2, joint, 0, M2_STATE_SNAPSHOT, local, one),
-    M2_STATE_CHECKED(joints.jointLocalAnchorB, m2Vec2, joint, 0, M2_STATE_SNAPSHOT, local, one),
-    M2_STATE_CHECKED(joints.jointLength, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(joints.jointHertz, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(joints.jointDamping, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(joints.jointHertz2, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(joints.jointDamping2, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(joints.jointImpulse, m2Vec2, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_ARRAY(joints.jointFlags, uint8_t, joint, 0, M2_STATE_SNAPSHOT),
-    M2_STATE_CHECKED(joints.jointMotorSpeed, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(joints.jointMaxMotor, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(joints.jointLower, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(joints.jointUpper, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(joints.jointLocalAxisA, m2Vec2, joint, 0, M2_STATE_SNAPSHOT, local, one),
-    M2_STATE_CHECKED(joints.jointRefAngle, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(joints.jointMotorImpulse, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(joints.jointLowerImpulse, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(joints.jointUpperImpulse, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(joints.jointSpringImpulse, float, joint, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_ARRAY(joints.jointBreakForce, float, joint, 0, M2_STATE_SNAPSHOT),
-    M2_STATE_CHECKED(joints.jointCollide, uint8_t, joint, 0, M2_STATE_SNAPSHOT, bool, one),
-    M2_STATE_CHECKED(joints.jointTargets, m2Pos2, joint, 0, M2_STATE_SNAPSHOT, finite64, one),
-    M2_STATE_CHECKED(joints.jointTargetsB, m2Pos2, joint, 0, M2_STATE_SNAPSHOT, finite64, one),
+    M2_STATE_CHECKED(joints.jointBodyA, int32_t, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     indexOrNone, body),
+    M2_STATE_CHECKED(joints.jointBodyB, int32_t, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     indexOrNone, body),
+    M2_STATE_CHECKED(joints.jointLocalAnchorA, m2Vec2, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     local, one),
+    M2_STATE_CHECKED(joints.jointLocalAnchorB, m2Vec2, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     local, one),
+    M2_STATE_CHECKED(joints.jointLength, float, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite32, one),
+    M2_STATE_CHECKED(joints.jointHertz, float, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite32, one),
+    M2_STATE_CHECKED(joints.jointDamping, float, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite32, one),
+    M2_STATE_CHECKED(joints.jointHertz2, float, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite32, one),
+    M2_STATE_CHECKED(joints.jointDamping2, float, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite32, one),
+    M2_STATE_CHECKED(joints.jointImpulse, m2Vec2, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite32, one),
+    M2_STATE_ARRAY(joints.jointFlags, uint8_t, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH),
+    M2_STATE_CHECKED(joints.jointMotorSpeed, float, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite32, one),
+    M2_STATE_CHECKED(joints.jointMaxMotor, float, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite32, one),
+    M2_STATE_CHECKED(joints.jointLower, float, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite32, one),
+    M2_STATE_CHECKED(joints.jointUpper, float, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite32, one),
+    M2_STATE_CHECKED(joints.jointLocalAxisA, m2Vec2, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     local, one),
+    M2_STATE_CHECKED(joints.jointRefAngle, float, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite32, one),
+    M2_STATE_CHECKED(joints.jointMotorImpulse, float, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite32, one),
+    M2_STATE_CHECKED(joints.jointLowerImpulse, float, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite32, one),
+    M2_STATE_CHECKED(joints.jointUpperImpulse, float, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite32, one),
+    M2_STATE_CHECKED(joints.jointSpringImpulse, float, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite32, one),
+    M2_STATE_ARRAY(joints.jointBreakForce, float, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH),
+    M2_STATE_CHECKED(joints.jointCollide, uint8_t, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     bool, one),
+    M2_STATE_CHECKED(joints.jointTargets, m2Pos2, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite64, one),
+    M2_STATE_CHECKED(joints.jointTargetsB, m2Pos2, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     finite64, one),
     M2_STATE_ARRAY(joints.jointUserData, uint64_t, joint, 0, M2_STATE_SNAPSHOT),
-    M2_STATE_ARRAY(joints.jointBreakTorque, float, joint, 0, M2_STATE_SNAPSHOT),
+    M2_STATE_ARRAY(joints.jointBreakTorque, float, joint, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH),
     M2_STATE_ARRAY(joints.jointGenerations, uint16_t, joint, 0, M2_STATE_SNAPSHOT),
     M2_STATE_CHECKED(joints.jointFreeQueue, int32_t, joint, 0, M2_STATE_SNAPSHOT, index, joint),
     M2_STATE_INLINE_CHECKED(chains.maxChainIndex, M2_STATE_SNAPSHOT, count, shape),
@@ -211,22 +255,31 @@ static const m2StateArray s_state[] = {
     M2_STATE_INLINE_CHECKED(chains.chainFreeTail, M2_STATE_SNAPSHOT, cursor, shape),
     M2_STATE_INLINE_CHECKED(chains.chainFreeCount, M2_STATE_SNAPSHOT, count, shape),
     M2_STATE_INLINE_CHECKED(chains.chainRetiredCount, M2_STATE_SNAPSHOT, count, shape),
-    M2_STATE_INLINE_CHECKED(lastInvH, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_INLINE_CHECKED(sleepEnabled, M2_STATE_SNAPSHOT, bool, one),
-    M2_STATE_CHECKED(bodies.linearDampings, float, body, 0, M2_STATE_SNAPSHOT, nonNegative, one),
-    M2_STATE_CHECKED(bodies.angularDampings, float, body, 0, M2_STATE_SNAPSHOT, nonNegative, one),
-    M2_STATE_CHECKED(bodies.fixedRotations, uint8_t, body, 0, M2_STATE_SNAPSHOT, bool, one),
-    M2_STATE_ARRAY(bodies.motionLocks, uint8_t, body, 0, M2_STATE_SNAPSHOT),
-    M2_STATE_CHECKED(bodies.sleepEnables, uint8_t, body, 0, M2_STATE_SNAPSHOT, bool, one),
-    M2_STATE_CHECKED(bodies.forces, m2Vec2, body, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(bodies.torques, float, body, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(bodies.disabled, uint8_t, body, 0, M2_STATE_SNAPSHOT, bool, one),
-    M2_STATE_ARRAY(bodies.dominances, int8_t, body, 0, M2_STATE_SNAPSHOT),
-    M2_STATE_CHECKED(shapes.shapeChain, int32_t, shape, 0, M2_STATE_SNAPSHOT, indexOrNone, shape),
-    M2_STATE_CHECKED(chains.chainAlive, uint8_t, shape, 0, M2_STATE_SNAPSHOT, bool, one),
-    M2_STATE_CHECKED(chains.chainBody, int32_t, shape, 0, M2_STATE_SNAPSHOT, indexOrNone, body),
-    M2_STATE_ARRAY(chains.chainGenerations, uint16_t, shape, 0, M2_STATE_SNAPSHOT),
-    M2_STATE_CHECKED(chains.chainFreeQueue, int32_t, shape, 0, M2_STATE_SNAPSHOT, index, shape),
+    M2_STATE_INLINE_CHECKED(lastInvH, M2_STATE_SNAPSHOT | M2_STATE_HASH, finite32, one),
+    M2_STATE_INLINE_CHECKED(sleepEnabled, M2_STATE_SNAPSHOT | M2_STATE_HASH, bool, one),
+    M2_STATE_CHECKED(bodies.linearDampings, float, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     nonNegative, one),
+    M2_STATE_CHECKED(bodies.angularDampings, float, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     nonNegative, one),
+    M2_STATE_CHECKED(bodies.fixedRotations, uint8_t, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     bool, one),
+    M2_STATE_ARRAY(bodies.motionLocks, uint8_t, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH),
+    M2_STATE_CHECKED(bodies.sleepEnables, uint8_t, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH, bool,
+                     one),
+    M2_STATE_CHECKED(bodies.forces, m2Vec2, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH, finite32,
+                     one),
+    M2_STATE_CHECKED(bodies.torques, float, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH, finite32,
+                     one),
+    M2_STATE_CHECKED(bodies.disabled, uint8_t, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH, bool,
+                     one),
+    M2_STATE_ARRAY(bodies.dominances, int8_t, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH),
+    M2_STATE_CHECKED(shapes.shapeChain, int32_t, shape, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     indexOrNone, shape),
+    M2_STATE_CHECKED(chains.chainAlive, uint8_t, chain, 0, M2_STATE_SNAPSHOT, bool, one),
+    M2_STATE_CHECKED(chains.chainBody, int32_t, chain, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     indexOrNone, body),
+    M2_STATE_ARRAY(chains.chainGenerations, uint16_t, chain, 0, M2_STATE_SNAPSHOT),
+    M2_STATE_CHECKED(chains.chainFreeQueue, int32_t, chain, 0, M2_STATE_SNAPSHOT, index, shape),
     M2_STATE_INLINE_CHECKED(broadphase.trees, M2_STATE_SNAPSHOT, tree, treeNode),
     M2_STATE_CHECKED(broadphase.treeNodes[0], m2TreeNode, treeNode, 0, M2_STATE_SNAPSHOT, treeNode,
                      treeNode),
@@ -234,21 +287,23 @@ static const m2StateArray s_state[] = {
                      treeNode),
     M2_STATE_CHECKED(broadphase.treeNodes[2], m2TreeNode, treeNode, 0, M2_STATE_SNAPSHOT, treeNode,
                      treeNode),
-    M2_STATE_CHECKED(contacts.pairKeys, uint64_t, pair, 0, M2_STATE_SNAPSHOT, pairKey, shape),
-    M2_STATE_ARRAY(contacts.pairTouching, uint8_t, pair, 0, M2_STATE_SNAPSHOT),
-    M2_STATE_CHECKED(contacts.manifolds, m2Manifold, pair, 0, M2_STATE_SNAPSHOT, manifold, one),
+    M2_STATE_CHECKED(contacts.pairKeys, uint64_t, pair, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     pairKey, shape),
+    M2_STATE_ARRAY(contacts.pairTouching, uint8_t, pair, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH),
+    M2_STATE_CHECKED(contacts.manifolds, m2Manifold, pair, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     manifold, one),
     M2_STATE_CHECKED(particles.particlePositions, m2Pos2, particle, 0,
-                     M2_STATE_SNAPSHOT | M2_STATE_PARTICLES, finite64, one),
+                     M2_STATE_SNAPSHOT | M2_STATE_HASH | M2_STATE_PARTICLES, finite64, one),
     M2_STATE_CHECKED(particles.particleVelocities, m2Vec2, particle, 0,
-                     M2_STATE_SNAPSHOT | M2_STATE_PARTICLES, finite32, one),
+                     M2_STATE_SNAPSHOT | M2_STATE_HASH | M2_STATE_PARTICLES, finite32, one),
     M2_STATE_CHECKED(particles.particleAlive, uint8_t, particle, 0,
                      M2_STATE_SNAPSHOT | M2_STATE_PARTICLES, bool, one),
     M2_STATE_ARRAY(particles.particleGenerations, uint16_t, particle, 0,
                    M2_STATE_SNAPSHOT | M2_STATE_PARTICLES),
     M2_STATE_ARRAY(particles.particleFlags, uint32_t, particle, 0,
-                   M2_STATE_SNAPSHOT | M2_STATE_PARTICLES),
+                   M2_STATE_SNAPSHOT | M2_STATE_HASH | M2_STATE_PARTICLES),
     M2_STATE_CHECKED(particles.particleLifetime, float, particle, 0,
-                     M2_STATE_SNAPSHOT | M2_STATE_PARTICLES, finite32, one),
+                     M2_STATE_SNAPSHOT | M2_STATE_HASH | M2_STATE_PARTICLES, finite32, one),
     M2_STATE_ARRAY(particles.particleUserData, uint64_t, particle, 0,
                    M2_STATE_SNAPSHOT | M2_STATE_PARTICLES),
     M2_STATE_CHECKED(particles.particleFreeQueue, int32_t, particle, 0,
@@ -262,41 +317,41 @@ static const m2StateArray s_state[] = {
     M2_STATE_INLINE_CHECKED(particles.maxParticleIndex, M2_STATE_SNAPSHOT | M2_STATE_PARTICLES,
                             count, particle),
     M2_STATE_CHECKED(particles.particleSpringA, int32_t, particleSpring, 0,
-                     M2_STATE_SNAPSHOT | M2_STATE_PARTICLES, index, particle),
+                     M2_STATE_SNAPSHOT | M2_STATE_HASH | M2_STATE_PARTICLES, index, particle),
     M2_STATE_CHECKED(particles.particleSpringB, int32_t, particleSpring, 0,
-                     M2_STATE_SNAPSHOT | M2_STATE_PARTICLES, index, particle),
+                     M2_STATE_SNAPSHOT | M2_STATE_HASH | M2_STATE_PARTICLES, index, particle),
     M2_STATE_CHECKED(particles.particleSpringRest, float, particleSpring, 0,
-                     M2_STATE_SNAPSHOT | M2_STATE_PARTICLES, finite32, one),
+                     M2_STATE_SNAPSHOT | M2_STATE_HASH | M2_STATE_PARTICLES, finite32, one),
     M2_STATE_INLINE_CHECKED(particles.particleSpringCount, M2_STATE_SNAPSHOT | M2_STATE_PARTICLES,
                             count, particleSpring),
     M2_STATE_CHECKED(particles.particleTriadA, int32_t, particleTriad, 0,
-                     M2_STATE_SNAPSHOT | M2_STATE_PARTICLES, index, particle),
+                     M2_STATE_SNAPSHOT | M2_STATE_HASH | M2_STATE_PARTICLES, index, particle),
     M2_STATE_CHECKED(particles.particleTriadB, int32_t, particleTriad, 0,
-                     M2_STATE_SNAPSHOT | M2_STATE_PARTICLES, index, particle),
+                     M2_STATE_SNAPSHOT | M2_STATE_HASH | M2_STATE_PARTICLES, index, particle),
     M2_STATE_CHECKED(particles.particleTriadC, int32_t, particleTriad, 0,
-                     M2_STATE_SNAPSHOT | M2_STATE_PARTICLES, index, particle),
+                     M2_STATE_SNAPSHOT | M2_STATE_HASH | M2_STATE_PARTICLES, index, particle),
     M2_STATE_CHECKED(particles.particleTriadPA, m2Vec2, particleTriad, 0,
-                     M2_STATE_SNAPSHOT | M2_STATE_PARTICLES, finite32, one),
+                     M2_STATE_SNAPSHOT | M2_STATE_HASH | M2_STATE_PARTICLES, finite32, one),
     M2_STATE_CHECKED(particles.particleTriadPB, m2Vec2, particleTriad, 0,
-                     M2_STATE_SNAPSHOT | M2_STATE_PARTICLES, finite32, one),
+                     M2_STATE_SNAPSHOT | M2_STATE_HASH | M2_STATE_PARTICLES, finite32, one),
     M2_STATE_CHECKED(particles.particleTriadPC, m2Vec2, particleTriad, 0,
-                     M2_STATE_SNAPSHOT | M2_STATE_PARTICLES, finite32, one),
+                     M2_STATE_SNAPSHOT | M2_STATE_HASH | M2_STATE_PARTICLES, finite32, one),
     M2_STATE_INLINE_CHECKED(particles.particleTriadCount, M2_STATE_SNAPSHOT | M2_STATE_PARTICLES,
                             count, particleTriad),
-    M2_STATE_CHECKED(volumes.fvLower, m2Pos2, fluidVolume, 0, M2_STATE_SNAPSHOT | M2_STATE_FLUIDS,
-                     finite64, one),
-    M2_STATE_CHECKED(volumes.fvUpper, m2Pos2, fluidVolume, 0, M2_STATE_SNAPSHOT | M2_STATE_FLUIDS,
-                     finite64, one),
-    M2_STATE_CHECKED(volumes.fvSurface, double, fluidVolume, 0, M2_STATE_SNAPSHOT | M2_STATE_FLUIDS,
-                     finite64, one),
-    M2_STATE_CHECKED(volumes.fvDensity, float, fluidVolume, 0, M2_STATE_SNAPSHOT | M2_STATE_FLUIDS,
-                     finite32, one),
+    M2_STATE_CHECKED(volumes.fvLower, m2Pos2, fluidVolume, 0,
+                     M2_STATE_SNAPSHOT | M2_STATE_HASH | M2_STATE_FLUIDS, finite64, one),
+    M2_STATE_CHECKED(volumes.fvUpper, m2Pos2, fluidVolume, 0,
+                     M2_STATE_SNAPSHOT | M2_STATE_HASH | M2_STATE_FLUIDS, finite64, one),
+    M2_STATE_CHECKED(volumes.fvSurface, double, fluidVolume, 0,
+                     M2_STATE_SNAPSHOT | M2_STATE_HASH | M2_STATE_FLUIDS, finite64, one),
+    M2_STATE_CHECKED(volumes.fvDensity, float, fluidVolume, 0,
+                     M2_STATE_SNAPSHOT | M2_STATE_HASH | M2_STATE_FLUIDS, finite32, one),
     M2_STATE_CHECKED(volumes.fvLinearDrag, float, fluidVolume, 0,
-                     M2_STATE_SNAPSHOT | M2_STATE_FLUIDS, finite32, one),
+                     M2_STATE_SNAPSHOT | M2_STATE_HASH | M2_STATE_FLUIDS, finite32, one),
     M2_STATE_CHECKED(volumes.fvAngularDrag, float, fluidVolume, 0,
-                     M2_STATE_SNAPSHOT | M2_STATE_FLUIDS, finite32, one),
-    M2_STATE_CHECKED(volumes.fvFlow, m2Vec2, fluidVolume, 0, M2_STATE_SNAPSHOT | M2_STATE_FLUIDS,
-                     finite32, one),
+                     M2_STATE_SNAPSHOT | M2_STATE_HASH | M2_STATE_FLUIDS, finite32, one),
+    M2_STATE_CHECKED(volumes.fvFlow, m2Vec2, fluidVolume, 0,
+                     M2_STATE_SNAPSHOT | M2_STATE_HASH | M2_STATE_FLUIDS, finite32, one),
     M2_STATE_ARRAY(volumes.fvUserData, uint64_t, fluidVolume, 0,
                    M2_STATE_SNAPSHOT | M2_STATE_FLUIDS),
     M2_STATE_CHECKED(volumes.fvAlive, uint8_t, fluidVolume, 0, M2_STATE_SNAPSHOT | M2_STATE_FLUIDS,
@@ -370,6 +425,7 @@ static size_t ExtentCount(const m2World* world, uint8_t extent)
     case m2_extent_body:
         return (size_t)world->bodies.bodyCapacity;
     case m2_extent_shape:
+    case m2_extent_chain:
         return (size_t)world->shapes.shapeCapacity;
     case m2_extent_joint:
         return (size_t)world->joints.jointCapacity;
@@ -805,4 +861,88 @@ const uint8_t* m2StateIncoming(const m2World* world, const uint8_t* in, const vo
             pointer ? ExtentCount(world, array->extent) * array->elementSize : array->elementSize;
     }
     return NULL;
+}
+
+// Which slots of an extent are hashed: the live ones below bound when
+// alive is set, else the first bound elements, keyed by the count.
+typedef struct m2HashSlots
+{
+    const uint8_t* alive;
+    int32_t bound;
+    m2HashPart part;
+} m2HashSlots;
+
+static m2HashSlots HashSlots(const m2World* world, uint8_t extent)
+{
+    switch ((m2Extent)extent)
+    {
+    case m2_extent_body:
+        return (m2HashSlots){world->bodies.alive, world->bodies.maxBodyIndex, m2_hashBodies};
+    case m2_extent_shape:
+        return (m2HashSlots){world->shapes.shapeAlive, world->shapes.maxShapeIndex, m2_hashBodies};
+    case m2_extent_chain:
+        return (m2HashSlots){world->chains.chainAlive, world->chains.maxChainIndex, m2_hashBodies};
+    case m2_extent_joint:
+        return (m2HashSlots){world->joints.jointAlive, world->joints.maxJointIndex, m2_hashJoints};
+    case m2_extent_particle:
+        return (m2HashSlots){world->particles.particleAlive, world->particles.maxParticleIndex,
+                             m2_hashParticles};
+    case m2_extent_fluidVolume:
+        return (m2HashSlots){world->volumes.fvAlive, world->volumes.maxFvIndex, m2_hashVolumes};
+    case m2_extent_pair:
+        return (m2HashSlots){NULL, world->contacts.pairCount, m2_hashContacts};
+    case m2_extent_particleSpring:
+        return (m2HashSlots){NULL, world->particles.particleSpringCount, m2_hashParticles};
+    case m2_extent_particleTriad:
+        return (m2HashSlots){NULL, world->particles.particleTriadCount, m2_hashParticles};
+    default:
+        return (m2HashSlots){NULL, 1, m2_hashWorld}; // inline scalars
+    }
+}
+
+static uint64_t HashArray(const m2World* world, const m2StateArray* array, m2HashPart part,
+                          uint64_t h)
+{
+    m2HashSlots slots = HashSlots(world, array->extent);
+    if (part != m2_hashAll && part != slots.part)
+    {
+        return h;
+    }
+    const uint8_t* data = (const uint8_t*)world + array->offset;
+    if ((array->flags & M2_STATE_POINTER) != 0)
+    {
+        data = *(const uint8_t* const*)data;
+    }
+    int32_t size = (int32_t)array->elementSize;
+    if (slots.alive == NULL)
+    {
+        h = m2Hash64(h, &slots.bound, (int32_t)sizeof(slots.bound));
+    }
+    for (int32_t i = 0; i < slots.bound; ++i)
+    {
+        if (slots.alive != NULL)
+        {
+            if (slots.alive[i] == 0)
+            {
+                continue;
+            }
+            h = m2Hash64(h, &i, (int32_t)sizeof(i));
+        }
+        h = m2Hash64(h, data + (size_t)i * (size_t)size, size);
+    }
+    return h;
+}
+
+uint64_t m2StateHash(const m2World* world, m2HashPart part)
+{
+    uint64_t h = M2_HASH_INIT;
+    for (size_t i = 0; i < sizeof(s_state) / sizeof(s_state[0]); ++i)
+    {
+        const m2StateArray* array = &s_state[i];
+        if ((array->flags & M2_STATE_HASH) != 0 && Present(world, array->flags))
+        {
+            h = HashArray(world, array, part, h);
+        }
+    }
+    return m2HashPools(world, part, h);
 }

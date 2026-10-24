@@ -2766,11 +2766,13 @@ static void TestShatterBody(void)
     CHECK(m2World_ShatterBody(small, lone, &bent, 1, NULL, 0, &count) == m2_errorInvalid,
           "a malformed piece refuses with m2_errorInvalid");
     CHECK(m2World_GetCounters(small).misuse == misuseBefore + 1, "as misuse");
+    CHECK(m2World_Hash(small) == before, "a refusal moves no bits");
     m2BodyDef fixed = m2DefaultBodyDef();
     m2BodyId wall = NewBody(small, &fixed);
     CHECK(m2World_ShatterBody(small, wall, shards, 1, NULL, 0, &count) == m2_errorInvalid,
           "a static body does not shatter");
     DestroyBody(small, wall);
+    before = m2World_Hash(small); // the wall moved the body pool on
     CHECK(m2World_ShatterBody(small, wall, shards, 1, NULL, 0, &count) == m2_errorStale,
           "a stale body is m2_errorStale");
     CHECK(m2World_ShatterBody(small, lone, shards, 1, NULL, 0, NULL) == m2_errorInvalid,
@@ -2785,7 +2787,7 @@ static void TestShatterBody(void)
           "a null bodiesOut with room is refused and clears the count");
     CHECK(m2World_GetCounters(small).misuse == misuseBefore + 6, "each a misuse");
     CHECK(m2Body_IsValid(small, lone), "the refused parent is untouched");
-    CHECK(m2World_Hash(small) == before, "a refusal moves no bits");
+    CHECK(m2World_Hash(small) == before, "nor do the later refusals");
     m2DestroyWorld(small);
     m2DestroyWorld(world);
 }
@@ -3147,54 +3149,420 @@ static void TestCentersAtTheBoundRestore(void)
           "and the world's snapshot restores");
     free(snapshot);
     m2DestroyWorld(world);
-}
-
-int main(void)
-{
-    TestCentersAtTheBoundRestore();
-    TestSetMassDataChecksEveryField();
-    TestCreateWorldOutOfMemory();
-    TestInfiniteInputIsRefused();
-    TestDefsMatchWhatARestoreAccepts();
-    TestSubstepCap();
-    TestRestoreRefusesANonUnitRotation();
-    TestEveryRefusalHasAReason();
-    TestHostCodeCannotWrite();
-    TestAllocatorCannotWrite();
-    TestCorruptInputIsNotMisuse();
-    TestHostCodeMistakesCountMidReplay();
-    TestStaleIdsInStatusCalls();
-    TestStaleIdsCountInEveryCall();
-    TestStaticBodiesHaveNoVelocity();
-    TestRuntimeGravity();
-    TestDominance();
-    TestShatterBody();
-    TestFluidVolume();
-    TestFloatingDraft();
-    TestHashParts();
-    TestValidateAndCounters();
-    TestLeftoverBasket();
-    TestSmallBasket();
-    TestDormancyMassAndExplosions();
-    TestBodyDynamicsPack();
-    TestMirrorRebuild();
-    TestEnumerationWalk();
-    TestDestroyWakesSleepers();
-    TestSetType();
-    TestTeleport();
-    TestKineticEnergy();
-    TestCountersAndProfile();
-    TestRollbackIdentity();
-    TestIdSemantics();
-    TestDestroyNullWorld();
-    TestMotionLocks();
-    TestWind();
-
-    if (s_failures > 0)
+    // One of everything a setter can tune: two dynamic bodies on a ground
+    // with a chain, joints of each tunable type between them, a fluid volume.
+    typedef struct HashScene
     {
-        printf("%d failure(s)\n", s_failures);
-        return 1;
+        m2World* world;
+        m2BodyId ground;
+        m2BodyId a;
+        m2BodyId b;
+        m2ShapeId shape;
+        m2ChainId chain;
+        m2JointId revolute;
+        m2JointId distance;
+        m2JointId mouse;
+        m2JointId motor;
+        m2JointId gear;
+        m2JointId pulley;
+    } HashScene;
+
+    enum
+    {
+        HASH_SCENE_PLAIN,
+        HASH_SCENE_COLLIDE,     // the revolute joint collides its bodies
+        HASH_SCENE_VOLUME_DRAG, // the fluid volume drags harder
+    };
+
+    static HashScene MakeHashScene(int32_t variant)
+    {
+        HashScene scene;
+        m2WorldDef def = m2DefaultWorldDef();
+        def.particleCapacity = 8;
+        def.fluidVolumeCapacity = 2;
+        scene.world = NewWorld(&def);
+        m2BodyDef bodyDef = m2DefaultBodyDef();
+        scene.ground = NewBody(scene.world, &bodyDef);
+        m2Vec2 points[4] = {{-8.0f, 0.0f}, {-4.0f, 0.0f}, {4.0f, 0.0f}, {8.0f, 0.0f}};
+        m2ChainDef chainDef = m2DefaultChainDef();
+        chainDef.points = points;
+        chainDef.count = 4;
+        scene.chain = NewChain(scene.world, scene.ground, &chainDef);
+        bodyDef.type = m2_dynamicBody;
+        bodyDef.position = (m2Pos2){-1.0, 2.0};
+        scene.a = NewBody(scene.world, &bodyDef);
+        bodyDef.position = (m2Pos2){1.0, 2.0};
+        scene.b = NewBody(scene.world, &bodyDef);
+        m2ShapeDef shapeDef = m2DefaultShapeDef();
+        m2Polygon box = m2MakeBox(0.5f, 0.5f);
+        scene.shape = NewPolygonShape(scene.world, scene.a, &shapeDef, &box);
+        m2Circle ball = {{0.0f, 0.0f}, 0.5f};
+        NewCircleShape(scene.world, scene.b, &shapeDef, &ball);
+
+        m2RevoluteJointDef revolute = m2DefaultRevoluteJointDef();
+        revolute.bodyIdA = scene.a;
+        revolute.bodyIdB = scene.b;
+        revolute.localAnchorA = (m2Vec2){1.0f, 0.0f};
+        revolute.localAnchorB = (m2Vec2){-1.0f, 0.0f};
+        revolute.collideConnected = variant == HASH_SCENE_COLLIDE;
+        scene.revolute = NewRevoluteJoint(scene.world, &revolute);
+        m2DistanceJointDef distance = m2DefaultDistanceJointDef();
+        distance.bodyIdA = scene.a;
+        distance.bodyIdB = scene.b;
+        scene.distance = NewDistanceJoint(scene.world, &distance);
+        m2MouseJointDef mouse = m2DefaultMouseJointDef();
+        mouse.bodyIdA = scene.ground;
+        mouse.bodyIdB = scene.b;
+        mouse.target = (m2Pos2){1.0, 2.0};
+        scene.mouse = NewMouseJoint(scene.world, &mouse);
+        m2MotorJointDef motor = m2DefaultMotorJointDef();
+        motor.bodyIdA = scene.ground;
+        motor.bodyIdB = scene.a;
+        motor.linearOffset = (m2Vec2){-1.0f, 2.0f};
+        scene.motor = NewMotorJoint(scene.world, &motor);
+        m2GearJointDef gear = m2DefaultGearJointDef();
+        gear.bodyIdA = scene.a;
+        gear.bodyIdB = scene.b;
+        gear.ratio = 1.0f;
+        scene.gear = NewGearJoint(scene.world, &gear);
+        m2PulleyJointDef pulley = m2DefaultPulleyJointDef();
+        pulley.bodyIdA = scene.a;
+        pulley.bodyIdB = scene.b;
+        pulley.groundAnchorA = (m2Pos2){-1.0, 5.0};
+        pulley.groundAnchorB = (m2Pos2){1.0, 5.0};
+        scene.pulley = NewPulleyJoint(scene.world, &pulley);
+
+        m2FluidVolumeDef volume = m2DefaultFluidVolumeDef();
+        volume.regionLower = (m2Pos2){-10.0, -5.0};
+        volume.regionUpper = (m2Pos2){10.0, 1.0};
+        volume.surface = 1.0;
+        volume.linearDrag = variant == HASH_SCENE_VOLUME_DRAG ? 2.0f : 1.0f;
+        NewFluidVolume(scene.world, &volume);
+        return scene;
     }
-    printf("all checks passed\n");
-    return 0;
-}
+
+    typedef enum HashPart
+    {
+        PART_WORLD,
+        PART_BODIES,
+        PART_JOINTS,
+        PART_PARTICLES,
+        PART_VOLUMES,
+    } HashPart;
+
+    static uint64_t PartOf(m2WorldHashParts parts, int32_t part)
+    {
+        switch (part)
+        {
+        case PART_WORLD:
+            return parts.world;
+        case PART_BODIES:
+            return parts.bodies;
+        case PART_JOINTS:
+            return parts.joints;
+        case PART_PARTICLES:
+            return parts.particles;
+        default:
+            return parts.volumes;
+        }
+    }
+
+    typedef struct HashCase
+    {
+        const char* name;
+        int32_t variant;                        // the scene the changed world starts from
+        void (*change)(const HashScene* scene); // NULL: the variant is the change
+        int32_t part;                           // the HashPart that must differ
+    } HashCase;
+
+    static void ChangeWind(const HashScene* s)
+    {
+        m2World_SetWind(s->world, (m2Vec2){1.0f, 0.0f}, 0.5f);
+    }
+    static void ChangeSleeping(const HashScene* s)
+    {
+        m2World_EnableSleeping(s->world, false);
+    }
+    static void ChangeGravityScale(const HashScene* s)
+    {
+        m2Body_SetGravityScale(s->world, s->a, 0.5f);
+    }
+    static void ChangeLinearDamping(const HashScene* s)
+    {
+        m2Body_SetLinearDamping(s->world, s->a, 0.5f);
+    }
+    static void ChangeAngularDamping(const HashScene* s)
+    {
+        m2Body_SetAngularDamping(s->world, s->a, 0.5f);
+    }
+    static void ChangeMotionLocks(const HashScene* s)
+    {
+        m2Body_SetMotionLocks(s->world, s->a, (m2MotionLocks){true, false, false});
+    }
+    static void ChangeDominance(const HashScene* s)
+    {
+        m2Body_SetDominance(s->world, s->a, 3);
+    }
+    static void ChangeBodySleep(const HashScene* s)
+    {
+        m2Body_EnableSleep(s->world, s->a, false);
+    }
+    static void ChangeForce(const HashScene* s)
+    {
+        m2Body_ApplyForce(s->world, s->a, (m2Vec2){1.0f, 0.0f});
+    }
+    static void ChangeTorque(const HashScene* s)
+    {
+        m2Body_ApplyTorque(s->world, s->a, 1.0f);
+    }
+    static void ChangeFriction(const HashScene* s)
+    {
+        m2Shape_SetFriction(s->world, s->shape, 0.9f);
+    }
+    static void ChangeRestitution(const HashScene* s)
+    {
+        m2Shape_SetRestitution(s->world, s->shape, 0.5f);
+    }
+    static void ChangeTangentSpeed(const HashScene* s)
+    {
+        m2Shape_SetTangentSpeed(s->world, s->shape, 1.0f);
+    }
+    static void ChangeFilter(const HashScene* s)
+    {
+        m2Shape_SetFilter(s->world, s->shape, 2u, ~0ull, 0);
+    }
+    static void ChangeChainFriction(const HashScene* s)
+    {
+        m2Chain_SetFriction(s->world, s->chain, 0.1f);
+    }
+    static void ChangeLimits(const HashScene* s)
+    {
+        m2Joint_SetLimits(s->world, s->revolute, -0.25f, 0.25f);
+    }
+    static void ChangeLimitSwitch(const HashScene* s)
+    {
+        m2Joint_EnableLimit(s->world, s->revolute, true);
+    }
+    static void ChangeMotorSwitch(const HashScene* s)
+    {
+        m2Joint_EnableMotor(s->world, s->revolute, true);
+    }
+    static void ChangeMotorSpeed(const HashScene* s)
+    {
+        m2Joint_SetMotorSpeed(s->world, s->revolute, 2.0f);
+    }
+    static void ChangeMaxMotor(const HashScene* s)
+    {
+        m2Joint_SetMaxMotor(s->world, s->revolute, 5.0f);
+    }
+    static void ChangeAngularSpring(const HashScene* s)
+    {
+        m2Joint_SetAngularSpringHertz(s->world, s->revolute, 3.0f);
+    }
+    static void ChangeAngularSpringDamping(const HashScene* s)
+    {
+        m2Joint_SetAngularSpringDampingRatio(s->world, s->revolute, 0.3f);
+    }
+    static void ChangeSpring(const HashScene* s)
+    {
+        m2Joint_SetSpringHertz(s->world, s->distance, 3.0f);
+    }
+    static void ChangeSpringDamping(const HashScene* s)
+    {
+        m2Joint_SetSpringDampingRatio(s->world, s->distance, 0.3f);
+    }
+    static void ChangeBreakLimits(const HashScene* s)
+    {
+        m2Joint_SetBreakLimits(s->world, s->revolute, 100.0f, 100.0f);
+    }
+    static void ChangeLength(const HashScene* s)
+    {
+        m2DistanceJoint_SetLength(s->world, s->distance, 3.0f);
+    }
+    static void ChangeLengthRange(const HashScene* s)
+    {
+        m2DistanceJoint_SetLengthRange(s->world, s->distance, 1.0f, 4.0f);
+    }
+    static void ChangeMouseTarget(const HashScene* s)
+    {
+        m2MouseJoint_SetTarget(s->world, s->mouse, (m2Pos2){2.0, 2.0});
+    }
+    static void ChangeMotorOffsets(const HashScene* s)
+    {
+        m2MotorJoint_SetOffsets(s->world, s->motor, (m2Vec2){-1.0f, 3.0f}, 0.5f);
+    }
+    static void ChangeGearRatio(const HashScene* s)
+    {
+        m2GearJoint_SetRatio(s->world, s->gear, 2.0f);
+    }
+    static void ChangePulleyRatio(const HashScene* s)
+    {
+        m2PulleyJoint_SetRatio(s->world, s->pulley, 2.0f);
+    }
+
+    // Every setting the step reads moves the hash, and the part that holds it,
+    // at once: two worlds that differ in one setting never hash the same.
+    static void TestHashCoversEverySetting(void)
+    {
+        static const HashCase cases[] = {
+            {"wind", HASH_SCENE_PLAIN, ChangeWind, PART_WORLD},
+            {"world sleeping", HASH_SCENE_PLAIN, ChangeSleeping, PART_WORLD},
+            {"gravity scale", HASH_SCENE_PLAIN, ChangeGravityScale, PART_BODIES},
+            {"linear damping", HASH_SCENE_PLAIN, ChangeLinearDamping, PART_BODIES},
+            {"angular damping", HASH_SCENE_PLAIN, ChangeAngularDamping, PART_BODIES},
+            {"motion locks", HASH_SCENE_PLAIN, ChangeMotionLocks, PART_BODIES},
+            {"dominance", HASH_SCENE_PLAIN, ChangeDominance, PART_BODIES},
+            {"body sleeping", HASH_SCENE_PLAIN, ChangeBodySleep, PART_BODIES},
+            {"force", HASH_SCENE_PLAIN, ChangeForce, PART_BODIES},
+            {"torque", HASH_SCENE_PLAIN, ChangeTorque, PART_BODIES},
+            {"friction", HASH_SCENE_PLAIN, ChangeFriction, PART_BODIES},
+            {"restitution", HASH_SCENE_PLAIN, ChangeRestitution, PART_BODIES},
+            {"tangent speed", HASH_SCENE_PLAIN, ChangeTangentSpeed, PART_BODIES},
+            {"filter", HASH_SCENE_PLAIN, ChangeFilter, PART_BODIES},
+            {"chain friction", HASH_SCENE_PLAIN, ChangeChainFriction, PART_BODIES},
+            {"limits", HASH_SCENE_PLAIN, ChangeLimits, PART_JOINTS},
+            {"limit switch", HASH_SCENE_PLAIN, ChangeLimitSwitch, PART_JOINTS},
+            {"motor switch", HASH_SCENE_PLAIN, ChangeMotorSwitch, PART_JOINTS},
+            {"motor speed", HASH_SCENE_PLAIN, ChangeMotorSpeed, PART_JOINTS},
+            {"motor budget", HASH_SCENE_PLAIN, ChangeMaxMotor, PART_JOINTS},
+            {"angular spring", HASH_SCENE_PLAIN, ChangeAngularSpring, PART_JOINTS},
+            {"angular spring damping", HASH_SCENE_PLAIN, ChangeAngularSpringDamping, PART_JOINTS},
+            {"spring", HASH_SCENE_PLAIN, ChangeSpring, PART_JOINTS},
+            {"spring damping", HASH_SCENE_PLAIN, ChangeSpringDamping, PART_JOINTS},
+            {"break limits", HASH_SCENE_PLAIN, ChangeBreakLimits, PART_JOINTS},
+            {"length", HASH_SCENE_PLAIN, ChangeLength, PART_JOINTS},
+            {"length range", HASH_SCENE_PLAIN, ChangeLengthRange, PART_JOINTS},
+            {"mouse target", HASH_SCENE_PLAIN, ChangeMouseTarget, PART_JOINTS},
+            {"motor offsets", HASH_SCENE_PLAIN, ChangeMotorOffsets, PART_JOINTS},
+            {"gear ratio", HASH_SCENE_PLAIN, ChangeGearRatio, PART_JOINTS},
+            {"pulley ratio", HASH_SCENE_PLAIN, ChangePulleyRatio, PART_JOINTS},
+            {"collide connected", HASH_SCENE_COLLIDE, NULL, PART_JOINTS},
+            {"volume drag", HASH_SCENE_VOLUME_DRAG, NULL, PART_VOLUMES},
+        };
+        HashScene base = MakeHashScene(HASH_SCENE_PLAIN);
+        uint64_t hash = m2World_Hash(base.world);
+        m2WorldHashParts parts = m2World_GetHashParts(base.world);
+        for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
+        {
+            HashScene changed = MakeHashScene(cases[i].variant);
+            if (cases[i].change != NULL)
+            {
+                cases[i].change(&changed);
+            }
+            m2WorldHashParts changedParts = m2World_GetHashParts(changed.world);
+            if (m2World_Hash(changed.world) == hash ||
+                PartOf(changedParts, cases[i].part) == PartOf(parts, cases[i].part))
+            {
+                printf("hash misses: %s\n", cases[i].name);
+                CHECK(false, "a changed setting moves the hash and its part");
+            }
+            m2DestroyWorld(changed.world);
+        }
+        m2DestroyWorld(base.world);
+    }
+
+    // The same objects in other slots, or the same pool reached in another
+    // order, are different worlds: the next object lands elsewhere.
+    static void TestHashKeysSlotsAndPools(void)
+    {
+        m2WorldDef def = m2DefaultWorldDef();
+        def.particleCapacity = 8;
+        m2BodyDef bodyDef = m2DefaultBodyDef();
+        bodyDef.type = m2_dynamicBody;
+
+        // One body, in slot 1 behind a freed slot 0, or in slot 0.
+        m2World* behind = NewWorld(&def);
+        m2BodyId spare = NewBody(behind, &bodyDef);
+        NewBody(behind, &bodyDef);
+        DestroyBody(behind, spare);
+        m2World* front = NewWorld(&def);
+        NewBody(front, &bodyDef);
+        spare = NewBody(front, &bodyDef);
+        DestroyBody(front, spare);
+        CHECK(m2World_Hash(behind) != m2World_Hash(front) &&
+                  m2World_GetHashParts(behind).bodies != m2World_GetHashParts(front).bodies,
+              "the same body in another slot hashes differently");
+
+        // The same bodies created and destroyed in a different order.
+        m2World* first = NewWorld(&def);
+        m2World* second = NewWorld(&def);
+        m2BodyId a1 = NewBody(first, &bodyDef);
+        m2BodyId b1 = NewBody(first, &bodyDef);
+        m2BodyId a2 = NewBody(second, &bodyDef);
+        m2BodyId b2 = NewBody(second, &bodyDef);
+        DestroyBody(first, a1);
+        DestroyBody(first, b1);
+        DestroyBody(second, b2);
+        DestroyBody(second, a2);
+        CHECK(m2World_Hash(first) != m2World_Hash(second),
+              "a body pool freed in another order hashes differently");
+
+        // The same for particles.
+        m2ParticleId p1 = EmitParticle(first, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f}, 0);
+        m2ParticleId q1 = EmitParticle(first, (m2Pos2){1.0, 0.0}, (m2Vec2){0.0f, 0.0f}, 0);
+        m2ParticleId p2 = EmitParticle(second, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f}, 0);
+        m2ParticleId q2 = EmitParticle(second, (m2Pos2){1.0, 0.0}, (m2Vec2){0.0f, 0.0f}, 0);
+        CHECK(m2DestroyParticle(first, p1) == m2_success &&
+                  m2DestroyParticle(first, q1) == m2_success &&
+                  m2DestroyParticle(second, q2) == m2_success &&
+                  m2DestroyParticle(second, p2) == m2_success,
+              "the particles go");
+        CHECK(m2World_GetHashParts(first).particles != m2World_GetHashParts(second).particles,
+              "a particle pool freed in another order hashes differently");
+        m2DestroyWorld(behind);
+        m2DestroyWorld(front);
+        m2DestroyWorld(first);
+        m2DestroyWorld(second);
+    }
+
+    int main(void)
+    {
+        TestCentersAtTheBoundRestore();
+        TestSetMassDataChecksEveryField();
+        TestHashCoversEverySetting();
+        TestHashKeysSlotsAndPools();
+        TestCreateWorldOutOfMemory();
+        TestInfiniteInputIsRefused();
+        TestDefsMatchWhatARestoreAccepts();
+        TestSubstepCap();
+        TestRestoreRefusesANonUnitRotation();
+        TestEveryRefusalHasAReason();
+        TestHostCodeCannotWrite();
+        TestAllocatorCannotWrite();
+        TestCorruptInputIsNotMisuse();
+        TestHostCodeMistakesCountMidReplay();
+        TestStaleIdsInStatusCalls();
+        TestStaleIdsCountInEveryCall();
+        TestStaticBodiesHaveNoVelocity();
+        TestRuntimeGravity();
+        TestDominance();
+        TestShatterBody();
+        TestFluidVolume();
+        TestFloatingDraft();
+        TestHashParts();
+        TestValidateAndCounters();
+        TestLeftoverBasket();
+        TestSmallBasket();
+        TestDormancyMassAndExplosions();
+        TestBodyDynamicsPack();
+        TestMirrorRebuild();
+        TestEnumerationWalk();
+        TestDestroyWakesSleepers();
+        TestSetType();
+        TestTeleport();
+        TestKineticEnergy();
+        TestCountersAndProfile();
+        TestRollbackIdentity();
+        TestIdSemantics();
+        TestDestroyNullWorld();
+        TestMotionLocks();
+        TestWind();
+
+        if (s_failures > 0)
+        {
+            printf("%d failure(s)\n", s_failures);
+            return 1;
+        }
+        printf("all checks passed\n");
+        return 0;
+    }

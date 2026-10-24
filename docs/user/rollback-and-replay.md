@@ -57,7 +57,7 @@ A replay is all or nothing: a tape that is malformed, truncated, or that recreat
 
 ## Hunting a divergence
 
-When two runs that should match drift apart, `m2World_GetHashParts` says where and when. Compare the parts after every step: the first step where any part differs names the moment, and the part names the subsystem (bodies: a pose or a velocity moved; contacts: manifolds disagree; joints: accumulated impulses; particles: the fluid). If the engine's own checks are green on the platforms involved, the cause is almost always floating-point work in game code feeding the world different inputs; recording a journal on both sides confirms it, since equal tapes replay to equal bits.
+When two runs that should match drift apart, `m2World_GetHashParts` says where and when. Compare the parts after every step: the first step where any part differs names the moment, and the part names the subsystem (world: gravity, wind or sleeping; bodies: a body, a shape, a chain or their id pools; contacts: pairs or manifolds; joints: settings or impulses; particles: the fluid; volumes: the buoyant water). If the engine's own checks are green on the platforms involved, the cause is almost always floating-point work in game code feeding the world different inputs; recording a journal on both sides confirms it, since equal tapes replay to equal bits.
 
 ## Bytes from outside
 

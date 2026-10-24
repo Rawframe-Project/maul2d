@@ -450,20 +450,21 @@ extern "C"
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2World_Restore(m2World* world, const void* buffer, int32_t size);
 
-    /// Hashes the state a step moves, in this order: the step count and
-    /// gravity; for each live body in slot order, its transform, linear
-    /// and angular velocity, inverse mass and inertia, local center, type,
-    /// sleep flag, sleep timer and streak, and bullet flag; the contact
-    /// pairs' keys and manifolds; for each live joint, its accumulated
-    /// impulses (point, motor, lower, upper, spring); in a world with fluid
-    /// volumes, each slot's liveness and a live volume's surface height; in
-    /// a world with particles, the count, each slot's liveness, a live
-    /// particle's position, velocity, flags, lifetime and user data, then
-    /// the springs and triads. Shapes, events, the user data of bodies,
-    /// shapes, joints and volumes, and the settings calls change (damping,
-    /// gravity scale, filters, materials, joint parameters) are not hashed;
-    /// compare snapshots to cover every byte of state. Present in every
-    /// build: it is how a divergence is found.
+    /// Hashes every piece of state the step reads and a call can change:
+    /// the world's gravity, wind, sleeping switch and step count; every
+    /// live body, shape, chain, joint, particle and fluid volume, each
+    /// field keyed by its slot (pose, velocities, forces, mass data,
+    /// damping, gravity scale, locks, dominance, sleep and enable state;
+    /// geometry, materials, filter and sensor flag; joint anchors,
+    /// lengths, ranges, motor, spring and break settings, targets and
+    /// impulses; particle and volume settings); the contact pairs, their
+    /// touching flags and manifolds; the particle springs and triads; and
+    /// each id pool's free order and generations, which decide where the
+    /// next object lands and the id it gets. Two worlds with the same hash
+    /// step on to the same bits. Not hashed: user data, events, and the
+    /// broadphase trees, which only speed up finding the pairs that are
+    /// hashed. The value changes between library versions. Present in
+    /// every build: it is how a divergence is found.
     ///
     /// @param world  The world.
     /// @return The hash; 0 for a null world.
@@ -492,11 +493,12 @@ extern "C"
     /// Hashes of the world's parts, for hunting a divergence.
     typedef struct m2WorldHashParts
     {
-        uint64_t world;     // step count and gravity
-        uint64_t bodies;    // transforms, velocities, mass and sleep state
-        uint64_t contacts;  // pair keys and manifolds
-        uint64_t joints;    // the constraints' accumulated impulses
-        uint64_t particles; // fluid state, the jelly nets included
+        uint64_t world;     // step count, gravity, wind and sleeping
+        uint64_t bodies;    // bodies, their shapes and chains, and their id pools
+        uint64_t contacts;  // pairs, their touching flags and manifolds
+        uint64_t joints;    // joint settings and impulses, and the joint id pool
+        uint64_t particles; // particles and the jelly nets, and the particle id pool
+        uint64_t volumes;   // fluid volumes and their id pool
     } m2WorldHashParts;
 
     /// Hashes each part of the world. Compare two runs part by part each

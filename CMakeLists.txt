@@ -121,6 +121,7 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/snapshot_check.c
     src/solver.c
     src/world.c
+    src/world_hash.c
     src/world_internal.c
     src/world_state.c)
 maul_configure_library(maul2d)
