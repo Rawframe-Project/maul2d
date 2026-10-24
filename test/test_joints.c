@@ -1491,6 +1491,105 @@ static void TestRatchetJoint(void)
     m2DestroyWorld(world);
 }
 
+// A pinned wheel on a ratchet, spun forward past several teeth.
+static m2World* RatchetScene(m2JointId* ratchetOut, m2BodyId* wheelOut)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 8;
+    def.shapeCapacity = 8;
+    def.jointCapacity = 8;
+    def.gravity = (m2Vec2){0.0f, 0.0f};
+    m2World* world = NewWorld(&def);
+    m2BodyDef postDef = m2DefaultBodyDef();
+    m2BodyId post = NewBody(world, &postDef);
+    m2BodyDef wheelDef = m2DefaultBodyDef();
+    wheelDef.type = m2_dynamicBody;
+    *wheelOut = NewBody(world, &wheelDef);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Circle disc = {{0.0f, 0.0f}, 0.5f};
+    NewCircleShape(world, *wheelOut, &sd, &disc);
+    m2RevoluteJointDef pinDef = m2DefaultRevoluteJointDef();
+    pinDef.bodyIdA = post;
+    pinDef.bodyIdB = *wheelOut;
+    NewRevoluteJoint(world, &pinDef);
+    m2RatchetJointDef ratchetDef = m2DefaultRatchetJointDef();
+    ratchetDef.bodyIdA = post;
+    ratchetDef.bodyIdB = *wheelOut;
+    ratchetDef.ratchet = 0.5f;
+    *ratchetOut = NewRatchetJoint(world, &ratchetDef);
+    m2Body_SetAngularVelocity(world, *wheelOut, 3.0f);
+    for (int32_t i = 0; i < 60; ++i)
+    {
+        m2World_Step(world, 1.0f / 60.0f, 4);
+    }
+    return world;
+}
+
+// Motor and limit parameters belong to the revolute, prismatic and wheel
+// joints (the motor joint's torque budget rides the max motor channel).
+// On any other joint they are refused and counted: a ratchet keeps its
+// tooth state where a hinge keeps its limits, so a limit call on it must
+// not reach the ratchet.
+static void TestMotorAndLimitCallsNeedTheirJoint(void)
+{
+    m2JointId ratchet;
+    m2BodyId wheel;
+    m2World* world = RatchetScene(&ratchet, &wheel);
+    m2JointId twinRatchet;
+    m2BodyId twinWheel;
+    m2World* twin = RatchetScene(&twinRatchet, &twinWheel);
+
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    m2Joint_SetLimits(world, ratchet, -10.0f, 10.0f);
+    m2Joint_EnableLimit(world, ratchet, true);
+    m2Joint_EnableMotor(world, ratchet, true);
+    m2Joint_SetMotorSpeed(world, ratchet, -4.0f);
+    m2Joint_SetMaxMotor(world, ratchet, 100.0f);
+    CHECK(m2World_GetCounters(world).misuse == misuse + 5, "each call on a ratchet counts");
+    float lower = 1.0f;
+    float upper = 1.0f;
+    m2Joint_GetLimits(world, ratchet, &lower, &upper);
+    CHECK(lower == 0.0f && upper == 0.0f, "a ratchet has no limits to read");
+    CHECK(m2Joint_GetMotorSpeed(world, ratchet) == 0.0f, "nor a motor");
+    CHECK(m2World_GetCounters(world).misuse == misuse + 7, "and the reads count too");
+
+    for (int32_t i = 0; i < 120; ++i)
+    {
+        m2Body_ApplyTorque(world, wheel, -2.0f);
+        m2Body_ApplyTorque(twin, twinWheel, -2.0f);
+        m2World_Step(world, 1.0f / 60.0f, 4);
+        m2World_Step(twin, 1.0f / 60.0f, 4);
+    }
+    CHECK(m2World_Hash(world) == m2World_Hash(twin), "the ratchet holds as if never called");
+
+    // The joints that own the channels still take them.
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* hinges = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2BodyId base = NewBody(hinges, &bd);
+    bd.type = m2_dynamicBody;
+    m2BodyId arm = NewBody(hinges, &bd);
+    m2RevoluteJointDef rd = m2DefaultRevoluteJointDef();
+    rd.bodyIdA = base;
+    rd.bodyIdB = arm;
+    m2JointId hinge = NewRevoluteJoint(hinges, &rd);
+    m2MotorJointDef md = m2DefaultMotorJointDef();
+    md.bodyIdA = base;
+    md.bodyIdB = arm;
+    m2JointId motor = NewMotorJoint(hinges, &md);
+    misuse = m2World_GetCounters(hinges).misuse;
+    m2Joint_SetLimits(hinges, hinge, -1.0f, 1.0f);
+    m2Joint_EnableLimit(hinges, hinge, true);
+    m2Joint_SetMotorSpeed(hinges, hinge, 2.0f);
+    m2Joint_SetMaxMotor(hinges, motor, 50.0f);
+    CHECK(m2World_GetCounters(hinges).misuse == misuse, "a hinge and a motor joint take them");
+    CHECK(m2Joint_GetMaxMotor(hinges, motor) == 50.0f,
+          "the motor joint's torque budget reads back");
+    m2DestroyWorld(hinges);
+    m2DestroyWorld(twin);
+    m2DestroyWorld(world);
+}
+
 // The gear joint: two pinned flywheels coupled at a ratio; drive
 // one, the other counter-spins scaled; retune the ratio live; the
 // phase survives many full turns.
@@ -1912,6 +2011,7 @@ int main(void)
     TestDistanceRange();
     TestGearJoint();
     TestRatchetJoint();
+    TestMotorAndLimitCallsNeedTheirJoint();
     TestPulleyJoint();
     TestRevoluteSpring();
     TestJointBreaking();
