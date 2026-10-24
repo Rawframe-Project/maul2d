@@ -17,7 +17,7 @@
 #include <string.h>
 
 #define M2_JOURNAL_MAGIC   0x4D324A4Eu // 'M2JN'
-#define M2_JOURNAL_VERSION 2u
+#define M2_JOURNAL_VERSION 3u
 
 typedef struct m2JournalHeader
 {

@@ -18,7 +18,7 @@ The format number is never the library version: a release that keeps the format 
 
 ## Restoring untrusted bytes
 
-`m2World_Restore` treats its buffer as hostile and checks all of it before a byte lands: the header against this build and this world's shape, then each array by its rule (indices within their pools, counts within capacities, flags that are flags, pair keys in order, tree links within the node pool, finite transforms and velocities). Only then is the block copied in. A refusal returns `m2_errorInvalid` and counts no misuse, so a hostile peer cannot move the counter; the world is untouched.
+`m2World_Restore` treats its buffer as hostile and checks all of it before a byte lands: the header against this build and this world's shape, then each array by its rule (indices within their pools, counts within capacities, flags that are flags, pair keys in order, tree links within the node pool, finite positions and velocities, rotations of unit length). Every body slot holds a unit rotation, a slot never used the identity, so the rotation rule holds for the whole array. Only then is the block copied in. A refusal returns `m2_errorInvalid` and counts no misuse, so a hostile peer cannot move the counter; the world is untouched.
 
 The checks make every index the step will follow safe. They do not rebuild every structural invariant (a tree's balance, a list's links being a list), which would cost a full rebuild, so a crafted snapshot can make a world behave strangely but never read or write outside its pools. A restored world is otherwise exactly the one that was saved: the event streams clear, and the step continues as the original would have.
 

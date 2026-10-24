@@ -160,8 +160,9 @@ extern "C"
     /// at once: bounded drift is part of the determinism contract.
     ///
     /// @param q  Any rotation.
-    /// @return The unit rotation of q; the identity when q has zero or
-    ///         non-finite length, never NaN.
+    /// @return The unit rotation in q's direction, for any finite nonzero
+    ///         q however long or short; the identity when q is zero or
+    ///         not finite, never NaN.
     /// @par Thread safety
     /// Safe from any thread.
     M2_API m2Rot m2NormalizeRot(m2Rot q);

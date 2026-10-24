@@ -10,6 +10,7 @@
 
 #include "maul2d/maul2d.h"
 
+#include <float.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -92,6 +93,54 @@ static void TestAccuracy(void)
     CHECK(m2Atan2(0.0f, 0.0f) == 0.0f, "m2Atan2(0,0) must be 0, not NaN");
 
     printf("accuracy: sin %.2e cos %.2e atan2 %.2e\n", maxSinErr, maxCosErr, maxAtanErr);
+}
+
+// A finite nonzero rotation keeps its direction however far from unit
+// length it is, and one near unit length normalizes with the plain
+// arithmetic, bit for bit, so no golden value depends on the rescue.
+static void TestNormalizeKeepsDirection(void)
+{
+    const float half = 0.70710678f;
+    const m2Rot cases[][2] = {
+        {{1.0e20f, 1.0e20f}, {half, half}},     {{0.0f, 3.0e19f}, {0.0f, 1.0f}},
+        {{FLT_MAX, -FLT_MAX}, {half, -half}},   {{3.0e30f, 4.0e30f}, {0.6f, 0.8f}},
+        {{0.0f, 1.0e-30f}, {0.0f, 1.0f}},       {{-1.0e-25f, 1.0e-25f}, {-half, half}},
+        {{3.0e-30f, -4.0e-30f}, {0.6f, -0.8f}}, {{-1.0e-45f, 0.0f}, {-1.0f, 0.0f}},
+    };
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
+    {
+        m2Rot q = m2NormalizeRot(cases[i][0]);
+        CHECK(fabsf(q.c - cases[i][1].c) < 1.0e-6f && fabsf(q.s - cases[i][1].s) < 1.0e-6f,
+              "a rotation far from unit length keeps its direction");
+        CHECK(m2IsNormalizedRot(q), "and comes back unit length");
+    }
+
+    const m2Rot degenerate[] = {
+        {0.0f, 0.0f}, {-0.0f, -0.0f}, {INFINITY, 0.0f}, {1.0f, -INFINITY}, {NAN, 1.0f}};
+    for (size_t i = 0; i < sizeof(degenerate) / sizeof(degenerate[0]); ++i)
+    {
+        m2Rot q = m2NormalizeRot(degenerate[i]);
+        CHECK(q.c == 1.0f && q.s == 0.0f, "a zero or non-finite rotation becomes the identity");
+    }
+
+    // Lengths from 2^-40 to 2^40 in every direction: the plain formula.
+    uint32_t seed = 12345u;
+    int32_t differ = 0;
+    for (int32_t i = 0; i < 100000; ++i)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        float angle = ((float)(seed >> 8) / 16777216.0f) * 2.0f * M2_PI - M2_PI;
+        seed = seed * 1664525u + 1013904223u;
+        float scale = ldexpf(1.0f + (float)(seed >> 9) / 8388608.0f, (int)(seed % 81u) - 40);
+        m2Rot unit = m2MakeRot(angle);
+        m2Rot q = i % 2 == 0 ? unit : (m2Rot){unit.c * scale, unit.s * scale};
+        float mag = sqrtf(q.c * q.c + q.s * q.s);
+        float invMag = 1.0f / mag;
+        m2Rot plain = {q.c * invMag, q.s * invMag};
+        m2Rot got = m2NormalizeRot(q);
+        differ += memcmp(&plain, &got, sizeof(got)) != 0 ? 1 : 0;
+    }
+    CHECK(differ == 0, "lengths near unit normalize bit for bit as before");
 }
 
 // --- 2b. Pinned min/max semantics ------------------------------
@@ -303,6 +352,7 @@ int main(void)
     TestVersionAndResultNames();
 
     TestAccuracy();
+    TestNormalizeKeepsDirection();
     TestMinMaxSemantics();
     TestSimdBackend();
 

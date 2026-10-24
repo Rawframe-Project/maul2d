@@ -4,8 +4,8 @@
 // The angle and rotation functions as inline code for the hot paths (the
 // pose update runs them for every body every substep). The public
 // m2UnwindAngle, m2MakeRot, m2NormalizeRot and m2MulRot are these same
-// functions, so the two can never differ by a bit. Only +, -, *, / and
-// the IEEE-exact floorf and sqrtf are used.
+// functions, so the two can never differ by a bit. Only +, -, *, /,
+// m2AbsF, m2MaxF and the IEEE-exact floorf and sqrtf are used.
 
 #ifndef MAUL2D_SRC_ROTATION_H
 #define MAUL2D_SRC_ROTATION_H
@@ -74,16 +74,32 @@ static inline void m2CosSinOf(float x, float* cosine, float* sine)
     }
 }
 
+// Squared lengths from here up to the largest float keep full precision.
+#define M2_ROT_SQUARE_FLOOR 0x1p-100f
+
 static inline m2Rot m2RotNormalized(m2Rot q)
 {
-    float mag = sqrtf(q.c * q.c + q.s * q.s);
-    if (!(mag > 0.0f))
+    float mag2 = q.c * q.c + q.s * q.s;
+    // NOLINTNEXTLINE(misc-redundant-expression): the finite test
+    if (!(mag2 >= M2_ROT_SQUARE_FLOOR && mag2 - mag2 == 0.0f))
     {
-        // Degenerate input: deterministic identity, never NaN (a zero
-        // inverse magnitude would manufacture the {0,0} non-rotation).
-        m2Rot identity = {1.0f, 0.0f};
-        return identity;
+        // The squares overflowed or underflowed: divide by the larger
+        // component first, so a finite nonzero rotation keeps its
+        // direction. Near unit length, the case every composition
+        // takes, the plain arithmetic below runs bit for bit unchanged.
+        float larger = m2MaxF(m2AbsF(q.c), m2AbsF(q.s));
+        // NOLINTNEXTLINE(misc-redundant-expression): the finite test
+        if (!(larger > 0.0f) || !(q.c - q.c == 0.0f && q.s - q.s == 0.0f))
+        {
+            // Zero or non-finite: deterministic identity, never NaN.
+            m2Rot identity = {1.0f, 0.0f};
+            return identity;
+        }
+        q.c = q.c / larger;
+        q.s = q.s / larger;
+        mag2 = q.c * q.c + q.s * q.s;
     }
+    float mag = sqrtf(mag2);
     float invMag = 1.0f / mag;
     m2Rot result = {q.c * invMag, q.s * invMag};
     return result;
