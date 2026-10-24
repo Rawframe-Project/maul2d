@@ -261,7 +261,7 @@ extern "C"
     /// @param bodiesOut   Receives up to capacity new bodies, in piece
     ///                    order; null ids on failure. May be null with
     ///                    capacity 0.
-    /// @param capacity    The length of bodiesOut.
+    /// @param capacity    The length of bodiesOut, not below 0.
     /// @param countOut    Receives the number of bodies made, which may
     ///                    exceed capacity; 0 on failure.
     /// @return m2_success; m2_errorStale for a stale body; m2_errorInvalid

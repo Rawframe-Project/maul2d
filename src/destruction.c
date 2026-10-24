@@ -171,11 +171,14 @@ m2Result m2World_ShatterBody(m2World* world, m2BodyId bodyId, const m2Polygon* p
                              int32_t pieceCount, m2BodyId* bodiesOut, int32_t capacity,
                              int32_t* countOut)
 {
+    if (countOut != NULL)
+    {
+        *countOut = 0;
+    }
     if (countOut == NULL || capacity < 0 || (bodiesOut == NULL && capacity > 0))
     {
         return m2Refuse(world, m2_errorInvalid);
     }
-    *countOut = 0;
     for (int32_t i = 0; i < capacity; ++i)
     {
         bodiesOut[i] = m2_nullBodyId;

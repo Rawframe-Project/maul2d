@@ -2480,7 +2480,15 @@ static void TestShatterBody(void)
           "a stale body is m2_errorStale");
     CHECK(m2World_ShatterBody(small, lone, shards, 1, NULL, 0, NULL) == m2_errorInvalid,
           "and so is a missing count");
-    CHECK(m2World_GetCounters(small).misuse == misuseBefore + 4, "each a misuse");
+    count = 7;
+    CHECK(m2World_ShatterBody(small, lone, shards, 1, NULL, -1, &count) == m2_errorInvalid &&
+              count == 0,
+          "a negative capacity is refused and clears the count");
+    count = 7;
+    CHECK(m2World_ShatterBody(small, lone, shards, 1, NULL, 2, &count) == m2_errorInvalid &&
+              count == 0,
+          "a null bodiesOut with room is refused and clears the count");
+    CHECK(m2World_GetCounters(small).misuse == misuseBefore + 6, "each a misuse");
     CHECK(m2Body_IsValid(small, lone), "the refused parent is untouched");
     CHECK(m2World_Hash(small) == before, "a refusal moves no bits");
     m2DestroyWorld(small);
