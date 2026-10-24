@@ -7,7 +7,7 @@ Maul2D simulates rigid bodies, joints and particle fluids in a world that snapsh
 - **Determinism:** bit-exact on every platform, compiler, SIMD backend and worker count. It covers the simulation state, snapshots, journal tapes, `m2World_Hash`, the event streams, the counters and every reader. Only `m2World_GetProfile`'s wall-clock times are exempt. [determinism.md](determinism.md) explains how it holds.
 - **Threads:** the library starts none. The step hands its parallel work to the host's task system through the world def's `enqueueTask` and `finishTask`; without them the work runs on the caller's thread.
 - **Owner objects:** the world, `m2World*`, created by `m2CreateWorld` from a root def that carries `M2_ABI_VERSION`. Bodies, shapes, chains, joints, particles and fluid volumes are objects of a world, named by typed ids.
-- **Memory:** a world allocates every byte it keeps at creation, from the allocator in its def; its pools have fixed capacities and never grow, and step scratch lives in them. Afterwards only `m2World_ReplayJournal` allocates (its backup and the scratch of chain and shatter records) and frees before it returns. The functions without a world (`m2MakePolygon`, `m2ComputeHull`, `m2DecomposeOutline`, the mover math) never allocate.
+- **Memory:** a world allocates every byte it keeps at creation, from the allocator in its def; its pools have fixed capacities and never grow, and step scratch lives in them, as do the restore marks the snapshot check uses (one byte per slot of the largest pool). Afterwards only `m2World_ReplayJournal` allocates (its backup and the scratch of chain and shatter records) and frees before it returns. The functions without a world (`m2MakePolygon`, `m2ComputeHull`, `m2DecomposeOutline`, the mover math) never allocate.
 - **Platform dependencies:** none beyond the C standard library; the `<math.h>` functions it may call are the correctly rounded ones in `tools/libm-allowed.txt`. The testbed, which is not part of the library, uses raylib.
 
 ## Ids and misuse
@@ -43,7 +43,7 @@ When every dynamic body sleeps and nothing kinematic moves, the world hibernates
 - **Collision:** `dynamic_tree.c` and `broadphase.c`, `contact.c` (pairs and events), `manifold.c`, `distance.c`, `geometry.c` (shape math, hulls, decomposition, mass), `ccd.c`.
 - **Solver:** `solver.c` (the substep order), `contact_solver.c`, `contact_kernel.c` (the SIMD lanes), `graph_color.c`, `joint_solver.c`, `joint_row.c`, `island.c`, `parallel.c` (the task hooks).
 - **Queries:** `query*.c`, `ray_cast.c`, `mover.c`.
-- **Recording:** `snapshot.c`, `journal.c`, `journal_replay.c`. See [snapshots-and-journal.md](snapshots-and-journal.md).
+- **Recording:** `snapshot.c`, `snapshot_check.c` (how an incoming snapshot's arrays fit together), `journal.c`, `journal_replay.c`. See [snapshots-and-journal.md](snapshots-and-journal.md).
 - **Family files:** `cpu.c` and `cpu.h`, `hash.c`, `simd.h`, synced from the organization's `.github` repository and never edited here.
 
 ## Assertions

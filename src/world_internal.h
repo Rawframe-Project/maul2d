@@ -356,6 +356,11 @@ typedef struct m2World
     m2Events events;
     m2Recorder recorder;
 
+    // One byte per slot of the largest pool: the marks the snapshot check
+    // (snapshot_check.c) uses to prove a free queue holds each dead slot
+    // once. Scratch, cleared by every check, never walked.
+    uint8_t* restoreMarks;
+
     // Host hooks and diagnostics (never snapshot state).
     m2Allocator allocator;        // the def's, or the C library's; kept for the world's life
     m2EnqueueTaskFn* enqueueTask; // host executor; both NULL =

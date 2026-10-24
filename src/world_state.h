@@ -33,4 +33,10 @@ bool m2StateValidate(const m2World* world, const uint8_t* in);
 // the world will restore.
 bool m2StateBodyValid(const m2World* world, int32_t index);
 
+// Where an incoming snapshot block, already accepted by m2StateValidate,
+// holds the bytes of one state field (a world member such as
+// &world->bodies.alive); NULL when the field is not in this world's
+// snapshots. The bytes may be unaligned: read them with memcpy.
+const uint8_t* m2StateIncoming(const m2World* world, const uint8_t* in, const void* field);
+
 #endif // MAUL2D_SRC_WORLD_STATE_H

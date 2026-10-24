@@ -9,6 +9,7 @@
 #include "joint.h"
 #include "joint_edges.h"
 #include "journal.h"
+#include "snapshot_check.h"
 #include "world_internal.h"
 #include "world_state.h"
 
@@ -145,10 +146,11 @@ m2Result m2World_Restore(m2World* world, const void* buffer, int32_t size)
         return m2_errorInvalid; // another build or another world shape
     }
     // Hostile bytes are checked before any of them land: every row the
-    // table describes, cursors included.
+    // table describes, cursors included, then how the rows fit together.
     const uint8_t* in = buffer;
     if (size != (int32_t)sizeof(header) + BlockBytes(world) ||
-        !m2StateValidate(world, in + sizeof(header)))
+        !m2StateValidate(world, in + sizeof(header)) ||
+        !m2SnapshotCheck(world, in + sizeof(header)))
     {
         return m2_errorInvalid;
     }
