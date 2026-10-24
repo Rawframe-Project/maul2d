@@ -208,7 +208,12 @@ int8_t m2Body_GetDominance(const m2World* world, m2BodyId bodyId)
 bool m2Body_IsEnabled(const m2World* world, m2BodyId bodyId)
 {
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    return index >= 0 && world->bodies.disabled[index] == 0;
+    if (index < 0)
+    {
+        m2Refuse(world, m2_errorInvalid);
+        return false;
+    }
+    return world->bodies.disabled[index] == 0;
 }
 
 m2MassData m2Body_GetMassData(const m2World* world, m2BodyId bodyId)

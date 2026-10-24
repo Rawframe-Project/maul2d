@@ -1960,6 +1960,60 @@ static void TestStaleIdsInStatusCalls(void)
     m2DestroyWorld(world);
 }
 
+// Every call that takes an id counts a stale one, the getters and void
+// writers included; only the validity queries stay silent.
+static void TestStaleIdsCountInEveryCall(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.fluidVolumeCapacity = 1;
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    m2BodyId body = NewBody(world, &bd);
+    m2BodyId other = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    sd.isSensor = true;
+    m2Circle ball = {{0.0f, 0.0f}, 0.5f};
+    m2ShapeId sensor = NewCircleShape(world, body, &sd, &ball);
+    m2DistanceJointDef jd = m2DefaultDistanceJointDef();
+    jd.bodyIdA = body;
+    jd.bodyIdB = other;
+    m2JointId joint = NewDistanceJoint(world, &jd);
+    m2Vec2 ledge[4] = {{-4.0f, 0.0f}, {-2.0f, 0.0f}, {2.0f, 0.0f}, {4.0f, 0.0f}};
+    m2ChainDef cd = m2DefaultChainDef();
+    cd.points = ledge;
+    cd.count = 4;
+    m2ChainId chain = NewChain(world, other, &cd);
+    m2FluidVolumeDef vd = m2DefaultFluidVolumeDef();
+    m2FluidVolumeId volume = NewFluidVolume(world, &vd);
+    CHECK(m2DestroyFluidVolume(world, volume) == m2_success, "the volume goes");
+    CHECK(m2DestroyJoint(world, joint) == m2_success, "the joint goes");
+    CHECK(m2DestroyChain(world, chain) == m2_success, "the chain goes");
+    CHECK(m2DestroyBody(world, body) == m2_success, "the body goes, and its sensor with it");
+
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    m2Body_SetAwake(world, body, true);
+    m2Body_Disable(world, body);
+    m2Body_Enable(world, body);
+    CHECK(!m2Body_IsEnabled(world, body), "a stale body is not enabled");
+    CHECK(m2Body_GetLinearDamping(world, body) == 0.0f, "nor damped");
+    CHECK(m2Body_GetAngularDamping(world, body) == 0.0f, "in either way");
+    CHECK(!m2Body_IsFixedRotation(world, body), "nor fixed");
+    CHECK(!m2Body_GetMotionLocks(world, body).linearX, "nor locked");
+    CHECK(!m2Body_IsSleepEnabled(world, body), "nor sleepy");
+    CHECK(m2Shape_GetSensorOverlaps(world, sensor, NULL, 0) == 0, "a stale sensor lists nothing");
+    CHECK(m2Shape_GetTangentSpeed(world, sensor) == 0.0f, "a stale shape reads zero");
+    CHECK(m2Shape_GetFriction(world, sensor) == 0.0f, "for friction");
+    CHECK(m2Shape_GetRestitution(world, sensor) == 0.0f, "and restitution");
+    CHECK(m2Joint_GetReactionForce(world, joint) == 0.0f, "a stale joint carries no force");
+    CHECK(m2Joint_GetReactionTorque(world, joint) == 0.0f, "nor torque");
+    CHECK(m2FluidVolume_GetSurface(world, volume) == 0.0, "a stale volume has no surface");
+    CHECK(m2FluidVolume_GetUserData(world, volume) == 0, "nor data");
+    CHECK(m2Chain_GetShapes(world, chain, NULL, 0) == 0, "a stale chain has no links");
+    CHECK(m2World_GetCounters(world).misuse == misuse + 18, "each of the 18 calls counts once");
+    m2DestroyWorld(world);
+}
+
 static void TestEveryRefusalHasAReason(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
@@ -2614,6 +2668,7 @@ int main(void)
     TestAllocatorCannotWrite();
     TestCorruptInputIsNotMisuse();
     TestStaleIdsInStatusCalls();
+    TestStaleIdsCountInEveryCall();
     TestRuntimeGravity();
     TestDominance();
     TestShatterBody();

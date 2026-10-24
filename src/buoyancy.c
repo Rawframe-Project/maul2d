@@ -342,13 +342,23 @@ void m2FluidVolume_SetSurface(m2World* world, m2FluidVolumeId volumeId, double s
 double m2FluidVolume_GetSurface(const m2World* world, m2FluidVolumeId volumeId)
 {
     int32_t index = FvSlot(world, volumeId);
-    return index >= 0 ? world->volumes.fvSurface[index] : 0.0;
+    if (index < 0)
+    {
+        m2Refuse(world, m2_errorInvalid);
+        return 0.0;
+    }
+    return world->volumes.fvSurface[index];
 }
 
 uint64_t m2FluidVolume_GetUserData(const m2World* world, m2FluidVolumeId volumeId)
 {
     int32_t index = FvSlot(world, volumeId);
-    return index >= 0 ? world->volumes.fvUserData[index] : 0;
+    if (index < 0)
+    {
+        m2Refuse(world, m2_errorInvalid);
+        return 0;
+    }
+    return world->volumes.fvUserData[index];
 }
 
 static bool InWater(const m2World* world, int32_t b, int32_t v)

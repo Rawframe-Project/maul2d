@@ -53,11 +53,13 @@ extern "C"
                                                       m2ParticleId* particleOut);
 
     /// Destroy one particle; its slot recycles FIFO under a fresh
-    /// generation. m2_errorStale when it is already gone. Journaled.
-    /// Thread class: writer.
+    /// generation. m2_errorStale when it is already gone, which counts no
+    /// misuse: a particle may have expired. Journaled. Thread class: writer.
     M2_NODISCARD M2_API m2Result m2DestroyParticle(m2World* world, m2ParticleId particleId);
 
-    /// Generation-checked liveness. Thread class: reader.
+    /// Generation-checked liveness. A particle can expire during any step,
+    /// and every particle call on an expired id answers zero, changes
+    /// nothing and counts no misuse. Thread class: reader.
     M2_API bool m2Particle_IsValid(const m2World* world, m2ParticleId particleId);
 
     M2_API m2Pos2 m2Particle_GetPosition(const m2World* world, m2ParticleId particleId);

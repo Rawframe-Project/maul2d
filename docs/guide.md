@@ -60,6 +60,11 @@ returns zero, a setter changes nothing, a call with a status returns
 names whatever that world holds in the same slot. Handles are values:
 copy them, store them, send them over the network.
 
+Particles are the exception. The world ends a particle on its own when
+its lifetime runs out, so holding a dead particle id is normal: every
+particle call on it answers zero, changes nothing and counts nothing,
+and `m2DestroyParticle` returns `m2_errorStale`.
+
 `m2Counters.misuse` counts the bugs of your code: an argument a correct
 program never passes, a dead id, a change from inside code the world is
 running. Read it in release builds to find them. Bytes from outside are
