@@ -52,13 +52,20 @@ m2WorldDef m2DefaultWorldDefValues(void)
     return def;
 }
 
+// A finite value not below a floor.
+static bool FiniteAtLeast(float value, float floor)
+{
+    return m2FiniteF(value) && value >= floor;
+}
+
 // Checks a world def past its cookie and version. The fluids radius
 // floor is 4x linear slop so the skin laws keep meaning.
 static bool ValidWorldDef(const m2WorldDef* def)
 {
     if (def->bodyCapacity < 1 || def->shapeCapacity < 1 || def->jointCapacity < 1 ||
         def->fluidVolumeCapacity < 0 || def->particleCapacity < 0 ||
-        (def->allocator.alloc == NULL) != (def->allocator.free == NULL))
+        (def->allocator.alloc == NULL) != (def->allocator.free == NULL) ||
+        !m2FiniteVec2(def->gravity))
     {
         return false;
     }
@@ -66,12 +73,16 @@ static bool ValidWorldDef(const m2WorldDef* def)
     {
         return true;
     }
-    return def->particleRadius >= 0.02f && def->particleDensity > 0.0f &&
-           m2FiniteF(def->particleGravityScale) && def->particlePressureStrength >= 0.0f &&
-           def->particleDampingStrength >= 0.0f && def->particleViscousStrength >= 0.0f &&
-           def->particleCohesionStrength >= 0.0f && def->particleNearPressureStrength >= 0.0f &&
-           def->particlePowderStrength >= 0.0f && def->particleSpringStrength >= 0.0f &&
-           def->particleElasticStrength >= 0.0f;
+    return FiniteAtLeast(def->particleRadius, 0.02f) && FiniteAtLeast(def->particleDensity, 0.0f) &&
+           def->particleDensity > 0.0f && m2FiniteF(def->particleGravityScale) &&
+           FiniteAtLeast(def->particlePressureStrength, 0.0f) &&
+           FiniteAtLeast(def->particleDampingStrength, 0.0f) &&
+           FiniteAtLeast(def->particleViscousStrength, 0.0f) &&
+           FiniteAtLeast(def->particleCohesionStrength, 0.0f) &&
+           FiniteAtLeast(def->particleNearPressureStrength, 0.0f) &&
+           FiniteAtLeast(def->particlePowderStrength, 0.0f) &&
+           FiniteAtLeast(def->particleSpringStrength, 0.0f) &&
+           FiniteAtLeast(def->particleElasticStrength, 0.0f);
 }
 
 // Copies the def's settings and capacities into a zeroed world. The

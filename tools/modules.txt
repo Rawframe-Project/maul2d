@@ -1,7 +1,7 @@
 # The internal module graph: each module and the modules it may use.
 # tools/check_modules.py enforces it.
 allocator:
-body: broadphase chain island joint_edges journal mass object_ids shape world_internal
+body: broadphase chain island joint_edges journal mass object_ids shape world_internal world_state
 body_motion: body broadphase island joint joint_row journal object_ids world_internal
 body_read: body object_ids shape world_internal
 broadphase: contact island joint_edges world_internal

@@ -61,6 +61,7 @@ typedef enum m2Check
     m2_check_treeNode,    // tree node links and leaf payloads
     m2_check_finite32,    // every float of every element finite
     m2_check_finite64,    // every double of every element finite
+    m2_check_nonNegative, // every float of every element finite and not below 0
     m2_check_transform,   // a double position and a float rotation, finite
 } m2Check;
 
@@ -210,8 +211,8 @@ static const m2StateArray s_state[] = {
     M2_STATE_INLINE_CHECKED(chains.chainRetiredCount, M2_STATE_SNAPSHOT, count, shape),
     M2_STATE_INLINE_CHECKED(lastInvH, M2_STATE_SNAPSHOT, finite32, one),
     M2_STATE_INLINE_CHECKED(sleepEnabled, M2_STATE_SNAPSHOT, bool, one),
-    M2_STATE_CHECKED(bodies.linearDampings, float, body, 0, M2_STATE_SNAPSHOT, finite32, one),
-    M2_STATE_CHECKED(bodies.angularDampings, float, body, 0, M2_STATE_SNAPSHOT, finite32, one),
+    M2_STATE_CHECKED(bodies.linearDampings, float, body, 0, M2_STATE_SNAPSHOT, nonNegative, one),
+    M2_STATE_CHECKED(bodies.angularDampings, float, body, 0, M2_STATE_SNAPSHOT, nonNegative, one),
     M2_STATE_CHECKED(bodies.fixedRotations, uint8_t, body, 0, M2_STATE_SNAPSHOT, bool, one),
     M2_STATE_ARRAY(bodies.motionLocks, uint8_t, body, 0, M2_STATE_SNAPSHOT),
     M2_STATE_CHECKED(bodies.sleepEnables, uint8_t, body, 0, M2_STATE_SNAPSHOT, bool, one),
@@ -642,6 +643,20 @@ static bool CheckFinite(const uint8_t* data, size_t bytes, size_t width)
     return true;
 }
 
+static bool CheckNonNegative(const uint8_t* data, size_t bytes)
+{
+    for (size_t at = 0; at + sizeof(float) <= bytes; at += sizeof(float))
+    {
+        float f;
+        memcpy(&f, data + at, sizeof(f));
+        if (!m2FiniteF(f) || f < 0.0f)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 static bool CheckTransforms(const uint8_t* data, size_t count)
 {
     for (size_t i = 0; i < count; ++i)
@@ -692,6 +707,8 @@ static bool CheckBlock(const m2World* world, const m2StateArray* array, const ui
         return CheckFinite(data, count * array->elementSize, sizeof(float));
     case m2_check_finite64:
         return CheckFinite(data, count * array->elementSize, sizeof(double));
+    case m2_check_nonNegative:
+        return CheckNonNegative(data, count * array->elementSize);
     case m2_check_transform:
         return CheckTransforms(data, count);
     }
@@ -715,6 +732,25 @@ bool m2StateValidate(const m2World* world, const uint8_t* in)
             return false;
         }
         cursor += pointer ? count * array->elementSize : array->elementSize;
+    }
+    return true;
+}
+
+bool m2StateBodyValid(const m2World* world, int32_t index)
+{
+    for (size_t i = 0; i < sizeof(s_state) / sizeof(s_state[0]); ++i)
+    {
+        const m2StateArray* array = &s_state[i];
+        if ((array->flags & M2_STATE_SNAPSHOT) == 0 || (array->flags & M2_STATE_POINTER) == 0 ||
+            array->extent != m2_extent_body || !Present(world, array->flags))
+        {
+            continue;
+        }
+        const uint8_t* data = *(const uint8_t* const*)((const uint8_t*)world + array->offset);
+        if (!CheckBlock(world, array, data + (size_t)index * array->elementSize, 1))
+        {
+            return false;
+        }
     }
     return true;
 }

@@ -15,6 +15,7 @@
 
 #include "maul2d/maul2d.h"
 
+#include <float.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -1657,6 +1658,156 @@ static void TestInfiniteInputIsRefused(void)
     m2DestroyWorld(world);
 }
 
+// A def field a snapshot would refuse is refused at creation, so a world
+// never writes a snapshot it cannot restore. Each bad def changes one
+// field; the edge values that pass round-trip through a snapshot.
+static m2BodyDef BadBodyDef(int32_t field)
+{
+    m2BodyDef def = m2DefaultBodyDef();
+    def.type = m2_dynamicBody;
+    switch (field)
+    {
+    case 0:
+        def.type = (m2BodyType)-1;
+        break;
+    case 1:
+        def.type = (m2BodyType)3;
+        break;
+    case 2:
+        def.position.x = (double)NAN;
+        break;
+    case 3:
+        def.position.y = (double)INFINITY;
+        break;
+    case 4:
+        def.rotation.c = NAN;
+        break;
+    case 5:
+        def.rotation.s = -INFINITY;
+        break;
+    case 6:
+        def.linearVelocity.x = NAN;
+        break;
+    case 7:
+        def.linearVelocity.y = INFINITY;
+        break;
+    case 8:
+        def.angularVelocity = NAN;
+        break;
+    case 9:
+        def.gravityScale = INFINITY;
+        break;
+    case 10:
+        def.linearDamping = -1.0f;
+        break;
+    case 11:
+        def.linearDamping = NAN;
+        break;
+    case 12:
+        def.angularDamping = -INFINITY;
+        break;
+    default:
+        def.angularDamping = INFINITY;
+        break;
+    }
+    return def;
+}
+
+static m2WorldDef BadWorldDef(int32_t field)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.particleCapacity = 8;
+    float* strengths[] = {&def.particlePressureStrength, &def.particleDampingStrength,
+                          &def.particleViscousStrength,  &def.particlePowderStrength,
+                          &def.particleSpringStrength,   &def.particleElasticStrength,
+                          &def.particleCohesionStrength, &def.particleNearPressureStrength};
+    switch (field)
+    {
+    case 0:
+        def.gravity.x = NAN;
+        break;
+    case 1:
+        def.gravity.y = -INFINITY;
+        break;
+    case 2:
+        def.particleRadius = INFINITY;
+        break;
+    case 3:
+        def.particleDensity = INFINITY;
+        break;
+    case 4:
+        def.particleGravityScale = NAN;
+        break;
+    default:
+        *strengths[field - 5] = INFINITY;
+        break;
+    }
+    return def;
+}
+
+static void TestDefsMatchWhatARestoreAccepts(void)
+{
+    for (int32_t field = 0; field < 13; ++field)
+    {
+        m2WorldDef def = BadWorldDef(field);
+        m2World* refused = NULL;
+        CHECK(m2CreateWorld(&def, &refused) == m2_errorInvalid && refused == NULL,
+              "a world def with a field out of range is refused");
+        if (refused != NULL)
+        {
+            m2DestroyWorld(refused);
+        }
+    }
+
+    m2WorldDef def = m2DefaultWorldDef();
+    def.gravity = (m2Vec2){-FLT_MAX, FLT_MAX};
+    def.particleCapacity = 8;
+    def.particleRadius = 0.02f;
+    def.particleDensity = FLT_MIN;
+    def.particleViscousStrength = FLT_MAX;
+    def.particleCohesionStrength = 0.0f;
+    m2World* world = NewWorld(&def);
+    for (int32_t field = 0; field < 14; ++field)
+    {
+        m2BodyDef bodyDef = BadBodyDef(field);
+        uint64_t misuse = m2World_GetCounters(world).misuse;
+        m2BodyId body = {7, 7};
+        CHECK(m2CreateBody(world, &bodyDef, &body) == m2_errorInvalid && body.index1 == 0 &&
+                  m2World_GetCounters(world).misuse == misuse + 1,
+              "a body def with a field out of range is refused and counted");
+    }
+
+    m2BodyDef edge = m2DefaultBodyDef();
+    edge.position = (m2Pos2){DBL_MAX, -DBL_MAX};
+    edge.rotation = (m2Rot){0.0f, 0.0f};
+    edge.linearVelocity = (m2Vec2){FLT_MAX, -FLT_MAX};
+    edge.angularVelocity = -FLT_MAX;
+    edge.gravityScale = -FLT_MAX;
+    edge.linearDamping = -0.0f;
+    edge.angularDamping = FLT_MAX;
+    edge.dominance = INT8_MIN;
+    for (int32_t type = m2_staticBody; type <= m2_dynamicBody; ++type)
+    {
+        edge.type = (m2BodyType)type;
+        (void)NewBody(world, &edge);
+    }
+    edge.rotation = (m2Rot){FLT_MAX, -FLT_MAX};
+    (void)NewBody(world, &edge);
+
+    int32_t size = m2World_SnapshotSize(world);
+    uint8_t* first = (uint8_t*)malloc((size_t)size);
+    uint8_t* second = (uint8_t*)malloc((size_t)size);
+    CHECK(first != NULL && second != NULL, "snapshot buffers");
+    int32_t written = Snapshot(world, first, size);
+    CHECK(written == size && Restore(world, first, written), "edge values restore");
+    CHECK(Snapshot(world, second, size) == size && memcmp(first, second, (size_t)size) == 0,
+          "a restored world snapshots the same bytes");
+    CHECK(m2World_Validate(world), "edge values keep the world valid");
+    free(second);
+    free(first);
+    m2DestroyWorld(world);
+}
+
 // Host code a world runs, a task hook or a debug draw callback, tries to
 // change the world it serves. Every writer refuses: a status writer with
 // m2_errorState, a void writer by counting one misuse.
@@ -2733,6 +2884,7 @@ int main(void)
 {
     TestCreateWorldOutOfMemory();
     TestInfiniteInputIsRefused();
+    TestDefsMatchWhatARestoreAccepts();
     TestEveryRefusalHasAReason();
     TestHostCodeCannotWrite();
     TestAllocatorCannotWrite();

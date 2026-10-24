@@ -80,11 +80,15 @@ extern "C"
     /// Creates a body. Journaled.
     ///
     /// @param world    The world.
-    /// @param def      The body, from m2DefaultBodyDef.
+    /// @param def      The body, from m2DefaultBodyDef. Its type must be
+    ///                 one of m2BodyType; its position, rotation,
+    ///                 velocities and gravity scale finite; its dampings
+    ///                 finite and not below 0. A rotation is normalized.
     /// @param bodyOut  Receives the body; the null id on failure.
-    /// @return m2_success; m2_errorInvalid for a bad def or a null
-    ///         argument; m2_errorCapacity when the body pool is full;
-    ///         m2_errorState from host code the world is running.
+    /// @return m2_success; m2_errorInvalid for a null argument, a def not
+    ///         from m2DefaultBodyDef or a field out of range, which
+    ///         counts one misuse; m2_errorCapacity when the body pool is
+    ///         full; m2_errorState from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2CreateBody(m2World* world, const m2BodyDef* def,

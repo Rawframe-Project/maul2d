@@ -28,4 +28,9 @@ int32_t m2StateWalk(m2World* world, uint8_t* out, const uint8_t* in, int directi
 // capacity. The block must be exactly the walk's size.
 bool m2StateValidate(const m2World* world, const uint8_t* in);
 
+// Checks one body slot against the same rules a restore applies, so a
+// creation that checked its def can assert it wrote a slot a snapshot of
+// the world will restore.
+bool m2StateBodyValid(const m2World* world, int32_t index);
+
 #endif // MAUL2D_SRC_WORLD_STATE_H

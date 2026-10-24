@@ -156,7 +156,8 @@ extern "C"
     ///         m2_errorInvalid for a bad cookie; m2_errorVersion for a def
     ///         built for another binary interface; m2_errorInvalid for the
     ///         rest of the def (a capacity below 1, an allocator with one
-    ///         function set, a particle parameter out of range);
+    ///         function set, a gravity not finite, a particle parameter
+    ///         not finite or out of range);
     ///         m2_errorCapacity when the allocator refuses or a size does
     ///         not fit.
     /// @par Thread safety
