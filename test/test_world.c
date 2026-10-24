@@ -1839,7 +1839,7 @@ static void TestAllocatorCannotWrite(void)
     m2Vec2 left[4] = {{-0.5f, -0.5f}, {0.0f, -0.5f}, {0.0f, 0.5f}, {-0.5f, 0.5f}};
     m2Vec2 right[4] = {{0.0f, -0.5f}, {0.5f, -0.5f}, {0.5f, 0.5f}, {0.0f, 0.5f}};
     m2Polygon halves[2] = {MakePolygon(left, 4, 0.0f), MakePolygon(right, 4, 0.0f)};
-    CHECK(m2World_ShatterBody(world, crate, halves, 2, NULL, 0) == 2, "the shatter is recorded");
+    CHECK(ShatterBody(world, crate, halves, 2, NULL, 0) == 2, "the shatter is recorded");
     int32_t bytes = StopJournal(world);
     CHECK(bytes > 0, "the journal stops");
 
@@ -2390,8 +2390,10 @@ static void TestShatterBody(void)
         CHECK(shards[i].count == 3, "each shard validates");
     }
     m2BodyId out[4];
-    int32_t made = m2World_ShatterBody(world, crate, shards, 4, out, 4);
-    CHECK(made == 4, "the crate shatters into four");
+    int32_t made = 0;
+    CHECK(m2World_ShatterBody(world, crate, shards, 4, out, 4, &made) == m2_success,
+          "the crate shatters");
+    CHECK(made == 4, "into four");
     CHECK(!m2Body_IsValid(world, crate), "the parent is gone");
     float mass = 0.0f;
     for (int32_t i = 0; i < 4; ++i)
@@ -2428,7 +2430,7 @@ static void TestShatterBody(void)
     int32_t cap = 1 << 20;
     void* tape = malloc((size_t)cap);
     CHECK(StartJournal(world, tape, cap), "the tape starts");
-    made = m2World_ShatterBody(world, crate, shards, 4, NULL, 0);
+    made = ShatterBody(world, crate, shards, 4, NULL, 0);
     CHECK(made == 4, "the recorded shatter lands");
     for (int32_t i = 0; i < 30; ++i)
     {
@@ -2458,12 +2460,27 @@ static void TestShatterBody(void)
     NewPolygonShape(small, lone, &ss, &box);
     uint64_t before = m2World_Hash(small);
     uint64_t misuseBefore = m2World_GetCounters(small).misuse;
-    CHECK(m2World_ShatterBody(small, lone, shards, 4, NULL, 0) == 0, "a full world refuses");
+    m2BodyId kept[2] = {lone, lone};
+    int32_t count = 7;
+    CHECK(m2World_ShatterBody(small, lone, shards, 4, kept, 2, &count) == m2_errorCapacity,
+          "a full world refuses with m2_errorCapacity");
+    CHECK(count == 0 && kept[0].index1 == 0 && kept[1].index1 == 0, "and clears the outputs");
     CHECK(m2World_GetCounters(small).misuse == misuseBefore, "a full pool is not misuse");
     m2Polygon bent = shards[0];
     bent.count = M2_MAX_POLYGON_VERTICES + 1;
-    CHECK(m2World_ShatterBody(small, lone, &bent, 1, NULL, 0) == 0, "a malformed piece refuses");
+    CHECK(m2World_ShatterBody(small, lone, &bent, 1, NULL, 0, &count) == m2_errorInvalid,
+          "a malformed piece refuses with m2_errorInvalid");
     CHECK(m2World_GetCounters(small).misuse == misuseBefore + 1, "as misuse");
+    m2BodyDef fixed = m2DefaultBodyDef();
+    m2BodyId wall = NewBody(small, &fixed);
+    CHECK(m2World_ShatterBody(small, wall, shards, 1, NULL, 0, &count) == m2_errorInvalid,
+          "a static body does not shatter");
+    DestroyBody(small, wall);
+    CHECK(m2World_ShatterBody(small, wall, shards, 1, NULL, 0, &count) == m2_errorStale,
+          "a stale body is m2_errorStale");
+    CHECK(m2World_ShatterBody(small, lone, shards, 1, NULL, 0, NULL) == m2_errorInvalid,
+          "and so is a missing count");
+    CHECK(m2World_GetCounters(small).misuse == misuseBefore + 4, "each a misuse");
     CHECK(m2Body_IsValid(small, lone), "the refused parent is untouched");
     CHECK(m2World_Hash(small) == before, "a refusal moves no bits");
     m2DestroyWorld(small);

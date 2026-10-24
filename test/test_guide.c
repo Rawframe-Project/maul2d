@@ -128,10 +128,13 @@ static void TestOutlineAndShatter(void)
 
     // Later, when the wall breaks:
     m2BodyId fragments[8];
-    int32_t fragmentCount = m2World_ShatterBody(world, wall, pieces, pieceCount, fragments, 8);
+    int32_t fragmentCount = 0;
+    m2Result broke =
+        m2World_ShatterBody(world, wall, pieces, pieceCount, fragments, 8, &fragmentCount);
 
     CHECK(whole && pieceCount >= 2, "the L outline becomes convex pieces on the wall");
-    CHECK(fragmentCount == pieceCount, "the wall breaks into one body per piece");
+    CHECK(broke == m2_success && fragmentCount == pieceCount,
+          "the wall breaks into one body per piece");
     CHECK(!m2Body_IsValid(world, wall), "and the wall itself is gone");
     m2DestroyWorld(world);
 }

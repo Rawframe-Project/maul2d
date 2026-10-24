@@ -259,16 +259,22 @@ extern "C"
     ///                    m2DecomposeOutline).
     /// @param pieceCount  The number of pieces, 1 to 64.
     /// @param bodiesOut   Receives up to capacity new bodies, in piece
-    ///                    order; may be null.
+    ///                    order; null ids on failure. May be null with
+    ///                    capacity 0.
     /// @param capacity    The length of bodiesOut.
-    /// @return The number of pieces made; 0 when the call changed nothing:
-    ///         a full pool, which counts no misuse, or a stale body, a
-    ///         body that is not dynamic, an invalid piece or a call from
-    ///         host code, which count one.
+    /// @param countOut    Receives the number of bodies made, which may
+    ///                    exceed capacity; 0 on failure.
+    /// @return m2_success; m2_errorStale for a stale body; m2_errorInvalid
+    ///         for a body that is not dynamic, an invalid piece or piece
+    ///         count, or a bad output argument; m2_errorCapacity when the
+    ///         body or shape pool cannot seat every piece, which counts no
+    ///         misuse; m2_errorState from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
-    M2_API int32_t m2World_ShatterBody(m2World* world, m2BodyId bodyId, const m2Polygon* pieces,
-                                       int32_t pieceCount, m2BodyId* bodiesOut, int32_t capacity);
+    M2_NODISCARD M2_API m2Result m2World_ShatterBody(m2World* world, m2BodyId bodyId,
+                                                     const m2Polygon* pieces, int32_t pieceCount,
+                                                     m2BodyId* bodiesOut, int32_t capacity,
+                                                     int32_t* countOut);
 
     /// Builds a box centered on the body origin.
     ///

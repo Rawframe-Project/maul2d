@@ -196,6 +196,16 @@ static inline int32_t StopJournal(m2World* world)
     return bytes;
 }
 
+static inline int32_t ShatterBody(m2World* world, m2BodyId bodyId, const m2Polygon* pieces,
+                                  int32_t pieceCount, m2BodyId* bodiesOut, int32_t capacity)
+{
+    int32_t made = 0;
+    m2Result result =
+        m2World_ShatterBody(world, bodyId, pieces, pieceCount, bodiesOut, capacity, &made);
+    (void)result;
+    return made;
+}
+
 static inline bool ReplayJournal(m2World* world, const void* data, int32_t size)
 {
     return m2World_ReplayJournal(world, data, size) == m2_success;

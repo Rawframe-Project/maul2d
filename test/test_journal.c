@@ -250,10 +250,9 @@ static void RunSession(m2World* world, uint8_t* journal, int32_t capacity, int32
     m2Polygon shardPair[2];
     shardPair[0] = shard;
     shardPair[1] = shard;
-    m2World_ShatterBody(world, ram, shardPair, 2, NULL,
-                        0);                     // op 58 (ram is dynamic; its gear dies with it)
-    m2Particle_SetLifetime(world, drop2, 0.5f); // op 59
-    m2Particle_SetUserData(world, drop2, 777);  // op 60
+    ShatterBody(world, ram, shardPair, 2, NULL, 0); // op 58 (ram is dynamic; its gear dies with it)
+    m2Particle_SetLifetime(world, drop2, 0.5f);     // op 59
+    m2Particle_SetUserData(world, drop2, 777);      // op 60
     m2FluidVolumeDef poolDef = m2DefaultFluidVolumeDef();
     poolDef.regionLower = (m2Pos2){-5.0, -5.0};
     poolDef.regionUpper = (m2Pos2){5.0, 5.0};

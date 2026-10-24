@@ -461,9 +461,12 @@ static bool ApplyShatterBody(m2ReplayCursor* r, const m2OpPayload* p)
     memcpy(pieces, r->data + r->offset, (size_t)pieceBytes);
     r->offset += pieceBytes;
     m2BodyId first[1] = {m2_nullBodyId};
-    int32_t made = m2World_ShatterBody(r->world, op->body, pieces, op->pieceCount, first, 1);
+    int32_t made = 0;
+    m2Result shattered =
+        m2World_ShatterBody(r->world, op->body, pieces, op->pieceCount, first, 1, &made);
     m2WorldFree(r->world, pieces, (size_t)pieceBytes);
-    return made == op->pieceCount && first[0].index1 == (uint32_t)op->expectedFirst;
+    return shattered == m2_success && made == op->pieceCount &&
+           first[0].index1 == (uint32_t)op->expectedFirst;
 }
 
 // The command table, indexed by op code. The payload size is the fixed
