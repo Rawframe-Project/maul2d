@@ -1,10 +1,9 @@
 name: release
 
 # release-please keeps a release pull request open from conventional commits.
-# Merging it tags vX.Y.Z and creates the GitHub release; the binaries job
-# then builds the installed library tree for each platform, and the assets
-# job adds the source archive, writes the checksums and an SBOM, attests
-# where everything was built, and attaches all of it to the release.
+# Merging it tags vX.Y.Z and creates the GitHub release; the assets job then
+# builds the source archive, writes its checksum and an SBOM, attests where
+# it was built, and attaches all of it to the release.
 # docs/operations/release.md has the steps.
 
 on:
@@ -48,71 +47,8 @@ jobs:
           config-file: release-please-config.json
           manifest-file: .release-please-manifest.json
 
-  # The installed tree (library, headers, CMake package, pkg-config file)
-  # for each platform, built from the tag with the preset of the CI cell
-  # that checks it, Linux in the same pinned CI image. The whole suite runs
-  # first, the golden hashes and the package test included, so what ships
-  # is what was checked.
-  binaries:
-    needs: release-please
-    if: needs.release-please.outputs.created == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - { name: linux-x64, runner: ubuntu-24.04, preset: linux-clang-20 }
-          - { name: linux-arm64, runner: ubuntu-24.04-arm, preset: linux-arm64-clang-20 }
-          - { name: macos-arm64, runner: macos-15, preset: macos-clang }
-          - { name: windows-x64, runner: windows-2025, preset: windows-clang-cl }
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: 30
-    # The CI image, pinned by digest, as cpp.yml uses it. zizmor reads the
-    # null of the macOS and Windows branch as an unpinned image.
-    container: ${{ startsWith(matrix.runner, 'ubuntu') && 'ghcr.io/rawframe-project/ci-cpp:2026.10.6@sha256:50c383f608f992c272196139d749f15978e35143a2876362b1e0aef6993480bd' || null }} # zizmor: ignore[unpinned-images]
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ needs.release-please.outputs.tag }}
-          persist-credentials: false
-      - name: Build
-        env:
-          PRESET: ${{ matrix.preset }}
-        run: |
-          cmake --preset "$PRESET"
-          cmake --build --preset "$PRESET"
-      - name: Test
-        env:
-          PRESET: ${{ matrix.preset }}
-        run: |
-          ctest --preset "$PRESET" --no-tests=error | tee "$RUNNER_TEMP/ctest.log"
-          if grep -E '\*\*\*(Skipped|Not Run)' "$RUNNER_TEMP/ctest.log"; then
-            echo "::error::a test did not run"; exit 1
-          fi
-          grep -E 'golden .*Passed' "$RUNNER_TEMP/ctest.log"
-          grep -E 'package .*Passed' "$RUNNER_TEMP/ctest.log"
-      - name: Install and archive
-        env:
-          PRESET: ${{ matrix.preset }}
-          NAME: ${{ matrix.name }}
-          TAG: ${{ needs.release-please.outputs.tag }}
-        run: |
-          cmake --install "out/$PRESET" --config Release --prefix "stage/maul2d-${TAG#v}-$NAME"
-          mkdir -p dist
-          if [ "$RUNNER_OS" = Windows ]; then
-            (cd stage && 7z a "../dist/maul2d-${TAG#v}-$NAME.zip" "maul2d-${TAG#v}-$NAME")
-          else
-            tar -C stage -czf "dist/maul2d-${TAG#v}-$NAME.tar.gz" "maul2d-${TAG#v}-$NAME"
-          fi
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: binaries-${{ matrix.name }}
-          path: dist/
-          retention-days: 1
-
   assets:
-    needs: [release-please, binaries]
+    needs: release-please
     if: needs.release-please.outputs.created == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -125,14 +61,10 @@ jobs:
         with:
           ref: ${{ needs.release-please.outputs.tag }}
           persist-credentials: false
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          path: dist
-          pattern: binaries-*
-          merge-multiple: true
-      - name: The source archive
-        # GitHub's own source archives are not promised byte-stable; this one
-        # is checksummed and attested.
+      - name: Build the release files into dist/
+        # The library ships as source, like every Maul library: the tagged
+        # tree is all a build needs. GitHub's own source archives are not
+        # promised byte-stable; this one is checksummed and attested.
         run: |
           mkdir -p dist
           git archive --format=tar.gz --prefix="${GITHUB_REPOSITORY#*/}-${TAG#v}/" -o "dist/${GITHUB_REPOSITORY#*/}-${TAG#v}.tar.gz" HEAD

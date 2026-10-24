@@ -8,7 +8,7 @@ Releases are made by release-please from the conventional commit titles on `main
 2. Rewrite that entry in user language before merging: what changed for someone using the library, grouped as Added, Changed, Fixed, Removed and Security. Leave out refactors, tests, CI and documentation. Say what a caller must change for a breaking change, and name every change of results or of the snapshot and tape formats, since games store both and compare hashes across machines.
 3. Check that the `required` CI job passed on the release pull request on every cell.
 4. Mark the pull request ready and merge it. release-please tags the merge commit and publishes the GitHub release with the changelog entry as its notes. The Pages workflow publishes the documentation and the testbed from `main`.
-5. `.github/workflows/release.yml` then builds the installed library for x64 and arm64 Linux, arm64 macOS and x64 Windows, adds the source archive, writes `SHA256SUMS` and an SPDX SBOM, attests where everything was built, and attaches it all to the release. Check that the assets are there; a user verifies a download with `sha256sum -c SHA256SUMS` and `gh attestation verify <file> -R Rawframe-Project/maul2d`.
+5. `.github/workflows/release.yml` then builds the source archive, writes `SHA256SUMS` and an SPDX SBOM, attests where they were built, and attaches them to the release. Like every Maul library, maul2d ships as source; packages for vcpkg and Conan are a family decision of their own. Check that the assets are there; a user verifies a download with `sha256sum -c --ignore-missing SHA256SUMS` and `gh attestation verify <file> -R Rawframe-Project/maul2d`.
 
 ## Notes
 

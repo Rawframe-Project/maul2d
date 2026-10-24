@@ -26,7 +26,7 @@ find_package(maul2d REQUIRED CONFIG)
 target_link_libraries(game PRIVATE maul2d::maul2d)
 ```
 
-or through pkg-config, `pkg-config --cflags --libs maul2d`. A project can also add the source tree with `add_subdirectory`; the tests, samples and benchmarks are then off by default. Every tagged release carries prebuilt libraries for Linux (x64 and arm64), Windows and macOS.
+or through pkg-config, `pkg-config --cflags --libs maul2d`. A project can also add the source tree with `add_subdirectory`; the tests, samples and benchmarks are then off by default. Every tagged release carries the source archive with its checksum, an SBOM and a build attestation; like every Maul library, maul2d ships as source and builds with the steps above.
 
 ## Build options
 
