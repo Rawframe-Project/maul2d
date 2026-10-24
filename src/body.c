@@ -16,6 +16,7 @@
 #include "object_ids.h"
 #include "shape.h"
 #include "world_internal.h"
+#include "world_state.h"
 
 #include "maul2d/base.h"
 
@@ -38,6 +39,19 @@ m2BodyDef m2DefaultBodyDef(void)
     return def;
 }
 
+// A def every field of which a snapshot of the world will restore: a
+// known type, finite numbers, and dampings not below 0.
+static bool BodyDefValid(const m2BodyDef* def)
+{
+    return (int32_t)def->type >= (int32_t)m2_staticBody &&
+           (int32_t)def->type <= (int32_t)m2_dynamicBody && m2FinitePos2(def->position) &&
+           m2FiniteF(def->rotation.c) && m2FiniteF(def->rotation.s) &&
+           m2FiniteVec2(def->linearVelocity) && m2FiniteF(def->angularVelocity) &&
+           m2FiniteF(def->gravityScale) && m2FiniteF(def->linearDamping) &&
+           def->linearDamping >= 0.0f && m2FiniteF(def->angularDamping) &&
+           def->angularDamping >= 0.0f;
+}
+
 m2Result m2CreateBody(m2World* world, const m2BodyDef* def, m2BodyId* bodyOut)
 {
     if (bodyOut == NULL)
@@ -50,7 +64,7 @@ m2Result m2CreateBody(m2World* world, const m2BodyDef* def, m2BodyId* bodyOut)
     {
         return writer;
     }
-    if (def == NULL || def->internalValue != M2_BODY_COOKIE)
+    if (def == NULL || def->internalValue != M2_BODY_COOKIE || !BodyDefValid(def))
     {
         return m2Refuse(world, m2_errorInvalid);
     }
@@ -98,6 +112,7 @@ m2Result m2CreateBody(m2World* world, const m2BodyDef* def, m2BodyId* bodyOut)
     {
         world->bodies.maxBodyIndex = index + 1;
     }
+    M2_ASSERT(m2StateBodyValid(world, index)); // BodyDefValid admits what a restore does
 
     m2BodyId id = {(uint32_t)(index + 1), world->bodies.generations[index]};
 
