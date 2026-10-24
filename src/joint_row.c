@@ -33,7 +33,7 @@ float m2SolveRow(const m2JointRow* row, m2JointBodies* b, m2RowDrive drive, floa
     float old = *accumulated;
     float speed = m2RowSpeed(row, b);
     float next = old - mass * (drive.scale * speed + drive.bias) - drive.leak * old;
-    float bound = mass * M2_ROW_SPEED_BOUND;
+    float bound = m2MinF(mass * M2_ROW_SPEED_BOUND, M2_IMPULSE_LIMIT);
     next = m2ClampF(next, m2MaxF(lo, -bound), m2MinF(hi, bound));
     *accumulated = next;
     m2PushRow(row, b, next - old);
@@ -46,10 +46,13 @@ static m2Vec2 PairImpulse(const m2JointRow rows[2], const m2JointBodies* b, m2Ve
                           m2RowDrive drive, m2Vec2 accumulated, bool* solved)
 {
     float k11 = Coupling(&rows[0], &rows[0], b);
-    float k12 = Coupling(&rows[0], &rows[1], b);
     float k22 = Coupling(&rows[1], &rows[1], b);
-    float det = k11 * k22 - k12 * k12;
-    *solved = det > 0.0f;
+    // A coupling too large to multiply falls back to the rows one at a
+    // time: k12 squared is at most k11 k22, so the det stays finite.
+    *solved = k11 <= M2_PAIR_COUPLING_MAX && k22 <= M2_PAIR_COUPLING_MAX;
+    float k12 = *solved ? Coupling(&rows[0], &rows[1], b) : 0.0f;
+    float det = *solved ? k11 * k22 - k12 * k12 : 0.0f;
+    *solved = *solved && det > 0.0f;
     if (!*solved)
     {
         return (m2Vec2){0.0f, 0.0f};
@@ -60,8 +63,8 @@ static m2Vec2 PairImpulse(const m2JointRow rows[2], const m2JointBodies* b, m2Ve
     m2Vec2 impulse = {-inv * (k22 * x - k12 * y) - drive.leak * accumulated.x,
                       -inv * (k11 * y - k12 * x) - drive.leak * accumulated.y};
     // Each row's share held within the speed bound at the row's own mass.
-    float boundX = M2_ROW_SPEED_BOUND / k11;
-    float boundY = M2_ROW_SPEED_BOUND / k22;
+    float boundX = m2MinF(M2_ROW_SPEED_BOUND / k11, M2_IMPULSE_LIMIT);
+    float boundY = m2MinF(M2_ROW_SPEED_BOUND / k22, M2_IMPULSE_LIMIT);
     float nextX = accumulated.x + impulse.x;
     float nextY = accumulated.y + impulse.y;
     if (m2AbsF(nextX) > boundX)
@@ -102,6 +105,7 @@ void m2PushPointPair(m2Vec2 armA, m2Vec2 armB, m2JointBodies* b, m2Vec2 impulse)
     b->vB.x += b->mB * impulse.x;
     b->vB.y += b->mB * impulse.y;
     b->wB += b->iB * m2Cross2(armB, impulse);
+    m2SaturateBodies(b);
 }
 
 m2PointMass m2MakePointMass(m2Vec2 armA, m2Vec2 armB, const m2JointBodies* b)
@@ -110,6 +114,10 @@ m2PointMass m2MakePointMass(m2Vec2 armA, m2Vec2 armB, const m2JointBodies* b)
     float k11 = m + b->iA * armA.y * armA.y + b->iB * armB.y * armB.y;
     float k12 = -b->iA * armA.x * armA.y - b->iB * armB.x * armB.y;
     float k22 = m + b->iA * armA.x * armA.x + b->iB * armB.x * armB.x;
+    if (!(k11 <= M2_PAIR_COUPLING_MAX && k22 <= M2_PAIR_COUPLING_MAX))
+    {
+        return (m2PointMass){0.0f, 0.0f, 0.0f}; // too stiff to multiply: skipped
+    }
     float det = k11 * k22 - k12 * k12;
     if (!(det > 0.0f))
     {
@@ -135,7 +143,7 @@ void m2SolvePointPair(m2Vec2 armA, m2Vec2 armB, m2PointMass mass, m2JointBodies*
                    old.y - (mass.xy * x + mass.yy * y) - drive.leak * old.y};
     // The speed bound at the pair's largest axis mass joins the budget.
     float bound = M2_ROW_SPEED_BOUND * m2MaxF(mass.xx, mass.yy);
-    float limit = m2MinF(budget, bound);
+    float limit = m2MinF(m2MinF(budget, bound), M2_IMPULSE_LIMIT);
     float length2 = next.x * next.x + next.y * next.y;
     if (length2 > limit * limit)
     {

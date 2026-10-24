@@ -459,6 +459,100 @@ static void ExpectCheckRefuses(const Scene* scene, Edit edit, const char* what)
     free(bytes);
 }
 
+// --- Out-of-range values the step must survive -------------------------------
+//
+// fuzz_snapshot found these as worlds that turned invalid a step after a
+// restore. Each edit carries the mechanism of one find:
+//   crash-6834a002: a gravity scale of -1e30 under a gravity of 1e30 makes
+//     an infinite velocity;
+//   crash-b4ff047a: a wind drag of 1e38 on a moving body makes an infinite
+//     force;
+//   crash-1844ca69: a spring impulse of 1e38, warm started, overflows a
+//     body's spin; contact impulses of 1e37 add to it.
+// The solver saturates what they feed it, so the world steps on with every
+// speed within M2_MAX_SPEED.
+
+static void PutBodyVec(const Scene* scene, uint8_t* block, const void* field, m2BodyId body,
+                       m2Vec2 value)
+{
+    memcpy(At(scene, block, field) + (size_t)(body.index1 - 1) * sizeof(value), &value,
+           sizeof(value));
+}
+
+static void GravityOverflows(const Scene* scene, uint8_t* block)
+{
+    PutBodyFloat(scene, block, &scene->world->bodies.gravityScales, scene->boxA, -1.0e30f);
+    m2Vec2 gravity = {0.0f, 1.0e30f};
+    memcpy(At(scene, block, &scene->world->gravity), &gravity, sizeof(gravity));
+}
+
+static void WindDragOverflows(const Scene* scene, uint8_t* block)
+{
+    float drag = 1.0e38f;
+    memcpy(At(scene, block, &scene->world->windLinearDrag), &drag, sizeof(drag));
+    PutBodyVec(scene, block, &scene->world->bodies.linearVelocities, scene->boxA,
+               (m2Vec2){10.0f, 0.0f});
+}
+
+static void WarmStartOverflows(const Scene* scene, uint8_t* block)
+{
+    float spring = 1.0e38f;
+    memcpy(At(scene, block, &scene->world->joints.jointSpringImpulse), &spring, sizeof(spring));
+    float impulse = 1.0e37f;
+    // Every contact point of the scene carries the same impulse.
+    int32_t pairs = GetI32(At(scene, block, &scene->world->contacts.pairCount), 0);
+    uint8_t* manifolds = At(scene, block, &scene->world->contacts.manifolds);
+    for (int32_t i = 0; i < pairs; ++i)
+    {
+        m2Manifold m;
+        memcpy(&m, manifolds + (size_t)i * sizeof(m), sizeof(m));
+        for (int32_t k = 0; k < m.pointCount; ++k)
+        {
+            m.points[k].normalImpulse = impulse;
+            m.points[k].tangentImpulse = -impulse;
+        }
+        memcpy(manifolds + (size_t)i * sizeof(m), &m, sizeof(m));
+    }
+}
+
+static bool SpeedsInRange(const m2World* world, m2BodyId body)
+{
+    m2Vec2 v = m2Body_GetLinearVelocity(world, body);
+    float w = m2Body_GetAngularVelocity(world, body);
+    return fabsf(v.x) <= M2_MAX_SPEED && fabsf(v.y) <= M2_MAX_SPEED && fabsf(w) <= M2_MAX_SPEED;
+}
+
+static void ExpectSteps(const Scene* scene, Edit edit, const char* what)
+{
+    uint8_t* bytes = (uint8_t*)malloc((size_t)scene->size);
+    CHECK(bytes != NULL, "a copy of the snapshot");
+    if (bytes == NULL)
+    {
+        return;
+    }
+    memcpy(bytes, scene->valid, (size_t)scene->size);
+    edit(scene, bytes + scene->headerBytes);
+    bool valid = Restore(scene->world, bytes, scene->size);
+    for (int32_t step = 0; step < 10 && valid; ++step)
+    {
+        m2World_Step(scene->world, 1.0f / 60.0f, 4);
+        valid = m2World_Validate(scene->world) && SpeedsInRange(scene->world, scene->boxA) &&
+                SpeedsInRange(scene->world, scene->boxB);
+    }
+    CHECK(valid, what);
+    CHECK(Restore(scene->world, scene->valid, scene->size), "the valid snapshot restores again");
+    free(bytes);
+}
+
+static void TestOutOfRangeValuesStep(void)
+{
+    Scene scene = MakeScene();
+    ExpectSteps(&scene, GravityOverflows, "a gravity that overflows steps into a valid world");
+    ExpectSteps(&scene, WindDragOverflows, "a drag that overflows steps into a valid world");
+    ExpectSteps(&scene, WarmStartOverflows, "a warm start that overflows steps into a valid world");
+    FreeScene(&scene);
+}
+
 static void TestCheckStandsAlone(void)
 {
     Scene scene = MakeScene();
@@ -522,6 +616,7 @@ int main(void)
 {
     TestHostileStructures();
     TestCheckStandsAlone();
+    TestOutOfRangeValuesStep();
     if (s_failures > 0)
     {
         printf("%d failure(s)\n", s_failures);

@@ -2,6 +2,7 @@
 maul_add_test(core)
 maul_add_test(world THREADS)
 maul_add_test(limits)
+maul_add_test(extremes)
 maul_add_test(draw)
 maul_add_test(broadphase)
 maul_add_test(ccd)

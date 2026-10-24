@@ -91,14 +91,22 @@ static m2Vec2 ArmTo(const m2World* world, int32_t body, m2Pos2 p)
     return (m2Vec2){(float)(p.x - xf.p.x) - center.x, (float)(p.y - xf.p.y) - center.y};
 }
 
+// Adds dv to a particle's velocity, held within M2_MAX_SPEED: the passes
+// read the velocities they write, and strong springs would otherwise
+// feed each other past the float range within one pass.
+static void Push(m2Particles* p, int32_t i, float dx, float dy)
+{
+    m2Vec2* v = &p->particleVelocities[i];
+    v->x = m2SaturateF(v->x + dx, M2_MAX_SPEED);
+    v->y = m2SaturateF(v->y + dy, M2_MAX_SPEED);
+}
+
 // Pushes two particles apart along n by dv, half each.
 static void Separate(m2Particles* p, int32_t a, int32_t b, m2Vec2 n, float dv)
 {
     float half = 0.5f * dv;
-    p->particleVelocities[a].x -= half * n.x;
-    p->particleVelocities[a].y -= half * n.y;
-    p->particleVelocities[b].x += half * n.x;
-    p->particleVelocities[b].y += half * n.y;
+    Push(p, a, -(half * n.x), -(half * n.y));
+    Push(p, b, half * n.x, half * n.y);
 }
 
 // An impulse j on a contact's particle and its opposite on the body, at
@@ -108,13 +116,13 @@ static void PushContact(m2World* world, int32_t k, m2Vec2 j, float particleInvMa
     m2Particles* p = &world->particles;
     int32_t i = p->particleBodyParticle[k];
     int32_t body = p->particleBodyBody[k];
-    p->particleVelocities[i].x += particleInvMass * j.x;
-    p->particleVelocities[i].y += particleInvMass * j.y;
+    Push(p, i, particleInvMass * j.x, particleInvMass * j.y);
     m2Vec2 arm = ArmTo(world, body, p->particlePositions[i]);
     world->bodies.linearVelocities[body].x -= world->bodies.invMass[body] * j.x;
     world->bodies.linearVelocities[body].y -= world->bodies.invMass[body] * j.y;
     world->bodies.angularVelocities[body] -=
         world->bodies.invInertia[body] * (arm.x * j.y - arm.y * j.x);
+    m2SaturateBodyVelocity(world, body);
 }
 
 // The velocity of a contact's body at its particle, relative to the
@@ -269,8 +277,7 @@ static void ElasticTriads(m2Particles* p, const Fluid* f)
         for (int32_t c = 0; c < 3; ++c)
         {
             m2Vec2 goal = Rotate(best, spawn[c]);
-            p->particleVelocities[id[c]].x += strength * (goal.x - now[c].x);
-            p->particleVelocities[id[c]].y += strength * (goal.y - now[c].y);
+            Push(p, id[c], strength * (goal.x - now[c].x), strength * (goal.y - now[c].y));
         }
     }
 }
@@ -291,10 +298,8 @@ static void SpringNets(m2Particles* p, const Fluid* f)
         if (length > 1.0e-6f)
         {
             float pull = strength * (length - p->particleSpringRest[k]) / length;
-            p->particleVelocities[a].x += pull * d.x;
-            p->particleVelocities[a].y += pull * d.y;
-            p->particleVelocities[b].x -= pull * d.x;
-            p->particleVelocities[b].y -= pull * d.y;
+            Push(p, a, pull * d.x, pull * d.y);
+            Push(p, b, -(pull * d.x), -(pull * d.y));
         }
     }
 }
@@ -322,10 +327,8 @@ static void ShearViscosity(m2World* world, const Fluid* f)
         float share = m2MinF(c * p->particlePairWeight[k], 0.5f);
         m2Vec2 dv = {share * (p->particleVelocities[b].x - p->particleVelocities[a].x),
                      share * (p->particleVelocities[b].y - p->particleVelocities[a].y)};
-        p->particleVelocities[a].x += dv.x;
-        p->particleVelocities[a].y += dv.y;
-        p->particleVelocities[b].x -= dv.x;
-        p->particleVelocities[b].y -= dv.y;
+        Push(p, a, dv.x, dv.y);
+        Push(p, b, -dv.x, -dv.y);
     }
     for (int32_t k = 0; k < p->particleBodyCount; ++k)
     {
@@ -379,9 +382,11 @@ static void ApproachViscosity(m2World* world, const Fluid* f)
 
 // --- Speed, bodies and the advance --------------------------------------------
 
+// The critical speed, a diameter per step, and never past M2_MAX_SPEED.
 static void LimitSpeed(m2Particles* p, const Fluid* f)
 {
-    float cap2 = f->critical * f->critical;
+    float cap = m2MinF(f->critical, M2_MAX_SPEED);
+    float cap2 = cap * cap;
     for (int32_t i = 0; i < p->maxParticleIndex; ++i)
     {
         m2Vec2 v = p->particleVelocities[i];
@@ -457,8 +462,10 @@ static void KeepOutOfBodies(m2World* world, const Fluid* f)
         {
             double x = from.x + (double)(fraction * move.x) + (double)(M2_FLUID_SURFACE_GAP * n.x);
             double y = from.y + (double)(fraction * move.y) + (double)(M2_FLUID_SURFACE_GAP * n.y);
+            // The surface gap can add a little speed; it stays in range.
             p->particleVelocities[i] =
-                (m2Vec2){(float)(x - from.x) * f->invDt, (float)(y - from.y) * f->invDt};
+                (m2Vec2){m2SaturateF((float)(x - from.x) * f->invDt, M2_MAX_SPEED),
+                         m2SaturateF((float)(y - from.y) * f->invDt, M2_MAX_SPEED)};
         }
     }
 }
@@ -484,8 +491,7 @@ static void Gravity(m2World* world, float dt)
     {
         if (p->particleAlive[i] != 0)
         {
-            p->particleVelocities[i].x += gx;
-            p->particleVelocities[i].y += gy;
+            Push(p, i, gx, gy);
         }
     }
 }
