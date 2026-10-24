@@ -684,7 +684,9 @@ void m2Body_SetDominance(m2World* world, m2BodyId bodyId, int8_t dominance)
 // The inverses a body keeps for mass data, or false when the data has
 // none a float holds: a mass that is not positive or finite, a center
 // beyond M2_HUGE, a rotational inertia that is not finite or falls below
-// what the mass at the center gives, or an inverse that overflows. An
+// what the mass at the center gives, or inverses m2MassInversesValid
+// refuses: one that overflows, or one whose own inverse does, as the
+// inverse of a mass of FLT_MAX does. An
 // inertia of exactly the mass at the center gives a body that cannot turn.
 static bool MassDataInverses(m2MassData massData, float* invMass, float* invInertia)
 {
@@ -698,7 +700,7 @@ static bool MassDataInverses(m2MassData massData, float* invMass, float* invIner
                                                       massData.center.y * massData.center.y);
     *invMass = 1.0f / massData.mass;
     *invInertia = inertiaCenter > 0.0f ? 1.0f / inertiaCenter : 0.0f;
-    return inertiaCenter >= 0.0f && m2FiniteF(*invMass) && m2FiniteF(*invInertia);
+    return inertiaCenter >= 0.0f && m2MassInversesValid(*invMass, *invInertia);
 }
 
 void m2Body_SetMassData(m2World* world, m2BodyId bodyId, m2MassData massData)

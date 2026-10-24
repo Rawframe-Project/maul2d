@@ -32,6 +32,13 @@ typedef struct m2MassShapes
 // a dynamic body whose shapes weigh nothing.
 m2BodyMass m2BodyMassFromShapes(uint8_t type, bool fixedRotation, const m2MassShapes* shapes);
 
+// Whether a body may keep these inverses as mass data of its own: a
+// positive inverse mass and a non-negative inverse inertia, both finite
+// and each with a finite inverse, so the mass and inertia read back finite.
+// m2Body_SetMassData and the snapshot check share it, so what one accepts
+// the other does.
+bool m2MassInversesValid(float invMass, float invInertia);
+
 // Sets a body's inverse mass, inverse inertia and center of mass from its
 // shapes, in shape-list order, and drops any override.
 void m2RecomputeMass(m2World* world, int32_t bodyIndex);

@@ -66,6 +66,13 @@ m2BodyMass m2BodyMassFromShapes(uint8_t type, bool fixedRotation, const m2MassSh
     return result;
 }
 
+bool m2MassInversesValid(float invMass, float invInertia)
+{
+    return m2FiniteF(invMass) && invMass > 0.0f && m2FiniteF(1.0f / invMass) &&
+           m2FiniteF(invInertia) && invInertia >= 0.0f &&
+           (invInertia == 0.0f || m2FiniteF(1.0f / invInertia));
+}
+
 static int32_t WorldNext(const void* context, int32_t shape)
 {
     return ((const m2World*)context)->shapes.shapeNext[shape];

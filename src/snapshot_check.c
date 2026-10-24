@@ -397,8 +397,7 @@ static float ReadF32(const uint8_t* array, int32_t index)
 // float can invert back, as the setter's own rules leave them.
 static bool OverrideValid(float invMass, float invInertia, bool dynamic, bool fixedRotation)
 {
-    return dynamic && invMass > 0.0f && m2FiniteF(1.0f / invMass) && invInertia >= 0.0f &&
-           (invInertia == 0.0f || m2FiniteF(1.0f / invInertia)) &&
+    return dynamic && m2MassInversesValid(invMass, invInertia) &&
            (!fixedRotation || invInertia == 0.0f);
 }
 
