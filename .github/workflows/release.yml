@@ -68,7 +68,7 @@ jobs:
     timeout-minutes: 30
     # The CI image, pinned by digest, as cpp.yml uses it. zizmor reads the
     # null of the macOS and Windows branch as an unpinned image.
-    container: ${{ startsWith(matrix.runner, 'ubuntu') && 'ghcr.io/rawframe-project/ci-cpp:2026.10.5@sha256:bc8ecad77f13664efd2c5961f3c82751d45b3c0b05fb3ccaaea9d0bdd0966f60' || null }} # zizmor: ignore[unpinned-images]
+    container: ${{ startsWith(matrix.runner, 'ubuntu') && 'ghcr.io/rawframe-project/ci-cpp:2026.10.6@sha256:50c383f608f992c272196139d749f15978e35143a2876362b1e0aef6993480bd' || null }} # zizmor: ignore[unpinned-images]
     permissions:
       contents: read
     steps:

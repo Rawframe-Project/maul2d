@@ -13,7 +13,7 @@ on:
     branches: [main]
   pull_request:
   schedule:
-    - cron: "17 3 * * *"
+    - cron: "7 4 * * *"
   workflow_dispatch:
 
 # A new push to a pull request cancels its running CI; runs on main get a
@@ -34,17 +34,17 @@ env:
 jobs:
   # Whether anything beyond documentation changed; the builds skip when not.
   changes:
-    uses: Rawframe-Project/.github/.github/workflows/changes.yml@b1220ae4523884c7baee93dfb2d9dd1fb1ec960b # v0.0.9
+    uses: Rawframe-Project/.github/.github/workflows/changes.yml@e75683076741e3a2499e0f3c112081a3dc95a66f # v0.0.11
     permissions:
       pull-requests: read
 
   docs:
-    uses: Rawframe-Project/.github/.github/workflows/docs-check.yml@b1220ae4523884c7baee93dfb2d9dd1fb1ec960b # v0.0.9
+    uses: Rawframe-Project/.github/.github/workflows/docs-check.yml@e75683076741e3a2499e0f3c112081a3dc95a66f # v0.0.11
     permissions:
       contents: read
 
   zizmor:
-    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@b1220ae4523884c7baee93dfb2d9dd1fb1ec960b # v0.0.9
+    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@e75683076741e3a2499e0f3c112081a3dc95a66f # v0.0.11
     permissions:
       contents: read
 
@@ -55,7 +55,7 @@ jobs:
   checks:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    container: ghcr.io/rawframe-project/ci-cpp:2026.10.5@sha256:bc8ecad77f13664efd2c5961f3c82751d45b3c0b05fb3ccaaea9d0bdd0966f60
+    container: ghcr.io/rawframe-project/ci-cpp:2026.10.6@sha256:50c383f608f992c272196139d749f15978e35143a2876362b1e0aef6993480bd
     permissions:
       contents: read
     steps:
@@ -109,7 +109,7 @@ jobs:
           - { preset: macos-clang, runner: macos-15 }
           - { preset: windows-clang-cl, runner: windows-2025 }
           - { preset: windows-arm64-clang-cl, runner: windows-11-arm }
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@b1220ae4523884c7baee93dfb2d9dd1fb1ec960b # v0.0.9
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@e75683076741e3a2499e0f3c112081a3dc95a66f # v0.0.11
     permissions:
       contents: read
     with:
@@ -122,7 +122,7 @@ jobs:
   testbed:
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@b1220ae4523884c7baee93dfb2d9dd1fb1ec960b # v0.0.9
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@e75683076741e3a2499e0f3c112081a3dc95a66f # v0.0.11
     permissions:
       contents: read
     with:
@@ -190,7 +190,7 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    container: ghcr.io/rawframe-project/ci-cpp:2026.10.5@sha256:bc8ecad77f13664efd2c5961f3c82751d45b3c0b05fb3ccaaea9d0bdd0966f60
+    container: ghcr.io/rawframe-project/ci-cpp:2026.10.6@sha256:50c383f608f992c272196139d749f15978e35143a2876362b1e0aef6993480bd
     permissions:
       contents: read
     steps:
