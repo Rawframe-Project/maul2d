@@ -20,7 +20,7 @@ Untrusted bytes are not misuse either. A snapshot or tape that fails its checks,
 
 ## Host code
 
-The world calls host code in three places: the task hooks during a step, the debug draw callbacks during `m2World_Draw`, and the allocator. While it runs, an atomic count on the world is raised, and every writer checks it first: a writer with a status returns `m2_errorState`, a void writer counts one misuse, and neither changes anything. Readers stay open, so a draw callback can ask the world about what it draws. The count is atomic because several readers may draw on separate threads at once.
+The world calls host code in three places: the task hooks during a step, the debug draw callbacks during `m2World_Draw`, and the allocator. While it runs, an atomic count on the world is raised, and every writer checks it first: every writer counts one misuse and changes nothing, and a writer with a status also returns `m2_errorState`. Readers stay open, so a draw callback can ask the world about what it draws. The count is atomic because several readers may draw on separate threads at once.
 
 ## A step
 

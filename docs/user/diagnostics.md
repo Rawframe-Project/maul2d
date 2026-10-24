@@ -28,4 +28,4 @@ The counters come from world state, so two worlds given the same calls report th
 
 ## Hashes
 
-`m2World_Hash` hashes the simulation state, in every build: it is how two runs are compared. `m2World_GetHashParts` hashes each subsystem apart, for finding where two runs diverge ([Rollback and replay](rollback-and-replay.md#hunting-a-divergence)).
+`m2World_Hash` hashes the state a step moves (poses, velocities, sleep, contacts, joint impulses, fluid volumes and particles), in every build: it is how two runs are compared. Settings such as damping and filters, shapes, and the user data of bodies, shapes, joints and volumes are not in it; the header lists every field. `m2World_GetHashParts` hashes each subsystem apart, for finding where two runs diverge ([Rollback and replay](rollback-and-replay.md#hunting-a-divergence)).

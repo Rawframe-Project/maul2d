@@ -446,9 +446,20 @@ extern "C"
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2World_Restore(m2World* world, const void* buffer, int32_t size);
 
-    /// Hashes the simulation state: the live bodies in slot order and the
-    /// world's globals. Present in every build: it is how a divergence is
-    /// found.
+    /// Hashes the state a step moves, in this order: the step count and
+    /// gravity; for each live body in slot order, its transform, linear
+    /// and angular velocity, inverse mass and inertia, local center, type,
+    /// sleep flag, sleep timer and streak, and bullet flag; the contact
+    /// pairs' keys and manifolds; for each live joint, its accumulated
+    /// impulses (point, motor, lower, upper, spring); in a world with fluid
+    /// volumes, each slot's liveness and a live volume's surface height; in
+    /// a world with particles, the count, each slot's liveness, a live
+    /// particle's position, velocity, flags, lifetime and user data, then
+    /// the springs and triads. Shapes, events, the user data of bodies,
+    /// shapes, joints and volumes, and the settings calls change (damping,
+    /// gravity scale, filters, materials, joint parameters) are not hashed;
+    /// compare snapshots to cover every byte of state. Present in every
+    /// build: it is how a divergence is found.
     ///
     /// @param world  The world.
     /// @return The hash; 0 for a null world.

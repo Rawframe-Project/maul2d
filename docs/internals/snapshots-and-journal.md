@@ -4,7 +4,7 @@ A snapshot is the whole simulation as one flat block; a journal tape is a snapsh
 
 ## The state table
 
-`src/world_state.c` lists every array a world owns, with its element size, its count (a capacity or a live cursor), whether it is state or step scratch, and the rule its values must follow. Creation allocates the pools from that table and destruction frees them, and one walk over the state entries sizes, writes, checks and restores a snapshot. A new array added to the table is therefore allocated, saved, checked and restored at once. The walk's measuring mode is the only definition of a snapshot's size. `m2World_Hash` folds the same state subsystem by subsystem (bodies, contacts, joints, volumes, particles), the order `m2World_GetHashParts` reports.
+`src/world_state.c` lists every array a world owns, with its element size, its count (a capacity or a live cursor), whether it is state or step scratch, and the rule its values must follow. Creation allocates the pools from that table and destruction frees them, and one walk over the state entries sizes, writes, checks and restores a snapshot. A new array added to the table is therefore allocated, saved, checked and restored at once. The walk's measuring mode is the only definition of a snapshot's size. `m2World_Hash` folds the part of that state a step moves, subsystem by subsystem (world, bodies, contacts, joints, volumes, particles); `m2World_GetHashParts` reports the same parts apart, volumes excepted. Settings, shapes and the user data of bodies, shapes, joints and volumes are in the snapshot but not the hash.
 
 ## Snapshot format
 

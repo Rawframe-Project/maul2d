@@ -25,7 +25,7 @@ The task hooks never change results. Parallel work is split into ranges where ea
 
 ## State
 
-Everything that affects the future is world state, and every byte of it is in the snapshot: the pools, the warm-start impulses, the sleep timers, the particle lifetimes, the journal recorder excepted. A restore therefore continues exactly as the original would have. `m2World_Hash` folds the state with `m2Hash64`, whose constants are frozen; diagnostics such as `m2World_GetProfile` are never part of it.
+Everything that affects the future is world state, and every byte of it is in the snapshot: the pools, the warm-start impulses, the sleep timers, the particle lifetimes, the journal recorder excepted. A restore therefore continues exactly as the original would have. `m2World_Hash` folds, with `m2Hash64` and its frozen constants, the part of that state a step moves: poses, velocities, mass, sleep, contacts, joint impulses, fluid volumes and particles (the header lists every field). Settings, shapes and the user data of bodies, shapes, joints and volumes are in the snapshot but not in the hash, and diagnostics such as `m2World_GetProfile` are in neither.
 
 ## Golden scenes
 

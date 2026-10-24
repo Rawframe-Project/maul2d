@@ -53,8 +53,9 @@ static m2BodyId DropBall(m2World* world, double height)
     return ball;
 }
 
-// getting-started.md: a first world.
-static void TestFirstWorld(void)
+// getting-started.md: a first world. The snippet returns early when the
+// world is refused, so the test reports whether it ran to the end.
+static void FirstWorld(bool* finished)
 {
     m2WorldDef worldDef = m2DefaultWorldDef();
     m2World* world = NULL;
@@ -89,8 +90,16 @@ static void TestFirstWorld(void)
     m2Pos2 resting = m2Body_GetPosition(world, ball);
     m2DestroyWorld(world);
 
+    *finished = true;
     CHECK(built, "the first world builds");
     CHECK(resting.y > 0.9 && resting.y < 1.1, "the ball rests on the floor");
+}
+
+static void TestFirstWorld(void)
+{
+    bool finished = false;
+    FirstWorld(&finished);
+    CHECK(finished, "the first world is created");
 }
 
 // bodies-and-shapes.md: an outline into pieces, then a shatter.
