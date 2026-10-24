@@ -41,7 +41,9 @@ extern "C"
 
     /// A convex, counter-clockwise polygon of at most 8 vertices; a radius
     /// above zero rounds it. Build one with m2MakePolygon, m2ComputeHull or
-    /// m2MakeBox, which compute the normals and check it.
+    /// m2MakeBox, which compute the normals and check it. A world keeps
+    /// only the vertices, count and radius of a polygon it is given: it
+    /// computes the normals itself and zeroes the unused slots.
     typedef struct m2Polygon
     {
         m2Vec2 vertices[M2_MAX_POLYGON_VERTICES];
@@ -327,7 +329,8 @@ extern "C"
     /// @param world     The world.
     /// @param bodyId    The body.
     /// @param def       The shape, from m2DefaultShapeDef.
-    /// @param polygon   The geometry, in the body's frame.
+    /// @param polygon   The geometry, in the body's frame; its normals are
+    ///                  recomputed from the vertices, not taken as given.
     /// @param shapeOut  Receives the shape; the null id on failure.
     /// @return As m2CreateCircleShape.
     /// @par Thread safety
@@ -578,7 +581,8 @@ extern "C"
     ///
     /// @param world    The world.
     /// @param shapeId  The shape.
-    /// @param polygon  The new geometry, in the body's frame.
+    /// @param polygon  The new geometry, in the body's frame; its normals
+    ///                 are recomputed from the vertices, not taken as given.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_API void m2Shape_SetPolygon(m2World* world, m2ShapeId shapeId, const m2Polygon* polygon);

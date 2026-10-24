@@ -279,6 +279,49 @@ static m2Polygon BuildPolygon(const m2Vec2* points, int32_t count, float radius)
     return polygon;
 }
 
+m2Polygon m2CanonicalPolygon(const m2Polygon* polygon)
+{
+    return BuildPolygon(polygon->vertices, polygon->count, polygon->radius);
+}
+
+bool m2CanonicalizeGeometry(m2ShapeGeometry* geometry)
+{
+    if (geometry->type != (int32_t)m2_polygonShape)
+    {
+        return true;
+    }
+    m2Polygon canonical = m2CanonicalPolygon(&geometry->polygon);
+    geometry->polygon = canonical;
+    return canonical.count != 0;
+}
+
+bool m2GeometryIsCanonical(const m2ShapeGeometry* geometry)
+{
+    switch (geometry->type)
+    {
+    case m2_circleShape:
+        return m2ValidateCircle(&geometry->circle);
+    case m2_capsuleShape:
+        return m2ValidateCapsule(&geometry->capsule);
+    case m2_segmentShape:
+        return m2ValidateSegment(&geometry->segment);
+    case m2_chainSegmentShape:
+        return m2ValidateSegment(&geometry->chainSegment.segment) &&
+               IsFiniteVec(geometry->chainSegment.ghost1) &&
+               IsFiniteVec(geometry->chainSegment.ghost2);
+    case m2_polygonShape:
+    {
+        m2Polygon canonical = m2CanonicalPolygon(&geometry->polygon);
+        // Bit for bit on purpose: -0 against 0 or another NaN must differ.
+        // NOLINTNEXTLINE(bugprone-suspicious-memory-comparison): bit-exact compare
+        bool same = memcmp(&canonical, &geometry->polygon, sizeof(canonical)) == 0;
+        return canonical.count != 0 && same;
+    }
+    default:
+        return false;
+    }
+}
+
 m2Result m2MakePolygon(const m2Vec2* points, int32_t count, float radius, m2Polygon* polygonOut)
 {
     m2Polygon polygon = BuildPolygon(points, count, radius);

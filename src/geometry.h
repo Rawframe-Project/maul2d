@@ -37,6 +37,22 @@ bool m2ValidateSegment(const m2Segment* segment);
 // m2ValidatePolygon is internal; the validator family is not public API.
 bool m2ValidatePolygon(const m2Polygon* polygon);
 
+// A polygon as the library builds it from the caller's vertices, count
+// and radius: normals computed from the edges, unused slots zeroed. Count
+// 0 when they do not make a polygon. A caller's polygon carries normals
+// too, which nothing checked, so every polygon a world keeps goes through
+// this.
+m2Polygon m2CanonicalPolygon(const m2Polygon* polygon);
+
+// Rebuilds a polygon geometry from its vertices; other shapes stay as
+// they are. False when the vertices do not make a polygon.
+bool m2CanonicalizeGeometry(m2ShapeGeometry* geometry);
+
+// Whether a geometry is one the library would keep: each shape passes its
+// creation check, a chain segment's ghosts are finite, and a polygon is
+// exactly its canonical form. Restore asks this of every live shape.
+bool m2GeometryIsCanonical(const m2ShapeGeometry* geometry);
+
 m2Aabb m2ComputeShapeAabb(const m2ShapeGeometry* geometry, m2Transform xf);
 m2MassData m2ComputeShapeMass(const m2ShapeGeometry* geometry, float density);
 

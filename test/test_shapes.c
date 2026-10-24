@@ -386,8 +386,40 @@ static void TestMassClosedForms(void)
     m2DestroyWorld(world);
 }
 
+// A world keeps a polygon's vertices, count and radius and computes the
+// rest: normals the caller filled in (here NaN) and junk in the unused
+// slots are not kept. fuzz_snapshot found polygons with bad normals
+// reaching an assert in the mass computation through a snapshot; the API
+// took them as given too.
+static void TestPolygonNormalsAreTheWorlds(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    m2BodyDef bodyDef = m2DefaultBodyDef();
+    bodyDef.type = m2_dynamicBody;
+    m2BodyId body = NewBody(world, &bodyDef);
+    m2Polygon built = m2MakeBox(0.5f, 0.25f);
+    m2Polygon given = built;
+    for (int32_t i = 0; i < M2_MAX_POLYGON_VERTICES; ++i)
+    {
+        given.normals[i] = (m2Vec2){NAN, 7.0f};
+    }
+    given.vertices[M2_MAX_POLYGON_VERTICES - 1] = (m2Vec2){INFINITY, 3.0f};
+    m2ShapeDef shapeDef = m2DefaultShapeDef();
+    m2ShapeId shape = m2_nullShapeId;
+    CHECK(m2CreatePolygonShape(world, body, &shapeDef, &given, &shape) == m2_success,
+          "a polygon with the caller's normals is created");
+    m2Polygon kept = m2Shape_GetPolygon(world, shape);
+    CHECK(memcmp(&kept, &built, sizeof(kept)) == 0, "the world keeps its own normals");
+    m2Shape_SetPolygon(world, shape, &given);
+    kept = m2Shape_GetPolygon(world, shape);
+    CHECK(memcmp(&kept, &built, sizeof(kept)) == 0, "and keeps them when the polygon is set");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
+    TestPolygonNormalsAreTheWorlds();
     TestMassClosedForms();
     TestValidation();
     TestComputeHull();

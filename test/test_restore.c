@@ -11,6 +11,7 @@
 // and invalid worlds.
 
 #include "dynamic_tree.h"
+#include "geometry.h"
 #include "helpers.h"
 #include "snapshot_check.h"
 #include "test_harness.h"
@@ -19,6 +20,7 @@
 
 #include "maul2d/maul2d.h"
 
+#include <math.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -31,6 +33,7 @@ typedef struct Scene
     m2BodyId ground;
     m2BodyId boxA;
     m2BodyId boxB;
+    m2BodyId lift; // alone in the kinematic tree
 } Scene;
 
 // Three bodies, shapes on each (a chain on the ground), a joint and a few
@@ -64,6 +67,10 @@ static Scene MakeScene(void)
     m2Polygon box = m2MakeBox(0.4f, 0.4f);
     NewPolygonShape(scene.world, scene.boxA, &shapeDef, &box);
     NewPolygonShape(scene.world, scene.boxB, &shapeDef, &box);
+    boxDef.type = m2_kinematicBody;
+    boxDef.position = (m2Pos2){8.0, 1.0};
+    scene.lift = NewBody(scene.world, &boxDef);
+    NewPolygonShape(scene.world, scene.lift, &shapeDef, &box);
     m2RevoluteJointDef pin = m2DefaultRevoluteJointDef();
     pin.bodyIdA = scene.boxA;
     pin.bodyIdB = scene.boxB;
@@ -307,6 +314,46 @@ static void PairNamesADeadShape(const Scene* scene, uint8_t* block)
     memcpy(At(scene, block, &w->contacts.pairKeys), &key, sizeof(key));
 }
 
+// A geometry edit on the first shape of a body, through the stored union.
+static void EditGeometry(const Scene* scene, uint8_t* block, m2BodyId owner,
+                         void (*change)(m2ShapeGeometry* geometry))
+{
+    const m2World* w = scene->world;
+    int32_t s = GetI32(At(scene, block, &w->bodies.bodyShapeHead), (int32_t)owner.index1 - 1);
+    uint8_t* geometries = At(scene, block, &w->shapes.shapeGeometry);
+    m2ShapeGeometry geometry;
+    memcpy(&geometry, geometries + (size_t)s * sizeof(geometry), sizeof(geometry));
+    change(&geometry);
+    memcpy(geometries + (size_t)s * sizeof(geometry), &geometry, sizeof(geometry));
+}
+
+static void TurnFirstNormal(m2ShapeGeometry* geometry)
+{
+    geometry->polygon.normals[0] = (m2Vec2){0.0f, 1.0f};
+}
+
+static void PolygonNormalLies(const Scene* scene, uint8_t* block)
+{
+    EditGeometry(scene, block, scene->boxA, TurnFirstNormal);
+}
+
+static void UnfinishedGhost(m2ShapeGeometry* geometry)
+{
+    if (geometry->type == m2_chainSegmentShape)
+    {
+        geometry->chainSegment.ghost1.x = NAN;
+    }
+    else
+    {
+        geometry->polygon.radius = -1.0f; // the ground's slab, when it heads the list
+    }
+}
+
+static void GroundGeometryBroken(const Scene* scene, uint8_t* block)
+{
+    EditGeometry(scene, block, scene->ground, UnfinishedGhost);
+}
+
 // The structural check stands on its own: these edits are refused by it
 // alone, without the per-array checks that also catch them.
 static void BodyTailNegative(const Scene* scene, uint8_t* block)
@@ -323,6 +370,27 @@ static void BodyHighWaterPastCapacity(const Scene* scene, uint8_t* block)
 static void BodyTypeUnknown(const Scene* scene, uint8_t* block)
 {
     At(scene, block, &scene->world->bodies.types)[scene->boxA.index1 - 1] = 7;
+}
+
+// The lift's leaf leaves the kinematic tree for its free list, so no walk
+// meets the lift's shape, and the lift's type becomes 7: only the bound on
+// the tree a shape's type picks can refuse it.
+static void UntreedShapeOfUnknownType(const Scene* scene, uint8_t* block)
+{
+    const m2World* w = scene->world;
+    uint8_t* headers = At(scene, block, &w->broadphase.trees);
+    uint8_t* nodes = At(scene, block, &w->broadphase.treeNodes[m2_kinematicBody]);
+    m2DynamicTree tree;
+    memcpy(&tree, headers + sizeof(tree) * m2_kinematicBody, sizeof(tree));
+    m2TreeNode leaf = GetNode(nodes, tree.root);
+    leaf.height = -1;
+    leaf.parent = tree.freeList;
+    PutNode(nodes, tree.root, leaf);
+    tree.freeList = tree.root;
+    tree.root = M2_NULL_NODE;
+    tree.nodeCount = 0;
+    memcpy(headers + sizeof(tree) * m2_kinematicBody, &tree, sizeof(tree));
+    At(scene, block, &w->bodies.types)[scene->lift.index1 - 1] = 7;
 }
 
 static void ExpectCheckRefuses(const Scene* scene, Edit edit, const char* what)
@@ -349,6 +417,8 @@ static void TestCheckStandsAlone(void)
                        "a high-water mark past the pool is refused by the check alone");
     ExpectCheckRefuses(&scene, BodyTypeUnknown,
                        "an unknown body type is refused by the check alone");
+    ExpectCheckRefuses(&scene, UntreedShapeOfUnknownType,
+                       "an untreed shape of an unknown type is refused by the bound on its tree");
     FreeScene(&scene);
 }
 
@@ -382,6 +452,8 @@ static void TestHostileStructures(void)
     ExpectRefused(&scene, MovedRepeatsAShape, "a moved list that repeats a shape is refused");
     ExpectRefused(&scene, MovedFlagMissing, "a moved shape without its flag is refused");
     ExpectRefused(&scene, PairNamesADeadShape, "a pair with a dead shape is refused");
+    ExpectRefused(&scene, PolygonNormalLies, "a polygon whose normal lies is refused");
+    ExpectRefused(&scene, GroundGeometryBroken, "a broken ground geometry is refused");
 
     CHECK(Restore(scene.world, scene.valid, scene.size) && m2World_Validate(scene.world),
           "the valid snapshot still restores");
