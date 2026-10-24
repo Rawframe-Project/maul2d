@@ -22,6 +22,13 @@ typedef enum m2HashPart
     m2_hashAll,       // every part, folded in table order
 } m2HashPart;
 
+// Folds each live shape's fat box in the broadphase into h (bodies part),
+// keyed by the shape slot: pairs are found by querying the moved shapes'
+// fat boxes, which carry their history, so two worlds whose boxes differ
+// can find different pairs later. The tree's shape around them only
+// speeds the query up and stays out.
+uint64_t m2HashFatBoxes(const m2World* world, m2HashPart part, uint64_t h);
+
 // Folds each pool of the part (every pool for m2_hashAll) into h: its
 // high-water mark, free and retired counts, free queue in order from the
 // head, and generations below the high-water mark.

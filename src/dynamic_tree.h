@@ -60,15 +60,11 @@ void m2TreeRemove(m2DynamicTree* tree, m2TreeNode* nodes, int32_t proxy);
 // the fat one). The proxy index stays the same.
 void m2TreeMove(m2DynamicTree* tree, m2TreeNode* nodes, int32_t proxy, m2Aabb aabb);
 
-// Collect userData of every leaf overlapping the query AABB, in an order
-// determined solely by tree shape (deterministic given identical state).
-// Returns the hit count; writes at most resultCapacity entries.
-int32_t m2TreeQuery(const m2DynamicTree* tree, const m2TreeNode* nodes, m2Aabb aabb,
-                    int32_t* results, int32_t resultCapacity);
-
-// Incremental form of m2TreeQuery for callers that must not share a
-// result buffer: the cursor lives on the caller's stack and yields the
-// same leaves in the same order as m2TreeQuery.
+// A query over the leaves overlapping an AABB: the cursor lives on the
+// caller's stack and yields each leaf's userData once. The order follows
+// the tree's shape, which depends on its history: a caller that keeps only
+// some hits keeps them with m2TreeKeepLowest, so what it keeps depends
+// only on which leaves overlap.
 #define M2_TREE_STACK_CAPACITY 256
 typedef struct m2TreeCursor
 {
@@ -83,6 +79,11 @@ void m2TreeBeginQuery(m2TreeCursor* cursor, const m2DynamicTree* tree, const m2T
 // Writes the next overlapping leaf's userData and returns true, or
 // returns false when the query is exhausted.
 bool m2TreeNextQuery(m2TreeCursor* cursor, int32_t* userData);
+
+// Offers value to kept, the lowest values offered so far in ascending
+// order, at most capacity of them (*count): a full set drops its largest
+// for a lower value and ignores a higher one.
+void m2TreeKeepLowest(int32_t* kept, int32_t* count, int32_t capacity, int32_t value);
 
 // Test oracle: links both ways, heights, AVL balance, box containment
 // and the node count. Returns false on any breach.

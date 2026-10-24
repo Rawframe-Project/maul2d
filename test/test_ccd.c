@@ -152,8 +152,69 @@ static void TestCcdRollback(void)
     m2DestroyWorld(world);
 }
 
+// A field of thin static walls at x = 0.01 k, created in a scrambled and
+// mirrored order so slots do not follow position: which walls a capped
+// query keeps then decides where a bullet stops. With reshuffle, each wall goes
+// far away and back, in reverse order: its leaf is reinserted, so the tree
+// takes another shape while every pose and fat box comes back the same.
+// Without, each wall is teleported in place, which marks it moved as the
+// round trip does. The two worlds hash the same.
+static m2World* WallField(int32_t walls, bool reshuffle)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = walls + 4;
+    def.shapeCapacity = walls + 4;
+    def.gravity = (m2Vec2){0.0f, 0.0f};
+    m2World* world = NewWorld(&def);
+    m2BodyId ids[128];
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon slab = m2MakeBox(0.01f, 2.0f);
+    for (int32_t i = 0; i < walls; ++i)
+    {
+        m2BodyDef wd = m2DefaultBodyDef();
+        wd.position = (m2Pos2){0.01 * (double)(walls - 1 - (i * 37) % walls), 0.0};
+        ids[i] = NewBody(world, &wd);
+        NewPolygonShape(world, ids[i], &sd, &slab);
+    }
+    m2World_Step(world, 1.0f / 60.0f, 4); // the creation's moved flags clear
+    const m2Rot level = {1.0f, 0.0f};
+    for (int32_t i = walls - 1; i >= 0; --i)
+    {
+        m2Pos2 home = m2Body_GetPosition(world, ids[i]);
+        if (reshuffle)
+        {
+            m2Body_SetTransform(world, ids[i], (m2Pos2){home.x + 1000.0, home.y}, level);
+        }
+        m2Body_SetTransform(world, ids[i], home, level);
+    }
+    return world;
+}
+
+// A bullet whose sweep overlaps more walls than the candidate cap keeps
+// the same candidates, and stops at the same place, whatever the tree's
+// history.
+static void TestCappedSweepIgnoresTreeHistory(void)
+{
+    m2World* plain = WallField(100, false);
+    m2World* reshuffled = WallField(100, true);
+    CHECK(m2World_Hash(plain) == m2World_Hash(reshuffled), "the fields hash the same");
+    FireBall(plain, -0.5, 400.0f, true); // a substep sweeps all 100 walls
+    FireBall(reshuffled, -0.5, 400.0f, true);
+    bool same = true;
+    for (int32_t i = 0; i < 30 && same; ++i)
+    {
+        m2World_Step(plain, 1.0f / 60.0f, 4);
+        m2World_Step(reshuffled, 1.0f / 60.0f, 4);
+        same = m2World_Hash(plain) == m2World_Hash(reshuffled);
+    }
+    CHECK(same, "and step on to the same bits");
+    m2DestroyWorld(plain);
+    m2DestroyWorld(reshuffled);
+}
+
 int main(void)
 {
+    TestCappedSweepIgnoresTreeHistory();
     TestThinWall();
     TestEarliestWallWins();
     TestBulletsIgnoreEachOther();

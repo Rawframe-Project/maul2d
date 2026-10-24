@@ -17,6 +17,7 @@ Every result that depends on an order has a canonical one:
 - Pairs live in a list sorted by key (the two shape indices), rebuilt each step by a merge, and `m2World_Validate` checks the order. Manifolds, events and contact data follow it.
 - Islands union toward the lowest body index, and every pass over bodies, shapes, joints and particles walks slots in ascending order.
 - Ties break to the lower index: the closest hit of a query, the deepest face of a manifold, the first ear of a decomposition.
+- A query that keeps only some of its hits keeps the lowest shape slots (`m2TreeKeepLowest`): the particle contact candidates, a particle's crossing candidates and a bullet's sweep candidates. A broadphase tree yields its leaves in an order that follows its history, which is not hashed, so what a capped query keeps must depend only on which leaves overlap.
 - A slot freed by a destroy is reused in FIFO order under a new generation, so the same calls hand out the same ids.
 
 ## Threads
@@ -25,7 +26,7 @@ The task hooks never change results. Parallel work is split into ranges where ea
 
 ## State
 
-Everything that affects the future is world state, and every byte of it is in the snapshot: the pools, the warm-start impulses, the sleep timers, the particle lifetimes, the journal recorder excepted. A restore therefore continues exactly as the original would have. `m2World_Hash` folds, with `m2Hash64` and its frozen constants, the part of that state a step moves: poses, velocities, mass, sleep, contacts, joint impulses, fluid volumes and particles (the header lists every field). Settings, shapes and the user data of bodies, shapes, joints and volumes are in the snapshot but not in the hash, and diagnostics such as `m2World_GetProfile` are in neither.
+Everything that affects the future is world state, and every byte of it is in the snapshot: the pools, the warm-start impulses, the sleep timers, the particle lifetimes, the journal recorder excepted. A restore therefore continues exactly as the original would have. `m2World_Hash` folds, with `m2Hash64` and its frozen constants, every piece of that state the step reads: poses, velocities, forces, mass and sleep, every setting of bodies, shapes, joints, particles and volumes, the contacts, each shape's fat box and moved flag (pairs are found by querying them), and each id pool's free order and generations, each keyed by its slot (`snapshots-and-journal.md` has the rules). Two worlds with the same hash step on to the same bits. User data, which the step never reads, and the broadphase tree's shape, which decides only the order the tree yields its leaves in, stay out; diagnostics such as `m2World_GetProfile` are in neither the snapshot nor the hash.
 
 ## Golden scenes
 

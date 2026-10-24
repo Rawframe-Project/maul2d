@@ -458,13 +458,15 @@ extern "C"
     /// geometry, materials, filter and sensor flag; joint anchors,
     /// lengths, ranges, motor, spring and break settings, targets and
     /// impulses; particle and volume settings); the contact pairs, their
-    /// touching flags and manifolds; the particle springs and triads; and
-    /// each id pool's free order and generations, which decide where the
-    /// next object lands and the id it gets. Two worlds with the same hash
-    /// step on to the same bits. Not hashed: user data, events, and the
-    /// broadphase trees, which only speed up finding the pairs that are
-    /// hashed. The value changes between library versions. Present in
-    /// every build: it is how a divergence is found.
+    /// touching flags and manifolds; each shape's fat box and moved flag in
+    /// the broadphase, from which the next pairs are found; the particle
+    /// springs and triads; and each id pool's free order and generations,
+    /// which decide where the next object lands and the id it gets. Two
+    /// worlds with the same hash step on to the same bits. Not hashed: user
+    /// data, events, and the broadphase tree's shape, which decides only
+    /// the order a query meets the boxes in. The value changes between
+    /// library versions. Present in every build: it is how a divergence is
+    /// found.
     ///
     /// @param world  The world.
     /// @return The hash; 0 for a null world.

@@ -298,24 +298,6 @@ void m2TreeMove(m2DynamicTree* tree, m2TreeNode* nodes, int32_t proxy, m2Aabb aa
     Attach(tree, nodes, proxy, junction);
 }
 
-int32_t m2TreeQuery(const m2DynamicTree* tree, const m2TreeNode* nodes, m2Aabb aabb,
-                    int32_t* results, int32_t resultCapacity)
-{
-    m2TreeCursor cursor;
-    m2TreeBeginQuery(&cursor, tree, nodes, aabb);
-    int32_t count = 0;
-    int32_t userData;
-    while (m2TreeNextQuery(&cursor, &userData))
-    {
-        if (count < resultCapacity)
-        {
-            results[count] = userData;
-        }
-        count += 1;
-    }
-    return count;
-}
-
 void m2TreeBeginQuery(m2TreeCursor* cursor, const m2DynamicTree* tree, const m2TreeNode* nodes,
                       m2Aabb aabb)
 {
@@ -388,4 +370,24 @@ bool m2TreeValidate(const m2DynamicTree* tree, const m2TreeNode* nodes)
     }
     int32_t leaves = CheckSubtree(tree, nodes, tree->root);
     return leaves > 0 && tree->nodeCount == 2 * leaves - 1;
+}
+
+void m2TreeKeepLowest(int32_t* kept, int32_t* count, int32_t capacity, int32_t value)
+{
+    int32_t n = *count;
+    if (n == capacity)
+    {
+        if (n == 0 || value >= kept[n - 1])
+        {
+            return;
+        }
+        n -= 1; // the largest makes room
+    }
+    int32_t i = n;
+    for (; i > 0 && kept[i - 1] > value; --i)
+    {
+        kept[i] = kept[i - 1];
+    }
+    kept[i] = value;
+    *count = n + 1;
 }

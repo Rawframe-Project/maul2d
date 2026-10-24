@@ -75,8 +75,82 @@ static float DistanceToShape(const m2World* world, int32_t shape, m2Pos2 wp, flo
     return m2PointShapeDistance(&world->shapes.shapeGeometry[shape], local) - bulletRadius;
 }
 
+// Whether a shape the sweep overlaps may stop the bullet body: not a
+// sensor, not on the ghost side of a one-way chain, not the bullet itself
+// or another bullet, and allowed by the collision filters.
+static bool BulletMayHit(const m2World* world, int32_t body, int32_t shape)
+{
+    if (world->shapes.shapeSensor[shape] != 0)
+    {
+        return false; // sensors never block a bullet
+    }
+    if (world->shapes.shapeGeometry[shape].type == m2_chainSegmentShape)
+    {
+        // One-way platforms are one-way for bullets too: a
+        // sweep that begins on the ghost side never blocks.
+        // Same sign law as the contact and ray paths.
+        const m2ChainSegment* link = &world->shapes.shapeGeometry[shape].chainSegment;
+        int32_t chainBody = world->shapes.shapeBody[shape];
+        m2Transform cxf = world->bodies.transforms[chainBody];
+        m2Pos2 start = world->solver.ccdPrevPositions[body];
+        m2Vec2 rel = {(float)(start.x - cxf.p.x), (float)(start.y - cxf.p.y)};
+        m2Vec2 local = {cxf.q.c * rel.x + cxf.q.s * rel.y, -cxf.q.s * rel.x + cxf.q.c * rel.y};
+        m2Vec2 e = {link->segment.point2.x - link->segment.point1.x,
+                    link->segment.point2.y - link->segment.point1.y};
+        float offset =
+            (local.x - link->segment.point1.x) * e.y - (local.y - link->segment.point1.y) * e.x;
+        if (offset < 0.0f)
+        {
+            return false;
+        }
+    }
+    int32_t other = world->shapes.shapeBody[shape];
+    if (other == body || world->bodies.bullets[other] != 0)
+    {
+        return false; // self, or bullet-vs-bullet (excluded)
+    }
+    // Collision filters apply to bullets too: keep the
+    // candidate only if some bullet shape may hit it.
+    bool mayCollide = false;
+    for (int32_t bs = world->bodies.bodyShapeHead[body]; bs != -1; bs = world->shapes.shapeNext[bs])
+    {
+        int32_t group = world->shapes.shapeGroup[bs];
+        if (group != 0 && group == world->shapes.shapeGroup[shape])
+        {
+            mayCollide = mayCollide || group > 0;
+            continue;
+        }
+        mayCollide = mayCollide ||
+                     ((world->shapes.shapeCategory[bs] & world->shapes.shapeMask[shape]) != 0 &&
+                      (world->shapes.shapeCategory[shape] & world->shapes.shapeMask[bs]) != 0);
+    }
+    return mayCollide;
+}
+
+// The lowest M2_TOI_CANDIDATES shape slots in the sweep that may stop the
+// bullet, in ascending order whatever the tree's shape. Returns the count.
+static int32_t SweepCandidates(const m2World* world, int32_t body, m2Aabb sweep,
+                               int32_t* candidates)
+{
+    int32_t count = 0;
+    for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
+    {
+        m2TreeCursor cursor;
+        m2TreeBeginQuery(&cursor, &world->broadphase.trees[t], world->broadphase.treeNodes[t],
+                         sweep);
+        int32_t shape;
+        while (m2TreeNextQuery(&cursor, &shape))
+        {
+            if (BulletMayHit(world, body, shape))
+            {
+                m2TreeKeepLowest(candidates, &count, M2_TOI_CANDIDATES, shape);
+            }
+        }
+    }
+    return count;
+}
+
 // Sweep one bullet from p0 toward its current position; clamp on impact.
-// NOLINTNEXTLINE(readability-function-cognitive-complexity): one bullet sweep over its candidates
 static void SweepBullet(m2World* world, int32_t body, m2Pos2 p0)
 {
     m2Pos2 p1 = world->bodies.transforms[body].p;
@@ -97,85 +171,10 @@ static void SweepBullet(m2World* world, int32_t body, m2Pos2 p0)
     sweep.upperBound.y = (p0.y > p1.y ? p0.y : p1.y) + (double)bulletRadius;
 
     int32_t candidates[M2_TOI_CANDIDATES];
-    int32_t candidateCount = 0;
-    for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
-    {
-        int32_t results[M2_TOI_CANDIDATES];
-        int32_t hits = m2TreeQuery(&world->broadphase.trees[t], world->broadphase.treeNodes[t],
-                                   sweep, results, M2_TOI_CANDIDATES);
-        hits = hits <= M2_TOI_CANDIDATES ? hits : M2_TOI_CANDIDATES;
-        for (int32_t h = 0; h < hits && candidateCount < M2_TOI_CANDIDATES; ++h)
-        {
-            int32_t shape = results[h];
-            if (world->shapes.shapeSensor[shape] != 0)
-            {
-                continue; // sensors never block a bullet
-            }
-            if (world->shapes.shapeGeometry[shape].type == m2_chainSegmentShape)
-            {
-                // One-way platforms are one-way for bullets too: a
-                // sweep that begins on the ghost side never blocks.
-                // Same sign law as the contact and ray paths.
-                const m2ChainSegment* link = &world->shapes.shapeGeometry[shape].chainSegment;
-                int32_t chainBody = world->shapes.shapeBody[shape];
-                m2Transform cxf = world->bodies.transforms[chainBody];
-                m2Pos2 start = world->solver.ccdPrevPositions[body];
-                m2Vec2 rel = {(float)(start.x - cxf.p.x), (float)(start.y - cxf.p.y)};
-                m2Vec2 local = {cxf.q.c * rel.x + cxf.q.s * rel.y,
-                                -cxf.q.s * rel.x + cxf.q.c * rel.y};
-                m2Vec2 e = {link->segment.point2.x - link->segment.point1.x,
-                            link->segment.point2.y - link->segment.point1.y};
-                float offset = (local.x - link->segment.point1.x) * e.y -
-                               (local.y - link->segment.point1.y) * e.x;
-                if (offset < 0.0f)
-                {
-                    continue;
-                }
-            }
-            int32_t other = world->shapes.shapeBody[shape];
-            if (other == body || world->bodies.bullets[other] != 0)
-            {
-                continue; // self, or bullet-vs-bullet (excluded)
-            }
-            // Collision filters apply to bullets too: keep the
-            // candidate only if some bullet shape may hit it.
-            bool mayCollide = false;
-            for (int32_t bs = world->bodies.bodyShapeHead[body]; bs != -1;
-                 bs = world->shapes.shapeNext[bs])
-            {
-                int32_t group = world->shapes.shapeGroup[bs];
-                if (group != 0 && group == world->shapes.shapeGroup[shape])
-                {
-                    mayCollide = mayCollide || group > 0;
-                    continue;
-                }
-                mayCollide =
-                    mayCollide ||
-                    ((world->shapes.shapeCategory[bs] & world->shapes.shapeMask[shape]) != 0 &&
-                     (world->shapes.shapeCategory[shape] & world->shapes.shapeMask[bs]) != 0);
-            }
-            if (!mayCollide)
-            {
-                continue;
-            }
-            candidates[candidateCount++] = shape;
-        }
-    }
+    int32_t candidateCount = SweepCandidates(world, body, sweep, candidates);
     if (candidateCount == 0)
     {
         return;
-    }
-    // Canonical order regardless of tree traversal.
-    for (int32_t i = 1; i < candidateCount; ++i)
-    {
-        int32_t key = candidates[i];
-        int32_t j = i - 1;
-        while (j >= 0 && candidates[j] > key)
-        {
-            candidates[j + 1] = candidates[j];
-            j -= 1;
-        }
-        candidates[j + 1] = key;
     }
 
     // Conservative advancement to the earliest impact across candidates.

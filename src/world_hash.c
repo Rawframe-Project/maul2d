@@ -5,6 +5,10 @@
 
 #include "world_hash.h"
 
+#include "dynamic_tree.h"
+
+#include <string.h>
+
 // An id pool: where the next object lands and which id it gets.
 typedef struct m2HashPool
 {
@@ -60,6 +64,35 @@ uint64_t m2HashPools(const m2World* world, m2HashPart part, uint64_t h)
         {
             h = HashPool(&pools[i], h);
         }
+    }
+    return h;
+}
+
+uint64_t m2HashFatBoxes(const m2World* world, m2HashPart part, uint64_t h)
+{
+    if (part != m2_hashAll && part != m2_hashBodies)
+    {
+        return h;
+    }
+    const m2Shapes* shapes = &world->shapes;
+    for (int32_t s = 0; s < shapes->maxShapeIndex; ++s)
+    {
+        if (shapes->shapeAlive[s] == 0)
+        {
+            continue;
+        }
+        int32_t proxy = world->broadphase.proxyIds[s];
+        uint8_t present = proxy != M2_NULL_NODE ? 1 : 0;
+        m2Aabb box;
+        memset(&box, 0, sizeof(box));
+        if (present != 0)
+        {
+            uint8_t tree = world->bodies.types[shapes->shapeBody[s]];
+            box = world->broadphase.treeNodes[tree][proxy].aabb;
+        }
+        h = m2Hash64(h, &s, (int32_t)sizeof(s));
+        h = m2Hash64(h, &present, 1);
+        h = m2Hash64(h, &box, (int32_t)sizeof(box));
     }
     return h;
 }

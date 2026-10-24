@@ -188,7 +188,8 @@ static const m2StateArray s_state[] = {
     M2_STATE_CHECKED(shapes.shapeFreeQueue, int32_t, shape, 0, M2_STATE_SNAPSHOT, index, shape),
     M2_STATE_CHECKED(broadphase.proxyIds, int32_t, shape, 0, M2_STATE_SNAPSHOT, indexOrNone,
                      treeNode),
-    M2_STATE_CHECKED(broadphase.inMoved, uint8_t, shape, 0, M2_STATE_SNAPSHOT, bool, one),
+    M2_STATE_CHECKED(broadphase.inMoved, uint8_t, shape, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH, bool,
+                     one),
     M2_STATE_CHECKED(broadphase.moved, int32_t, shape, 0, M2_STATE_SNAPSHOT, index, shape),
     M2_STATE_INLINE_CHECKED(joints.maxJointIndex, M2_STATE_SNAPSHOT, count, joint),
     M2_STATE_INLINE_CHECKED(joints.jointFreeHead, M2_STATE_SNAPSHOT, cursor, joint),
@@ -944,5 +945,5 @@ uint64_t m2StateHash(const m2World* world, m2HashPart part)
             h = HashArray(world, array, part, h);
         }
     }
-    return m2HashPools(world, part, h);
+    return m2HashPools(world, part, m2HashFatBoxes(world, part, h));
 }

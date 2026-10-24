@@ -829,8 +829,130 @@ static void TestFarParticlesStep(void)
     m2DestroyWorld(world);
 }
 
+// Gives a world one of four tree histories. Every body is teleported in
+// place, which marks it moved; with history 1 to 3 it first goes far away
+// and back, in reverse, forward or interleaved order, so its leaf is
+// reinserted and the tree takes another shape while every pose and fat
+// box comes back the same. The worlds then hash the same and differ only
+// in their trees.
+static void Reshuffle(m2World* world, const m2BodyId* ids, int32_t count, int32_t history)
+{
+    m2World_Step(world, 1.0f / 60.0f, 4); // the creation's moved flags clear
+    m2Transform homes[64];
+    for (int32_t i = 0; i < count; ++i)
+    {
+        homes[i] = m2Body_GetTransform(world, ids[i]);
+    }
+    for (int32_t k = 0; k < count && history != 0; ++k)
+    {
+        int32_t i = history == 1 ? count - 1 - k : history == 3 ? (k * 7) % count : k;
+        m2Pos2 away = {homes[i].p.x + 1000.0, homes[i].p.y};
+        m2Body_SetTransform(world, ids[i], away, homes[i].q);
+    }
+    for (int32_t i = 0; i < count; ++i)
+    {
+        m2Body_SetTransform(world, ids[i], homes[i].p, homes[i].q);
+    }
+}
+
+static m2World* FieldWorld(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 64;
+    def.shapeCapacity = 64;
+    def.particleCapacity = 64;
+    def.gravity = (m2Vec2){0.0f, 0.0f};
+    return NewWorld(&def);
+}
+
+// 64 thin overlapping walls 2 mm apart, created in a scrambled, mirrored
+// order so slots do not follow position: a particle among them has more
+// candidate shapes than the cap.
+static m2World* WallField(int32_t history)
+{
+    m2World* world = FieldWorld();
+    m2BodyId ids[64];
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon slab = m2MakeBox(0.01f, 2.0f);
+    for (int32_t i = 0; i < 64; ++i)
+    {
+        m2BodyDef wd = m2DefaultBodyDef();
+        wd.position = (m2Pos2){0.002 * (double)(63 - (i * 37) % 64), 0.0};
+        ids[i] = NewBody(world, &wd);
+        NewPolygonShape(world, ids[i], &sd, &slab);
+    }
+    Reshuffle(world, ids, 64, history);
+    for (int32_t k = 0; k < 8; ++k)
+    {
+        double y = -1.0 + 0.25 * (double)k;
+        EmitParticle(world, (m2Pos2){-0.2, y}, (m2Vec2){20.0f, 0.0f}, 0);
+        EmitParticle(world, (m2Pos2){0.06, y}, (m2Vec2){0.0f, 0.0f}, 0);
+    }
+    return world;
+}
+
+// A wall across the diagonal at (0.25, 0.25), created after 40 small
+// circles that sit in the corner of a diagonal sweep's box, off its ray: a
+// particle swept along the diagonal has more candidate shapes than the
+// cap, and only the wall stops it.
+static m2World* CrossingField(int32_t history)
+{
+    m2World* world = FieldWorld();
+    m2BodyId ids[41];
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Circle dot = {{0.0f, 0.0f}, 0.008f};
+    for (int32_t i = 0; i < 40; ++i)
+    {
+        m2BodyDef cd = m2DefaultBodyDef();
+        cd.position = (m2Pos2){0.35 + 0.02 * (double)(i % 8), 0.025 * (double)(i / 8)};
+        ids[i] = NewBody(world, &cd);
+        NewCircleShape(world, ids[i], &sd, &dot);
+    }
+    m2BodyDef wd = m2DefaultBodyDef();
+    wd.position = (m2Pos2){0.25, 0.25};
+    wd.rotation = m2MakeRot(-0.25f * M2_PI);
+    ids[40] = NewBody(world, &wd);
+    m2Polygon slab = m2MakeBox(0.01f, 0.3f);
+    NewPolygonShape(world, ids[40], &sd, &slab);
+    Reshuffle(world, ids, 41, history);
+    EmitParticle(world, (m2Pos2){0.0, 0.0}, (m2Vec2){30.0f, 30.0f}, 0);
+    return world;
+}
+
+// Particles with more candidate shapes than the cap, resting among them
+// or sweeping past them, keep the same candidates whatever the tree's
+// history: the two fields of each kind hash the same and step on alike.
+static void TestCappedCandidatesIgnoreTreeHistory(void)
+{
+    m2World* (*const fields[2])(int32_t) = {WallField, CrossingField};
+    for (int32_t k = 0; k < 2; ++k)
+    {
+        for (int32_t history = 1; history < 4; ++history)
+        {
+            m2World* plain = fields[k](0);
+            m2World* reshuffled = fields[k](history);
+            CHECK(m2World_Hash(plain) == m2World_Hash(reshuffled), "the fields hash the same");
+            bool same = true;
+            for (int32_t i = 0; i < 30 && same; ++i)
+            {
+                m2World_Step(plain, 1.0f / 60.0f, 4);
+                m2World_Step(reshuffled, 1.0f / 60.0f, 4);
+                same = m2World_Hash(plain) == m2World_Hash(reshuffled);
+            }
+            if (!same)
+            {
+                printf("field %d, history %d diverged\n", (int)k, (int)history);
+            }
+            CHECK(same, "and step on to the same bits");
+            m2DestroyWorld(plain);
+            m2DestroyWorld(reshuffled);
+        }
+    }
+}
+
 int main(void)
 {
+    TestCappedCandidatesIgnoreTreeHistory();
     TestLifecycle();
     TestFarParticlesStep();
     TestOverflowIsQuiet();
