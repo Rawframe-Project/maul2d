@@ -54,6 +54,15 @@ static bool BodyDefValid(const m2BodyDef* def)
            def->angularDamping >= 0.0f;
 }
 
+// A static body never moves, so its def carries no velocity, as its
+// velocity setters take none.
+static bool StaticDefIsStill(const m2BodyDef* def)
+{
+    return def->type != m2_staticBody ||
+           (def->linearVelocity.x == 0.0f && def->linearVelocity.y == 0.0f &&
+            def->angularVelocity == 0.0f);
+}
+
 m2Result m2CreateBody(m2World* world, const m2BodyDef* def, m2BodyId* bodyOut)
 {
     if (bodyOut == NULL)
@@ -66,7 +75,8 @@ m2Result m2CreateBody(m2World* world, const m2BodyDef* def, m2BodyId* bodyOut)
     {
         return writer;
     }
-    if (def == NULL || def->internalValue != M2_BODY_COOKIE || !BodyDefValid(def))
+    if (def == NULL || def->internalValue != M2_BODY_COOKIE || !BodyDefValid(def) ||
+        !StaticDefIsStill(def))
     {
         return m2Refuse(world, m2_errorInvalid);
     }

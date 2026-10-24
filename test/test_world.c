@@ -1784,8 +1784,6 @@ static void TestDefsMatchWhatARestoreAccepts(void)
     m2BodyDef edge = m2DefaultBodyDef();
     edge.position = (m2Pos2){DBL_MAX, -DBL_MAX};
     edge.rotation = (m2Rot){0.0f, 1.0e-30f};
-    edge.linearVelocity = (m2Vec2){FLT_MAX, -FLT_MAX};
-    edge.angularVelocity = -FLT_MAX;
     edge.gravityScale = -FLT_MAX;
     edge.linearDamping = -0.0f;
     edge.angularDamping = FLT_MAX;
@@ -1793,6 +1791,9 @@ static void TestDefsMatchWhatARestoreAccepts(void)
     for (int32_t type = m2_staticBody; type <= m2_dynamicBody; ++type)
     {
         edge.type = (m2BodyType)type;
+        bool still = edge.type == m2_staticBody; // a static def has no velocity
+        edge.linearVelocity = still ? (m2Vec2){-0.0f, 0.0f} : (m2Vec2){FLT_MAX, -FLT_MAX};
+        edge.angularVelocity = still ? -0.0f : -FLT_MAX;
         m2Rot q = m2Body_GetRotation(world, NewBody(world, &edge));
         CHECK(q.c == 0.0f && q.s == 1.0f, "a tiny rotation keeps its direction");
     }
@@ -2231,6 +2232,46 @@ static void TestStaleIdsInStatusCalls(void)
           "a stale getter returns the zeroed value");
     CHECK(!m2Body_IsValid(world, body), "a validity query counts nothing");
     CHECK(m2World_GetCounters(world).misuse == misuse + 4, "each stale use counts once");
+    m2DestroyWorld(world);
+}
+
+// A static body never moves: the velocity setters refuse it and count one
+// misuse each, while a kinematic body takes them.
+static void TestStaticBodiesHaveNoVelocity(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2BodyId wall = NewBody(world, &bd);
+    bd.type = m2_kinematicBody;
+    m2BodyId lift = NewBody(world, &bd);
+
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    m2Body_SetLinearVelocity(world, wall, (m2Vec2){1.0f, 0.0f});
+    m2Body_SetAngularVelocity(world, wall, 1.0f);
+    m2Body_SetTargetTransform(world, wall, (m2Pos2){1.0, 0.0}, (m2Rot){1.0f, 0.0f}, 1.0f / 60.0f);
+    CHECK(m2World_GetCounters(world).misuse == misuse + 3, "each call on a static body counts");
+    CHECK(m2Body_GetLinearVelocity(world, wall).x == 0.0f &&
+              m2Body_GetAngularVelocity(world, wall) == 0.0f,
+          "and leaves it still");
+
+    m2Body_SetLinearVelocity(world, lift, (m2Vec2){0.0f, 1.0f});
+    m2Body_SetAngularVelocity(world, lift, 0.5f);
+    CHECK(m2World_GetCounters(world).misuse == misuse + 3, "a kinematic body takes them");
+    CHECK(m2Body_GetLinearVelocity(world, lift).y == 1.0f, "and moves");
+
+    m2BodyDef moving = m2DefaultBodyDef();
+    moving.linearVelocity = (m2Vec2){0.0f, 1.0f};
+    m2BodyId made = {7, 7};
+    CHECK(m2CreateBody(world, &moving, &made) == m2_errorInvalid && made.index1 == 0,
+          "a static def with a linear velocity is refused");
+    moving.linearVelocity = (m2Vec2){0.0f, 0.0f};
+    moving.angularVelocity = 1.0f;
+    CHECK(m2CreateBody(world, &moving, &made) == m2_errorInvalid && made.index1 == 0,
+          "and one with an angular velocity");
+    CHECK(m2World_GetCounters(world).misuse == misuse + 5, "each counts one misuse");
+    moving.type = m2_kinematicBody;
+    CHECK(m2CreateBody(world, &moving, &made) == m2_success, "a kinematic def keeps its velocity");
     m2DestroyWorld(world);
 }
 
@@ -2971,6 +3012,7 @@ int main(void)
     TestHostCodeMistakesCountMidReplay();
     TestStaleIdsInStatusCalls();
     TestStaleIdsCountInEveryCall();
+    TestStaticBodiesHaveNoVelocity();
     TestRuntimeGravity();
     TestDominance();
     TestShatterBody();
