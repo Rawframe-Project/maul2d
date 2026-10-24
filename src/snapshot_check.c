@@ -23,6 +23,7 @@
 
 #include "core.h"
 #include "dynamic_tree.h"
+#include "geometry.h"
 #include "world_state.h"
 
 #include "maul2d/base.h"
@@ -334,6 +335,29 @@ static bool CheckJoints(const m2World* world, const uint8_t* in)
     return true;
 }
 
+// Every live shape's geometry is one the library would keep: valid for its
+// type, and a polygon exactly as the library builds it from its vertices,
+// normals included.
+static bool CheckGeometry(const m2World* world, const uint8_t* in)
+{
+    const uint8_t* shapeAlive = M2_IN(shapes.shapeAlive);
+    const uint8_t* geometries = M2_IN(shapes.shapeGeometry);
+    for (int32_t s = 0; s < world->shapes.shapeCapacity; ++s)
+    {
+        if (shapeAlive[s] == 0)
+        {
+            continue;
+        }
+        m2ShapeGeometry geometry;
+        memcpy(&geometry, geometries + (size_t)s * sizeof(geometry), sizeof(geometry));
+        if (!m2GeometryIsCanonical(&geometry))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 // --- Broadphase trees -------------------------------------------------------
 
 // What a tree's leaves must agree with: the shapes and the bodies they
@@ -572,6 +596,6 @@ static bool CheckPairs(const m2World* world, const uint8_t* in)
 bool m2SnapshotCheck(m2World* world, const uint8_t* in)
 {
     return CheckPools(world, in) && CheckShapeLists(world, in) && CheckChains(world, in) &&
-           CheckJoints(world, in) && CheckTrees(world, in) && CheckMoved(world, in) &&
-           CheckPairs(world, in);
+           CheckJoints(world, in) && CheckGeometry(world, in) && CheckTrees(world, in) &&
+           CheckMoved(world, in) && CheckPairs(world, in);
 }

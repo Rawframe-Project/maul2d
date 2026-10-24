@@ -273,6 +273,10 @@ m2Result m2CreateShape(m2World* world, m2BodyId bodyId, const m2ShapeDef* def,
         memset(&geometry, 0, sizeof(geometry));                                                    \
         geometry.type = enumValue;                                                                 \
         geometry.member = *geom;                                                                   \
+        if (!m2CanonicalizeGeometry(&geometry))                                                    \
+        {                                                                                          \
+            return m2Refuse(world, m2_errorInvalid);                                               \
+        }                                                                                          \
         return m2CreateShape(world, bodyId, def, &geometry, shapeOut);                             \
     }
 
@@ -614,7 +618,7 @@ void m2Shape_SetPolygon(m2World* world, m2ShapeId shapeId, const m2Polygon* poly
     m2ShapeGeometry g;
     memset(&g, 0, sizeof(g));
     g.type = m2_polygonShape;
-    g.polygon = *polygon;
+    g.polygon = m2CanonicalPolygon(polygon); // the caller's normals are not kept
     SetGeometryInternal(world, shapeId, index, &g);
 }
 
