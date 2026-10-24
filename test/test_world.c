@@ -1862,6 +1862,56 @@ static void TestRestoreRefusesANonUnitRotation(void)
     m2DestroyWorld(world);
 }
 
+// A step takes at most M2_MAX_SUBSTEPS substeps, from a program or from
+// a tape. fuzz_journal found a one-byte edit of a tape's step record that
+// asked for millions and stalled the replay.
+static void TestSubstepCap(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    m2World_Step(world, 1.0f / 60.0f, M2_MAX_SUBSTEPS + 1);
+    CHECK(m2World_GetStepCount(world) == 0 && m2World_GetCounters(world).misuse == misuse + 1,
+          "a step above the cap changes nothing and counts one misuse");
+    m2World_Step(world, 1.0f / 60.0f, M2_MAX_SUBSTEPS);
+    CHECK(m2World_GetStepCount(world) == 1 && m2World_GetCounters(world).misuse == misuse + 1,
+          "a step at the cap runs");
+
+    int32_t capacity = m2World_GetJournalBaseSize(world) + 1024;
+    uint8_t* tape = (uint8_t*)malloc((size_t)capacity);
+    CHECK(tape != NULL && StartJournal(world, tape, capacity), "the journal starts");
+    m2World_Step(world, 1.0f / 60.0f, 4);
+    int32_t bytes = StopJournal(world);
+    // The step record's payload: dt, then the substep count.
+    struct
+    {
+        float dt;
+        int32_t substepCount;
+    } record = {1.0f / 60.0f, 4};
+    int32_t at = -1;
+    for (int32_t i = 0; i + (int32_t)sizeof(record) <= bytes; ++i)
+    {
+        if (memcmp(tape + i, &record, sizeof(record)) == 0)
+        {
+            at = i;
+        }
+    }
+    CHECK(at >= 0, "the tape holds the step record");
+    record.substepCount = 0x00B30004;
+    if (at >= 0)
+    {
+        memcpy(tape + at, &record, sizeof(record)); // the fuzz input's edit
+    }
+    m2World* replica = NewWorld(&def);
+    misuse = m2World_GetCounters(replica).misuse;
+    (void)m2World_ReplayJournal(replica, tape, bytes);
+    CHECK(m2World_GetStepCount(replica) == 1, "the tape's oversized step is skipped");
+    CHECK(m2World_GetCounters(replica).misuse == misuse, "and counts nothing");
+    m2DestroyWorld(replica);
+    free(tape);
+    m2DestroyWorld(world);
+}
+
 // Host code a world runs, a task hook or a debug draw callback, tries to
 // change the world it serves. Every writer refuses: a status writer with
 // m2_errorState, a void writer by counting one misuse.
@@ -3004,6 +3054,7 @@ int main(void)
     TestCreateWorldOutOfMemory();
     TestInfiniteInputIsRefused();
     TestDefsMatchWhatARestoreAccepts();
+    TestSubstepCap();
     TestRestoreRefusesANonUnitRotation();
     TestEveryRefusalHasAReason();
     TestHostCodeCannotWrite();

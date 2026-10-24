@@ -382,12 +382,14 @@ extern "C"
     /// Advances the simulation. Identical worlds given identical calls
     /// reach identical bits on every supported platform. Feed the same dt
     /// every step: 1/60 with 4 substeps is the tuned default. A non-finite
-    /// or non-positive dt or a substep count below 1 counts one misuse.
-    /// Journaled.
+    /// or non-positive dt, or a substep count below 1 or above
+    /// M2_MAX_SUBSTEPS, changes nothing and counts one misuse. Journaled.
     ///
     /// @param world         The world.
-    /// @param dt            The step, seconds.
-    /// @param substepCount  The solver substeps, at least 1.
+    /// @param dt            The step, seconds; positive and finite, and
+    ///                      bounded by nothing else: the solver's speed
+    ///                      caps keep a long step finite.
+    /// @param substepCount  The solver substeps, 1 to M2_MAX_SUBSTEPS.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_API void m2World_Step(m2World* world, float dt, int32_t substepCount);

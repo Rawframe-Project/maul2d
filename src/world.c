@@ -428,7 +428,7 @@ void m2World_Step(m2World* world, float dt, int32_t substepCount)
     {
         return;
     }
-    if (!m2FiniteF(dt) || !(dt > 0.0f) || substepCount < 1)
+    if (!m2FiniteF(dt) || !(dt > 0.0f) || substepCount < 1 || substepCount > M2_MAX_SUBSTEPS)
     {
         m2Refuse(world, m2_errorInvalid);
         return;

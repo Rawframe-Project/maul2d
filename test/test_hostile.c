@@ -419,18 +419,22 @@ static void TestDecomposeAdversaries(void)
 
     // Outlines that touch themselves without crossing, found by
     // fuzz_geometry: their pieces could cover what the outline cuts out.
+    // The second point lies on the fourth edge, p3 to p4.
     const m2Vec2 onEdge[5] = {{10.125f, -13.5f},
                               {0.125f, 0.375f},
                               {0.375f, 10.125f},
                               {0.375f, 0.375f},
-                              {-15.875f, 0.375f}}; // the second point lies on the last edge
+                              {-15.875f, 0.375f}};
     const m2Vec2 repeated[6] = {{0.0f, 0.0f}, {2.0f, 0.0f}, {1.0f, 1.0f},
                                 {2.0f, 2.0f}, {0.0f, 2.0f}, {1.0f, 1.0f}};
     const m2Vec2 folded[5] = {{0.0f, 0.0f}, {2.0f, 0.0f}, {2.0f, 2.0f}, {2.0f, 1.0f}, {0.0f, 2.0f}};
+    const m2Vec2 overshot[6] = {{0.0f, 0.0f}, {3.0f, 0.0f}, {3.0f, 1.0f},
+                                {3.0f, 3.0f}, {3.0f, 0.5f}, {0.0f, 3.0f}}; // folds back past (3, 1)
     int32_t untouched = 7;
     CHECK(m2DecomposeOutline(onEdge, 5, pieces, 24, &untouched) == m2_errorInvalid &&
               m2DecomposeOutline(repeated, 6, pieces, 24, &untouched) == m2_errorInvalid &&
-              m2DecomposeOutline(folded, 5, pieces, 24, &untouched) == m2_errorInvalid,
+              m2DecomposeOutline(folded, 5, pieces, 24, &untouched) == m2_errorInvalid &&
+              m2DecomposeOutline(overshot, 6, pieces, 24, &untouched) == m2_errorInvalid,
           "an outline that touches itself is refused");
     CHECK(untouched == 7, "and leaves the count as it was");
 }

@@ -588,7 +588,9 @@ static bool DecompSegmentsMeet(m2Vec2 a, m2Vec2 b, m2Vec2 c, m2Vec2 d)
 }
 
 // Whether the corner at b folds the outline straight back over the edge
-// it arrived on: a spike of zero width.
+// it arrived on: a spike of zero width. The edge test alone would catch a
+// fold through a different cross product when the fold overshoots, and
+// rounding can tell the two apart, so the corner is tested exactly here.
 static bool DecompFoldsBack(m2Vec2 a, m2Vec2 b, m2Vec2 c)
 {
     return DecompCross(a, b, c) == 0.0f &&
