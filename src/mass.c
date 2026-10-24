@@ -49,6 +49,11 @@ void m2RecomputeMass(m2World* world, int32_t bodyIndex)
     float invMass = 1.0f / mass;
     center.x *= invMass;
     center.y *= invMass;
+    // Every shape lies within M2_HUGE, so the true center does too; the
+    // rounding of the weighted mean can still carry it an ulp past, and
+    // the snapshot holds centers to the bound.
+    center.x = m2ClampF(center.x, -M2_HUGE, M2_HUGE);
+    center.y = m2ClampF(center.y, -M2_HUGE, M2_HUGE);
 
     // Second pass: accumulate inertia about the body COM. Each shape's
     // centroid inertia plus mass times the (small) offset from the COM,

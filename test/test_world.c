@@ -3051,7 +3051,8 @@ static void TestWind(void)
 
 // m2Body_SetMassData refuses mass data the world could not keep: each
 // refusal counts one misuse and leaves the mass data as it was, bit for
-// bit. Data read back from a body always sets again.
+// bit. Data read back from a body sets again whenever its mass and
+// inertia read back finite, which only an extreme density can break.
 static void TestSetMassDataChecksEveryField(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
@@ -3116,8 +3117,41 @@ static void TestSetMassDataChecksEveryField(void)
     m2DestroyWorld(world);
 }
 
+// A body whose shapes all sit at M2_HUGE has its center there: the
+// weighted mean's rounding must not carry it past the bound the snapshot
+// checks, whatever the density.
+static void TestCentersAtTheBoundRestore(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 64;
+    def.shapeCapacity = 128;
+    m2World* world = NewWorld(&def);
+    m2BodyDef bodyDef = m2DefaultBodyDef();
+    bodyDef.type = m2_dynamicBody;
+    m2ShapeDef shapeDef = m2DefaultShapeDef();
+    const m2Circle edge = {{M2_HUGE, -M2_HUGE}, 0.1f};
+    for (int32_t i = 0; i < 64; ++i)
+    {
+        bodyDef.position = (m2Pos2){(double)i * 10.0, 0.0};
+        m2BodyId body = NewBody(world, &bodyDef);
+        shapeDef.density = 0.1f + 0.37f * (float)i;
+        NewCircleShape(world, body, &shapeDef, &edge);
+        NewCircleShape(world, body, &shapeDef, &edge);
+        m2Vec2 center = m2Body_GetLocalCenter(world, body);
+        CHECK(center.x <= M2_HUGE && center.y >= -M2_HUGE, "the center stays within M2_HUGE");
+    }
+    int32_t size = m2World_SnapshotSize(world);
+    void* snapshot = malloc((size_t)size);
+    CHECK(snapshot != NULL && Snapshot(world, snapshot, size) == size &&
+              Restore(world, snapshot, size),
+          "and the world's snapshot restores");
+    free(snapshot);
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
+    TestCentersAtTheBoundRestore();
     TestSetMassDataChecksEveryField();
     TestCreateWorldOutOfMemory();
     TestInfiniteInputIsRefused();
