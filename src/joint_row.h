@@ -48,12 +48,22 @@ typedef struct m2RowDrive
 #define M2_ROW_FREE 3.0e38f
 
 // A safety bound, like the solver's speed caps: no accumulated impulse
-// may change its row's speed by more than this. Rows that contradict
-// each other (two joints that cannot both hold) fight through the
-// softness leak and grow their impulses without limit; this holds them
-// finite instead of letting them overflow into a NaN. Ordinary scenes
-// never come near it.
+// may change its row's speed by more than this, nor pass M2_IMPULSE_LIMIT.
+// Rows that contradict each other (two joints that cannot both hold)
+// fight through the softness leak and grow their impulses without limit;
+// this holds them finite instead of letting them overflow into a NaN.
+// Ordinary scenes never come near it.
 #define M2_ROW_SPEED_BOUND 1.0e8f
+
+// The largest coupling a 2x2 solve multiplies by another: a row whose
+// effective mass is below 1e-19 is solved alone instead, so k11 k22 stays
+// within a float.
+#define M2_PAIR_COUPLING_MAX 1.0e19f
+
+// A limit row's gap is held within this before it becomes a speed: every
+// real gap is within the reach plus a lever, and an open-ended limit
+// (the distance joint's unbounded length) stays finite.
+#define M2_LIMIT_GAP_MAX (4.0f * (float)M2_JOINT_REACH)
 
 // B's point minus A's point moving along u, where u is fixed in the world
 // (leverA = A's arm) or turns with A (leverA = A's arm plus the gap).
@@ -88,6 +98,17 @@ static inline float m2RowSpeed(const m2JointRow* row, const m2JointBodies* b)
 // The row's effective mass, zero when the row cannot move.
 float m2RowMass(const m2JointRow* row, const m2JointBodies* b);
 
+// Holds both bodies' velocities within M2_MAX_SPEED, after every push.
+static inline void m2SaturateBodies(m2JointBodies* b)
+{
+    b->vA.x = m2SaturateF(b->vA.x, M2_MAX_SPEED);
+    b->vA.y = m2SaturateF(b->vA.y, M2_MAX_SPEED);
+    b->wA = m2SaturateF(b->wA, M2_MAX_SPEED);
+    b->vB.x = m2SaturateF(b->vB.x, M2_MAX_SPEED);
+    b->vB.y = m2SaturateF(b->vB.y, M2_MAX_SPEED);
+    b->wB = m2SaturateF(b->wB, M2_MAX_SPEED);
+}
+
 static inline void m2PushRow(const m2JointRow* row, m2JointBodies* b, float impulse)
 {
     b->vA.x += b->mA * impulse * row->linA.x;
@@ -96,6 +117,7 @@ static inline void m2PushRow(const m2JointRow* row, m2JointBodies* b, float impu
     b->vB.x += b->mB * impulse * row->linB.x;
     b->vB.y += b->mB * impulse * row->linB.y;
     b->wB += b->iB * impulse * row->angB;
+    m2SaturateBodies(b);
 }
 
 // Solves one row with its accumulated impulse held in [lo, hi] and
@@ -151,6 +173,7 @@ static inline m2RowDrive m2HeldDrive(m2Softness soft, float C, bool biased)
 
 static inline m2RowDrive m2LimitDrive(m2Softness soft, float C, float invH, bool biased)
 {
+    C = m2MinF(C, M2_LIMIT_GAP_MAX);
     return C > 0.0f ? m2RigidDrive(C * invH) : m2HeldDrive(soft, C, biased);
 }
 

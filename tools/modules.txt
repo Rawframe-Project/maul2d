@@ -59,7 +59,7 @@ simd:
 snapshot: joint joint_edges journal snapshot_check world_internal world_state
 snapshot_check: core dynamic_tree geometry mass world_internal world_state
 solver: ccd contact_solver joint joint_solver rotation world_internal
-solver_base:
+solver_base: core
 world: allocator broadphase buoyancy contact cpu island journal parallel particle solver world_internal world_state
 world_internal: allocator core dynamic_tree geometry
 world_hash: dynamic_tree world_internal

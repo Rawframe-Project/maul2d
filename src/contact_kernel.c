@@ -148,17 +148,24 @@ static m2f8 RelativeSpeed(const Pair* p, const Arms* r, m2f8 dx, m2f8 dy)
     return m2F8MulAdd(y, dy, m2F8Mul(x, dx));
 }
 
-// Applies the impulse (px, py) to B and its opposite to A.
+// x held within M2_MAX_SPEED.
+static m2f8 SaturateSpeed(m2f8 x)
+{
+    return m2F8Min(m2F8Max(x, m2F8Set1(-M2_MAX_SPEED)), m2F8Set1(M2_MAX_SPEED));
+}
+
+// Applies the impulse (px, py) to B and its opposite to A; every velocity
+// is held within M2_MAX_SPEED.
 static void ApplyImpulse(Pair* p, const Arms* r, m2f8 px, m2f8 py)
 {
     m2f8 torqueA = m2F8NegMulAdd(r->ay, px, m2F8Mul(r->ax, py));
     m2f8 torqueB = m2F8NegMulAdd(r->by, px, m2F8Mul(r->bx, py));
-    p->vAx = m2F8NegMulAdd(p->mA, px, p->vAx);
-    p->vAy = m2F8NegMulAdd(p->mA, py, p->vAy);
-    p->wA = m2F8NegMulAdd(p->iA, torqueA, p->wA);
-    p->vBx = m2F8MulAdd(p->mB, px, p->vBx);
-    p->vBy = m2F8MulAdd(p->mB, py, p->vBy);
-    p->wB = m2F8MulAdd(p->iB, torqueB, p->wB);
+    p->vAx = SaturateSpeed(m2F8NegMulAdd(p->mA, px, p->vAx));
+    p->vAy = SaturateSpeed(m2F8NegMulAdd(p->mA, py, p->vAy));
+    p->wA = SaturateSpeed(m2F8NegMulAdd(p->iA, torqueA, p->wA));
+    p->vBx = SaturateSpeed(m2F8MulAdd(p->mB, px, p->vBx));
+    p->vBy = SaturateSpeed(m2F8MulAdd(p->mB, py, p->vBy));
+    p->wB = SaturateSpeed(m2F8MulAdd(p->iB, torqueB, p->wB));
 }
 
 // The separation now. The rows keep their prepare-time arms; only the
@@ -187,6 +194,7 @@ static void NormalRows(Pair* p, m2ContactBlock* b, const Drift* d, bool soft, fl
     m2f8 zero = m2F8Zero();
     m2f8 one = m2F8Set1(1.0f);
     m2f8 maxPush = m2F8Set1(-M2_CONTACT_PUSH_MAX_SPEED);
+    m2f8 limit = m2F8Set1(M2_IMPULSE_LIMIT);
     m2f8 pushRate = m2F8Load(b->pushRate);
     m2f8 softScale = soft ? m2F8Load(b->massScale) : one;
     m2f8 softDecay = soft ? m2F8Load(b->impulseScale) : zero;
@@ -205,7 +213,7 @@ static void NormalRows(Pair* p, m2ContactBlock* b, const Drift* d, bool soft, fl
         m2f8 old = m2F8Load(point->normalImpulse);
         m2f8 impulse = m2F8NegMulAdd(m2F8Load(point->normalMass), m2F8MulAdd(scale, vn, target),
                                      m2F8Neg(m2F8Mul(decay, old)));
-        m2f8 total = m2F8Max(m2F8Add(old, impulse), zero);
+        m2f8 total = m2F8Min(m2F8Max(m2F8Add(old, impulse), zero), limit);
         m2F8Store(point->normalImpulse, total);
         impulse = m2F8Sub(total, old);
         ApplyImpulse(p, &r, m2F8Mul(impulse, p->nx), m2F8Mul(impulse, p->ny));
@@ -221,13 +229,14 @@ static void FrictionRows(Pair* p, m2ContactBlock* b, bool reversed)
     m2f8 ty = p->nx;
     m2f8 friction = m2F8Load(b->friction);
     m2f8 belt = m2F8Load(b->beltSpeed);
+    m2f8 limit = m2F8Set1(M2_IMPULSE_LIMIT);
     for (int32_t i = 0; i < b->pointCount; ++i)
     {
         m2LanePoint* point = &b->points[reversed ? b->pointCount - 1 - i : i];
         Arms r = LoadArms(point);
         m2f8 vt = m2F8Add(RelativeSpeed(p, &r, tx, ty), belt);
         m2f8 old = m2F8Load(point->tangentImpulse);
-        m2f8 bound = m2F8Mul(friction, m2F8Load(point->normalImpulse));
+        m2f8 bound = m2F8Min(m2F8Mul(friction, m2F8Load(point->normalImpulse)), limit);
         m2f8 total = m2F8NegMulAdd(m2F8Load(point->tangentMass), vt, old);
         total = m2F8Min(m2F8Max(total, m2F8Neg(bound)), bound);
         m2F8Store(point->tangentImpulse, total);
@@ -259,6 +268,7 @@ static void Restitution(Pair* p, m2ContactBlock* b)
     m2f8 slow = m2F8Set1(-M2_RESTITUTION_THRESHOLD);
     m2f8 restitution = m2F8Load(b->restitution);
     m2f8 bouncy = m2F8GT(restitution, zero);
+    m2f8 limit = m2F8Set1(M2_IMPULSE_LIMIT);
     for (int32_t k = 0; k < b->pointCount; ++k)
     {
         m2LanePoint* point = &b->points[k];
@@ -268,7 +278,7 @@ static void Restitution(Pair* p, m2ContactBlock* b)
         m2f8 vn = RelativeSpeed(p, &r, p->nx, p->ny);
         m2f8 impulse =
             m2F8Neg(m2F8Mul(m2F8Load(point->normalMass), m2F8MulAdd(restitution, approach, vn)));
-        m2f8 total = m2F8Max(m2F8Add(old, impulse), zero);
+        m2f8 total = m2F8Min(m2F8Max(m2F8Add(old, impulse), zero), limit);
         total = m2F8Select(m2F8GT(old, zero), total, old);
         total = m2F8Select(m2F8GT(approach, slow), old, total);
         total = m2F8Select(bouncy, total, old);

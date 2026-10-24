@@ -229,8 +229,8 @@ extern "C"
 // body's accumulated load and a motor's budget.
 #define M2_MAX_FORCE 1.0e20f
 
-// The largest impulse per axis, in N s (or N m s), that one call
-// applies.
+// The largest impulse per axis, in N s (or N m s): one call, and every
+// impulse a joint row or contact point accumulates.
 #define M2_IMPULSE_LIMIT 1.0e15f
 
 // The range of a step's or a target's time step, in seconds.

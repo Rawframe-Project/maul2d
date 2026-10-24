@@ -367,6 +367,20 @@ uint64_t m2FluidVolume_GetUserData(const m2World* world, m2FluidVolumeId volumeI
     return world->volumes.fvUserData[index];
 }
 
+// The squared radius of gyration the angular drag takes, at most twice
+// M2_HUGE squared.
+#define M2_MAX_GYRATION2 (4.0f * M2_HUGE * M2_HUGE)
+
+// Holds a body's accumulated force and torque within M2_MAX_FORCE, as the
+// load writers do: the lift on a hundred-kilometer body reaches 1e22 N.
+static void SaturateLoad(m2World* world, int32_t b)
+{
+    m2Vec2* f = &world->bodies.forces[b];
+    f->x = m2SaturateF(f->x, M2_MAX_FORCE);
+    f->y = m2SaturateF(f->y, M2_MAX_FORCE);
+    world->bodies.torques[b] = m2SaturateF(world->bodies.torques[b], M2_MAX_FORCE);
+}
+
 static bool InWater(const m2World* world, int32_t b, int32_t v)
 {
     if (world->bodies.alive[b] == 0 || world->bodies.types[b] != (uint8_t)m2_dynamicBody ||
@@ -413,10 +427,13 @@ static void Soak(m2World* world, int32_t b, int32_t vol)
     float invI = world->bodies.invInertia[b];
     if (invM > 0.0f && invI > 0.0f)
     {
-        // I / m is the squared radius of gyration.
-        world->bodies.torques[b] -=
-            (invM / invI) * wet.area * w * world->volumes.fvAngularDrag[vol];
+        // I / m is the squared radius of gyration. Mass data set by hand
+        // can make it as large as the inertia and mass ranges allow; no
+        // body reaches past twice M2_HUGE, so it is held to that.
+        float gyration2 = m2MinF(invM / invI, M2_MAX_GYRATION2);
+        world->bodies.torques[b] -= gyration2 * wet.area * w * world->volumes.fvAngularDrag[vol];
     }
+    SaturateLoad(world, b);
 }
 
 // The per-step pass, volume by volume, bodies in slot order.
@@ -474,5 +491,6 @@ void m2ApplyWind(m2World* world, float dt)
         m2Vec2 v = world->bodies.linearVelocities[b];
         world->bodies.forces[b].x += -drag * area * (v.x - wind.x);
         world->bodies.forces[b].y += -drag * area * (v.y - wind.y);
+        SaturateLoad(world, b);
     }
 }

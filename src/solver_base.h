@@ -7,6 +7,8 @@
 #ifndef MAUL2D_SRC_SOLVER_BASE_H
 #define MAUL2D_SRC_SOLVER_BASE_H
 
+#include "core.h"
+
 #include "maul2d/core_math.h"
 
 #define M2_CONTACT_HERTZ          30.0f
