@@ -15,10 +15,11 @@ snapshot and journal formats.
   collides over its new extent. Its broadphase box used to keep the old
   extent, so a ball dropped over the new part of a widened static box
   fell through it. On a dynamic body the box is refitted one step
-  earlier than before, with the same result
+  earlier than before, with the same result. The world hash differs
+  from 0.1.0's after such a change, since the box is part of it
   ([#48](https://github.com/Rawframe-Project/maul2d/pull/48)).
-- A restore holds every number in a snapshot to the range a def, a
-  setter or a tape is held to, and checks each joint kind's own fields
+- A restore holds each number that a def, a setter or a tape holds to
+  a range to that same range, and checks each joint kind's own fields
   with that kind's validators. A snapshot from outside could restore
   values that turned the world invalid in its first step; such a
   snapshot is now refused, changes nothing and counts nothing. A
