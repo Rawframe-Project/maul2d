@@ -485,10 +485,26 @@ static void TestOutlineThatNearlyTouchesIsRefused(void)
           "one twice the slop away decomposes");
 }
 
+// A small polygon far from the origin of its body is valid. Its area was
+// summed in float, where the cross products near 65536 m lie 512 apart, so
+// a 1 m box there came out with an area of noise and was refused.
+static void TestSmallPolygonFarFromOriginIsValid(void)
+{
+    const float o = 65536.0f;
+    m2Vec2 box[4] = {
+        {o - 0.5f, o - 0.5f}, {o + 0.5f, o - 0.5f}, {o + 0.5f, o + 0.5f}, {o - 0.5f, o + 0.5f}};
+    m2Vec2 corner[3] = {{o, o}, {o + 1.0f, o}, {o, o + 1.0f}};
+    m2Polygon polygon;
+    CHECK(m2MakePolygon(box, 4, 0.0f, &polygon) == m2_success,
+          "a 1 m box 65536 m from the origin is a polygon");
+    CHECK(m2MakePolygon(corner, 3, 0.0f, &polygon) == m2_success, "and so is a 1 m triangle there");
+}
+
 // Outlines the decomposition used to accept. A small clockwise hexagon far
 // from the origin: summed in float, its area came out positive, and it
-// split into two pieces. A long thin triangle: counter-clockwise, but too
-// thin for any piece to pass validation, so it was accepted with none.
+// split into two pieces; wound the other way, it still decomposes. A long
+// thin triangle: counter-clockwise, but too thin for any piece to pass
+// validation, so it was accepted with none.
 static void TestOutlineWithoutPiecesIsRefused(void)
 {
     const float o = 98304.0f; // 1.5 * 2^16, where floats lie 1/128 m apart
@@ -500,6 +516,14 @@ static void TestOutlineWithoutPiecesIsRefused(void)
     int32_t count = 7;
     CHECK(m2DecomposeOutline(clockwise, 6, pieces, 4, &count) == m2_errorInvalid && count == 7,
           "a clockwise outline far from the origin is refused");
+    m2Vec2 reversed[6];
+    for (int32_t i = 0; i < 6; ++i)
+    {
+        reversed[i] = clockwise[5 - i];
+    }
+    int32_t made = 0;
+    CHECK(m2DecomposeOutline(reversed, 6, pieces, 4, &made) == m2_success && made > 0,
+          "the same outline wound counter-clockwise decomposes");
     CHECK(m2DecomposeOutline(needle, 3, pieces, 4, &count) == m2_errorInvalid && count == 7,
           "an outline that leaves no piece is refused");
     CHECK(m2DecomposeOutline(needle, 3, NULL, 0, &count) == m2_errorInvalid && count == 7,
@@ -542,6 +566,7 @@ int main(void)
     TestGrownStaticShapeCollides();
     TestLocalLengthsAreBounded();
     TestOutlineThatNearlyTouchesIsRefused();
+    TestSmallPolygonFarFromOriginIsValid();
     TestOutlineWithoutPiecesIsRefused();
     TestPolygonNormalsAreTheWorlds();
     TestMassClosedForms();
