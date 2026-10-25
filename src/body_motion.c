@@ -375,14 +375,7 @@ static M2_NOINLINE void BodySetTransformWorker(m2World* world, m2BodyId bodyId, 
         {
             continue;
         }
-        m2Aabb tight = m2ShapeTightAabb(world, shape);
-        int32_t tree = m2ShapeTreeIndex(world, shape);
-        if (!m2Aabb_Contains(
-                world->broadphase.treeNodes[tree][world->broadphase.proxyIds[shape]].aabb, tight))
-        {
-            m2TreeMove(&world->broadphase.trees[tree], world->broadphase.treeNodes[tree],
-                       world->broadphase.proxyIds[shape], m2Fatten(tight));
-        }
+        (void)m2RefitProxy(world, shape);
         m2PushMoved(world, shape);
     }
 }

@@ -485,8 +485,40 @@ static void TestOutlineThatNearlyTouchesIsRefused(void)
           "one twice the slop away decomposes");
 }
 
+// A static box that grows after the world has stepped: a ball dropped over
+// the new part rests on it. The step refits only awake bodies' boxes, so
+// the setter must refit the static shape's own box, or the broadphase
+// keeps the old extent and the ball falls through.
+static void TestGrownStaticShapeCollides(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    m2BodyDef groundDef = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(world, &groundDef);
+    m2ShapeDef shapeDef = m2DefaultShapeDef();
+    m2Polygon small = m2MakeBox(0.5f, 0.5f);
+    m2ShapeId shape = NewPolygonShape(world, ground, &shapeDef, &small);
+    m2World_Step(world, 1.0f / 60.0f, 4);
+    m2Polygon big = m2MakeBox(10.0f, 0.5f);
+    m2Shape_SetPolygon(world, shape, &big);
+    m2BodyDef ballDef = m2DefaultBodyDef();
+    ballDef.type = m2_dynamicBody;
+    ballDef.position = (m2Pos2){8.0, 2.0};
+    m2BodyId ball = NewBody(world, &ballDef);
+    m2Circle circle = {{0.0f, 0.0f}, 0.25f};
+    NewCircleShape(world, ball, &shapeDef, &circle);
+    for (int32_t i = 0; i < 120; ++i)
+    {
+        m2World_Step(world, 1.0f / 60.0f, 4);
+    }
+    double y = m2Body_GetPosition(world, ball).y;
+    CHECK(y > 0.7 && y < 0.8, "a ball dropped on a grown static box rests on it");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
+    TestGrownStaticShapeCollides();
     TestLocalLengthsAreBounded();
     TestOutlineThatNearlyTouchesIsRefused();
     TestPolygonNormalsAreTheWorlds();

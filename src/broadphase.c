@@ -42,6 +42,20 @@ int32_t m2ShapeTreeIndex(const m2World* world, int32_t shapeIndex)
     return world->bodies.types[world->shapes.shapeBody[shapeIndex]];
 }
 
+bool m2RefitProxy(m2World* world, int32_t shapeIndex)
+{
+    int32_t proxy = world->broadphase.proxyIds[shapeIndex];
+    m2Aabb tight = m2ShapeTightAabb(world, shapeIndex);
+    int32_t tree = m2ShapeTreeIndex(world, shapeIndex);
+    if (m2Aabb_Contains(world->broadphase.treeNodes[tree][proxy].aabb, tight))
+    {
+        return false;
+    }
+    m2TreeMove(&world->broadphase.trees[tree], world->broadphase.treeNodes[tree], proxy,
+               m2Fatten(tight));
+    return true;
+}
+
 void m2PushMoved(m2World* world, int32_t shapeIndex)
 {
     if (world->broadphase.inMoved[shapeIndex] != 0)
