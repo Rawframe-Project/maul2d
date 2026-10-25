@@ -6,6 +6,17 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.3.0](https://github.com/Rawframe-Project/maul2d/compare/v0.2.0...v0.3.0) (2026-10-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* **world:** the snapshot format is version 4; a version 3 snapshot, or a tape that starts with one, is refused.
+
+### Fixed
+
+* **world:** widen generations to 32 bits and retire spent slots ([#61](https://github.com/Rawframe-Project/maul2d/issues/61)) ([c27846b](https://github.com/Rawframe-Project/maul2d/commit/c27846b6a451cebbc5efe2e655520231fd8f90cf)), closes [#60](https://github.com/Rawframe-Project/maul2d/issues/60)
+
 ## [0.2.0](https://github.com/Rawframe-Project/maul2d/releases/tag/v0.2.0) (2026-10-25)
 
 ### Changed
