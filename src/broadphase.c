@@ -56,6 +56,18 @@ bool m2RefitProxy(m2World* world, int32_t shapeIndex)
     return true;
 }
 
+void m2RefitBodyProxies(m2World* world, int32_t bodyIndex)
+{
+    for (int32_t s = world->bodies.bodyShapeHead[bodyIndex]; s != -1;
+         s = world->shapes.shapeNext[s])
+    {
+        if (world->broadphase.proxyIds[s] != M2_NULL_NODE && m2RefitProxy(world, s))
+        {
+            m2PushMoved(world, s);
+        }
+    }
+}
+
 void m2PushMoved(m2World* world, int32_t shapeIndex)
 {
     if (world->broadphase.inMoved[shapeIndex] != 0)

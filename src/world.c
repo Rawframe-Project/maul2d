@@ -325,13 +325,7 @@ static void MoveProxies(m2World* world)
         {
             continue;
         }
-        for (int32_t s = world->bodies.bodyShapeHead[i]; s != -1; s = world->shapes.shapeNext[s])
-        {
-            if (m2RefitProxy(world, s))
-            {
-                m2PushMoved(world, s);
-            }
-        }
+        m2RefitBodyProxies(world, i);
     }
 }
 
@@ -392,6 +386,23 @@ static void AgeParticles(m2World* world, float dt)
 
 // Two consecutive step ends asleep guarantee the stashed manifolds were
 // computed from these exact transforms.
+// A body that fell asleep this step moved in the solve after its boxes
+// were last refitted, and the step refits no sleeping body's boxes again:
+// refit them now, so a sleeping body's boxes always hold its shapes, as a
+// restore requires.
+static void RefitNewSleepers(m2World* world)
+{
+    for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
+    {
+        if (world->bodies.alive[i] != 0 && world->bodies.disabled[i] == 0 &&
+            world->bodies.types[i] == (uint8_t)m2_dynamicBody && world->bodies.asleep[i] != 0 &&
+            world->bodies.sleepStreak[i] == 0)
+        {
+            m2RefitBodyProxies(world, i);
+        }
+    }
+}
+
 static void AgeSleepStreaks(m2World* world)
 {
     for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
@@ -519,6 +530,7 @@ static void StepWorld(m2World* world, float dt, int32_t substepCount)
     m2SolveStep(world, dt, substepCount);
     uint64_t tSolve = m2TimeNowNs();
     m2UpdateSleep(world, dt);
+    RefitNewSleepers(world);
 #ifdef MAUL2D_VALIDATE
     // The validate build walks the invariants after every step.
     M2_ASSERT(m2World_Validate(world));
