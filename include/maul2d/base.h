@@ -51,7 +51,7 @@ extern "C"
 #define M2_VERSION_MAJOR 0
 // x-release-please-end
 // x-release-please-start-minor
-#define M2_VERSION_MINOR 2
+#define M2_VERSION_MINOR 3
 // x-release-please-end
 // x-release-please-start-patch
 #define M2_VERSION_PATCH 0
