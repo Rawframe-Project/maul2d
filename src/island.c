@@ -243,6 +243,10 @@ static void SleepReadyIslands(m2World* world)
         if (rootSleeps[Find(parent, i)] == 1)
         {
             world->bodies.asleep[i] = 1;
+            // The streak counts step ends from now: a body woken and put
+            // back to sleep within one step has moved, and its pairs owe
+            // one manifold refresh.
+            world->bodies.sleepStreak[i] = 0;
             world->bodies.linearVelocities[i] = (m2Vec2){0.0f, 0.0f};
             world->bodies.angularVelocities[i] = 0.0f;
             // The solve moved the body after its boxes were last refitted,
