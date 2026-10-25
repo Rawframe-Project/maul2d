@@ -6,16 +6,30 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
-## [0.3.0](https://github.com/Rawframe-Project/maul2d/compare/v0.2.0...v0.3.0) (2026-10-25)
+## [0.3.0](https://github.com/Rawframe-Project/maul2d/releases/tag/v0.3.0) (2026-10-25)
 
+### Changed
 
-### ⚠ BREAKING CHANGES
-
-* **world:** the snapshot format is version 4; a version 3 snapshot, or a tape that starts with one, is refused.
+- **Breaking: the snapshot format is version 4.** Snapshots carry
+  32-bit slot generations and the particle and fluid volume pools'
+  retired counts. A version 3 snapshot, or a tape that starts with one,
+  is refused. A tape's own bytes do not change, and the journal stays at
+  version 4. The public ids, the API and the ABI do not change. Every
+  golden hash moves, but only because the hash covers the wider
+  generations: hashed at 16 bits, every world hash keeps its old value
+  ([#61](https://github.com/Rawframe-Project/maul2d/pull/61)).
 
 ### Fixed
 
-* **world:** widen generations to 32 bits and retire spent slots ([#61](https://github.com/Rawframe-Project/maul2d/issues/61)) ([c27846b](https://github.com/Rawframe-Project/maul2d/commit/c27846b6a451cebbc5efe2e655520231fd8f90cf)), closes [#60](https://github.com/Rawframe-Project/maul2d/issues/60)
+- A destroyed particle or fluid volume id no longer names a live object
+  again after 65536 reuses of its slot. A fountain with 1000 particle
+  slots emitting 1000 a second aliased the ids it held after about 18
+  hours. Every pool now keeps 32-bit generations and retires a slot at
+  its last one, so a pool of capacity n makes n × 2^32 objects over a
+  world's life (about 136 years with 1000 slots at 1000 a second) where
+  bodies, shapes, joints and chains used to run out after n × 65536. A
+  restore keeps the pool's spent budget
+  ([#61](https://github.com/Rawframe-Project/maul2d/pull/61)).
 
 ## [0.2.0](https://github.com/Rawframe-Project/maul2d/releases/tag/v0.2.0) (2026-10-25)
 
