@@ -87,8 +87,11 @@ void m2SolveRowPair(const m2JointRow rows[2], m2JointBodies* b, m2Vec2 bias, m2R
     m2Vec2 impulse = PairImpulse(rows, b, bias, drive, *accumulated, &solved);
     if (solved)
     {
-        accumulated->x += impulse.x;
-        accumulated->y += impulse.y;
+        // The sum can round a float past the bound the impulse was clamped
+        // to; what is stored is held to M2_IMPULSE_LIMIT, which a restore
+        // enforces.
+        accumulated->x = m2SaturateF(accumulated->x + impulse.x, M2_IMPULSE_LIMIT);
+        accumulated->y = m2SaturateF(accumulated->y + impulse.y, M2_IMPULSE_LIMIT);
         m2PushRow(&rows[0], b, impulse.x);
         m2PushRow(&rows[1], b, impulse.y);
         return;
@@ -149,8 +152,11 @@ void m2SolvePointPair(m2Vec2 armA, m2Vec2 armB, m2PointMass mass, m2JointBodies*
     float length2 = next.x * next.x + next.y * next.y;
     if (length2 > limit * limit)
     {
+        // Scaled to the limit, a component can round a float past it; each
+        // is held to M2_IMPULSE_LIMIT, which a restore enforces.
         float scale = limit / sqrtf(length2);
-        next = (m2Vec2){scale * next.x, scale * next.y};
+        next = (m2Vec2){m2SaturateF(scale * next.x, M2_IMPULSE_LIMIT),
+                        m2SaturateF(scale * next.y, M2_IMPULSE_LIMIT)};
     }
     *accumulated = next;
     m2PushPointPair(armA, armB, b, (m2Vec2){next.x - old.x, next.y - old.y});

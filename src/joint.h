@@ -33,6 +33,9 @@ int32_t m2TypedJointSlot(const m2World* world, m2JointId jointId, uint8_t type);
     ((1u << m2_revoluteJoint) | (1u << m2_prismaticJoint) | (1u << m2_wheelJoint))
 #define M2_MAX_MOTOR_KINDS (M2_MOTOR_LIMIT_KINDS | (1u << m2_motorJoint))
 
+// A distance joint's maximum length when it has none.
+#define M2_OPEN_LENGTH 3.4e38f
+
 // Creation: a free slot (or -1), then the fields every joint starts
 // with, linked into both bodies' lists, both bodies awake.
 int32_t m2AllocateJoint(m2World* world);

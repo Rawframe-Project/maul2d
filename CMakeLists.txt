@@ -122,6 +122,7 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/shape_read.c
     src/snapshot.c
     src/snapshot_check.c
+    src/state_checks.c
     src/solver.c
     src/world.c
     src/world_validate.c

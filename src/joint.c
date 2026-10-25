@@ -232,7 +232,7 @@ static bool JointParamValid(uint8_t type, uint8_t param, float value)
         return (M2_MAX_MOTOR_KINDS & (1u << type)) != 0 && m2ValidMaxForce(value);
     case m2_jointParamBreakForce:
     case m2_jointParamBreakTorque:
-        return value >= 0.0f; // zero turns breaking off; infinity never breaks
+        return m2ValidBreakLimit(value);
     case m2_jointParamHertz:
         return type != (uint8_t)m2_filterJoint && type != (uint8_t)m2_motorJoint &&
                m2ValidRate(value);
@@ -540,7 +540,7 @@ static M2_NOINLINE void JointSetBreakLimitsWorker(m2World* world, m2JointId join
     {
         return;
     }
-    if (!(maxForce >= 0.0f) || !(maxTorque >= 0.0f))
+    if (!m2ValidBreakLimit(maxForce) || !m2ValidBreakLimit(maxTorque))
     {
         m2Refuse(world, m2_errorInvalid); // both or neither
         return;

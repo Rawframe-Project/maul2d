@@ -5,7 +5,8 @@
 // heaviest bodies, the longest levers, the stiffest springs, the fastest
 // speeds and the strongest loads the API accepts. Every step must keep
 // the world valid with every velocity within M2_MAX_SPEED, and the world
-// must restore its own snapshot afterwards. Without the solver's
+// must restore its own snapshot after every step: what the step saturates
+// stays within the ranges a restore enforces, to the last float. Without the solver's
 // saturation these scenes reach infinity and NaN. On glibc, in builds
 // with assertions, they run with overflow, invalid operations and
 // division by zero trapping, so a single product past the float range
@@ -70,6 +71,22 @@ static bool ImpulsesWithinLimit(const Scene* s, float invH)
         }
     }
     return true;
+}
+
+// The world's own snapshot restores onto the same hash.
+static bool RoundTrips(m2World* world)
+{
+    int32_t size = m2World_SnapshotSize(world);
+    void* bytes = malloc((size_t)size);
+    if (bytes == NULL)
+    {
+        return false;
+    }
+    uint64_t hash = m2World_Hash(world);
+    bool restores = Snapshot(world, bytes, size) == size && Restore(world, bytes, size) &&
+                    m2World_Hash(world) == hash;
+    free(bytes);
+    return restores;
 }
 
 static m2World* ExtremeWorld(bool particles)
@@ -161,6 +178,11 @@ static void ExpectFinite(Scene* s, const char* what)
         }
         m2World_Step(s->world, dt, substeps);
         valid = m2World_Validate(s->world) && ImpulsesWithinLimit(s, 1.0f / (dt / (float)substeps));
+        if (valid && !RoundTrips(s->world))
+        {
+            printf("  %s: its own snapshot is refused after step %d\n", what, step);
+            valid = false;
+        }
         for (int32_t i = 0; i < s->bodyCount && valid; ++i)
         {
             m2Vec2 v = m2Body_GetLinearVelocity(s->world, s->bodies[i]);
@@ -173,20 +195,8 @@ static void ExpectFinite(Scene* s, const char* what)
             printf("  %s: invalid after step %d\n", what, step);
         }
     }
-    CHECK(valid, "an extreme scene stays valid with every speed within M2_MAX_SPEED");
-
-    int32_t size = m2World_SnapshotSize(s->world);
-    void* bytes = malloc((size_t)size);
-    CHECK(bytes != NULL, "snapshot buffer");
-    uint64_t hash = m2World_Hash(s->world);
-    bool restores = Snapshot(s->world, bytes, size) == size && Restore(s->world, bytes, size) &&
-                    m2World_Hash(s->world) == hash;
-    if (!restores)
-    {
-        printf("  %s: its own snapshot is refused\n", what);
-    }
-    CHECK(restores, "an extreme scene restores its own snapshot");
-    free(bytes);
+    CHECK(valid, "an extreme scene stays valid, within M2_MAX_SPEED, and restores its own "
+                 "snapshot after every step");
     m2DestroyWorld(s->world);
 }
 
@@ -408,6 +418,82 @@ static void TestParticles(void)
     ExpectFinite(&s, "particles");
 }
 
+#define SWEEP 16
+
+// Joints that saturate at M2_IMPULSE_LIMIT in every direction: a mouse
+// (a point pair scaled to its limit) and a slider (a row pair clamped
+// row by row) on giants under the strongest gravity, one per direction
+// of a sweep around the circle. The stored impulse is formed by scaling
+// or by adding a clamped difference, either of which can round a float
+// past the limit; the world must restore its own snapshot after every
+// step.
+static void TestSaturatedPairs(void)
+{
+    m2World* world = ExtremeWorld(false);
+    m2BodyDef groundDef = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(world, &groundDef);
+    Scene s = {world, {{0}}, 0, {{0}}, 0, 0.0f};
+    for (int32_t i = 0; i < SWEEP; ++i)
+    {
+        float angle = 6.2831853f * (float)i / (float)SWEEP + 0.1f;
+        m2Vec2 direction = {cosf(angle), sinf(angle)};
+        s.bodyCount = 0;
+        m2BodyId pulled = Giant(&s, (m2Pos2){5000.0 * (double)i, 0.0}, (m2Vec2){0.0f, 0.0f});
+        m2MouseJointDef mouse = m2DefaultMouseJointDef();
+        mouse.bodyIdA = ground;
+        mouse.bodyIdB = pulled;
+        mouse.target =
+            (m2Pos2){5000.0 * (double)i + 1.0e6 * (double)direction.x, 1.0e6 * (double)direction.y};
+        mouse.hertz = M2_MAX_RATE;
+        mouse.dampingRatio = M2_MAX_COEFFICIENT;
+        mouse.maxForce = M2_MAX_FORCE;
+        (void)NewMouseJoint(world, &mouse);
+        m2BodyId slid = Giant(&s, (m2Pos2){5000.0 * (double)i, 1.0e5}, (m2Vec2){0.0f, 0.0f});
+        m2PrismaticJointDef slider = m2DefaultPrismaticJointDef();
+        slider.bodyIdA = ground;
+        slider.bodyIdB = slid;
+        slider.localAnchorA = (m2Vec2){0.0f, 0.0f};
+        slider.localAxisA = direction;
+        (void)NewPrismaticJoint(world, &slider);
+    }
+    bool valid = true;
+    for (int32_t step = 0; step < 30 && valid; ++step)
+    {
+        m2World_Step(world, 1.0f / 60.0f, 4);
+        valid = m2World_Validate(world) && RoundTrips(world);
+    }
+    CHECK(valid, "joints saturated in every direction restore their own snapshot every step");
+    m2DestroyWorld(world);
+}
+
+// Particles faster than the speed cap in every direction, at the shortest
+// step, where the cap is M2_MAX_SPEED: each velocity is scaled to the cap
+// and must stay within it, so the world restores its own snapshot.
+static void TestParticlesAtTheCap(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.particleCapacity = 4 * SWEEP;
+    def.particleRadius = 10.0f; // a diameter per shortest step is 2e7 m/s
+    m2World* world = NewWorld(&def);
+    for (int32_t i = 0; i < 4 * SWEEP; ++i)
+    {
+        float angle = 6.2831853f * (float)i / (float)(4 * SWEEP);
+        float c = cosf(angle);
+        float sn = sinf(angle);
+        float longest = fabsf(c) > fabsf(sn) ? fabsf(c) : fabsf(sn);
+        m2Vec2 velocity = {M2_MAX_SPEED * c / longest, M2_MAX_SPEED * sn / longest};
+        EmitParticle(world, (m2Pos2){100.0 * (double)i, 0.0}, velocity, 0);
+    }
+    bool valid = true;
+    for (int32_t step = 0; step < 4 && valid; ++step)
+    {
+        m2World_Step(world, M2_MIN_TIME_STEP, 1);
+        valid = m2World_Validate(world) && RoundTrips(world);
+    }
+    CHECK(valid, "particles at the speed cap restore their own snapshot every step");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
     setvbuf(stdout, NULL, _IONBF, 0);
@@ -421,6 +507,8 @@ int main(void)
     TestRatiosAndDrives();
     TestWaterAndWind();
     TestParticles();
+    TestSaturatedPairs();
+    TestParticlesAtTheCap();
     if (s_failures > 0)
     {
         printf("%d failure(s)\n", s_failures);
