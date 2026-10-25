@@ -8,6 +8,7 @@ Maul2D simulates rigid bodies, joints and particle fluids in a world that snapsh
 - **Threads:** the library starts none. The step hands its parallel work to the host's task system through the world def's `enqueueTask` and `finishTask`; without them the work runs on the caller's thread.
 - **Owner objects:** the world, `m2World*`, created by `m2CreateWorld` from a root def that carries `M2_ABI_VERSION`. Bodies, shapes, chains, joints, particles and fluid volumes are objects of a world, named by typed ids.
 - **Memory:** a world allocates every byte it keeps at creation, from the allocator in its def; its pools have fixed capacities and never grow, and step scratch lives in them, as do the restore marks the snapshot check uses (one byte per slot of the largest pool). Afterwards only `m2World_ReplayJournal` allocates (its backup and the scratch of chain and shatter records) and frees before it returns. The functions without a world (`m2MakePolygon`, `m2ComputeHull`, `m2DecomposeOutline`, the mover math) never allocate.
+- **Data formats:** two state formats, the snapshot and the journal tape, and no asset format. Neither is read across 1.y: only the release that wrote one reads it, by its `M2_ABI_VERSION` (from 1.0.0, the patch releases of its minor version too), and any other refuses it with `m2_errorVersion`. A host keeps its own game state, not snapshots or tapes, across an upgrade. [snapshots-and-journal.md](snapshots-and-journal.md) has the layout.
 - **Platform dependencies:** none beyond the C standard library; the `<math.h>` functions it may call are the correctly rounded ones in `tools/libm-allowed.txt`. The testbed, which is not part of the library, uses raylib.
 
 ## Ids and misuse
@@ -16,7 +17,7 @@ A correct program never uses an id after destroying its object, so a stale id is
 
 Particles are the exception. A particle with a lifetime dies at the end of a step with no event, so a correct program can hold the id of a particle that is gone. A stale particle id counts nothing in any call: getters return zero, setters change nothing, and `m2DestroyParticle` returns `m2_errorStale`. `m2Particle_IsValid` tells the program.
 
-Untrusted bytes are not misuse either. A snapshot or tape that fails its checks, and a value a tape operation refuses while it replays, return `m2_errorInvalid` and count nothing; the world marks itself as replaying, and `m2Refuse` skips the count for refusals on the replay's own path. Host code the replay runs (a task hook, the allocator) is the program's, and what it gets wrong counts.
+Untrusted bytes are not misuse either. A snapshot or tape that fails its checks, and a value a tape operation refuses while it replays, return `m2_errorInvalid`, or `m2_errorVersion` for bytes another release or build wrote, and count nothing; the world marks itself as replaying, and `m2Refuse` skips the count for refusals on the replay's own path. Host code the replay runs (a task hook, the allocator) is the program's, and what it gets wrong counts.
 
 ## Host code
 

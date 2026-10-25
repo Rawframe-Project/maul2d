@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // Command journal. Wire format, all little-endian raw structs (floats
-// as IEEE-754 bit patterns): a header { magic, version, world echo,
+// as IEEE-754 bit patterns): a header { the state prefix, world echo,
 // snapshotSize }, the embedded snapshot, then op records, each one op
 // byte followed by that op's payload (journal.h). Replay restores the
 // snapshot and re-applies every op through the same public entry
@@ -18,12 +18,11 @@
 #include <string.h>
 
 #define M2_JOURNAL_MAGIC   0x4D324A4Eu // 'M2JN'
-#define M2_JOURNAL_VERSION 4u
+#define M2_JOURNAL_VERSION 5u
 
 typedef struct m2JournalHeader
 {
-    uint32_t magic;
-    uint32_t version;
+    m2StatePrefix prefix;
     m2Vec2 gravity;
     int32_t bodyCapacity;
     int32_t shapeCapacity;
@@ -31,7 +30,7 @@ typedef struct m2JournalHeader
     int32_t snapshotSize;
 } m2JournalHeader;
 
-_Static_assert(sizeof(m2JournalHeader) == 32, "journal header must be padding-free");
+_Static_assert(sizeof(m2JournalHeader) == 40, "journal header must be padding-free");
 
 // Reserves one record of 1 + bytes and writes its op byte. Returns where
 // the payload goes, or NULL when nothing is recording or the buffer is
@@ -158,8 +157,8 @@ static M2_NOINLINE m2Result WorldStartJournalWorker(m2World* world, void* buffer
 
     m2JournalHeader header;
     memset(&header, 0, sizeof(header));
-    header.magic = M2_JOURNAL_MAGIC;
-    header.version = M2_JOURNAL_VERSION;
+    header.prefix =
+        m2MakeStatePrefix(M2_JOURNAL_MAGIC, M2_JOURNAL_VERSION, (int32_t)sizeof(header));
     header.gravity = world->gravity;
     header.bodyCapacity = world->bodies.bodyCapacity;
     header.shapeCapacity = world->shapes.shapeCapacity;
@@ -236,17 +235,22 @@ static m2Result ReplayOps(m2World* world, const uint8_t* data, int32_t size)
 {
     m2JournalHeader header;
     memcpy(&header, data, sizeof(header));
-    if (header.magic != M2_JOURNAL_MAGIC || header.version != M2_JOURNAL_VERSION ||
-        header.bodyCapacity != world->bodies.bodyCapacity ||
+    if (header.bodyCapacity != world->bodies.bodyCapacity ||
         header.shapeCapacity != world->shapes.shapeCapacity ||
         header.jointCapacity != world->joints.jointCapacity)
     {
-        return m2_errorInvalid; // a tape from another build or another world shape
+        return m2_errorInvalid; // a tape from another world shape
     }
-    if (header.snapshotSize < 0 || size - (int32_t)sizeof(header) < header.snapshotSize ||
-        m2World_Restore(world, data + sizeof(header), header.snapshotSize) != m2_success)
+    if (header.snapshotSize < 0 || size - (int32_t)sizeof(header) < header.snapshotSize)
     {
         return m2_errorInvalid;
+    }
+    // The embedded snapshot's refusal is the tape's: one from another
+    // release or build stays m2_errorVersion.
+    m2Result restored = m2World_Restore(world, data + sizeof(header), header.snapshotSize);
+    if (restored != m2_success)
+    {
+        return restored;
     }
 
     // Ids carry no world: the recorded ids name slots of whichever world
@@ -301,10 +305,13 @@ static M2_NOINLINE m2Result WorldReplayJournalWorker(m2World* world, const void*
         return m2Refuse(world, m2_errorState);
     }
     // From here on the tape is untrusted input: refusing it is no misuse
-    // of the API, so nothing is counted.
-    if (size < (int32_t)sizeof(m2JournalHeader))
+    // of the API, so nothing is counted. Only the release that wrote a
+    // tape replays it.
+    m2Result prefix = m2CheckStatePrefix(data, size, M2_JOURNAL_MAGIC, M2_JOURNAL_VERSION,
+                                         (int32_t)sizeof(m2JournalHeader));
+    if (prefix != m2_success)
     {
-        return m2_errorInvalid;
+        return prefix;
     }
     // Atomic: the world takes the whole tape or none of it. A snapshot
     // taken first backs out a replay that fails part way, so a corrupt

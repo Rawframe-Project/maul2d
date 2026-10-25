@@ -36,6 +36,48 @@ static uint64_t s_walkTapeHash = M2_HASH_INIT;
 // The size of the last tape the walk recorded.
 static int32_t s_walkTapeSize = 0;
 
+// A state format's bytes as the golden lines pin them: everything after
+// the prefix's ABI word (offset 4), with the ABI word of a header embedded
+// at `embedded` (0 for none) zeroed in a copy, so a release bump moves no
+// line. Each ABI word must be this release's.
+static uint64_t HashStateBytes(uint64_t hash, const uint8_t* bytes, int32_t size, int32_t embedded)
+{
+    uint8_t* copy = malloc((size_t)size);
+    if (copy == NULL || size < 16 || embedded + 16 > size)
+    {
+        CHECK(false, "state bytes to hash");
+        free(copy);
+        return hash;
+    }
+    memcpy(copy, bytes, (size_t)size);
+    uint32_t abi = 0;
+    memcpy(&abi, copy + 4, sizeof(abi));
+    CHECK(abi == M2_ABI_VERSION, "a state header carries this release's ABI version");
+    if (embedded > 0)
+    {
+        memcpy(&abi, copy + embedded + 4, sizeof(abi));
+        CHECK(abi == M2_ABI_VERSION, "an embedded header carries this release's ABI version");
+        memset(copy + embedded + 4, 0, sizeof(abi));
+    }
+    hash = m2Hash64(hash, copy + 8, size - 8);
+    free(copy);
+    return hash;
+}
+
+// A tape's bytes as the golden lines pin them: the embedded snapshot
+// starts where the tape's header ends (headerBytes, offset 12). A tape
+// whose records restore would carry more snapshots; the walk restores
+// none while it records.
+static uint64_t HashTapeBytes(uint64_t hash, const uint8_t* tape, int32_t size)
+{
+    uint32_t headerBytes = 0;
+    if (size >= 16)
+    {
+        memcpy(&headerBytes, tape + 12, sizeof(headerBytes));
+    }
+    return HashStateBytes(hash, tape, size, (int32_t)headerBytes);
+}
+
 // A fuzz target drives the walk from its input instead: each draw takes
 // the next eight bytes, and the seed's xorshift takes over when they run
 // out. A walk from a seed has no bytes and draws exactly as before.
@@ -829,7 +871,7 @@ static uint64_t RunScenario(uint64_t seed, uint8_t* journal, int32_t journalCapa
     {
         int32_t bytes = StopJournal(world);
         CHECK(bytes > 0, "the walk fits the journal");
-        s_walkTapeHash = m2Hash64(s_walkTapeHash, journal, bytes);
+        s_walkTapeHash = HashTapeBytes(s_walkTapeHash, journal, bytes);
         s_walkTapeSize = bytes;
         m2World* fresh = NewWorld(&def);
         CHECK(ReplayJournal(fresh, journal, bytes), "the walk replays");

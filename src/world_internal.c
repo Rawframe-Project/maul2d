@@ -2,12 +2,14 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // Refusals against a world: the world's misuse counter, the host code
-// bracket and the bracketed allocator, and the check every mutating call
-// makes first.
+// bracket and the bracketed allocator, the check every mutating call
+// makes first, and the check of a state format's prefix.
 
 #include "world_internal.h"
 
 #include "allocator.h"
+
+#include <string.h>
 
 #if defined(_MSC_VER)
 #include <intrin.h> // interlocked counters
@@ -99,6 +101,40 @@ m2Result m2CheckWriter(const m2World* world)
     if (HostCodeDepth(world) != 0)
     {
         return m2Refuse(world, m2_errorState);
+    }
+    return m2_success;
+}
+
+m2StatePrefix m2MakeStatePrefix(uint32_t magic, uint32_t formatVersion, int32_t headerBytes)
+{
+    m2StatePrefix prefix;
+    prefix.magic = magic;
+    prefix.abiVersion = M2_ABI_VERSION;
+    prefix.formatVersion = formatVersion;
+    prefix.headerBytes = (uint32_t)headerBytes;
+    return prefix;
+}
+
+m2Result m2CheckStatePrefix(const void* bytes, int32_t size, uint32_t magic, uint32_t formatVersion,
+                            int32_t headerBytes)
+{
+    if (size < (int32_t)sizeof(m2StatePrefix))
+    {
+        return m2_errorInvalid;
+    }
+    m2StatePrefix prefix;
+    memcpy(&prefix, bytes, sizeof(prefix));
+    if (prefix.magic != magic)
+    {
+        return m2_errorInvalid; // not this format
+    }
+    if (prefix.abiVersion != M2_ABI_VERSION || prefix.formatVersion != formatVersion)
+    {
+        return m2_errorVersion; // written by another release
+    }
+    if (prefix.headerBytes != (uint32_t)headerBytes || size < headerBytes)
+    {
+        return m2_errorInvalid;
     }
     return m2_success;
 }

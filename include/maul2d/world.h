@@ -447,20 +447,24 @@ extern "C"
 
     /// Restores a snapshot of a world with the same def shape. Everything,
     /// bodies, id pools and the step count included, returns to the
-    /// snapshot's instant, bit for bit, and the event streams clear. The
+    /// snapshot's instant, bit for bit, and the event streams clear. Only
+    /// the release that wrote a snapshot reads it (M2_ABI_VERSION). The
     /// buffer is checked before any byte lands: a header from another
-    /// build or world shape, an index or count out of range, flags that
-    /// are not flags and non-finite state are refused, and the world stays
-    /// as it was. The checks make every index safe; they do not rebuild
-    /// every structural invariant (tree shape, list links), so restore only
-    /// snapshots this library wrote. A restore while recording is recorded.
+    /// release, build or world shape, an index or count out of range,
+    /// flags that are not flags and non-finite state are refused, and the
+    /// world stays as it was. The checks make every index safe; they do not
+    /// rebuild every structural invariant (tree shape, list links), so
+    /// restore only snapshots this library wrote. A restore while recording
+    /// is recorded.
     ///
     /// @param world   The world.
     /// @param buffer  The snapshot.
     /// @param size    Its length, in bytes.
-    /// @return m2_success; m2_errorInvalid for bytes that fail the checks,
-    ///         which counts no misuse, or a null buffer, which counts one;
-    ///         m2_errorState from host code the world is running.
+    /// @return m2_success; m2_errorVersion for a snapshot another release
+    ///         or build wrote, and m2_errorInvalid for other bytes that fail
+    ///         the checks, neither of which counts misuse; m2_errorInvalid
+    ///         for a null buffer, which counts one; m2_errorState from host
+    ///         code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2World_Restore(m2World* world, const void* buffer, int32_t size);
@@ -675,15 +679,18 @@ extern "C"
     /// operations through the same calls that recorded them. It is atomic:
     /// a tape that is malformed or truncated, or that recreates an object
     /// under another id than the recording saw, is refused and the world
-    /// stays as it was. A tape from another world shape or library version
+    /// stays as it was. Only the release that wrote a tape replays it
+    /// (M2_ABI_VERSION); a tape from another release, build or world shape
     /// is refused too.
     ///
     /// @param world  The world.
     /// @param data   The tape.
     /// @param size   Its length, in bytes.
-    /// @return m2_success; m2_errorInvalid for a tape that fails its
-    ///         checks, which counts no misuse, or a null data pointer,
-    ///         which counts one; m2_errorState while the world is recording
+    /// @return m2_success; m2_errorVersion for a tape, or its embedded
+    ///         snapshot, another release or build wrote, and m2_errorInvalid
+    ///         for another tape that fails its checks, neither of which
+    ///         counts misuse; m2_errorInvalid for a null data pointer, which
+    ///         counts one; m2_errorState while the world is recording
     ///         or from host code the world is running; m2_errorCapacity
     ///         when the allocator cannot give the replay its scratch memory.
     /// @par Thread safety

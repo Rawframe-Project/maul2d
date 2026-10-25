@@ -42,7 +42,7 @@ Maul2D has a 3D sibling, [Maul3D](https://github.com/Rawframe-Project/maul3d). T
 
 ## Status
 
-Until 1.0.0 the API, the ABI and the snapshot and journal formats may change in any minor release; the [changelog](CHANGELOG.md) records every change. A world def built from other headers is refused at creation, and snapshots and tapes refuse to load in a release that changed their format.
+Until 1.0.0 the API, the ABI and the snapshot and journal formats may change in any minor release; the [changelog](CHANGELOG.md) records every change. A world def built from other headers is refused at creation. A snapshot or tape is read only by a release of the ABI version that wrote it (`M2_ABI_VERSION`), and any other refuses it with `m2_errorVersion`: before 1.0.0 that is the one release that wrote it, and from 1.0.0 a patch release keeps it while a minor release refuses it.
 
 ## Documentation
 
