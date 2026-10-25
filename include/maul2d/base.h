@@ -54,7 +54,7 @@ extern "C"
 #define M2_VERSION_MINOR 1
 // x-release-please-end
 // x-release-please-start-patch
-#define M2_VERSION_PATCH 0
+#define M2_VERSION_PATCH 1
 // x-release-please-end
 
 // The binary interface a program is built for: the whole version before
