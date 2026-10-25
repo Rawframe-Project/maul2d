@@ -6,6 +6,63 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.1.0](https://github.com/Rawframe-Project/maul2d/compare/v0.0.1...v0.1.0) (2026-10-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* **api:** defs and setters refuse values past the new ranges (each named in docs/user/limits.md), M2_JOINT_REACH is 1e9 m, and mass summed from shapes is clamped into the mass and inertia ranges.
+* **snapshot:** snapshots and tapes from earlier builds are refused (snapshot format 3, tape format 4), and a snapshot whose mass data its shapes do not give is refused.
+* **world:** `m2World_Hash` and `m2World_GetHashParts` return different values. They now cover every setting the step reads, slot positions and id pools, and `m2WorldHashParts` gains a `volumes` field.
+* **api:** `m2Body_SetMassData` refuses a mass that is not positive and finite, a center beyond `M2_HUGE`, an inertia that is not finite or is below the mass times the squared distance of the center, and a mass or inertia about the center whose inverse overflows, counting one misuse.
+* **geometry:** shapes, chains, outlines, joint defs and motor offsets with a body-local length beyond `M2_HUGE` are refused with `m2_errorInvalid`, and a setter counts one misuse. `m2CreateMouseJoint` refuses a target whose coordinate in body B's frame exceeds `M2_HUGE` on either axis. `m2DecomposeOutline` refuses an outline whose vertex comes within 0.005 m of an edge it does not end.
+* **api:** m2World_Step refuses a substepCount above M2_MAX_SUBSTEPS (64), counting one misuse and leaving the world unchanged; it used to run any count of at least 1.
+* **geometry:** m2DecomposeOutline refuses with m2_errorInvalid an outline in which a vertex lies on a non-adjacent edge, a vertex repeats, or an edge folds straight back over its neighbor; it used to decompose them.
+* **api:** m2Body_SetLinearVelocity, m2Body_SetAngularVelocity and m2Body_SetTargetTransform on a static body change nothing and count one misuse; they used to store the velocity. m2CreateBody refuses with m2_errorInvalid and one misuse a static body def whose linearVelocity or angularVelocity is not zero.
+* **api:** m2NormalizeRot, and every rotation the library normalizes, keeps the direction of a finite nonzero input of any length; a component above about 1.8e19 used to give {0, 0}, an infinite component NaN, and lengths below about 1e-19 the identity. m2CreateBody refuses a def whose rotation is zero with m2_errorInvalid and one misuse. m2World_Restore refuses a snapshot whose body rotations are not of unit length, and m2World_Validate reports a body rotation that is not of unit length. The snapshot format version is now 2 and the journal format version 3, so snapshots and tapes from earlier builds are refused.
+* **api:** m2Body_SetLinearDamping and m2Body_SetAngularDamping refuse a negative value, negative infinity included, counting one misuse and leaving the damping unchanged, instead of storing 0.
+* **api:** m2World_ShatterBody returns an m2Result and takes an int32_t* countOut after the capacity; the count it used to return comes back through countOut. A null bodiesOut with a capacity above 0, which was ignored, and a negative capacity are now refused with m2_errorInvalid and count one misuse.
+* **api:** m2IsNormalizedRot returns bool instead of int.
+* **api:** m2CreateBody refuses with m2_errorInvalid, counting one misuse, a def whose type is not an m2BodyType or whose position, rotation, linearVelocity, angularVelocity or gravityScale is not finite, or whose linearDamping or angularDamping is negative or not finite. m2CreateWorld refuses with m2_errorInvalid a def whose gravity is not finite or, with particles, whose particleRadius, particleDensity or any of the eight particle strengths (pressure, damping, viscous, powder, spring, elastic, cohesion, near pressure) is infinite. m2World_Restore refuses a snapshot with a negative body damping.
+* **api:** m2Joint_SetMotorSpeed, m2Joint_EnableMotor, m2Joint_EnableLimit, m2Joint_SetLimits and m2Joint_SetMaxMotor on a joint other than a revolute, prismatic or wheel joint (m2Joint_SetMaxMotor also takes a motor joint) now change nothing and count one misuse; m2Joint_GetMotorSpeed, m2Joint_GetMaxMotor, m2Joint_IsMotorEnabled, m2Joint_IsLimitEnabled and m2Joint_GetLimits on those joints return zero and count one misuse, except m2Joint_GetLimits on a distance joint, which still reads its length range; for a distance joint, use m2DistanceJoint_SetLengthRange.
+* **api:** a stale id now counts one misuse in m2Body_SetAwake, m2Body_Disable, m2Body_Enable, m2Body_IsEnabled, the damping, fixed rotation, motion lock and sleep getters, m2Shape_GetSensorOverlaps, GetTangentSpeed, GetFriction and GetRestitution, m2Joint_GetReactionForce and GetReactionTorque, m2FluidVolume_GetSurface and GetUserData, and m2Chain_GetShapes; a stale particle id counts nothing in any call, m2DestroyParticle and the particle setters included.
+* **api:** every call on a world's objects takes the world first; creates, destroys, snapshots, restores, the journal calls and the polygon builders return an m2Result; m2WorldId, m2SetAllocator, m2SetAssertHandler, m2LastResult and workerCount are gone.
+
+### Added
+
+* **api:** put the world first and return statuses ([#12](https://github.com/Rawframe-Project/maul2d/issues/12)) ([72678c7](https://github.com/Rawframe-Project/maul2d/commit/72678c7aed3f83a4d26d718d20f18f73a8720aee))
+* **joints:** read a distance joint's spring toggle back ([#21](https://github.com/Rawframe-Project/maul2d/issues/21)) ([fd9d5f2](https://github.com/Rawframe-Project/maul2d/commit/fd9d5f2479750f159cc92e32a26929ec3c4b5259))
+
+
+### Fixed
+
+* **api:** a negative damping counts one misuse and changes nothing ([#22](https://github.com/Rawframe-Project/maul2d/issues/22)) ([188c2d3](https://github.com/Rawframe-Project/maul2d/commit/188c2d303d033b614baaff12c671b4ab132cc2c4))
+* **api:** bound every number the step multiplies ([#40](https://github.com/Rawframe-Project/maul2d/issues/40)) ([bbcd05c](https://github.com/Rawframe-Project/maul2d/commit/bbcd05c294968ea3dbaa27036f8bb5d598d564d8))
+* **api:** cap a step's substeps at M2_MAX_SUBSTEPS ([#26](https://github.com/Rawframe-Project/maul2d/issues/26)) ([078fb3d](https://github.com/Rawframe-Project/maul2d/commit/078fb3d9a7fe70189c3133e96fb165abd31ef4ea))
+* **api:** check every field of m2Body_SetMassData ([#34](https://github.com/Rawframe-Project/maul2d/issues/34)) ([2edb7f0](https://github.com/Rawframe-Project/maul2d/commit/2edb7f0a31c19cb4bd2ec8d67cc29e6c25b6ba17))
+* **api:** compute in the library's float setting on any host thread ([#44](https://github.com/Rawframe-Project/maul2d/issues/44)) ([2201e59](https://github.com/Rawframe-Project/maul2d/commit/2201e59745c404e5d98a15ac5b911304a412f9a8))
+* **api:** count a stale id in every call, and none for particles ([#14](https://github.com/Rawframe-Project/maul2d/issues/14)) ([7ef3abe](https://github.com/Rawframe-Project/maul2d/commit/7ef3abeffc3b45c3b1d24c9ebd5e5a1262e57ddc))
+* **api:** count host code mistakes made during a replay ([#13](https://github.com/Rawframe-Project/maul2d/issues/13)) ([393cdbc](https://github.com/Rawframe-Project/maul2d/commit/393cdbc6f3511de71d89d3683ffb77e576d58ad3))
+* **api:** keep motor and limit calls to the joints that have them ([#15](https://github.com/Rawframe-Project/maul2d/issues/15)) ([99a4316](https://github.com/Rawframe-Project/maul2d/commit/99a43161ed5a5d453446530cf84d49d42b5e44b7))
+* **api:** keep the direction of a rotation far from unit length ([#23](https://github.com/Rawframe-Project/maul2d/issues/23)) ([a3d555f](https://github.com/Rawframe-Project/maul2d/commit/a3d555fcf7e55a1e56028e74c47c1ad9f8c66d76))
+* **api:** refuse non-finite or unknown values in world and body defs ([#17](https://github.com/Rawframe-Project/maul2d/issues/17)) ([033fa1a](https://github.com/Rawframe-Project/maul2d/commit/033fa1a77f8f6de4fed9c90c9b12b6ef6f6ef709))
+* **api:** refuse velocities on a static body ([#24](https://github.com/Rawframe-Project/maul2d/issues/24)) ([70aeb3b](https://github.com/Rawframe-Project/maul2d/commit/70aeb3b47a95e88f88803cc3c78aa1bc4a52887c))
+* **api:** return a status from m2World_ShatterBody ([#19](https://github.com/Rawframe-Project/maul2d/issues/19)) ([f90209e](https://github.com/Rawframe-Project/maul2d/commit/f90209e821be575defeed69cc9c640a4fc03b6e8))
+* **api:** return bool from m2IsNormalizedRot ([#20](https://github.com/Rawframe-Project/maul2d/issues/20)) ([deabc4e](https://github.com/Rawframe-Project/maul2d/commit/deabc4e928607b16433fb973447b8c004b3cf495))
+* **fluid:** keep 32 crossing candidates per broadphase tree ([#38](https://github.com/Rawframe-Project/maul2d/issues/38)) ([6dd9382](https://github.com/Rawframe-Project/maul2d/commit/6dd93821fc80fda22885f55650a8fdb9abd58366))
+* **fluid:** keep a far particle's grid cell within range ([#28](https://github.com/Rawframe-Project/maul2d/issues/28)) ([c57b78a](https://github.com/Rawframe-Project/maul2d/commit/c57b78af0d2f1bddd9cbab37e1105284c5d24690))
+* **geometry:** bound body-local lengths by M2_HUGE ([#32](https://github.com/Rawframe-Project/maul2d/issues/32)) ([16723a1](https://github.com/Rawframe-Project/maul2d/commit/16723a1712d7988668d62e4ff7081f4b0e384c63))
+* **geometry:** refuse an outline that touches itself ([#25](https://github.com/Rawframe-Project/maul2d/issues/25)) ([767717f](https://github.com/Rawframe-Project/maul2d/commit/767717fdfc3fd086ac38546cbf46ea504c49227c))
+* **joints:** clamp a joint's separation to M2_JOINT_REACH ([#35](https://github.com/Rawframe-Project/maul2d/issues/35)) ([76ee0df](https://github.com/Rawframe-Project/maul2d/commit/76ee0df641f3b449d5b5741a74b1ade8595a4e25))
+* **journal:** refuse a tape record whose bool flags are not 0 or 1 ([#29](https://github.com/Rawframe-Project/maul2d/issues/29)) ([2813c61](https://github.com/Rawframe-Project/maul2d/commit/2813c6194cb920fb16ccc6fbed93e3fb0c6a57be))
+* **snapshot:** refuse a snapshot whose arrays do not fit together ([#27](https://github.com/Rawframe-Project/maul2d/issues/27)) ([037bae0](https://github.com/Rawframe-Project/maul2d/commit/037bae0179246e1f02f5c652811a1d678e8ad577))
+* **snapshot:** refuse mass data a body's shapes do not give it ([#39](https://github.com/Rawframe-Project/maul2d/issues/39)) ([8aeb3ed](https://github.com/Rawframe-Project/maul2d/commit/8aeb3edcfbb594f1281fd28d3cd1a8178e28e9c6))
+* **snapshot:** refuse shape geometry the world would not keep ([#31](https://github.com/Rawframe-Project/maul2d/issues/31)) ([7a3bcf3](https://github.com/Rawframe-Project/maul2d/commit/7a3bcf3872d6b98207dfdd4ac1ed323a8c0c7e31))
+* **solver:** saturate every velocity and impulse the step forms ([#42](https://github.com/Rawframe-Project/maul2d/issues/42)) ([43c00dc](https://github.com/Rawframe-Project/maul2d/commit/43c00dcbbc90c2875abe67108d034b69acc0515a))
+* the rewind ring is actually circular now ([70d557d](https://github.com/Rawframe-Project/maul2d/commit/70d557d3e54902a8eb6c75ee8102383d0501e9a2))
+* **world:** hash every setting the step reads, keyed by slot ([#37](https://github.com/Rawframe-Project/maul2d/issues/37)) ([5cfd93e](https://github.com/Rawframe-Project/maul2d/commit/5cfd93e190f117aec6338d7dee01dca47321740c))
+* **world:** ignore a stale id in m2DestroyWorld ([#9](https://github.com/Rawframe-Project/maul2d/issues/9)) ([bbe461b](https://github.com/Rawframe-Project/maul2d/commit/bbe461bf66280ea9351dcdc911a0ccce7a0f7bdd)), closes [#8](https://github.com/Rawframe-Project/maul2d/issues/8)
+
 ## [Unreleased]
 
 ### Changed
