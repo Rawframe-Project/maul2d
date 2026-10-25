@@ -6,28 +6,134 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
-## [Unreleased]
+## [0.1.0](https://github.com/Rawframe-Project/maul2d/releases/tag/v0.1.0) (2026-10-25)
 
 ### Changed
 
-- The README is rewritten. A new section introduces the Maul family:
-  what each engine is built for, and the contract, vocabulary, rules
-  and tools the two share; both libraries link into one program.
-  THIRD_PARTY.md is gone: the library uses no outside code, and the
-  testbed's raylib is credited in the README.
+- **Breaking: the family API shape.** `m2World` is an opaque pointer,
+  and `m2CreateWorld(def, &worldOut)` returns an `m2Result`. Every call
+  on a world's objects takes the world first, and readers take
+  `const m2World*`. Ids are `{index1, generation}`, with no world field.
+  Creates, destroys, snapshots, restores, the journal calls and the
+  polygon builders return an `m2Result` and write through `Out`
+  parameters. The world table, `m2WorldId`, `m2World_IsValid`, the
+  `*_GetWorld` getters, `m2SetAllocator`, `m2SetAssertHandler`,
+  `m2LastResult`, `m2_errorConfig` and `m2WorldDef.workerCount` are
+  removed. The allocator is part of `m2WorldDef`, which begins with its
+  cookie and an ABI version that `m2CreateWorld` checks
+  (`m2_errorVersion`). Worlds share nothing, so separate worlds may be
+  created, stepped and destroyed on separate threads.
+  ([#12](https://github.com/Rawframe-Project/maul2d/pull/12))
+- **Breaking: misuse counting.** `m2Counters.misuse` counts the calling
+  code's bugs: an invalid argument, a stale id, a writer called from
+  host code. A stale id counts one misuse in every call, while a stale
+  particle id counts nothing, since particles die on their own. Corrupt
+  snapshot or tape bytes count nothing. Host code a replay runs (the
+  task hooks and the allocator) counts like any other caller.
+  Motor and limit calls on a joint without a motor or limit change
+  nothing and count one misuse; for a distance joint, use
+  `m2DistanceJoint_SetLengthRange`.
+  ([#13](https://github.com/Rawframe-Project/maul2d/pull/13),
+  [#14](https://github.com/Rawframe-Project/maul2d/pull/14),
+  [#15](https://github.com/Rawframe-Project/maul2d/pull/15))
+- **Breaking: ranges.** Defs, setters and tapes refuse values past the
+  ranges in `base.h`, each listed in `docs/user/limits.md`: speeds up to
+  1e5 m/s, masses from 1e-9 to 1e12 kg, time steps from 1e-6 to 10 s,
+  `M2_JOINT_REACH` of 1e9 m, and the rest. These are the other refusals:
+  - **Body-local lengths** beyond `M2_HUGE` (1e5 m) in shapes, chains,
+    outlines and joint defs.
+  - **Substeps:** more than `M2_MAX_SUBSTEPS` (64) in `m2World_Step`.
+  - **Body defs** with a non-finite value, an unknown type, a negative
+    damping or a zero rotation, and **world defs** with a non-finite
+    gravity or particle setting.
+  - **Velocities on a static body.**
+  - **Negative dampings**, which used to be stored as 0.
+  - **Mass data** whose fields do not fit together in
+    `m2Body_SetMassData`.
+  - **Outlines:** `m2DecomposeOutline` refuses an outline that touches
+    itself, or one whose vertex comes within 0.005 m of an edge it does
+    not end.
+
+  ([#17](https://github.com/Rawframe-Project/maul2d/pull/17),
+  [#22](https://github.com/Rawframe-Project/maul2d/pull/22),
+  [#23](https://github.com/Rawframe-Project/maul2d/pull/23),
+  [#24](https://github.com/Rawframe-Project/maul2d/pull/24),
+  [#25](https://github.com/Rawframe-Project/maul2d/pull/25),
+  [#26](https://github.com/Rawframe-Project/maul2d/pull/26),
+  [#32](https://github.com/Rawframe-Project/maul2d/pull/32),
+  [#34](https://github.com/Rawframe-Project/maul2d/pull/34),
+  [#40](https://github.com/Rawframe-Project/maul2d/pull/40))
+- **Breaking: what a restore or replay accepts.** `m2World_Restore`
+  refuses a snapshot in any of these cases, and leaves the world as it
+  was:
+  - its arrays do not fit together (free queues, shape lists, owners,
+    broadphase trees);
+  - it holds shape geometry the world would not build;
+  - its mass data is not what the body's shapes give it;
+  - a body rotation in it is not of unit length.
+
+  Replay refuses a tape record whose bool flags are not 0 or 1.
+  Snapshots are format 3 and journal tapes format 4, so those written
+  by 0.0.1 are refused.
+  ([#23](https://github.com/Rawframe-Project/maul2d/pull/23),
+  [#27](https://github.com/Rawframe-Project/maul2d/pull/27),
+  [#29](https://github.com/Rawframe-Project/maul2d/pull/29),
+  [#31](https://github.com/Rawframe-Project/maul2d/pull/31),
+  [#39](https://github.com/Rawframe-Project/maul2d/pull/39))
+- **Breaking: the world hash.** `m2World_Hash` and
+  `m2World_GetHashParts` now also cover:
+  - every setting the step reads;
+  - the live slots, keyed by index;
+  - the id pools;
+  - the broadphase's fat boxes.
+
+  So two worlds with the same hash step on to the same bits. Every
+  hash value changes, and `m2WorldHashParts` gains a `volumes` part.
+  Queries capped at a number of hits keep the lowest shape slots, so
+  they choose the same shapes in every world that hashes the same.
+  ([#37](https://github.com/Rawframe-Project/maul2d/pull/37),
+  [#38](https://github.com/Rawframe-Project/maul2d/pull/38))
+- **Breaking:** `m2World_ShatterBody` returns an `m2Result` and hands
+  the count back through `countOut`, and `m2IsNormalizedRot` returns
+  `bool`.
+  ([#19](https://github.com/Rawframe-Project/maul2d/pull/19),
+  [#20](https://github.com/Rawframe-Project/maul2d/pull/20))
+
+### Added
+
+- `m2DistanceJoint_IsSpringEnabled` reads a distance joint's spring
+  toggle back.
+  ([#21](https://github.com/Rawframe-Project/maul2d/pull/21))
 
 ### Fixed
 
-- `m2DestroyWorld` with the id of a world that was already destroyed
-  does nothing. It used to destroy whichever world had been created in
-  the same slot since.
-- Two joints that can never both hold (a wheel joint and a slider with
-  crossing axes on one body, say) no longer turn the world to NaN.
-  Their impulses fought without limit until they overflowed; every
-  joint row now holds its accumulated impulse within a bound no
-  ordinary scene reaches, so the results of existing scenes are
-  unchanged. Found by the weekly deep fuzz; the seed joins the
-  regression bank.
+- **The host's floating-point setting.** The library computes in its
+  own setting (round to nearest, subnormals kept, every exception
+  masked) on any host thread. A thread left in flush-to-zero,
+  denormals-are-zero or another rounding mode therefore gets the same
+  bits. Task hooks, draw callbacks and the allocator run in the host's
+  own setting.
+  ([#44](https://github.com/Rawframe-Project/maul2d/pull/44))
+- **Saturation in the step.** Every velocity saturates at
+  `M2_MAX_SPEED`, and every joint and contact impulse at
+  `M2_IMPULSE_LIMIT`, and water and wind loads at `M2_MAX_FORCE`. A 2x2
+  joint solve whose couplings would overflow solves its rows one at a
+  time instead.
+  ([#42](https://github.com/Rawframe-Project/maul2d/pull/42))
+- **Far-apart joints.** A joint between two bodies far apart clamps
+  its separation to `M2_JOINT_REACH`, where it used to leave NaN in the
+  bodies.
+  ([#35](https://github.com/Rawframe-Project/maul2d/pull/35))
+- **Rotations.** Normalizing a rotation keeps its direction for any
+  finite nonzero input. Very long, very short or infinite components
+  used to give `{0, 0}`, NaN or the identity.
+  ([#23](https://github.com/Rawframe-Project/maul2d/pull/23))
+- **Far particles.** A particle far beyond the grid's reach no longer
+  overflows its cell coordinate.
+  ([#28](https://github.com/Rawframe-Project/maul2d/pull/28))
+- **Polygons.** A created or set polygon is rebuilt from its vertices,
+  so its normals are always the world's own.
+  ([#31](https://github.com/Rawframe-Project/maul2d/pull/31))
 
 ## [0.0.1] - 2026-09-24
 
