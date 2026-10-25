@@ -485,6 +485,27 @@ static void TestOutlineThatNearlyTouchesIsRefused(void)
           "one twice the slop away decomposes");
 }
 
+// Outlines the decomposition used to accept. A small clockwise hexagon far
+// from the origin: summed in float, its area came out positive, and it
+// split into two pieces. A long thin triangle: counter-clockwise, but too
+// thin for any piece to pass validation, so it was accepted with none.
+static void TestOutlineWithoutPiecesIsRefused(void)
+{
+    const float o = 98304.0f; // 1.5 * 2^16, where floats lie 1/128 m apart
+    m2Vec2 clockwise[6] = {{o + 4.9609375f, o + 0.1875f},    {o + 2.84375f, o - 0.046875f},
+                           {o - 1.2109375f, o - 2.3515625f}, {o - 1.25f, o - 0.0546875f},
+                           {o - 1.59375f, o + 2.7265625f},   {o + 0.640625f, o + 1.1796875f}};
+    m2Vec2 needle[3] = {{-5.0e4f, 0.0f}, {5.0e4f, 0.0f}, {0.0f, 0.01f}};
+    m2Polygon pieces[4];
+    int32_t count = 7;
+    CHECK(m2DecomposeOutline(clockwise, 6, pieces, 4, &count) == m2_errorInvalid && count == 7,
+          "a clockwise outline far from the origin is refused");
+    CHECK(m2DecomposeOutline(needle, 3, pieces, 4, &count) == m2_errorInvalid && count == 7,
+          "an outline that leaves no piece is refused");
+    CHECK(m2DecomposeOutline(needle, 3, NULL, 0, &count) == m2_errorInvalid && count == 7,
+          "and so is its measure");
+}
+
 // A static box that grows after the world has stepped: a ball dropped over
 // the new part rests on it. The step refits only awake bodies' boxes, so
 // the setter must refit the static shape's own box, or the broadphase
@@ -521,6 +542,7 @@ int main(void)
     TestGrownStaticShapeCollides();
     TestLocalLengthsAreBounded();
     TestOutlineThatNearlyTouchesIsRefused();
+    TestOutlineWithoutPiecesIsRefused();
     TestPolygonNormalsAreTheWorlds();
     TestMassClosedForms();
     TestValidation();

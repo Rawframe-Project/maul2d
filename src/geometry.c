@@ -732,7 +732,9 @@ static int32_t Decompose(const m2Vec2* points, int32_t count, m2Polygon* pieces,
     {
         return -1;
     }
-    float area2 = 0.0f;
+    // Summed in double, where the products of floats are exact: in float, a
+    // small clockwise outline far from the origin can sum to a positive area.
+    double area2 = 0.0;
     for (int32_t i = 0; i < count; ++i)
     {
         m2Vec2 p = points[i];
@@ -741,9 +743,9 @@ static int32_t Decompose(const m2Vec2* points, int32_t count, m2Polygon* pieces,
             return -1;
         }
         m2Vec2 q = points[(i + 1) % count];
-        area2 += p.x * q.y - q.x * p.y;
+        area2 += (double)p.x * (double)q.y - (double)q.x * (double)p.y;
     }
-    if (!(area2 > 0.0f))
+    if (!(area2 > 0.0))
     {
         return -1; // clockwise or degenerate outline
     }
@@ -903,7 +905,8 @@ static int32_t Decompose(const m2Vec2* points, int32_t count, m2Polygon* pieces,
     }
 
     // Validate each piece through the ordinary polygon road; slivers
-    // that validation rejects are skipped (documented).
+    // that validation rejects are skipped (documented). An outline that
+    // leaves no piece is refused, not accepted as empty.
     int32_t total = 0;
     for (int32_t i = 0; i < pieceCount; ++i)
     {
@@ -923,7 +926,7 @@ static int32_t Decompose(const m2Vec2* points, int32_t count, m2Polygon* pieces,
         }
         total += 1;
     }
-    return total;
+    return total > 0 ? total : -1;
 }
 
 static M2_NOINLINE m2Result DecomposeOutlineWorker(const m2Vec2* points, int32_t count,
