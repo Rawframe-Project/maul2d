@@ -29,11 +29,11 @@
 //   and is an outermost entry of its own; a setting host code changes
 //   lasts until it returns.
 //
-// Compilers treat floating-point arithmetic as free of side effects (the
-// build uses -fno-trapping-math), so they may move it across the writes
-// to the control register. A public call therefore does no arithmetic of
-// its own between entering and leaving: it calls a worker marked
-// M2_NOINLINE, whose body cannot move out of the call.
+// Compilers do not order floating-point arithmetic against the writes to
+// the control register, so they may move it across them. A public call
+// therefore does no arithmetic of its own between entering and leaving:
+// it calls a worker marked M2_NOINLINE, whose body cannot move out of
+// the call.
 
 #ifndef MAUL2D_SRC_FPENV_H
 #define MAUL2D_SRC_FPENV_H

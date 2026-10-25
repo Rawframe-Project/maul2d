@@ -384,7 +384,20 @@ static inline m2f8 m2F8And(m2f8 a, m2f8 b)
 #endif
 
 // Ternary-law min/max: a>b?a:b and a<b?a:b, identical on every
-// backend by construction (compare + select, no native min/max).
+// backend. AVX2's MAXPS and MINPS are defined as exactly that law
+// (the second operand when either is NaN or both are zero), so they
+// stand in for compare + select. NEON's vmaxq/vminq propagate NaN and
+// order signed zeros, so NEON and scalar keep compare + select.
+#if defined(M2_SIMD_AVX2)
+static inline m2f8 m2F8Max(m2f8 a, m2f8 b)
+{
+    return _mm256_max_ps(a, b);
+}
+static inline m2f8 m2F8Min(m2f8 a, m2f8 b)
+{
+    return _mm256_min_ps(a, b);
+}
+#else
 static inline m2f8 m2F8Max(m2f8 a, m2f8 b)
 {
     return m2F8Select(m2F8GT(a, b), a, b);
@@ -393,5 +406,6 @@ static inline m2f8 m2F8Min(m2f8 a, m2f8 b)
 {
     return m2F8Select(m2F8LT(a, b), a, b);
 }
+#endif
 
 #endif // MAUL2D_SRC_SIMD_H
