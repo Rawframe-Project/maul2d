@@ -21,7 +21,7 @@
 void m2RetireChainSlot(m2World* world, int32_t chainIndex)
 {
     world->chains.chainAlive[chainIndex] = 0;
-    if (world->chains.chainGenerations[chainIndex] == UINT16_MAX)
+    if (world->chains.chainGenerations[chainIndex] == M2_LAST_GENERATION)
     {
         world->chains.chainRetiredCount += 1;
         return;

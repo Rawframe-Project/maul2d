@@ -17,8 +17,9 @@
 #                            documentation site, and the linux-clang-20-asan,
 #                            linux-gcc-14 and linux-shared presets.
 #   tools/check.sh full      also the other Linux presets (ThreadSanitizer,
-#                            Clang Release), the testbed, and the nightly
-#                            simulation.
+#                            Clang Release), the testbed, the nightly
+#                            simulation, and each fuzz target for
+#                            FUZZ_SECONDS (default 20).
 #
 # The builds are the CI cells' CMake presets (CMakePresets.json), in
 # out/<preset>. Needs gcc-14, clang-20, clang-tidy-20, ninja, python3
@@ -159,5 +160,18 @@ cmake --build --preset linux-testbed -j "$jobs" >>"$out/linux-testbed.log"
 step "the nightly simulation"
 "$out/linux-clang-20/test_soak" 300000
 "$out/linux-clang-20/test_walk" 200
+
+step "the fuzz targets"
+cmake -B "$out/fuzz" -G Ninja -DCMAKE_C_COMPILER=clang-20 -DMAUL2D_FUZZ=ON \
+    -DMAUL2D_BUILD_TESTS=OFF -DMAUL2D_WERROR=ON >"$out/fuzz.log"
+cmake --build "$out/fuzz" -j "$jobs" >>"$out/fuzz.log"
+for target in "$out"/fuzz/fuzz_*; do
+    name=$(basename "$target")
+    mkdir -p "$out/corpus/$name"
+    "$target" -max_total_time="${FUZZ_SECONDS:-20}" -max_len=4096 \
+        -artifact_prefix="$out/" "$out/corpus/$name" >"$out/$name.log" 2>&1 ||
+        { tail -n 40 "$out/$name.log"; exit 1; }
+    echo "$name: no finding"
+done
 
 step "all checks passed"

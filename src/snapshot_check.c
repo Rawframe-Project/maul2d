@@ -124,7 +124,7 @@ static int32_t CheckPool(uint8_t* marks, const Pool* pool)
                 return -1;
             }
         }
-        else if (pool->generations != NULL && ReadU16(pool->generations, i) == UINT16_MAX)
+        else if (pool->generations != NULL && ReadU16(pool->generations, i) == M2_LAST_GENERATION)
         {
             exhausted += 1;
         }
@@ -146,7 +146,7 @@ static int32_t CheckPool(uint8_t* marks, const Pool* pool)
             return -1;
         }
         bool retiredSlot =
-            pool->generations != NULL && ReadU16(pool->generations, slot) == UINT16_MAX;
+            pool->generations != NULL && ReadU16(pool->generations, slot) == M2_LAST_GENERATION;
         if (pool->alive[slot] != 0 || retiredSlot || marks[slot] != 0)
         {
             return -1;

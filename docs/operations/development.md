@@ -23,6 +23,7 @@ The organization's CI image, `ghcr.io/rawframe-project/ci-cpp`, has everything b
 | `MAUL2D_VALIDATE` | `m2World_Validate` asserted after every step. |
 | `MAUL2D_SIMD=scalar` | The scalar kernels on any CPU; results are the same bits. |
 | `MAUL2D_TEST_PACKAGE` | The `package` test: installs the build and builds `samples/minimal` against it. |
+| `MAUL2D_FUZZ` | The libFuzzer targets `fuzz_<area>` (Clang only), with the library itself instrumented by AddressSanitizer and UBSan. |
 
 `M2_ASSERT` is on in every build without `NDEBUG`. A broken invariant traps with `__builtin_trap`, so a debugger or a core dump stops at the failing check.
 
@@ -60,6 +61,19 @@ A line that moves unexpectedly is a determinism bug until proven otherwise. Comp
 ## The testbed
 
 `-DMAUL2D_BUILD_TESTBED=ON` (or the `linux-testbed` preset) builds the interactive testbed on raylib, which CMake fetches. The Pages workflow compiles it to WebAssembly with the documentation site.
+
+## Reproducing a fuzz finding
+
+A finding in CI uploads the target's log and the input that failed (`crash-<hash>`) as the job's artifact. Run the target on that input locally:
+
+```sh
+cmake -B out/fuzz -G Ninja -DCMAKE_C_COMPILER=clang-20 -DMAUL2D_FUZZ=ON -DMAUL2D_BUILD_TESTS=OFF
+cmake --build out/fuzz
+./out/fuzz/fuzz_snapshot crash-<hash>
+./out/fuzz/fuzz_snapshot -max_total_time=300 -max_len=4096 out/corpus/fuzz_snapshot
+```
+
+Every crash a fuzzer finds becomes a test in the suite of its module, with the smallest input that still fails (`-minimize_crash=1`) or the scene it reduces to.
 
 ## Shared family files
 

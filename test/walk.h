@@ -10,7 +10,8 @@
 //   3. a twin of the same seed, with or without a journal and with three
 //      task-system workers, reaches the same hash.
 // test_walk.c runs it over the regression bank and the nightly seeds;
-// test_golden.c pins the hash of its ten canonical seeds.
+// test_golden.c pins the hash of its ten canonical seeds; fuzz_walk.c
+// drives it from fuzzer input.
 
 #ifndef MAUL2D_TEST_WALK_H
 #define MAUL2D_TEST_WALK_H
@@ -35,8 +36,24 @@ static uint64_t s_walkTapeHash = M2_HASH_INIT;
 // The size of the last tape the walk recorded.
 static int32_t s_walkTapeSize = 0;
 
+// A fuzz target drives the walk from its input instead: each draw takes
+// the next eight bytes, and the seed's xorshift takes over when they run
+// out. A walk from a seed has no bytes and draws exactly as before.
+static const uint8_t* s_walkBytes;
+static size_t s_walkByteCount;
+static size_t s_walkByteAt;
+
 static uint64_t NextU64(void)
 {
+    if (s_walkByteAt < s_walkByteCount)
+    {
+        uint64_t drawn = 0;
+        for (int32_t k = 0; k < 8 && s_walkByteAt < s_walkByteCount; ++k)
+        {
+            drawn |= (uint64_t)s_walkBytes[s_walkByteAt++] << (8 * k);
+        }
+        return drawn;
+    }
     uint64_t x = s_rng;
     x ^= x << 13;
     x ^= x >> 7;
@@ -774,6 +791,7 @@ static uint64_t RunScenario(uint64_t seed, uint8_t* journal, int32_t journalCapa
                             int32_t workerCount)
 {
     s_rng = seed;
+    s_walkByteAt = 0;
     m2WorldDef def = WalkWorldDef(workerCount);
     m2World* world = NewWorld(&def);
     if (journal != NULL)

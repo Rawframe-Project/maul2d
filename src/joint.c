@@ -598,7 +598,7 @@ void m2DestroyJointInternal(m2World* world, int32_t index)
     {
         m2RefilterJointedBodies(world, bodyA, bodyB); // pairs may return
     }
-    if (world->joints.jointGenerations[index] == UINT16_MAX)
+    if (world->joints.jointGenerations[index] == M2_LAST_GENERATION)
     {
         world->joints.jointRetiredCount += 1;
         return;

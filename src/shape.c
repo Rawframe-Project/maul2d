@@ -70,7 +70,7 @@ void m2DestroyShapeInternal(m2World* world, int32_t shapeIndex)
 {
     m2RetireShapeFromBroadphase(world, shapeIndex);
     world->shapes.shapeAlive[shapeIndex] = 0;
-    if (world->shapes.shapeGenerations[shapeIndex] == UINT16_MAX)
+    if (world->shapes.shapeGenerations[shapeIndex] == M2_LAST_GENERATION)
     {
         world->shapes.shapeRetiredCount += 1;
         return;
