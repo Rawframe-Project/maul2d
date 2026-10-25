@@ -1,10 +1,10 @@
 # The internal module graph: each module and the modules it may use.
 # tools/check_modules.py enforces it.
 allocator: fpenv
-body: broadphase chain fpenv island joint_edges journal mass math_functions object_ids shape world_internal world_state
-body_motion: body broadphase fpenv island joint joint_row journal math_functions object_ids world_internal
+body: chain fpenv island joint_edges journal mass math_functions object_ids proxies shape world_internal world_state
+body_motion: body fpenv island joint joint_row journal math_functions object_ids proxies world_internal
 body_read: body fpenv object_ids shape world_internal
-broadphase: contact island joint_edges world_internal
+broadphase: contact island joint_edges proxies world_internal
 buoyancy: fpenv journal math_functions world_internal
 ccd: world_internal
 chain: fpenv geometry island journal mass object_ids shape world_internal
@@ -22,7 +22,7 @@ fpenv:
 geometry: core dynamic_tree fpenv math_functions
 graph_color: contact_constraint solver_base world_internal
 hash:
-island: world_internal
+island: proxies world_internal
 joint: broadphase fpenv island joint_edges joint_row joint_solver journal math_functions world_internal
 joint_distance: body broadphase fpenv joint joint_solver journal object_ids solver_base world_internal
 joint_edges: world_internal
@@ -52,11 +52,12 @@ particle_contacts: body distance dynamic_tree island parallel particle world_int
 particle_pairs: particle world_internal
 particle_solver: body dynamic_tree particle query world_internal
 platform_time: world_internal
+proxies: dynamic_tree geometry world_internal
 query: distance fpenv world_internal
 query_proxy: query
 ray_cast: query
 rotation:
-shape: broadphase distance fpenv island journal mass object_ids world_internal
+shape: broadphase distance fpenv island journal mass object_ids proxies world_internal
 shape_read: fpenv object_ids shape world_internal
 simd:
 snapshot: fpenv joint joint_edges journal snapshot_check world_internal world_state
@@ -64,8 +65,8 @@ snapshot_check: core dynamic_tree geometry joint mass world_internal world_state
 solver: ccd contact_solver joint joint_solver rotation world_internal
 solver_base: core
 state_checks: core dynamic_tree geometry
-world: allocator broadphase buoyancy contact cpu fpenv island journal parallel particle solver world_internal world_state
-world_internal: allocator core dynamic_tree geometry
+world: allocator broadphase buoyancy contact cpu fpenv island journal parallel particle proxies solver world_internal world_state
 world_hash: dynamic_tree world_internal
+world_internal: allocator core dynamic_tree geometry
 world_state: contact_solver state_checks world_hash world_internal
 world_validate: fpenv world world_internal

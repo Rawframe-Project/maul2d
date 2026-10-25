@@ -16,6 +16,7 @@
 #include "journal.h"
 #include "parallel.h"
 #include "particle.h"
+#include "proxies.h"
 #include "solver.h"
 #include "world_internal.h"
 #include "world_state.h"
@@ -325,13 +326,7 @@ static void MoveProxies(m2World* world)
         {
             continue;
         }
-        for (int32_t s = world->bodies.bodyShapeHead[i]; s != -1; s = world->shapes.shapeNext[s])
-        {
-            if (m2RefitProxy(world, s))
-            {
-                m2PushMoved(world, s);
-            }
-        }
+        m2RefitBodyProxies(world, i);
     }
 }
 

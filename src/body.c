@@ -7,7 +7,6 @@
 
 #include "body.h"
 
-#include "broadphase.h"
 #include "chain.h"
 #include "fpenv.h"
 #include "island.h"
@@ -16,6 +15,7 @@
 #include "mass.h"
 #include "math_functions.h"
 #include "object_ids.h"
+#include "proxies.h"
 #include "shape.h"
 #include "world_internal.h"
 #include "world_state.h"
@@ -619,6 +619,9 @@ static M2_NOINLINE void BodySetAwakeWorker(m2World* world, m2BodyId bodyId, bool
         world->bodies.angularVelocities[index] = 0.0f;
         world->bodies.forces[index] = (m2Vec2){0.0f, 0.0f};
         world->bodies.torques[index] = 0.0f;
+        // The step refits no sleeping body's boxes; it may have moved
+        // since its boxes were last refitted.
+        m2RefitBodyProxies(world, index);
     }
 }
 

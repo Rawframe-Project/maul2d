@@ -986,6 +986,130 @@ static void TestStoredImpulsesStayInRange(void)
           "a row pair clamped to the limit stores the limit");
 }
 
+// --- Boxes of bodies the step does not refit -----------------------------------
+//
+// The step refits a body's boxes only while it is awake and not static.
+// A snapshot that puts a static or sleeping body far from its boxes would
+// leave them stale until something wakes or moves it, so the step and a
+// host's queries would find the body where it is not (crash-8e3b702a
+// moved the static ground to about 1e40 m, and a bullet near the origin
+// found it there); a restore refuses it. Every world keeps those boxes
+// right, and still restores its own snapshot.
+
+static void PutTransform(const Scene* scene, uint8_t* block, m2BodyId body, m2Pos2 position)
+{
+    uint8_t* transforms = At(scene, block, &scene->world->bodies.transforms);
+    m2Transform xf;
+    memcpy(&xf, transforms + (size_t)(body.index1 - 1) * sizeof(xf), sizeof(xf));
+    xf.p = position;
+    memcpy(transforms + (size_t)(body.index1 - 1) * sizeof(xf), &xf, sizeof(xf));
+}
+
+static void StaticGroundFarAway(const Scene* scene, uint8_t* block)
+{
+    PutTransform(scene, block, scene->ground, (m2Pos2){1.0e30, 0.0});
+}
+
+static void SleepingBoxFarAway(const Scene* scene, uint8_t* block)
+{
+    PutTransform(scene, block, scene->boxA, (m2Pos2){0.0, 1.0e30});
+}
+
+static void AwakeBoxMoved(const Scene* scene, uint8_t* block)
+{
+    PutTransform(scene, block, scene->boxA, (m2Pos2){50.0, 50.0});
+}
+
+// The world's own snapshot restores onto the same hash.
+static bool RoundTripsAlone(m2World* world)
+{
+    int32_t size = m2World_SnapshotSize(world);
+    void* bytes = malloc((size_t)size);
+    if (bytes == NULL)
+    {
+        return false;
+    }
+    uint64_t hash = m2World_Hash(world);
+    bool restores = Snapshot(world, bytes, size) == size && Restore(world, bytes, size) &&
+                    m2World_Hash(world) == hash;
+    free(bytes);
+    return restores;
+}
+
+// A world without gravity holding one box, made with the given velocity.
+static m2World* CrawlWorld(m2Vec2 velocity, m2BodyId* box)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.gravity = (m2Vec2){0.0f, 0.0f};
+    m2World* world = NewWorld(&def);
+    m2BodyDef bodyDef = m2DefaultBodyDef();
+    bodyDef.type = m2_dynamicBody;
+    bodyDef.linearVelocity = velocity;
+    *box = NewBody(world, &bodyDef);
+    m2ShapeDef shapeDef = m2DefaultShapeDef();
+    m2Polygon square = m2MakeBox(0.5f, 0.5f);
+    NewPolygonShape(world, *box, &shapeDef, &square);
+    return world;
+}
+
+static void TestRestingBoxes(void)
+{
+    Scene scene = MakeScene();
+    ExpectRefused(&scene, StaticGroundFarAway, "a static body far from its boxes is refused");
+    CHECK(m2Body_IsAwake(scene.world, scene.boxA), "the box is awake after 10 steps");
+    uint8_t* bytes = (uint8_t*)malloc((size_t)scene.size);
+    CHECK(bytes != NULL, "a copy of the snapshot");
+    if (bytes != NULL)
+    {
+        memcpy(bytes, scene.valid, (size_t)scene.size);
+        AwakeBoxMoved(&scene, bytes + scene.headerBytes);
+        CHECK(Restore(scene.world, bytes, scene.size),
+              "an awake body away from its boxes restores: the next step refits them");
+        free(bytes);
+    }
+    FreeScene(&scene);
+
+    // Under the sleep tolerance, a 10 s step carries the box 0.4 m, past
+    // the box margin, and it falls asleep at the step's end.
+    m2BodyId box;
+    m2World* world = CrawlWorld((m2Vec2){0.04f, 0.0f}, &box);
+    m2World_Step(world, M2_MAX_TIME_STEP, 1);
+    CHECK(!m2Body_IsAwake(world, box), "the crawling box falls asleep in one long step");
+    Scene sleeping = {world, NULL, m2World_SnapshotSize(world), 0, {0}, box, {0}, {0}};
+    sleeping.valid = (uint8_t*)malloc((size_t)sleeping.size);
+    CHECK(sleeping.valid != NULL && Snapshot(world, sleeping.valid, sleeping.size) == sleeping.size,
+          "the sleeping world snapshots");
+    sleeping.headerBytes = sleeping.size - m2StateWalk(world, NULL, NULL, 2);
+    uint64_t hash = m2World_Hash(world);
+    CHECK(Restore(world, sleeping.valid, sleeping.size) && m2World_Hash(world) == hash,
+          "a body that fell asleep after moving past its margin restores its own snapshot");
+    ExpectRefused(&sleeping, SleepingBoxFarAway, "a sleeping body far from its boxes is refused");
+    FreeScene(&sleeping);
+
+    // Asleep for two step ends, then woken by a velocity setter, which
+    // leaves its sleep streak as it was: one 10 s step carries it 0.4 m
+    // and puts it back to sleep, and its boxes must follow.
+    world = CrawlWorld((m2Vec2){0.0f, 0.0f}, &box);
+    m2World_Step(world, M2_MAX_TIME_STEP, 1);
+    m2World_Step(world, 1.0f / 60.0f, 4);
+    m2World_Step(world, 1.0f / 60.0f, 4);
+    CHECK(!m2Body_IsAwake(world, box) && world->bodies.sleepStreak[box.index1 - 1] == 2,
+          "the box has been asleep for two step ends");
+    m2Body_SetLinearVelocity(world, box, (m2Vec2){0.04f, 0.0f});
+    m2World_Step(world, M2_MAX_TIME_STEP, 1);
+    CHECK(!m2Body_IsAwake(world, box), "the woken box falls asleep again in one long step");
+    CHECK(RoundTripsAlone(world),
+          "a box woken and put back to sleep within one step restores its own snapshot");
+    m2DestroyWorld(world);
+
+    // Put to sleep by hand right after a step that carried it 1.7 m.
+    world = CrawlWorld((m2Vec2){100.0f, 0.0f}, &box);
+    m2World_Step(world, 1.0f / 60.0f, 4);
+    m2Body_SetAwake(world, box, false);
+    CHECK(RoundTripsAlone(world), "a body put to sleep by hand restores its own snapshot");
+    m2DestroyWorld(world);
+}
+
 static void TestCheckStandsAlone(void)
 {
     Scene scene = MakeScene();
@@ -1053,6 +1177,7 @@ int main(void)
     TestRangeBounds();
     TestJointKindBounds();
     TestStoredImpulsesStayInRange();
+    TestRestingBoxes();
     if (s_failures > 0)
     {
         printf("%d failure(s)\n", s_failures);

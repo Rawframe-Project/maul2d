@@ -17,7 +17,10 @@
 //     live shapes of enabled bodies of its type, with boxes that contain
 //     their children, and its free list holds every other node;
 //   - the moved list and its flags agree, and the pairs are ordered and
-//     join live shapes in the broadphase.
+//     join live shapes in the broadphase;
+//   - each shape of a static or sleeping body lies inside its fat box at
+//     the body's pose: the step refits no such box before it, or a host,
+//     queries it.
 // The bytes may be unaligned, so every read goes through memcpy. Every
 // index read is bounded here too, though m2StateValidate already put each
 // one within its pool, so the check stands on its own. The only memory
@@ -760,11 +763,56 @@ static bool CheckPairs(const m2World* world, const uint8_t* in)
     return true;
 }
 
+// The boxes the step will not refit before it queries them: those of
+// static bodies, which never move in a step, and of sleeping dynamic
+// bodies, which a world refits as they fall asleep. Each must hold its
+// shape's tight box at the body's pose, by the step's own computation and
+// test. Awake bodies' boxes lag their poses by the last step in every
+// snapshot, and the next step refits them first.
+static bool CheckRestingBoxes(const m2World* world, const uint8_t* in)
+{
+    const uint8_t* alive = M2_IN(shapes.shapeAlive);
+    const uint8_t* owners = M2_IN(shapes.shapeBody);
+    const uint8_t* geometries = M2_IN(shapes.shapeGeometry);
+    const uint8_t* proxies = M2_IN(broadphase.proxyIds);
+    const uint8_t* types = M2_IN(bodies.types);
+    const uint8_t* asleep = M2_IN(bodies.asleep);
+    const uint8_t* transforms = M2_IN(bodies.transforms);
+    const uint8_t* nodes[3] = {M2_IN(broadphase.treeNodes[0]), M2_IN(broadphase.treeNodes[1]),
+                               M2_IN(broadphase.treeNodes[2])};
+    for (int32_t s = 0; s < world->shapes.shapeCapacity; ++s)
+    {
+        int32_t proxy = ReadI32(proxies, s);
+        if (alive[s] == 0 || proxy < 0)
+        {
+            continue;
+        }
+        int32_t body = ReadI32(owners, s);
+        uint8_t type = types[body];
+        bool resting = type == (uint8_t)m2_staticBody ||
+                       (type == (uint8_t)m2_dynamicBody && asleep[body] != 0);
+        if (!resting)
+        {
+            continue;
+        }
+        m2ShapeGeometry geometry;
+        memcpy(&geometry, geometries + (size_t)s * sizeof(geometry), sizeof(geometry));
+        m2Transform xf;
+        memcpy(&xf, transforms + (size_t)body * sizeof(xf), sizeof(xf));
+        if (!m2Aabb_Contains(ReadNode(nodes[type], proxy).aabb, m2ComputeShapeAabb(&geometry, xf)))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 #undef M2_IN
 
 bool m2SnapshotCheck(m2World* world, const uint8_t* in)
 {
     return CheckPools(world, in) && CheckShapeLists(world, in) && CheckChains(world, in) &&
            CheckJoints(world, in) && CheckGeometry(world, in) && CheckMass(world, in) &&
-           CheckTrees(world, in) && CheckMoved(world, in) && CheckPairs(world, in);
+           CheckTrees(world, in) && CheckMoved(world, in) && CheckPairs(world, in) &&
+           CheckRestingBoxes(world, in);
 }
