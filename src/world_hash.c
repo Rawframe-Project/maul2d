@@ -13,7 +13,7 @@
 typedef struct m2HashPool
 {
     const int32_t* queue;
-    const uint16_t* generations;
+    const uint32_t* generations;
     int32_t capacity;
     int32_t head;
     int32_t count;
@@ -33,7 +33,7 @@ static uint64_t HashPool(const m2HashPool* pool, uint64_t h)
     }
     // Generations below the high-water mark, live and free: a freed slot's
     // generation is the one its next object takes.
-    return m2Hash64(h, pool->generations, pool->maxIndex * (int32_t)sizeof(uint16_t));
+    return m2Hash64(h, pool->generations, pool->maxIndex * (int32_t)sizeof(uint32_t));
 }
 
 uint64_t m2HashPools(const m2World* world, m2HashPart part, uint64_t h)
@@ -54,9 +54,9 @@ uint64_t m2HashPools(const m2World* world, m2HashPart part, uint64_t h)
         {j->jointFreeQueue, j->jointGenerations, j->jointCapacity, j->jointFreeHead,
          j->jointFreeCount, j->maxJointIndex, j->jointRetiredCount, m2_hashJoints},
         {p->particleFreeQueue, p->particleGenerations, p->particleCapacity, p->particleFreeHead,
-         p->particleFreeCount, p->maxParticleIndex, 0, m2_hashParticles},
+         p->particleFreeCount, p->maxParticleIndex, p->particleRetiredCount, m2_hashParticles},
         {v->fvFreeQueue, v->fvGenerations, v->fvCapacity, v->fvFreeHead, v->fvFreeCount,
-         v->maxFvIndex, 0, m2_hashVolumes},
+         v->maxFvIndex, v->fvRetiredCount, m2_hashVolumes},
     };
     for (size_t i = 0; i < sizeof(pools) / sizeof(pools[0]); ++i)
     {

@@ -117,7 +117,11 @@ extern "C"
     /// nothing. The validity queries (m2Body_IsValid and the others) count
     /// nothing either. An id carries no world: one passed to another world
     /// names whatever that world holds in the same slot and generation, and
-    /// the library cannot tell.
+    /// the library cannot tell. A slot takes a new generation each time it
+    /// is reused, and after 2^32 objects it retires instead of starting
+    /// over, so no id ever names two objects. A pool of capacity n
+    /// therefore makes n * 2^32 objects over a world's life, snapshots
+    /// included; then its creates return m2_errorCapacity.
     ///
     /// MISUSE. m2Counters.misuse counts the bugs of the calling code: an
     /// argument a correct program never passes, a stale id, a writer called

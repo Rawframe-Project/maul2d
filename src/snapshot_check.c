@@ -60,9 +60,9 @@ static float ReadF32(const uint8_t* array, int32_t index)
     return value;
 }
 
-static uint16_t ReadU16(const uint8_t* array, int32_t index)
+static uint32_t ReadU32(const uint8_t* array, int32_t index)
 {
-    uint16_t value;
+    uint32_t value;
     memcpy(&value, array + (size_t)index * sizeof(value), sizeof(value));
     return value;
 }
@@ -88,19 +88,19 @@ static m2TreeNode ReadNode(const uint8_t* nodes, int32_t index)
 // --- Free queues ------------------------------------------------------------
 
 // One pool's slots and its ring of free slots, as the incoming bytes have
-// them. A pool that retires a slot whose generation is exhausted keeps it
-// out of the ring and counts it.
+// them. A slot whose generation is exhausted retires: it stays out of the
+// ring and is counted.
 typedef struct Pool
 {
     const uint8_t* alive;       // uint8 per slot
-    const uint8_t* generations; // uint16 per slot; NULL when the pool never retires
+    const uint8_t* generations; // uint32 per slot
     const uint8_t* queue;       // int32 per slot, a ring
     int32_t capacity;
     int32_t head;
     int32_t count;
-    bool hasTail;    // whether the pool keeps a tail cursor
-    int32_t tail;    // read only when hasTail
-    int32_t retired; // 0 when the pool never retires
+    bool hasTail; // whether the pool keeps a tail cursor
+    int32_t tail; // read only when hasTail
+    int32_t retired;
     int32_t highWater;
 } Pool;
 
@@ -124,7 +124,7 @@ static int32_t CheckPool(uint8_t* marks, const Pool* pool)
                 return -1;
             }
         }
-        else if (pool->generations != NULL && ReadU16(pool->generations, i) == M2_LAST_GENERATION)
+        else if (ReadU32(pool->generations, i) == M2_LAST_GENERATION)
         {
             exhausted += 1;
         }
@@ -145,8 +145,7 @@ static int32_t CheckPool(uint8_t* marks, const Pool* pool)
         {
             return -1;
         }
-        bool retiredSlot =
-            pool->generations != NULL && ReadU16(pool->generations, slot) == M2_LAST_GENERATION;
+        bool retiredSlot = ReadU32(pool->generations, slot) == M2_LAST_GENERATION;
         if (pool->alive[slot] != 0 || retiredSlot || marks[slot] != 0)
         {
             return -1;
@@ -162,21 +161,21 @@ static int32_t InlineI32(const m2World* world, const uint8_t* in, const void* fi
 }
 
 // The particle and fluid volume pools, which exist only in worlds that
-// have them and never retire a slot.
+// have them.
 static bool CheckFluidPools(m2World* world, const uint8_t* in)
 {
     uint8_t* marks = world->restoreMarks;
     if (world->particles.particleCapacity > 0)
     {
         const Pool particles = {M2_IN(particles.particleAlive),
-                                NULL,
+                                M2_IN(particles.particleGenerations),
                                 M2_IN(particles.particleFreeQueue),
                                 world->particles.particleCapacity,
                                 InlineI32(world, in, &world->particles.particleFreeHead),
                                 InlineI32(world, in, &world->particles.particleFreeCount),
                                 false,
                                 0,
-                                0,
+                                InlineI32(world, in, &world->particles.particleRetiredCount),
                                 InlineI32(world, in, &world->particles.maxParticleIndex)};
         int32_t live = CheckPool(marks, &particles);
         if (live < 0 || live != InlineI32(world, in, &world->particles.particleCount))
@@ -187,14 +186,14 @@ static bool CheckFluidPools(m2World* world, const uint8_t* in)
     if (world->volumes.fvCapacity > 0)
     {
         const Pool volumes = {M2_IN(volumes.fvAlive),
-                              NULL,
+                              M2_IN(volumes.fvGenerations),
                               M2_IN(volumes.fvFreeQueue),
                               world->volumes.fvCapacity,
                               InlineI32(world, in, &world->volumes.fvFreeHead),
                               InlineI32(world, in, &world->volumes.fvFreeCount),
                               false,
                               0,
-                              0,
+                              InlineI32(world, in, &world->volumes.fvRetiredCount),
                               InlineI32(world, in, &world->volumes.maxFvIndex)};
         if (CheckPool(marks, &volumes) < 0)
         {

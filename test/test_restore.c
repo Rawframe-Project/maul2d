@@ -1234,6 +1234,330 @@ static void TestHostileStructures(void)
     FreeScene(&scene);
 }
 
+// --- Spent slots ----------------------------------------------------------------
+
+// One pool under test: its own world, its creates and destroys through the
+// public calls, and its generations and counts inside the world.
+typedef struct SpentPool
+{
+    m2World* world;
+    uint32_t* generations;
+    const int32_t* retired;
+    int32_t capacity;
+    m2Result (*create)(m2World* world, uint32_t* index1, uint32_t* generation);
+    m2Result (*destroy)(m2World* world, uint32_t index1, uint32_t generation);
+    bool (*valid)(const m2World* world, uint32_t index1, uint32_t generation);
+} SpentPool;
+
+static m2BodyId s_owner; // the body a shape, chain or joint pool hangs on
+static m2BodyId s_other; // a joint's second body
+
+static m2Result CreateBodyIn(m2World* world, uint32_t* index1, uint32_t* generation)
+{
+    m2BodyDef def = m2DefaultBodyDef();
+    m2BodyId id = m2_nullBodyId;
+    m2Result result = m2CreateBody(world, &def, &id);
+    *index1 = id.index1;
+    *generation = id.generation;
+    return result;
+}
+
+static m2Result DestroyBodyIn(m2World* world, uint32_t index1, uint32_t generation)
+{
+    return m2DestroyBody(world, (m2BodyId){index1, generation});
+}
+
+static bool BodyValid(const m2World* world, uint32_t index1, uint32_t generation)
+{
+    return m2Body_IsValid(world, (m2BodyId){index1, generation});
+}
+
+static m2Result CreateShapeIn(m2World* world, uint32_t* index1, uint32_t* generation)
+{
+    m2ShapeDef def = m2DefaultShapeDef();
+    m2Polygon box = m2MakeBox(0.5f, 0.5f);
+    m2ShapeId id = m2_nullShapeId;
+    m2Result result = m2CreatePolygonShape(world, s_owner, &def, &box, &id);
+    *index1 = id.index1;
+    *generation = id.generation;
+    return result;
+}
+
+static m2Result DestroyShapeIn(m2World* world, uint32_t index1, uint32_t generation)
+{
+    return m2DestroyShape(world, (m2ShapeId){index1, generation});
+}
+
+static bool ShapeValid(const m2World* world, uint32_t index1, uint32_t generation)
+{
+    return m2Shape_IsValid(world, (m2ShapeId){index1, generation});
+}
+
+static m2Result CreateChainIn(m2World* world, uint32_t* index1, uint32_t* generation)
+{
+    m2Vec2 points[4] = {{-3.0f, 0.0f}, {-1.0f, 0.0f}, {1.0f, 0.0f}, {3.0f, 0.0f}};
+    m2ChainDef def = m2DefaultChainDef();
+    def.points = points;
+    def.count = 4;
+    m2ChainId id = m2_nullChainId;
+    m2Result result = m2CreateChain(world, s_owner, &def, &id);
+    *index1 = id.index1;
+    *generation = id.generation;
+    return result;
+}
+
+static m2Result DestroyChainIn(m2World* world, uint32_t index1, uint32_t generation)
+{
+    return m2DestroyChain(world, (m2ChainId){index1, generation});
+}
+
+static bool ChainValid(const m2World* world, uint32_t index1, uint32_t generation)
+{
+    return m2Chain_IsValid(world, (m2ChainId){index1, generation});
+}
+
+static m2Result CreateJointIn(m2World* world, uint32_t* index1, uint32_t* generation)
+{
+    m2RevoluteJointDef def = m2DefaultRevoluteJointDef();
+    def.bodyIdA = s_owner;
+    def.bodyIdB = s_other;
+    m2JointId id = m2_nullJointId;
+    m2Result result = m2CreateRevoluteJoint(world, &def, &id);
+    *index1 = id.index1;
+    *generation = id.generation;
+    return result;
+}
+
+static m2Result DestroyJointIn(m2World* world, uint32_t index1, uint32_t generation)
+{
+    return m2DestroyJoint(world, (m2JointId){index1, generation});
+}
+
+static bool JointValid(const m2World* world, uint32_t index1, uint32_t generation)
+{
+    return m2Joint_IsValid(world, (m2JointId){index1, generation});
+}
+
+static m2Result CreateParticleIn(m2World* world, uint32_t* index1, uint32_t* generation)
+{
+    m2ParticleId id = {0, 0};
+    m2Result result =
+        m2World_EmitParticle(world, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f}, 0u, &id);
+    *index1 = id.index1;
+    *generation = id.generation;
+    return result;
+}
+
+static m2Result DestroyParticleIn(m2World* world, uint32_t index1, uint32_t generation)
+{
+    return m2DestroyParticle(world, (m2ParticleId){index1, generation});
+}
+
+static bool ParticleValid(const m2World* world, uint32_t index1, uint32_t generation)
+{
+    return m2Particle_IsValid(world, (m2ParticleId){index1, generation});
+}
+
+static m2Result CreateVolumeIn(m2World* world, uint32_t* index1, uint32_t* generation)
+{
+    m2FluidVolumeDef def = m2DefaultFluidVolumeDef();
+    def.regionLower = (m2Pos2){-1.0, -1.0};
+    def.regionUpper = (m2Pos2){1.0, 1.0};
+    m2FluidVolumeId id = {0, 0};
+    m2Result result = m2CreateFluidVolume(world, &def, &id);
+    *index1 = id.index1;
+    *generation = id.generation;
+    return result;
+}
+
+static m2Result DestroyVolumeIn(m2World* world, uint32_t index1, uint32_t generation)
+{
+    return m2DestroyFluidVolume(world, (m2FluidVolumeId){index1, generation});
+}
+
+static bool VolumeValid(const m2World* world, uint32_t index1, uint32_t generation)
+{
+    return m2FluidVolume_IsValid(world, (m2FluidVolumeId){index1, generation});
+}
+
+enum
+{
+    SPENT_CAPACITY = 2
+};
+
+// Every slot starts one generation short of the last. The first round of
+// creates takes the last generation and frees the slot under it; the
+// second retires each slot, so no id is ever named twice, and then the
+// pool is full for good.
+static void SpendPool(const SpentPool* pool)
+{
+    for (int32_t i = 0; i < pool->capacity; ++i)
+    {
+        pool->generations[i] = M2_LAST_GENERATION - 1u;
+    }
+    uint32_t index1[2 * SPENT_CAPACITY];
+    uint32_t generation[2 * SPENT_CAPACITY];
+    int32_t made = 0;
+    for (int32_t k = 0; k < 2 * pool->capacity; ++k)
+    {
+        if (pool->create(pool->world, &index1[k], &generation[k]) != m2_success ||
+            pool->destroy(pool->world, index1[k], generation[k]) != m2_success)
+        {
+            break;
+        }
+        made += 1;
+    }
+    int32_t lastRound = 0;
+    int32_t revived = 0;
+    for (int32_t k = 0; k < made; ++k)
+    {
+        lastRound += generation[k] == M2_LAST_GENERATION && k >= pool->capacity ? 1 : 0;
+        revived += pool->valid(pool->world, index1[k], generation[k]) ? 1 : 0;
+    }
+    uint32_t spareIndex = 0;
+    uint32_t spareGeneration = 0;
+    CHECK(made == 2 * pool->capacity && lastRound == pool->capacity && revived == 0,
+          "each slot names its last generation once, and no destroyed id names anything");
+    CHECK(*pool->retired == pool->capacity &&
+              pool->create(pool->world, &spareIndex, &spareGeneration) == m2_errorCapacity,
+          "then every slot has retired and the pool is full");
+}
+
+// The world's snapshot of its spent pool restores; one that says fewer
+// slots retired, or that puts a retired slot back in the ring, does not.
+static void RestoreSpentPool(const SpentPool* pool, const void* freeQueue, const void* freeHead,
+                             const void* freeCount)
+{
+    int32_t size = m2World_SnapshotSize(pool->world);
+    uint8_t* bytes = (uint8_t*)malloc((size_t)size);
+    uint8_t* edited = (uint8_t*)malloc((size_t)size);
+    CHECK(bytes != NULL && edited != NULL && Snapshot(pool->world, bytes, size) == size,
+          "the spent pool snapshots");
+    if (bytes == NULL || edited == NULL)
+    {
+        free(bytes);
+        free(edited);
+        return;
+    }
+    uint64_t hash = m2World_Hash(pool->world);
+    CHECK(m2World_Restore(pool->world, bytes, size) == m2_success &&
+              m2World_Hash(pool->world) == hash,
+          "a spent pool round-trips");
+    int32_t header = size - m2StateWalk(pool->world, NULL, NULL, 2);
+    uint8_t* block = edited + header;
+
+    memcpy(edited, bytes, (size_t)size);
+    PutI32((uint8_t*)(uintptr_t)m2StateIncoming(pool->world, block, pool->retired), 0,
+           pool->capacity - 1);
+    CHECK(m2World_Restore(pool->world, edited, size) == m2_errorInvalid,
+          "a snapshot that hides a retired slot is refused");
+
+    memcpy(edited, bytes, (size_t)size);
+    int32_t head = GetI32(m2StateIncoming(pool->world, block, freeHead), 0);
+    PutI32((uint8_t*)(uintptr_t)m2StateIncoming(pool->world, block, freeQueue), head, 0);
+    PutI32((uint8_t*)(uintptr_t)m2StateIncoming(pool->world, block, freeCount), 0, 1);
+    PutI32((uint8_t*)(uintptr_t)m2StateIncoming(pool->world, block, pool->retired), 0,
+           pool->capacity - 1);
+    CHECK(m2World_Restore(pool->world, edited, size) == m2_errorInvalid,
+          "a snapshot whose ring hands out a retired slot is refused");
+    CHECK(m2World_Hash(pool->world) == hash, "and neither changes the world");
+    free(bytes);
+    free(edited);
+}
+
+static m2World* SpentWorld(int32_t bodies, int32_t shapes, int32_t joints, int32_t particles,
+                           int32_t volumes)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = bodies;
+    def.shapeCapacity = shapes;
+    def.jointCapacity = joints;
+    def.particleCapacity = particles;
+    def.fluidVolumeCapacity = volumes;
+    return NewWorld(&def);
+}
+
+// Every pool retires a slot at its last generation instead of wrapping, so a
+// stale id never names a later object.
+static void TestSpentSlotsRetire(void)
+{
+    const int32_t n = SPENT_CAPACITY;
+    m2World* w = SpentWorld(n, 1, 1, 0, 0);
+    SpentPool bodies = {w,        w->bodies.generations, &w->bodies.retiredCount,
+                        n,        CreateBodyIn,          DestroyBodyIn,
+                        BodyValid};
+    SpendPool(&bodies);
+    RestoreSpentPool(&bodies, &w->bodies.freeQueue, &w->bodies.freeHead, &w->bodies.freeCount);
+    m2DestroyWorld(w);
+
+    m2BodyDef owner = m2DefaultBodyDef();
+    w = SpentWorld(1, n, 1, 0, 0);
+    s_owner = NewBody(w, &owner);
+    SpentPool shapes = {w,
+                        w->shapes.shapeGenerations,
+                        &w->shapes.shapeRetiredCount,
+                        n,
+                        CreateShapeIn,
+                        DestroyShapeIn,
+                        ShapeValid};
+    SpendPool(&shapes);
+    RestoreSpentPool(&shapes, &w->shapes.shapeFreeQueue, &w->shapes.shapeFreeHead,
+                     &w->shapes.shapeFreeCount);
+    m2DestroyWorld(w);
+
+    w = SpentWorld(1, n, 1, 0, 0);
+    s_owner = NewBody(w, &owner);
+    SpentPool chains = {w,
+                        w->chains.chainGenerations,
+                        &w->chains.chainRetiredCount,
+                        n,
+                        CreateChainIn,
+                        DestroyChainIn,
+                        ChainValid};
+    SpendPool(&chains);
+    RestoreSpentPool(&chains, &w->chains.chainFreeQueue, &w->chains.chainFreeHead,
+                     &w->chains.chainFreeCount);
+    m2DestroyWorld(w);
+
+    w = SpentWorld(2, 1, n, 0, 0);
+    owner.type = m2_dynamicBody;
+    s_owner = NewBody(w, &owner);
+    s_other = NewBody(w, &owner);
+    SpentPool joints = {w,
+                        w->joints.jointGenerations,
+                        &w->joints.jointRetiredCount,
+                        n,
+                        CreateJointIn,
+                        DestroyJointIn,
+                        JointValid};
+    SpendPool(&joints);
+    RestoreSpentPool(&joints, &w->joints.jointFreeQueue, &w->joints.jointFreeHead,
+                     &w->joints.jointFreeCount);
+    m2DestroyWorld(w);
+
+    w = SpentWorld(1, 1, 1, n, 0);
+    SpentPool particles = {w,
+                           w->particles.particleGenerations,
+                           &w->particles.particleRetiredCount,
+                           n,
+                           CreateParticleIn,
+                           DestroyParticleIn,
+                           ParticleValid};
+    SpendPool(&particles);
+    RestoreSpentPool(&particles, &w->particles.particleFreeQueue, &w->particles.particleFreeHead,
+                     &w->particles.particleFreeCount);
+    m2DestroyWorld(w);
+
+    w = SpentWorld(1, 1, 1, 0, n);
+    SpentPool volumes = {w,          w->volumes.fvGenerations, &w->volumes.fvRetiredCount,
+                         n,          CreateVolumeIn,           DestroyVolumeIn,
+                         VolumeValid};
+    SpendPool(&volumes);
+    RestoreSpentPool(&volumes, &w->volumes.fvFreeQueue, &w->volumes.fvFreeHead,
+                     &w->volumes.fvFreeCount);
+    m2DestroyWorld(w);
+}
+
 int main(void)
 {
     TestHostileStructures();
@@ -1244,6 +1568,7 @@ int main(void)
     TestStoredImpulsesStayInRange();
     TestRestingBoxes();
     TestResleptBodyRefreshesItsContacts();
+    TestSpentSlotsRetire();
     if (s_failures > 0)
     {
         printf("%d failure(s)\n", s_failures);

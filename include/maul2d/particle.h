@@ -68,7 +68,8 @@ extern "C"
                                                       m2ParticleId* particleOut);
 
     /// Destroys one particle, with its springs and triads. Its slot is
-    /// reused in FIFO order under a new generation. Journaled.
+    /// reused in FIFO order under a new generation, and retires rather than
+    /// let the generation wrap. Journaled.
     ///
     /// @param world       The world.
     /// @param particleId  The particle.
