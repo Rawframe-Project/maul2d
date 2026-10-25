@@ -14,6 +14,7 @@
 #include "geometry.h"
 #include "helpers.h"
 #include "joint.h"
+#include "joint_row.h"
 #include "snapshot_check.h"
 #include "test_harness.h"
 #include "world_internal.h"
@@ -953,6 +954,38 @@ static void TestJointKindBounds(void)
     FreeScene(&scene);
 }
 
+// --- What the step stores stays in range ------------------------------------
+//
+// A solve that scales a pair's impulse to its limit, or stores the old
+// impulse plus a clamped difference, can round a float past the limit; a
+// restore would then refuse the world's own snapshot. Each case below is
+// an input that rounds past it before the stored value is held.
+
+static void TestStoredImpulsesStayInRange(void)
+{
+    m2Vec2 zero = {0.0f, 0.0f};
+    m2RowDrive still = {0.0f, 0.0f, 0.0f};
+    // A point pair whose impulse, (21 2^46, 0), is scaled to 1e15: the
+    // scaled component rounds to the float above 1e15.
+    float mass = 0x1p40f;
+    m2JointBodies heavy = {zero, 0.0f, zero, 0.0f, 1.0f / mass, 0.0f, 1.0f / mass, 0.0f};
+    m2PointMass pointMass = {mass, 0.0f, mass};
+    m2Vec2 pair = zero;
+    m2SolvePointPair(zero, zero, pointMass, &heavy, (m2Vec2){-21.0f * 64.0f, 0.0f}, still, &pair,
+                     M2_MAX_FORCE);
+    CHECK(m2ValidImpulseVec(pair) && pair.x == M2_IMPULSE_LIMIT,
+          "a point pair scaled to the limit stores the limit");
+    // Two rows whose first impulse turns from just inside -1e15 to past
+    // +1e15 in one solve: the old impulse plus the clamped difference
+    // rounds to the float above 1e15.
+    m2JointRow rows[2] = {{zero, 0.0f, {1.0f, 0.0f}, 0.0f}, {zero, 0.0f, {0.0f, 1.0f}, 0.0f}};
+    m2JointBodies light = {zero, 0.0f, zero, 0.0f, 0.0f, 0.0f, 1.0f / mass, 0.0f};
+    m2Vec2 rowPair = {-0x1.c6bf4cp+49f, 0.0f};
+    m2SolveRowPair(rows, &light, (m2Vec2){-4096.0f, 0.0f}, still, &rowPair);
+    CHECK(m2ValidImpulseVec(rowPair) && rowPair.x == M2_IMPULSE_LIMIT,
+          "a row pair clamped to the limit stores the limit");
+}
+
 static void TestCheckStandsAlone(void)
 {
     Scene scene = MakeScene();
@@ -1019,6 +1052,7 @@ int main(void)
     TestFuzzFinds();
     TestRangeBounds();
     TestJointKindBounds();
+    TestStoredImpulsesStayInRange();
     if (s_failures > 0)
     {
         printf("%d failure(s)\n", s_failures);
