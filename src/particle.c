@@ -128,7 +128,6 @@ m2Result m2DestroyParticle(m2World* world, m2ParticleId particleId)
 void m2DestroyParticleInternal(m2World* world, int32_t index)
 {
     world->particles.particleAlive[index] = 0;
-    world->particles.particleGenerations[index] += 1; // retire under a fresh generation
     // Jelly bookkeeping: springs and triads die with their particle,
     // compacted in order so the lists stay canonical.
     if (world->particles.particleSpringCount > 0)
@@ -169,11 +168,17 @@ void m2DestroyParticleInternal(m2World* world, int32_t index)
         }
         world->particles.particleTriadCount = keep;
     }
+    world->particles.particleCount -= 1;
+    if (world->particles.particleGenerations[index] == M2_LAST_GENERATION)
+    {
+        world->particles.particleRetiredCount += 1;
+        return;
+    }
+    world->particles.particleGenerations[index] += 1;
     world->particles.particleFreeQueue[(world->particles.particleFreeHead +
                                         world->particles.particleFreeCount) %
                                        world->particles.particleCapacity] = index;
     world->particles.particleFreeCount += 1;
-    world->particles.particleCount -= 1;
 }
 
 bool m2Particle_IsValid(const m2World* world, m2ParticleId particleId)

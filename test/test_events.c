@@ -106,7 +106,7 @@ static void TestDestroyBookending(void)
     CHECK(begins == 1, "box landed");
 
     // Destroy BETWEEN steps, while touching.
-    uint16_t generationAtDestroy = boxShape.generation;
+    uint32_t generationAtDestroy = boxShape.generation;
     DestroyBody(world, box);
     m2World_Step(world, 1.0f / 60.0f, 4);
     m2ContactEvents ev = m2World_GetContactEvents(world);
@@ -116,7 +116,7 @@ static void TestDestroyBookending(void)
         bool namesBox = ev.endEvents[0].shapeIdA.index1 == boxShape.index1 ||
                         ev.endEvents[0].shapeIdB.index1 == boxShape.index1;
         CHECK(namesBox, "end event names the destroyed shape");
-        uint16_t gen = ev.endEvents[0].shapeIdA.index1 == boxShape.index1
+        uint32_t gen = ev.endEvents[0].shapeIdA.index1 == boxShape.index1
                            ? ev.endEvents[0].shapeIdA.generation
                            : ev.endEvents[0].shapeIdB.generation;
         CHECK(gen == generationAtDestroy, "end event carries the pre-destroy generation");

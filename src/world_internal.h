@@ -28,7 +28,7 @@
 
 // A slot names objects under generations 0 to M2_LAST_GENERATION, then
 // retires, so a stale id never names a later object in it.
-#define M2_LAST_GENERATION UINT16_MAX
+#define M2_LAST_GENERATION UINT32_MAX
 
 // Bodies: parallel POD arrays at fixed capacity, and the id pool
 // (FIFO free queue plus generations; saturated slots retire).
@@ -61,7 +61,7 @@ typedef struct m2Bodies
     float* sleepTimes;      // seconds under tolerance (snapshot + hashed)
     uint8_t* sleepStreak;   // step-ends asleep, saturating at 2 (snapshot state)
     uint8_t* bullets;       // isBullet flag (snapshot + hashed)
-    uint16_t* generations;
+    uint32_t* generations;
     int32_t* freeQueue;
     int32_t freeHead;
     int32_t freeTail;
@@ -88,7 +88,7 @@ typedef struct m2Shapes
     uint8_t* shapeSensor;     // overlap-only shapes (snapshot state)
     float* shapeTangentSpeed; // conveyor surface speed (snapshot state)
     int32_t* shapeChain;      // owning chain slot, -1 = free-standing (snapshot state)
-    uint16_t* shapeGenerations;
+    uint32_t* shapeGenerations;
     int32_t* shapeFreeQueue;
     int32_t shapeFreeHead;
     int32_t shapeFreeTail;
@@ -133,7 +133,7 @@ typedef struct m2Joints
     m2Pos2* jointTargets;    // mouse joints: world target (snapshot state)
     m2Pos2* jointTargetsB;   // pulley: second ground anchor (snapshot state)
     uint64_t* jointUserData; // opaque (snapshot state)
-    uint16_t* jointGenerations;
+    uint32_t* jointGenerations;
     int32_t* jointFreeQueue;
     int32_t jointFreeHead;
     int32_t jointFreeTail;
@@ -151,7 +151,7 @@ typedef struct m2Chains
     int32_t maxChainIndex;
     uint8_t* chainAlive;
     int32_t* chainBody;
-    uint16_t* chainGenerations;
+    uint32_t* chainGenerations;
     int32_t* chainFreeQueue;
     int32_t chainFreeHead;
     int32_t chainFreeTail;
@@ -173,13 +173,14 @@ typedef struct m2Particles
     m2Pos2* particlePositions;
     m2Vec2* particleVelocities;
     uint8_t* particleAlive;
-    uint16_t* particleGenerations;
+    uint32_t* particleGenerations;
     uint32_t* particleFlags;    // behavior bits (snapshot state)
     float* particleLifetime;    // seconds left, 0 = immortal (snapshot state)
     uint64_t* particleUserData; // opaque game data (snapshot state)
     int32_t* particleFreeQueue;
     int32_t particleFreeHead;
     int32_t particleFreeCount;
+    int32_t particleRetiredCount;
     float particleRadius;
     float particleDensity;
     float particleGravityScale;
@@ -249,10 +250,11 @@ typedef struct m2FluidVolumes
     m2Vec2* fvFlow;
     uint64_t* fvUserData;
     uint8_t* fvAlive;
-    uint16_t* fvGenerations;
+    uint32_t* fvGenerations;
     int32_t* fvFreeQueue;
     int32_t fvFreeHead;
     int32_t fvFreeCount;
+    int32_t fvRetiredCount;
 } m2FluidVolumes;
 
 // Broadphase: one tree per body type whose leaves are shape proxies,

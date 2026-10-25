@@ -981,6 +981,42 @@ static void TestCrowdedCrossingStops(void)
     m2DestroyWorld(world);
 }
 
+// A program may hold the id of a particle that is gone. A slot is reused
+// every capacity emits, so one slot reused 65536 times would bring a 16-bit
+// generation back to the held id: it would name the new particle. Volumes
+// share the pattern.
+static void TestDeadIdsStayDead(void)
+{
+    m2WorldDef def = FluidWorldDef(1);
+    def.fluidVolumeCapacity = 1;
+    m2World* world = NewWorld(&def);
+    m2ParticleId first = EmitParticle(world, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f}, 0);
+    CHECK(DestroyParticle(world, first) == m2_success, "the first particle goes");
+    int32_t revived = 0;
+    for (int32_t i = 0; i < 65537; ++i)
+    {
+        m2ParticleId next = EmitParticle(world, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f}, 0);
+        revived += m2Particle_IsValid(world, first) ? 1 : 0;
+        CHECK(DestroyParticle(world, next) == m2_success, "each later particle goes");
+    }
+    CHECK(revived == 0, "a held particle id never names a later particle");
+
+    m2FluidVolumeDef pool = m2DefaultFluidVolumeDef();
+    pool.regionLower = (m2Pos2){-1.0, -1.0};
+    pool.regionUpper = (m2Pos2){1.0, 1.0};
+    m2FluidVolumeId tank = NewFluidVolume(world, &pool);
+    CHECK(DestroyFluidVolume(world, tank) == m2_success, "the first volume goes");
+    revived = 0;
+    for (int32_t i = 0; i < 65537; ++i)
+    {
+        m2FluidVolumeId next = NewFluidVolume(world, &pool);
+        revived += m2FluidVolume_IsValid(world, tank) ? 1 : 0;
+        CHECK(DestroyFluidVolume(world, next) == m2_success, "each later volume goes");
+    }
+    CHECK(revived == 0, "a held volume id never names a later volume");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
     TestCrowdedCrossingStops();
@@ -999,6 +1035,7 @@ int main(void)
     TestOverlapParticles();
     TestFluidThreadingParity();
     TestLifetimeAndUserData();
+    TestDeadIdsStayDead();
     TestRollbackIdentity();
     TestJournalReplay();
     if (s_failures > 0)

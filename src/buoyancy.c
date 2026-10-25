@@ -321,6 +321,11 @@ static M2_NOINLINE m2Result DestroyFluidVolumeWorker(m2World* world, m2FluidVolu
         m2JournalRecord(world, m2_opDestroyFluidVolume, &volumeId, (int32_t)sizeof(volumeId));
     }
     world->volumes.fvAlive[index] = 0;
+    if (world->volumes.fvGenerations[index] == M2_LAST_GENERATION)
+    {
+        world->volumes.fvRetiredCount += 1;
+        return m2_success;
+    }
     world->volumes.fvGenerations[index] += 1;
     world->volumes.fvFreeQueue[(world->volumes.fvFreeHead + world->volumes.fvFreeCount) %
                                world->volumes.fvCapacity] = index;

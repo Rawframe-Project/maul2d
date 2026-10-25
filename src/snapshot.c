@@ -20,7 +20,7 @@
 
 #define M2_SNAPSHOT_MAGIC 0x4D32534Eu // 'M2SN'
 
-#define M2_SNAPSHOT_VERSION 3u
+#define M2_SNAPSHOT_VERSION 4u
 
 // --- Snapshot -------------------------------------------------------------------
 
