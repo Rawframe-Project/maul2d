@@ -132,6 +132,7 @@ The libraries are one product family: a program may link several of them, and a 
 | File and function lengths, complexity exceptions | `tools/check_lengths.py` |
 | Public documentation blocks and thread safety statements | `tools/check_docs.py` |
 | Documentation snippets run by tests | `tools/check_guide.py` |
+| No sleeps, wall-clock reads, retries or unexplained skips in tests; every test labeled | `tools/check_test_hygiene.py`, with its self-test over `tools/test_hygiene/` |
 | Fast math refused | `cmake/CompilerFlags.cmake` |
 | Allowed documentation files, em dash, record numbers, links | the organization's documentation check |
 | Commit and pull request titles | the organization's title check |

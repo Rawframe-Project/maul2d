@@ -2041,9 +2041,9 @@ typedef struct Meddler
 {
     m2World* target;
     m2BodyId body;
-    int32_t allocTries;
+    int32_t allocCalls;
     int32_t allocRefused;
-    int32_t freeTries;
+    int32_t freeCalls;
     int32_t freeRefused;
 } Meddler;
 
@@ -2053,7 +2053,7 @@ static void* MeddlingAlloc(size_t size, size_t alignment, void* context)
     Meddler* m = (Meddler*)context;
     if (m->target != NULL)
     {
-        m->allocTries += 1;
+        m->allocCalls += 1;
         m2BodyDef bd = m2DefaultBodyDef();
         m2BodyId made = m2_nullBodyId;
         m->allocRefused += m2CreateBody(m->target, &bd, &made) == m2_errorState ? 1 : 0;
@@ -2068,7 +2068,7 @@ static void MeddlingFree(void* memory, size_t size, size_t alignment, void* cont
     Meddler* m = (Meddler*)context;
     if (m->target != NULL)
     {
-        m->freeTries += 1;
+        m->freeCalls += 1;
         m->freeRefused += m2DestroyBody(m->target, m->body) == m2_errorState ? 1 : 0;
     }
     free(memory);
@@ -2117,20 +2117,20 @@ static void TestAllocatorCannotWrite(void)
     meddler.target = fresh;
     uint64_t misuse = m2World_GetCounters(fresh).misuse;
     CHECK(ReplayJournal(fresh, tape, bytes), "the tape replays");
-    CHECK(meddler.allocTries >= 3, "the replay allocated its backup, the chain and the pieces");
-    CHECK(meddler.allocRefused == meddler.allocTries, "every create from inside alloc refused");
-    CHECK(meddler.freeTries >= 3 && meddler.freeRefused == meddler.freeTries,
+    CHECK(meddler.allocCalls >= 3, "the replay allocated its backup, the chain and the pieces");
+    CHECK(meddler.allocRefused == meddler.allocCalls, "every create from inside alloc refused");
+    CHECK(meddler.freeCalls >= 3 && meddler.freeRefused == meddler.freeCalls,
           "every destroy from inside free refused");
     CHECK(m2World_GetCounters(fresh).misuse ==
-              misuse + (uint64_t)(meddler.allocTries + meddler.freeTries),
+              misuse + (uint64_t)(meddler.allocCalls + meddler.freeCalls),
           "host code calling back counts as misuse, mid-replay too");
     CHECK(m2World_Hash(fresh) == m2World_Hash(world), "and the replay is untouched by it");
 
     // Destroying the world frees through the same allocator.
-    meddler.freeTries = 0;
+    meddler.freeCalls = 0;
     meddler.freeRefused = 0;
     m2DestroyWorld(fresh);
-    CHECK(meddler.freeTries > 1 && meddler.freeRefused == meddler.freeTries,
+    CHECK(meddler.freeCalls > 1 && meddler.freeRefused == meddler.freeCalls,
           "a destroy's frees cannot change the world either");
     m2DestroyWorld(world);
     free(tape);

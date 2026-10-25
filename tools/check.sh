@@ -5,12 +5,13 @@
 # The checks, in three tiers. Each tier includes the one before it.
 #
 #   tools/check.sh changed   the files changed against origin/main: the
-#                            family rules, formatting, the documentation
-#                            checks, and the linux-clang-20-asan preset
-#                            (scalar backend, assertions and world
-#                            validation on) for the test labels the
-#                            changes reach. Under two minutes; run it
-#                            before every push.
+#                            family rules, test hygiene, formatting, the
+#                            documentation checks, and the
+#                            linux-clang-20-asan preset (scalar backend,
+#                            assertions and world validation on) for the
+#                            test labels the changes reach. Every
+#                            preset's tests must carry a label. Under two
+#                            minutes; run it before every push.
 #   tools/check.sh pr        what the pull request check runs on this
 #                            machine: every check, clang-tidy, the
 #                            documentation site, and the linux-clang-20-asan,
@@ -51,6 +52,7 @@ preset() {
     shift
     step "preset $name"
     cmake --preset "$name" >"$out/$name.log"
+    python3 tools/check_test_hygiene.py --ctest "out/$name"
     cmake --build --preset "$name" -j "$jobs" >>"$out/$name.log"
     ctest --preset "$name" -j "$jobs" "$@"
 }
@@ -59,7 +61,7 @@ preset() {
 # suite (the library's sources, the build, the golden values).
 labels_for() {
     case "$1" in
-    *.md | LICENSE | .github/* | tools/*.py | tools/*.txt | tools/check.sh) ;;
+    *.md | LICENSE | .github/* | tools/*.py | tools/*.txt | tools/check.sh | tools/test_hygiene/*) ;;
     test/test_harness.h | test/test_task_pool.h | test/walk.h | test/hashes.txt) echo all ;;
     test/test_*.c)
         name=${1#test/test_}
@@ -79,6 +81,8 @@ source_checks() {
     python3 tools/check_lengths.py
     python3 tools/check_guide.py
     python3 tools/check_float_env.py
+    python3 tools/check_test_hygiene.py --self-test
+    python3 tools/check_test_hygiene.py
     if [ -f "$org/scripts/docs_check.py" ]; then
         python3 "$org/scripts/docs_check.py"
     else

@@ -1,0 +1,8 @@
+{
+  "kind": "ctestInfo",
+  "version": {"major": 1, "minor": 0},
+  "tests": [
+    {"name": "labeled", "properties": [{"name": "LABELS", "value": ["base"]}]},
+    {"name": "unlabeled", "properties": [{"name": "WORKING_DIRECTORY", "value": "/x"}]}
+  ]
+}
