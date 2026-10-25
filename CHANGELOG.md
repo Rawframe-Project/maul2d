@@ -6,6 +6,15 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.1.1](https://github.com/Rawframe-Project/maul2d/compare/v0.1.0...v0.1.1) (2026-10-25)
+
+
+### Fixed
+
+* **collision:** refit a shape's broadphase box when its geometry changes ([#48](https://github.com/Rawframe-Project/maul2d/issues/48)) ([a5c122a](https://github.com/Rawframe-Project/maul2d/commit/a5c122ab6cbd6139292871e89a39a4f0e49dd95f))
+* **snapshot:** hold every restored number to its range ([#45](https://github.com/Rawframe-Project/maul2d/issues/45)) ([aa7451a](https://github.com/Rawframe-Project/maul2d/commit/aa7451a33ac5eb7eb2d0ede661f8a74a70d0396c))
+* **snapshot:** refuse static or sleeping bodies far from their boxes ([#49](https://github.com/Rawframe-Project/maul2d/issues/49)) ([7cf2256](https://github.com/Rawframe-Project/maul2d/commit/7cf22568ca1fad0c420db42f1d3f4eaf6b965cd8))
+
 ## [0.1.0](https://github.com/Rawframe-Project/maul2d/releases/tag/v0.1.0) (2026-10-25)
 
 ### Changed
