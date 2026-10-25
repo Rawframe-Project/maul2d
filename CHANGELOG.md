@@ -17,9 +17,10 @@ snapshot and journal formats.
   as it was, as for every refusal
   ([#53](https://github.com/Rawframe-Project/maul2d/pull/53)).
 - On AVX2 the solver's min and max are one instruction each, with the
-  same bits. The pyramid bench scenes run faster on GCC 14 (pyramid15
-  from 8.1 to 8.9 ms down to 7.6 to 7.8 ms, pyramid30 from 57.7 to
-  59.7 ms down to 49.7 to 54.5 ms), and every bench hash is unchanged.
+  same bits. The pyramid bench scenes run faster on GCC 14 (best of
+  nine rounds in each of two runs: pyramid15 8.1 and 8.9 ms before, 7.6
+  and 7.8 ms after; pyramid30 57.7 and 59.7 ms before, 49.7 and 54.5 ms
+  after), and every bench hash is unchanged.
   The library is also built with SSE math on 32-bit x86 and the
   compiler's default trapping math, from the family's shared flags
   ([#56](https://github.com/Rawframe-Project/maul2d/pull/56)).
@@ -32,11 +33,13 @@ snapshot and journal formats.
   The area is now summed in double
   ([#53](https://github.com/Rawframe-Project/maul2d/pull/53)).
 - Polygon validation accepts small polygons far from their body's
-  origin. It summed the area for its thinness test in float, so the
-  shape constructors, `m2Shape_SetPolygon`, `m2World_ShatterBody`
-  and restore refused every 0.25 m to 2 m box and right triangle at
-  65536 m and 98304 m, most of them at 10000 m, and one at 1000 m. The
-  area is now summed in double, against the same threshold
+  origin. It summed the area for its thinness test in float, so
+  `m2MakePolygon` refused every 0.25 m to 2 m box and right triangle at
+  65536 m and 98304 m, most of them at 10000 m, and one at 1000 m.
+  `m2ComputeHull`, the pieces of `m2DecomposeOutline`, the shape
+  constructors, `m2Shape_SetPolygon`, `m2World_ShatterBody` and
+  restore all go through the same check. The area is now summed in
+  double, against the same threshold
   ([#53](https://github.com/Rawframe-Project/maul2d/pull/53)).
 - A body woken and put back to sleep before a step end, by a long step
   that moves it or by a teleport followed by `m2Body_SetAwake(false)`,
