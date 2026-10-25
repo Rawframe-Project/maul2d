@@ -617,8 +617,12 @@ static void SetGeometryInternal(m2World* world, m2ShapeId shapeId, int32_t index
     world->shapes.shapeGeometry[index] = *geometry;
     m2RecomputeMass(world, body);
     m2WakeIfDynamic(world, body);
+    // The box is refitted now, as a teleport refits it: the step refits
+    // only awake bodies' boxes, so a static shape's would keep its old
+    // extent.
     if (world->broadphase.proxyIds[index] != M2_NULL_NODE)
     {
+        (void)m2RefitProxy(world, index);
         m2PushMoved(world, index);
     }
 }

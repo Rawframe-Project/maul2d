@@ -327,13 +327,8 @@ static void MoveProxies(m2World* world)
         }
         for (int32_t s = world->bodies.bodyShapeHead[i]; s != -1; s = world->shapes.shapeNext[s])
         {
-            m2Aabb tight = m2ShapeTightAabb(world, s);
-            int32_t tree = m2ShapeTreeIndex(world, s);
-            if (!m2Aabb_Contains(
-                    world->broadphase.treeNodes[tree][world->broadphase.proxyIds[s]].aabb, tight))
+            if (m2RefitProxy(world, s))
             {
-                m2TreeMove(&world->broadphase.trees[tree], world->broadphase.treeNodes[tree],
-                           world->broadphase.proxyIds[s], m2Fatten(tight));
                 m2PushMoved(world, s);
             }
         }
