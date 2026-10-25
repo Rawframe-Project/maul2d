@@ -1110,6 +1110,71 @@ static void TestRestingBoxes(void)
     m2DestroyWorld(world);
 }
 
+// --- The sleep streak ------------------------------------------------------------
+//
+// A body's sleep streak counts the step ends since it fell asleep; a pair
+// whose ends have both slept two step ends keeps its manifold unrefreshed,
+// since nothing in it has moved. A body woken and put back to sleep within
+// one step has moved, and must count from zero again, or its pair keeps a
+// manifold from before the move.
+
+// The mean x of a manifold's points in its first body's frame.
+static double MeanAnchorX(const m2Manifold* m)
+{
+    double sum = 0.0;
+    for (int32_t k = 0; k < m->pointCount; ++k)
+    {
+        sum += (double)m->points[k].anchorA.x;
+    }
+    return m->pointCount > 0 ? sum / (double)m->pointCount : 0.0;
+}
+
+static void TestResleptBodyRefreshesItsContacts(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.gravity = (m2Vec2){0.0f, 0.0f};
+    m2World* world = NewWorld(&def);
+    m2BodyDef groundDef = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(world, &groundDef);
+    m2ShapeDef shapeDef = m2DefaultShapeDef();
+    shapeDef.friction = 0.0f;
+    m2Polygon floor = m2MakeBox(20.0f, 0.5f);
+    NewPolygonShape(world, ground, &shapeDef, &floor);
+    m2BodyDef boxDef = m2DefaultBodyDef();
+    boxDef.type = m2_dynamicBody;
+    boxDef.position = (m2Pos2){0.0, 1.0};
+    m2BodyId box = NewBody(world, &boxDef);
+    m2Polygon square = m2MakeBox(0.5f, 0.5f);
+    NewPolygonShape(world, box, &shapeDef, &square);
+    m2World_Step(world, M2_MAX_TIME_STEP, 1);
+    m2World_Step(world, 1.0f / 60.0f, 4);
+    m2World_Step(world, 1.0f / 60.0f, 4);
+    CHECK(!m2Body_IsAwake(world, box) && world->bodies.sleepStreak[box.index1 - 1] == 2,
+          "the box rests asleep for two step ends");
+
+    // Woken, it slides 0.4 m in one 10 s step and falls asleep again.
+    m2Body_SetLinearVelocity(world, box, (m2Vec2){0.04f, 0.0f});
+    m2World_Step(world, M2_MAX_TIME_STEP, 1);
+    CHECK(!m2Body_IsAwake(world, box), "the box is asleep again after sliding");
+    m2World_Step(world, 1.0f / 60.0f, 4);
+    double x = m2Body_GetPosition(world, box).x;
+    CHECK(world->contacts.pairCount == 1 && x > 0.35, "the box rests on the ground 0.4 m on");
+    double anchor = MeanAnchorX(&world->contacts.manifolds[0]);
+    CHECK(fabs(anchor - x) < 0.01, "the contact points are under the box where it rests");
+
+    // Asleep two step ends again, then moved by a teleport, which wakes it,
+    // and put back to sleep by hand.
+    m2World_Step(world, 1.0f / 60.0f, 4);
+    CHECK(world->bodies.sleepStreak[box.index1 - 1] == 2, "the box rests asleep again");
+    m2Body_SetTransform(world, box, (m2Pos2){x + 0.4, 1.0}, (m2Rot){1.0f, 0.0f});
+    m2Body_SetAwake(world, box, false);
+    m2World_Step(world, 1.0f / 60.0f, 4);
+    anchor = MeanAnchorX(&world->contacts.manifolds[0]);
+    CHECK(fabs(anchor - (x + 0.4)) < 0.01,
+          "the contact points follow a box put to sleep by hand after a move");
+    m2DestroyWorld(world);
+}
+
 static void TestCheckStandsAlone(void)
 {
     Scene scene = MakeScene();
@@ -1178,6 +1243,7 @@ int main(void)
     TestJointKindBounds();
     TestStoredImpulsesStayInRange();
     TestRestingBoxes();
+    TestResleptBodyRefreshesItsContacts();
     if (s_failures > 0)
     {
         printf("%d failure(s)\n", s_failures);

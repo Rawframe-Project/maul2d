@@ -612,6 +612,9 @@ static M2_NOINLINE void BodySetAwakeWorker(m2World* world, m2BodyId bodyId, bool
     }
     world->bodies.asleep[index] = sleeping;
     world->bodies.sleepTimes[index] = 0.0f;
+    // A body put to sleep counts its sleep streak from now, as the sleep
+    // pass does.
+    world->bodies.sleepStreak[index] = 0;
     if (!awake)
     {
         // Forced sleep stills the body.
