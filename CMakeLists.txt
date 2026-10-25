@@ -193,6 +193,8 @@ if(MAUL2D_FUZZ)
         target_link_options(fuzz_${area} PRIVATE -fsanitize=fuzzer,address,undefined
                             -fno-sanitize-recover=all)
     endforeach()
+    # fuzz_geometry reads the retire rule from src/world_internal.h.
+    target_include_directories(fuzz_geometry PRIVATE ${PROJECT_SOURCE_DIR}/src)
 endif()
 if(MAUL2D_BUILD_SAMPLES)
     add_subdirectory(samples)

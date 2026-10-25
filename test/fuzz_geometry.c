@@ -13,6 +13,7 @@
 //     any.
 
 #include "helpers.h"
+#include "world_internal.h"
 
 #include "maul2d/maul2d.h"
 
@@ -25,11 +26,18 @@
 enum
 {
     FUZZ_MAX_POINTS = 64,
-    FUZZ_MAX_PIECES = 64
+    FUZZ_MAX_PIECES = 64,
+    FUZZ_SHAPE_SLOTS = 4
 };
+
+// The shapes the fuzz world makes before every slot has retired: each
+// slot names one per generation.
+static const uint64_t k_fuzzShapeLife =
+    (uint64_t)FUZZ_SHAPE_SLOTS * ((uint64_t)M2_LAST_GENERATION + 1u);
 
 static m2World* s_world;
 static m2BodyId s_body;
+static uint64_t s_shapesMade; // since the fuzz world was built
 
 static void Fail(const char* promise)
 {
@@ -46,8 +54,9 @@ static void BuildFuzzWorld(void)
         m2DestroyWorld(s_world);
     }
     m2WorldDef def = m2DefaultWorldDef();
-    def.shapeCapacity = 4;
+    def.shapeCapacity = FUZZ_SHAPE_SLOTS;
     s_world = NewWorld(&def);
+    s_shapesMade = 0;
     m2BodyDef bodyDef = m2DefaultBodyDef();
     bodyDef.type = m2_dynamicBody;
     s_body = NewBody(s_world, &bodyDef);
@@ -57,15 +66,16 @@ static void BuildFuzzWorld(void)
     }
 }
 
-// The shape a polygon makes on the fuzz body, destroyed again at once. A
-// slot retires after 65536 shapes, so the four slots fill after 262144
-// and the fuzz world is built again.
+// The shape a polygon makes on the fuzz body, destroyed again at once.
+// Once every slot has retired the pool is full for good, and the fuzz
+// world is built again; a full pool any earlier is a leaked or retired
+// slot.
 static void MustMakeShape(const m2Polygon* polygon)
 {
     m2ShapeDef def = m2DefaultShapeDef();
     m2ShapeId shape = m2_nullShapeId;
     m2Result made = m2CreatePolygonShape(s_world, s_body, &def, polygon, &shape);
-    if (made == m2_errorCapacity)
+    if (made == m2_errorCapacity && s_shapesMade == k_fuzzShapeLife)
     {
         BuildFuzzWorld();
         made = m2CreatePolygonShape(s_world, s_body, &def, polygon, &shape);
@@ -74,6 +84,7 @@ static void MustMakeShape(const m2Polygon* polygon)
     {
         Fail("an accepted polygon makes a shape");
     }
+    s_shapesMade += 1;
     if (m2DestroyShape(s_world, shape) != m2_success)
     {
         Fail("the shape goes again");

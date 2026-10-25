@@ -26,6 +26,10 @@
 #define M2_LOCK_LINEAR_X 1u
 #define M2_LOCK_LINEAR_Y 2u
 
+// A slot names objects under generations 0 to M2_LAST_GENERATION, then
+// retires, so a stale id never names a later object in it.
+#define M2_LAST_GENERATION UINT16_MAX
+
 // Bodies: parallel POD arrays at fixed capacity, and the id pool
 // (FIFO free queue plus generations; saturated slots retire).
 typedef struct m2Bodies

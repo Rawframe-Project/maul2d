@@ -177,7 +177,7 @@ static M2_NOINLINE m2Result DestroyBodyWorker(m2World* world, m2BodyId bodyId)
         m2WakeIfDynamic(world, other);
         world->joints.jointAlive[j] = 0;
         m2UnlinkJoint(world, j);
-        if (world->joints.jointGenerations[j] == UINT16_MAX)
+        if (world->joints.jointGenerations[j] == M2_LAST_GENERATION)
         {
             world->joints.jointRetiredCount += 1;
         }
@@ -213,7 +213,7 @@ static M2_NOINLINE m2Result DestroyBodyWorker(m2World* world, m2BodyId bodyId)
     world->bodies.bodyShapeHead[index] = -1;
 
     world->bodies.alive[index] = 0;
-    if (world->bodies.generations[index] == UINT16_MAX)
+    if (world->bodies.generations[index] == M2_LAST_GENERATION)
     {
         world->bodies.retiredCount += 1;
         return m2_success;
