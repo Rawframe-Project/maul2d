@@ -230,7 +230,8 @@ extern "C"
     /// Splits a simple counter-clockwise outline, without holes, into
     /// convex pieces of at most 8 vertices: the way from a sprite outline to
     /// the shapes of a destructible body. Pieces of near-zero area are
-    /// dropped by validation; a clean outline loses nothing.
+    /// dropped by validation; a clean outline loses nothing, and one that
+    /// would lose every piece is refused.
     ///
     /// @param points    The outline, up to 64 points.
     /// @param count     The number of points.
@@ -240,7 +241,8 @@ extern "C"
     /// @param countOut  Receives the number of pieces, which may exceed
     ///                  capacity; left as it was on failure.
     /// @return m2_success; m2_errorInvalid for too few or too many points,
-    ///         clockwise winding, an outline that is not simple (an edge
+    ///         clockwise winding, an outline too thin for any piece to pass
+    ///         validation, an outline that is not simple (an edge
     ///         crossing another, a vertex within 0.005 m of an edge it
     ///         does not end, a repeated vertex, an edge folding back over
     ///         its neighbor), a point beyond M2_HUGE or a null argument. It takes no world, so

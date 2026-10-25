@@ -64,7 +64,9 @@ bool m2ValidatePolygon(const m2Polygon* polygon)
         return false;
     }
 
-    float area = 0.0f;
+    // The area is summed in double, where the products of floats are exact:
+    // in float, a small polygon far from the origin sums to noise.
+    double area = 0.0;
     float perimeter = 0.0f;
     for (int32_t i = 0; i < polygon->count; ++i)
     {
@@ -80,7 +82,7 @@ bool m2ValidatePolygon(const m2Polygon* polygon)
             return false; // near-coincident vertices: cancellation in normals
         }
         perimeter += edge;
-        area += 0.5f * (a.x * b.y - a.y * b.x);
+        area += 0.5 * ((double)a.x * (double)b.y - (double)a.y * (double)b.x);
         // Convexity + CCW winding: every cross product must be positive.
         m2Vec2 c = polygon->vertices[(i + 2) % polygon->count];
         float cross = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
@@ -91,7 +93,7 @@ bool m2ValidatePolygon(const m2Polygon* polygon)
     }
     // Scale-free sliver rejection (an absolute area epsilon would be
     // scale-dependent).
-    return area > M2_MIN_THINNESS * perimeter * perimeter;
+    return area > (double)(M2_MIN_THINNESS * perimeter * perimeter);
 }
 
 // Twice the signed area of the triangle o, a, b: positive when b lies
@@ -732,7 +734,9 @@ static int32_t Decompose(const m2Vec2* points, int32_t count, m2Polygon* pieces,
     {
         return -1;
     }
-    float area2 = 0.0f;
+    // Summed in double, where the products of floats are exact: in float, a
+    // small clockwise outline far from the origin can sum to a positive area.
+    double area2 = 0.0;
     for (int32_t i = 0; i < count; ++i)
     {
         m2Vec2 p = points[i];
@@ -741,9 +745,9 @@ static int32_t Decompose(const m2Vec2* points, int32_t count, m2Polygon* pieces,
             return -1;
         }
         m2Vec2 q = points[(i + 1) % count];
-        area2 += p.x * q.y - q.x * p.y;
+        area2 += (double)p.x * (double)q.y - (double)q.x * (double)p.y;
     }
-    if (!(area2 > 0.0f))
+    if (!(area2 > 0.0))
     {
         return -1; // clockwise or degenerate outline
     }
@@ -903,7 +907,8 @@ static int32_t Decompose(const m2Vec2* points, int32_t count, m2Polygon* pieces,
     }
 
     // Validate each piece through the ordinary polygon road; slivers
-    // that validation rejects are skipped (documented).
+    // that validation rejects are skipped (documented). An outline that
+    // leaves no piece is refused, not accepted as empty.
     int32_t total = 0;
     for (int32_t i = 0; i < pieceCount; ++i)
     {
@@ -923,7 +928,7 @@ static int32_t Decompose(const m2Vec2* points, int32_t count, m2Polygon* pieces,
         }
         total += 1;
     }
-    return total;
+    return total > 0 ? total : -1;
 }
 
 static M2_NOINLINE m2Result DecomposeOutlineWorker(const m2Vec2* points, int32_t count,
