@@ -6,6 +6,18 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.2.0](https://github.com/Rawframe-Project/maul2d/compare/v0.1.1...v0.2.0) (2026-10-25)
+
+
+### ⚠ BREAKING CHANGES
+
+* **geometry:** m2DecomposeOutline returns m2_errorInvalid for an outline whose pieces all fail validation, where it returned m2_success with a count of 0.
+
+### Fixed
+
+* **geometry:** refuse an outline that is clockwise or leaves no piece ([#53](https://github.com/Rawframe-Project/maul2d/issues/53)) ([d108e8b](https://github.com/Rawframe-Project/maul2d/commit/d108e8b3496371b3752b90f85a69538b2020638a)), closes [#54](https://github.com/Rawframe-Project/maul2d/issues/54)
+* **world:** count a body's sleep streak from when it is put to sleep ([#51](https://github.com/Rawframe-Project/maul2d/issues/51)) ([5ad0482](https://github.com/Rawframe-Project/maul2d/commit/5ad04829745023859d2347ddd655b739875d932b))
+
 ## [0.1.1](https://github.com/Rawframe-Project/maul2d/releases/tag/v0.1.1) (2026-10-25)
 
 ### Fixed
