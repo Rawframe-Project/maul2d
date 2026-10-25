@@ -459,8 +459,13 @@ static void TestRestoreRefusesBadCounters(void)
     m2World_Step(world, 1.0f / 60.0f, 4);
     uint64_t before = m2World_Hash(world);
 
+    // maxBodyIndex follows the header and the step count, gravity, wind
+    // velocity and wind drag (world_state.c); the header's size is the
+    // prefix's last word.
+    uint32_t headerBytes = 0;
+    memcpy(&headerBytes, snap + 12, sizeof(headerBytes));
     int32_t hostile = def.bodyCapacity + 1000;
-    memcpy(snap + 12, &hostile, sizeof(hostile)); // maxBodyIndex
+    memcpy(snap + headerBytes + 28, &hostile, sizeof(hostile));
     CHECK(!Restore(world, snap, size), "an out-of-range body count is refused");
     CHECK(m2World_Hash(world) == before, "and the world is untouched");
 

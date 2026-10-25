@@ -20,21 +20,20 @@
 
 #define M2_SNAPSHOT_MAGIC 0x4D32534Eu // 'M2SN'
 
-#define M2_SNAPSHOT_VERSION 4u
+#define M2_SNAPSHOT_VERSION 5u
 
 // --- Snapshot -------------------------------------------------------------------
 
-// The header says which build and which world shape wrote the bytes;
-// everything else, pool cursors included, is the state table's.
+// The header says which release, which build and which world shape wrote
+// the bytes; everything else, pool cursors included, is the state table's.
 typedef struct m2SnapshotHeader
 {
-    uint32_t magic;
-    uint32_t formatVersion;
+    m2StatePrefix prefix;
     uint64_t configHash;
     int32_t capacities[6];
 } m2SnapshotHeader;
 
-_Static_assert(sizeof(m2SnapshotHeader) == 40, "snapshot header must be padding-free");
+_Static_assert(sizeof(m2SnapshotHeader) == 48, "snapshot header must be padding-free");
 
 static void WorldCapacities(const m2World* world, int32_t capacities[6])
 {
@@ -50,9 +49,8 @@ static uint64_t ConfigHash(void)
 {
     // Everything that changes what the serialized bytes MEAN, and
     // nothing that does not (SIMD backend and worker count are
-    // deliberately absent: the format is portable across them).
-    // The format's own number, never the library version: a release that
-    // keeps the format reads the snapshots of the one before.
+    // deliberately absent: the format is portable across them). The
+    // release that wrote the bytes is the prefix's, not part of this.
     uint64_t h = 0xCBF29CE484222325ull;
     int32_t version = (int32_t)M2_SNAPSHOT_VERSION;
     int32_t realSize = (int32_t)sizeof(float);
@@ -114,8 +112,8 @@ static M2_NOINLINE m2Result WorldSnapshotWorker(const m2World* world, void* buff
 
     m2SnapshotHeader header;
     memset(&header, 0, sizeof(header));
-    header.magic = M2_SNAPSHOT_MAGIC;
-    header.formatVersion = M2_SNAPSHOT_VERSION;
+    header.prefix =
+        m2MakeStatePrefix(M2_SNAPSHOT_MAGIC, M2_SNAPSHOT_VERSION, (int32_t)sizeof(header));
     header.configHash = ConfigHash();
     WorldCapacities(world, header.capacities);
 
@@ -149,19 +147,24 @@ static M2_NOINLINE m2Result WorldRestoreWorker(m2World* world, const void* buffe
     }
     // From here on the bytes are untrusted input: refusing them is no
     // misuse of the API, so nothing is counted.
-    if (size < (int32_t)sizeof(m2SnapshotHeader))
+    // Only the release that wrote a snapshot reads it.
+    m2Result prefix = m2CheckStatePrefix(buffer, size, M2_SNAPSHOT_MAGIC, M2_SNAPSHOT_VERSION,
+                                         (int32_t)sizeof(m2SnapshotHeader));
+    if (prefix != m2_success)
     {
-        return m2_errorInvalid;
+        return prefix;
     }
     m2SnapshotHeader header;
     memcpy(&header, buffer, sizeof(header));
+    if (header.configHash != ConfigHash())
+    {
+        return m2_errorVersion; // a build whose bytes mean something else
+    }
     int32_t capacities[6];
     WorldCapacities(world, capacities);
-    if (header.magic != M2_SNAPSHOT_MAGIC || header.formatVersion != M2_SNAPSHOT_VERSION ||
-        header.configHash != ConfigHash() ||
-        memcmp(header.capacities, capacities, sizeof(capacities)) != 0)
+    if (memcmp(header.capacities, capacities, sizeof(capacities)) != 0)
     {
-        return m2_errorInvalid; // another build or another world shape
+        return m2_errorInvalid; // another world shape
     }
     // Hostile bytes are checked before any of them land: every row the
     // table describes, cursors included, then how the rows fit together.

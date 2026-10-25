@@ -309,7 +309,7 @@ static void TestTeleport(void)
                                                  m2DefaultQueryFilter());
     CHECK(hit.hit, "queries see the teleported body at once");
 
-    CHECK(m2World_GetJournalBaseSize(world) == 32 + m2World_SnapshotSize(world),
+    CHECK(m2World_GetJournalBaseSize(world) == 40 + m2World_SnapshotSize(world),
           "journal base size is header plus snapshot");
 
     m2DestroyWorld(world);

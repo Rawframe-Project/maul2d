@@ -473,6 +473,8 @@ static void SceneFluid(void)
 // sequence repeats and a re-snapshot is byte-equal. The snapshot's bytes
 // are pinned on their own line (ROLLBACK_SNAPSHOT), since they are a
 // format: a format change moves that line and leaves the results alone.
+// The release's ABI word is left out (HashStateBytes), so a release bump
+// moves nothing.
 static void SceneRollback(void)
 {
     m2WorldDef def = WorldDef(192, 32, 1024, false);
@@ -511,7 +513,7 @@ static void SceneRollback(void)
     }
     CHECK(same, "ROLLBACK: the restored world repeats its hash sequence");
     uint64_t hash = m2World_Hash(world);
-    uint64_t bytes = m2Hash64(M2_HASH_INIT, snapshot, size);
+    uint64_t bytes = HashStateBytes(M2_HASH_INIT, snapshot, size, 0);
     free(snapshot);
     free(again);
     m2DestroyWorld(world);
@@ -522,7 +524,7 @@ static void SceneRollback(void)
 // JOURNAL: the seeded API walk's ten canonical seeds, each recorded and
 // replayed, with an unjournaled and a threaded twin (walk.h). The tapes'
 // bytes are pinned on their own line (JOURNAL_TAPE), since they are a
-// format.
+// format, without the release's ABI words (HashTapeBytes).
 #define WALK_SEEDS ((int32_t)(sizeof(s_walkSeeds) / sizeof(s_walkSeeds[0])))
 
 // The walks' tapes, kept for the hostile host to replay.

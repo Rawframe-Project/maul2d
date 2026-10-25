@@ -468,10 +468,6 @@ static void TestJournalDefenses(void)
     corrupt[0] ^= 0xFF; // magic
     CHECK(!ReplayJournal(fresh, corrupt, bytes), "corrupt magic rejected");
 
-    memcpy(corrupt, buffer, (size_t)bytes);
-    corrupt[4] ^= 0x01; // version
-    CHECK(!ReplayJournal(fresh, corrupt, bytes), "wrong version rejected");
-
     CHECK(!ReplayJournal(fresh, buffer, 16), "truncated header rejected");
 
     m2WorldDef small = m2DefaultWorldDef();
@@ -487,6 +483,119 @@ static void TestJournalDefenses(void)
     CHECK(m2World_Hash(fresh) == recordedHash, "second replay lands on the same bits");
 
     m2DestroyWorld(fresh);
+}
+
+// The 16-byte prefix every state format starts with: magic, ABI version,
+// format number, header size (docs/internals/snapshots-and-journal.md).
+enum
+{
+    PREFIX_ABI = 4,
+    PREFIX_FORMAT = 8,
+    PREFIX_HEADER_BYTES = 12,
+    SNAPSHOT_CONFIG_HASH = 16
+};
+
+static uint32_t ReadWord(const uint8_t* bytes, int32_t offset)
+{
+    uint32_t word = 0;
+    memcpy(&word, bytes + offset, sizeof(word));
+    return word;
+}
+
+// Offers state bytes with one 32-bit word changed and every other byte
+// equal: a snapshot to m2World_Restore, a tape to m2World_ReplayJournal.
+// The refusal must be the expected status, change nothing and count
+// nothing, since the bytes are untrusted.
+static void ExpectWordRefused(m2World* world, const uint8_t* bytes, int32_t size, bool tape,
+                              int32_t offset, uint32_t word, m2Result expected, const char* what)
+{
+    uint8_t* edited = (uint8_t*)malloc((size_t)size);
+    CHECK(edited != NULL, "a copy of the state bytes");
+    if (edited == NULL)
+    {
+        return;
+    }
+    memcpy(edited, bytes, (size_t)size);
+    memcpy(edited + offset, &word, sizeof(word));
+    uint64_t hash = m2World_Hash(world);
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    m2Result result =
+        tape ? m2World_ReplayJournal(world, edited, size) : m2World_Restore(world, edited, size);
+    CHECK(result == expected, what);
+    CHECK(m2World_Hash(world) == hash && m2World_GetCounters(world).misuse == misuse,
+          "refused state bytes change nothing and count nothing");
+    free(edited);
+}
+
+// Only the release that wrote a snapshot or a tape reads it: another ABI
+// version, format number or build hash is m2_errorVersion, while another
+// magic or header size is not this format at all and is m2_errorInvalid.
+// The tape's embedded snapshot is checked the same way and its status
+// passes through.
+static void TestOtherReleasesAreRefused(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 8;
+    def.shapeCapacity = 8;
+    m2World* world = NewWorld(&def);
+    uint8_t tape[1 << 16];
+    StartJournal(world, tape, (int32_t)sizeof(tape));
+    m2BodyId box = AddBox(world, 0.0, 4.0);
+    m2Body_SetLinearVelocity(world, box, (m2Vec2){1.5f, 0.0f});
+    for (int32_t i = 0; i < 10; ++i)
+    {
+        m2World_Step(world, 1.0f / 60.0f, 4);
+    }
+    int32_t tapeBytes = StopJournal(world);
+    CHECK(tapeBytes > 0, "the tape is recorded");
+    int32_t size = m2World_SnapshotSize(world);
+    uint8_t* snap = (uint8_t*)malloc((size_t)size);
+    CHECK(snap != NULL && Snapshot(world, snap, size) == size, "the snapshot is taken");
+    if (snap == NULL || tapeBytes <= 0)
+    {
+        free(snap);
+        m2DestroyWorld(world);
+        return;
+    }
+    m2World_Step(world, 1.0f / 60.0f, 4); // a state the refusals must keep
+
+    CHECK(ReadWord(snap, PREFIX_ABI) == M2_ABI_VERSION &&
+              ReadWord(tape, PREFIX_ABI) == M2_ABI_VERSION,
+          "both headers carry this release's ABI version");
+    const uint32_t otherRelease = M2_ABI_VERSION ^ 0x100u; // the next minor before 1.0
+    uint32_t snapFormat = ReadWord(snap, PREFIX_FORMAT);
+    uint32_t snapHeader = ReadWord(snap, PREFIX_HEADER_BYTES);
+    ExpectWordRefused(world, snap, size, false, PREFIX_ABI, otherRelease, m2_errorVersion,
+                      "a snapshot from another release is m2_errorVersion");
+    ExpectWordRefused(world, snap, size, false, PREFIX_FORMAT, snapFormat + 1u, m2_errorVersion,
+                      "a snapshot of another format number is m2_errorVersion");
+    ExpectWordRefused(world, snap, size, false, SNAPSHOT_CONFIG_HASH,
+                      ReadWord(snap, SNAPSHOT_CONFIG_HASH) ^ 1u, m2_errorVersion,
+                      "a snapshot from another build is m2_errorVersion");
+    ExpectWordRefused(world, snap, size, false, 0, ReadWord(snap, 0) ^ 0xFFu, m2_errorInvalid,
+                      "bytes with another magic are m2_errorInvalid");
+    ExpectWordRefused(world, snap, size, false, PREFIX_HEADER_BYTES, snapHeader + 8u,
+                      m2_errorInvalid, "a snapshot with another header size is m2_errorInvalid");
+
+    uint32_t tapeHeader = ReadWord(tape, PREFIX_HEADER_BYTES);
+    int32_t embedded = (int32_t)tapeHeader;
+    ExpectWordRefused(world, tape, tapeBytes, true, PREFIX_ABI, otherRelease, m2_errorVersion,
+                      "a tape from another release is m2_errorVersion");
+    ExpectWordRefused(world, tape, tapeBytes, true, PREFIX_FORMAT,
+                      ReadWord(tape, PREFIX_FORMAT) + 1u, m2_errorVersion,
+                      "a tape of another format number is m2_errorVersion");
+    ExpectWordRefused(world, tape, tapeBytes, true, PREFIX_HEADER_BYTES, tapeHeader + 8u,
+                      m2_errorInvalid, "a tape with another header size is m2_errorInvalid");
+    ExpectWordRefused(world, tape, tapeBytes, true, embedded + PREFIX_ABI, otherRelease,
+                      m2_errorVersion,
+                      "a tape embedding another release's snapshot is m2_errorVersion");
+
+    // The bytes as written still load, so only the changed word was refused.
+    CHECK(Restore(world, snap, size), "the snapshot as written restores");
+    CHECK(ReplayJournal(world, tape, tapeBytes), "the tape as written replays");
+
+    free(snap);
+    m2DestroyWorld(world);
 }
 
 // Parameter channels validate once, for live setters and replay alike:
@@ -1616,6 +1725,7 @@ int main(void)
 {
     TestChainRefusals();
     TestJournalDefenses();
+    TestOtherReleasesAreRefused();
     TestParameterChannels();
     TestHostileQueries();
     TestHostileJointDefs();
