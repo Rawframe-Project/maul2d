@@ -6,6 +6,49 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.2.0](https://github.com/Rawframe-Project/maul2d/releases/tag/v0.2.0) (2026-10-25)
+
+### Changed
+
+- **Breaking:** `m2DecomposeOutline` refuses with `m2_errorInvalid`
+  an outline whose pieces all fail validation, such as a triangle
+  100 km long and 1 cm tall, where it returned `m2_success` with a
+  count of 0. In both the fill and the measure call the count is left
+  as it was, as for every refusal
+  ([#53](https://github.com/Rawframe-Project/maul2d/pull/53)).
+- On AVX2 the solver's min and max are one instruction each, with the
+  same bits. The pyramid bench scenes run faster on GCC 14 (best of
+  nine rounds in each of two runs: pyramid15 8.1 and 8.9 ms before, 7.6
+  and 7.8 ms after; pyramid30 57.7 and 59.7 ms before, 49.7 and 54.5 ms
+  after), and every bench hash is unchanged.
+  The library is also built with SSE math on 32-bit x86 and the
+  compiler's default trapping math, from the family's shared flags
+  ([#56](https://github.com/Rawframe-Project/maul2d/pull/56)).
+
+### Fixed
+
+- `m2DecomposeOutline` refuses a clockwise outline far from the
+  origin. Its winding test summed the area in float, so near 98304 m a
+  small clockwise hexagon summed positive and split into two pieces.
+  The area is now summed in double
+  ([#53](https://github.com/Rawframe-Project/maul2d/pull/53)).
+- Polygon validation accepts small polygons far from their body's
+  origin. It summed the area for its thinness test in float, so
+  `m2MakePolygon` refused every 0.25 m to 2 m box and right triangle at
+  65536 m and 98304 m, most of them at 10000 m, and one at 1000 m.
+  `m2ComputeHull`, the pieces of `m2DecomposeOutline`, the shape
+  constructors, `m2Shape_SetPolygon`, `m2World_ShatterBody` and
+  restore all go through the same check. The area is now summed in
+  double, against the same threshold
+  ([#53](https://github.com/Rawframe-Project/maul2d/pull/53)).
+- A body woken and put back to sleep before a step end, by a long step
+  that moves it or by a teleport followed by `m2Body_SetAwake(false)`,
+  refreshes its contacts. It kept its old sleep streak, so its pairs
+  kept the manifold from before the move: in the reproduction the
+  contact points sat 0.4 m behind the box. The streak now starts from
+  zero wherever a body is put to sleep
+  ([#51](https://github.com/Rawframe-Project/maul2d/pull/51)).
+
 ## [0.1.1](https://github.com/Rawframe-Project/maul2d/releases/tag/v0.1.1) (2026-10-25)
 
 ### Fixed
