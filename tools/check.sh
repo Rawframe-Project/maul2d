@@ -78,6 +78,7 @@ source_checks() {
     python3 tools/check_docs.py
     python3 tools/check_lengths.py
     python3 tools/check_guide.py
+    python3 tools/check_float_env.py
     if [ -f "$org/scripts/docs_check.py" ]; then
         python3 "$org/scripts/docs_check.py"
     else
@@ -132,7 +133,7 @@ all_c_files | xargs clang-format --dry-run -Werror
 step "clang-tidy"
 cmake -B out/check-tidy -G Ninja -DCMAKE_C_COMPILER=clang-20 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
     -DMAUL2D_BUILD_TESTS=OFF -DMAUL2D_BUILD_BENCH=OFF -DMAUL2D_BUILD_SAMPLES=OFF >/dev/null
-git ls-files 'src/*.c' | xargs -P "$(nproc)" -n 1 clang-tidy-20 -p out/check-tidy --quiet \
+git ls-files 'src/*.c' | xargs -P "$jobs" -n 1 clang-tidy-20 -p out/check-tidy --quiet \
     --warnings-as-errors='*'
 
 step "the documentation site builds"

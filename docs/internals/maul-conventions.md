@@ -80,12 +80,13 @@ The libraries are one product family: a program may link several of them, and a 
 - Each library's overview states its determinism class: bit-exact on every platform, reproducible on one platform and build, or exempt, and which outputs it covers.
 - No fast math, and no implicit floating-point contraction: both change results between compilers. Fused multiply-add appears only where code spells it through the family's SIMD header, the same on every backend.
 - A library that promises the same bits everywhere calls only exactly rounded `<math.h>` functions, listed in `tools/libm-allowed.txt`, and writes its own where it needs another.
+- Such a library also computes in its own floating-point environment, whatever the host's flush-to-zero, denormals-are-zero or rounding mode. Every public function that compares or computes floats is a wrapper: it enters with `PFloatEnvEnter()`, calls one `PP_NOINLINE` worker with its arguments unchanged (names, their addresses, pointer casts or constants), and leaves with `PFloatEnvLeave()`. Task bodies on host threads run through `PFloatEnvRun`. Host code that computes nothing the library promises, such as an allocator, task hooks or a draw callback, runs between `PFloatHostEnter` and `PFloatHostLeave`, in the host's own setting. A public function that does no float work is named, under its reason, in `tools/float-env-allowed.txt`.
 
 ## Structure
 
 - A module is one `.c` file and one internal header of the same name in `src/`; the header declares exactly what other files may call. The module graph in `tools/modules.txt` keeps dependencies one-way.
 - A struct holds one concept. An owner struct composes subsystem structs instead of collecting loose fields.
-- No global mutable state. Constant tables are immutable.
+- No global mutable state. Constant tables are immutable. The one exception is `src/fpenv.c`, the family's floating-point environment module: it keeps the thread's saved control register and entry depth in thread-local storage, mirroring the processor's own per-thread register.
 - A part built as a library of its own (a renderer on another Maul library) lives beside `src/` in `DIR/src` and `DIR/include`, listed in `tools/source-dirs.txt`, and includes its own and public headers only, so it stays as separable as its build target.
 - Generated sources live in `src/generated/`, written by a generator in `tools/`, and are never edited by hand. Each names its generator and inputs. Where CI can regenerate them, it does and fails on any difference.
 - Comments say why. No history, no task or record numbers, no `TODO`: history lives in git and work in issues.
@@ -126,6 +127,8 @@ The libraries are one product family: a program may link several of them, and a 
 | Public API C17, C23 and C++17 clean; MSVC header build | header tests (`cmake/Testing.cmake`, `cmake/HeaderCheck/`) |
 | SPDX lines, comment style, history markers, banned calls, mutable file-scope state, `<math.h>` allow list, file names | `tools/check_source.py` |
 | Module graph | `tools/check_modules.py` |
+| Every public function enters the floating-point environment through a wrapper of one shape, or is allowed by name with a reason | `tools/check_float_env.py` |
+| A shared build exports the public functions only | `tools/check_exports.py`, registered by `maul_add_exports_test()` in `cmake/Testing.cmake`, which names the headers a build leaves out and the functions the program defines |
 | File and function lengths, complexity exceptions | `tools/check_lengths.py` |
 | Public documentation blocks and thread safety statements | `tools/check_docs.py` |
 | Documentation snippets run by tests | `tools/check_guide.py` |

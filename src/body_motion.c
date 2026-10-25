@@ -5,10 +5,12 @@
 
 #include "body.h"
 #include "broadphase.h"
+#include "fpenv.h"
 #include "island.h"
 #include "joint.h"
 #include "joint_row.h"
 #include "journal.h"
+#include "math_functions.h"
 #include "object_ids.h"
 #include "world_internal.h"
 
@@ -39,7 +41,8 @@ static m2Vec2 ArmToPoint(const m2World* world, int32_t index, m2Pos2 worldPoint)
                     m2WorldOffset(worldPoint.y - xf.p.y) - rlc.y};
 }
 
-void m2Body_SetLinearVelocity(m2World* world, m2BodyId bodyId, m2Vec2 velocity)
+static M2_NOINLINE void BodySetLinearVelocityWorker(m2World* world, m2BodyId bodyId,
+                                                    m2Vec2 velocity)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -65,7 +68,15 @@ void m2Body_SetLinearVelocity(m2World* world, m2BodyId bodyId, m2Vec2 velocity)
     }
 }
 
-void m2Body_SetAngularVelocity(m2World* world, m2BodyId bodyId, float velocity)
+void m2Body_SetLinearVelocity(m2World* world, m2BodyId bodyId, m2Vec2 velocity)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodySetLinearVelocityWorker(world, bodyId, velocity);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void BodySetAngularVelocityWorker(m2World* world, m2BodyId bodyId,
+                                                     float velocity)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -91,8 +102,15 @@ void m2Body_SetAngularVelocity(m2World* world, m2BodyId bodyId, float velocity)
     }
 }
 
-void m2Body_ApplyLinearImpulseAtPoint(m2World* world, m2BodyId bodyId, m2Vec2 impulse,
-                                      m2Pos2 worldPoint)
+void m2Body_SetAngularVelocity(m2World* world, m2BodyId bodyId, float velocity)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodySetAngularVelocityWorker(world, bodyId, velocity);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void BodyApplyLinearImpulseAtPointWorker(m2World* world, m2BodyId bodyId,
+                                                            m2Vec2 impulse, m2Pos2 worldPoint)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -124,7 +142,16 @@ void m2Body_ApplyLinearImpulseAtPoint(m2World* world, m2BodyId bodyId, m2Vec2 im
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_ApplyForceAtPoint(m2World* world, m2BodyId bodyId, m2Vec2 force, m2Pos2 worldPoint)
+void m2Body_ApplyLinearImpulseAtPoint(m2World* world, m2BodyId bodyId, m2Vec2 impulse,
+                                      m2Pos2 worldPoint)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodyApplyLinearImpulseAtPointWorker(world, bodyId, impulse, worldPoint);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void BodyApplyForceAtPointWorker(m2World* world, m2BodyId bodyId, m2Vec2 force,
+                                                    m2Pos2 worldPoint)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -152,7 +179,14 @@ void m2Body_ApplyForceAtPoint(m2World* world, m2BodyId bodyId, m2Vec2 force, m2P
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_ApplyForce(m2World* world, m2BodyId bodyId, m2Vec2 force)
+void m2Body_ApplyForceAtPoint(m2World* world, m2BodyId bodyId, m2Vec2 force, m2Pos2 worldPoint)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodyApplyForceAtPointWorker(world, bodyId, force, worldPoint);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void BodyApplyForceWorker(m2World* world, m2BodyId bodyId, m2Vec2 force)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -178,7 +212,14 @@ void m2Body_ApplyForce(m2World* world, m2BodyId bodyId, m2Vec2 force)
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_ApplyTorque(m2World* world, m2BodyId bodyId, float torque)
+void m2Body_ApplyForce(m2World* world, m2BodyId bodyId, m2Vec2 force)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodyApplyForceWorker(world, bodyId, force);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void BodyApplyTorqueWorker(m2World* world, m2BodyId bodyId, float torque)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -203,7 +244,15 @@ void m2Body_ApplyTorque(m2World* world, m2BodyId bodyId, float torque)
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_ApplyAngularImpulse(m2World* world, m2BodyId bodyId, float impulse)
+void m2Body_ApplyTorque(m2World* world, m2BodyId bodyId, float torque)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodyApplyTorqueWorker(world, bodyId, torque);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void BodyApplyAngularImpulseWorker(m2World* world, m2BodyId bodyId,
+                                                      float impulse)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -230,7 +279,15 @@ void m2Body_ApplyAngularImpulse(m2World* world, m2BodyId bodyId, float impulse)
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_ApplyLinearImpulse(m2World* world, m2BodyId bodyId, m2Vec2 impulse)
+void m2Body_ApplyAngularImpulse(m2World* world, m2BodyId bodyId, float impulse)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodyApplyAngularImpulseWorker(world, bodyId, impulse);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void BodyApplyLinearImpulseWorker(m2World* world, m2BodyId bodyId,
+                                                     m2Vec2 impulse)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -258,7 +315,15 @@ void m2Body_ApplyLinearImpulse(m2World* world, m2BodyId bodyId, m2Vec2 impulse)
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_SetTransform(m2World* world, m2BodyId bodyId, m2Pos2 position, m2Rot rotation)
+void m2Body_ApplyLinearImpulse(m2World* world, m2BodyId bodyId, m2Vec2 impulse)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodyApplyLinearImpulseWorker(world, bodyId, impulse);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void BodySetTransformWorker(m2World* world, m2BodyId bodyId, m2Pos2 position,
+                                               m2Rot rotation)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -322,8 +387,15 @@ void m2Body_SetTransform(m2World* world, m2BodyId bodyId, m2Pos2 position, m2Rot
     }
 }
 
-void m2Body_SetTargetTransform(m2World* world, m2BodyId bodyId, m2Pos2 position, m2Rot rotation,
-                               float dt)
+void m2Body_SetTransform(m2World* world, m2BodyId bodyId, m2Pos2 position, m2Rot rotation)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodySetTransformWorker(world, bodyId, position, rotation);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void BodySetTargetTransformWorker(m2World* world, m2BodyId bodyId,
+                                                     m2Pos2 position, m2Rot rotation, float dt)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -343,7 +415,7 @@ void m2Body_SetTargetTransform(m2World* world, m2BodyId bodyId, m2Pos2 position,
     m2Transform xf = world->bodies.transforms[index];
     m2Vec2 v = {m2WorldOffset(position.x - xf.p.x) * invDt,
                 m2WorldOffset(position.y - xf.p.y) * invDt};
-    float w = m2UnwindAngle(m2RelativeJointAngle(xf.q, rotation)) * invDt;
+    float w = m2UnwindAngleWork(m2RelativeJointAngle(xf.q, rotation)) * invDt;
     if (!m2ValidVelocity(v) || !m2ValidSpeed(w))
     {
         m2Refuse(world, m2_errorInvalid);
@@ -351,4 +423,12 @@ void m2Body_SetTargetTransform(m2World* world, m2BodyId bodyId, m2Pos2 position,
     }
     m2Body_SetLinearVelocity(world, bodyId, v);
     m2Body_SetAngularVelocity(world, bodyId, w);
+}
+
+void m2Body_SetTargetTransform(m2World* world, m2BodyId bodyId, m2Pos2 position, m2Rot rotation,
+                               float dt)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodySetTargetTransformWorker(world, bodyId, position, rotation, dt);
+    m2FloatEnvLeave(env);
 }

@@ -81,11 +81,13 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/distance.c
     src/draw.c
     src/dynamic_tree.c
+    src/fpenv.c
     src/geometry.c
     src/graph_color.c
     src/hash.c
     src/island.c
     src/joint.c
+    src/joint_read.c
     src/joint_row.c
     src/joint_solver.c
     src/joint_distance.c
@@ -117,10 +119,12 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/query_proxy.c
     src/ray_cast.c
     src/shape.c
+    src/shape_read.c
     src/snapshot.c
     src/snapshot_check.c
     src/solver.c
     src/world.c
+    src/world_validate.c
     src/world_hash.c
     src/world_internal.c
     src/world_state.c)

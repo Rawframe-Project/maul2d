@@ -6,6 +6,7 @@
 
 #include "body.h"
 #include "broadphase.h"
+#include "fpenv.h"
 #include "island.h"
 #include "joint.h"
 #include "joint_solver.h"
@@ -38,7 +39,8 @@ static bool DefValid(const m2MouseJointDef* def)
            m2ValidCoefficient(def->dampingRatio) && m2ValidMaxForce(def->maxForce);
 }
 
-m2Result m2CreateMouseJoint(m2World* world, const m2MouseJointDef* def, m2JointId* jointOut)
+static M2_NOINLINE m2Result CreateMouseJointWorker(m2World* world, const m2MouseJointDef* def,
+                                                   m2JointId* jointOut)
 {
     if (jointOut == NULL)
     {
@@ -102,7 +104,15 @@ m2Result m2CreateMouseJoint(m2World* world, const m2MouseJointDef* def, m2JointI
     return m2_success;
 }
 
-void m2MouseJoint_SetTarget(m2World* world, m2JointId jointId, m2Pos2 target)
+m2Result m2CreateMouseJoint(m2World* world, const m2MouseJointDef* def, m2JointId* jointOut)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = CreateMouseJointWorker(world, def, jointOut);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE void MouseJointSetTargetWorker(m2World* world, m2JointId jointId, m2Pos2 target)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -131,17 +141,40 @@ void m2MouseJoint_SetTarget(m2World* world, m2JointId jointId, m2Pos2 target)
     m2WakeIfDynamic(world, bodyB);
 }
 
-m2Pos2 m2MouseJoint_GetTarget(const m2World* world, m2JointId jointId)
+void m2MouseJoint_SetTarget(m2World* world, m2JointId jointId, m2Pos2 target)
+{
+    uint64_t env = m2FloatEnvEnter();
+    MouseJointSetTargetWorker(world, jointId, target);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE m2Pos2 MouseJointGetTargetWorker(const m2World* world, m2JointId jointId)
 {
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_mouseJoint);
     m2Pos2 zero = {0.0, 0.0};
     return index >= 0 ? world->joints.jointTargets[index] : zero;
 }
 
-float m2MouseJoint_GetMaxForce(const m2World* world, m2JointId jointId)
+m2Pos2 m2MouseJoint_GetTarget(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Pos2 result = MouseJointGetTargetWorker(world, jointId);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE float MouseJointGetMaxForceWorker(const m2World* world, m2JointId jointId)
 {
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_mouseJoint);
     return index >= 0 ? world->joints.jointLength[index] : 0.0f;
+}
+
+float m2MouseJoint_GetMaxForce(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = MouseJointGetMaxForceWorker(world, jointId);
+    m2FloatEnvLeave(env);
+    return result;
 }
 
 // --- Solver ---------------------------------------------------------------

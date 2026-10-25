@@ -9,10 +9,12 @@
 
 #include "broadphase.h"
 #include "chain.h"
+#include "fpenv.h"
 #include "island.h"
 #include "joint_edges.h"
 #include "journal.h"
 #include "mass.h"
+#include "math_functions.h"
 #include "object_ids.h"
 #include "shape.h"
 #include "world_internal.h"
@@ -62,7 +64,8 @@ static bool StaticDefIsStill(const m2BodyDef* def)
             def->angularVelocity == 0.0f);
 }
 
-m2Result m2CreateBody(m2World* world, const m2BodyDef* def, m2BodyId* bodyOut)
+static M2_NOINLINE m2Result CreateBodyWorker(m2World* world, const m2BodyDef* def,
+                                             m2BodyId* bodyOut)
 {
     if (bodyOut == NULL)
     {
@@ -89,7 +92,7 @@ m2Result m2CreateBody(m2World* world, const m2BodyDef* def, m2BodyId* bodyOut)
     world->bodies.freeCount -= 1;
 
     world->bodies.transforms[index].p = def->position;
-    world->bodies.transforms[index].q = m2NormalizeRot(def->rotation);
+    world->bodies.transforms[index].q = m2NormalizeRotWork(def->rotation);
     world->bodies.linearVelocities[index] = def->linearVelocity;
     // A rotation-locked body never spins, so a fixed-rotation (or
     // angularZ-locked) body drops any initial angular velocity at birth,
@@ -140,7 +143,15 @@ m2Result m2CreateBody(m2World* world, const m2BodyDef* def, m2BodyId* bodyOut)
     return m2_success;
 }
 
-m2Result m2DestroyBody(m2World* world, m2BodyId bodyId)
+m2Result m2CreateBody(m2World* world, const m2BodyDef* def, m2BodyId* bodyOut)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = CreateBodyWorker(world, def, bodyOut);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE m2Result DestroyBodyWorker(m2World* world, m2BodyId bodyId)
 {
     m2Result writer = m2CheckWriter(world);
     if (writer != m2_success)
@@ -212,6 +223,14 @@ m2Result m2DestroyBody(m2World* world, m2BodyId bodyId)
     world->bodies.freeTail = (world->bodies.freeTail + 1) % world->bodies.bodyCapacity;
     world->bodies.freeCount += 1;
     return m2_success;
+}
+
+m2Result m2DestroyBody(m2World* world, m2BodyId bodyId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = DestroyBodyWorker(world, bodyId);
+    m2FloatEnvLeave(env);
+    return result;
 }
 
 bool m2Body_IsValid(const m2World* world, m2BodyId bodyId)
@@ -341,7 +360,7 @@ bool m2SetBodyParamInternal(m2World* world, m2BodyId bodyId, uint8_t param, floa
     return true;
 }
 
-void m2Body_SetLinearDamping(m2World* world, m2BodyId bodyId, float damping)
+static M2_NOINLINE void BodySetLinearDampingWorker(m2World* world, m2BodyId bodyId, float damping)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -350,9 +369,16 @@ void m2Body_SetLinearDamping(m2World* world, m2BodyId bodyId, float damping)
     m2SetBodyParamInternal(world, bodyId, m2_bodyParamLinearDamping, damping);
 }
 
+void m2Body_SetLinearDamping(m2World* world, m2BodyId bodyId, float damping)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodySetLinearDampingWorker(world, bodyId, damping);
+    m2FloatEnvLeave(env);
+}
+
 M2_BODY_GETTER(float, m2Body_GetLinearDamping, world->bodies.linearDampings[index], 0.0f)
 
-void m2Body_SetAngularDamping(m2World* world, m2BodyId bodyId, float damping)
+static M2_NOINLINE void BodySetAngularDampingWorker(m2World* world, m2BodyId bodyId, float damping)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -361,9 +387,16 @@ void m2Body_SetAngularDamping(m2World* world, m2BodyId bodyId, float damping)
     m2SetBodyParamInternal(world, bodyId, m2_bodyParamAngularDamping, damping);
 }
 
+void m2Body_SetAngularDamping(m2World* world, m2BodyId bodyId, float damping)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodySetAngularDampingWorker(world, bodyId, damping);
+    m2FloatEnvLeave(env);
+}
+
 M2_BODY_GETTER(float, m2Body_GetAngularDamping, world->bodies.angularDampings[index], 0.0f)
 
-void m2Body_SetGravityScale(m2World* world, m2BodyId bodyId, float scale)
+static M2_NOINLINE void BodySetGravityScaleWorker(m2World* world, m2BodyId bodyId, float scale)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -372,7 +405,14 @@ void m2Body_SetGravityScale(m2World* world, m2BodyId bodyId, float scale)
     m2SetBodyParamInternal(world, bodyId, m2_bodyParamGravityScale, scale);
 }
 
-void m2Body_SetFixedRotation(m2World* world, m2BodyId bodyId, bool flag)
+void m2Body_SetGravityScale(m2World* world, m2BodyId bodyId, float scale)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodySetGravityScaleWorker(world, bodyId, scale);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void BodySetFixedRotationWorker(m2World* world, m2BodyId bodyId, bool flag)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -381,9 +421,17 @@ void m2Body_SetFixedRotation(m2World* world, m2BodyId bodyId, bool flag)
     m2SetBodyParamInternal(world, bodyId, m2_bodyParamFixedRotation, flag ? 1.0f : 0.0f);
 }
 
+void m2Body_SetFixedRotation(m2World* world, m2BodyId bodyId, bool flag)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodySetFixedRotationWorker(world, bodyId, flag);
+    m2FloatEnvLeave(env);
+}
+
 M2_BODY_GETTER(bool, m2Body_IsFixedRotation, world->bodies.fixedRotations[index] != 0, false)
 
-void m2Body_SetMotionLocks(m2World* world, m2BodyId bodyId, m2MotionLocks locks)
+static M2_NOINLINE void BodySetMotionLocksWorker(m2World* world, m2BodyId bodyId,
+                                                 m2MotionLocks locks)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -400,7 +448,14 @@ void m2Body_SetMotionLocks(m2World* world, m2BodyId bodyId, m2MotionLocks locks)
     }
 }
 
-m2MotionLocks m2Body_GetMotionLocks(const m2World* world, m2BodyId bodyId)
+void m2Body_SetMotionLocks(m2World* world, m2BodyId bodyId, m2MotionLocks locks)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodySetMotionLocksWorker(world, bodyId, locks);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE m2MotionLocks BodyGetMotionLocksWorker(const m2World* world, m2BodyId bodyId)
 {
     m2MotionLocks locks = {false, false, false};
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
@@ -417,7 +472,15 @@ m2MotionLocks m2Body_GetMotionLocks(const m2World* world, m2BodyId bodyId)
     return locks;
 }
 
-void m2Body_EnableSleep(m2World* world, m2BodyId bodyId, bool flag)
+m2MotionLocks m2Body_GetMotionLocks(const m2World* world, m2BodyId bodyId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2MotionLocks result = BodyGetMotionLocksWorker(world, bodyId);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE void BodyEnableSleepWorker(m2World* world, m2BodyId bodyId, bool flag)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -426,9 +489,16 @@ void m2Body_EnableSleep(m2World* world, m2BodyId bodyId, bool flag)
     m2SetBodyParamInternal(world, bodyId, m2_bodyParamEnableSleep, flag ? 1.0f : 0.0f);
 }
 
+void m2Body_EnableSleep(m2World* world, m2BodyId bodyId, bool flag)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodyEnableSleepWorker(world, bodyId, flag);
+    m2FloatEnvLeave(env);
+}
+
 M2_BODY_GETTER(bool, m2Body_IsSleepEnabled, world->bodies.sleepEnables[index] != 0, false)
 
-void m2Body_SetType(m2World* world, m2BodyId bodyId, m2BodyType type)
+static M2_NOINLINE void BodySetTypeWorker(m2World* world, m2BodyId bodyId, m2BodyType type)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -504,7 +574,14 @@ void m2Body_SetType(m2World* world, m2BodyId bodyId, m2BodyType type)
     world->bodies.sleepStreak[index] = 0;
 }
 
-void m2Body_SetAwake(m2World* world, m2BodyId bodyId, bool awake)
+void m2Body_SetType(m2World* world, m2BodyId bodyId, m2BodyType type)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodySetTypeWorker(world, bodyId, type);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void BodySetAwakeWorker(m2World* world, m2BodyId bodyId, bool awake)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -545,7 +622,14 @@ void m2Body_SetAwake(m2World* world, m2BodyId bodyId, bool awake)
     }
 }
 
-void m2Body_SetBullet(m2World* world, m2BodyId bodyId, bool flag)
+void m2Body_SetAwake(m2World* world, m2BodyId bodyId, bool awake)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodySetAwakeWorker(world, bodyId, awake);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void BodySetBulletWorker(m2World* world, m2BodyId bodyId, bool flag)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -573,6 +657,13 @@ void m2Body_SetBullet(m2World* world, m2BodyId bodyId, bool flag)
     world->bodies.bullets[index] = next;
 }
 
+void m2Body_SetBullet(m2World* world, m2BodyId bodyId, bool flag)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodySetBulletWorker(world, bodyId, flag);
+    m2FloatEnvLeave(env);
+}
+
 void m2Body_SetUserData(m2World* world, m2BodyId bodyId, uint64_t userData)
 {
     if (m2CheckWriter(world) != m2_success)
@@ -596,7 +687,7 @@ void m2Body_SetUserData(m2World* world, m2BodyId bodyId, uint64_t userData)
     world->bodies.userData[index] = userData;
 }
 
-void m2Body_Disable(m2World* world, m2BodyId bodyId)
+static M2_NOINLINE void BodyDisableWorker(m2World* world, m2BodyId bodyId)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -622,7 +713,14 @@ void m2Body_Disable(m2World* world, m2BodyId bodyId)
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_Enable(m2World* world, m2BodyId bodyId)
+void m2Body_Disable(m2World* world, m2BodyId bodyId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodyDisableWorker(world, bodyId);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void BodyEnableWorker(m2World* world, m2BodyId bodyId)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -652,7 +750,14 @@ void m2Body_Enable(m2World* world, m2BodyId bodyId)
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_SetDominance(m2World* world, m2BodyId bodyId, int8_t dominance)
+void m2Body_Enable(m2World* world, m2BodyId bodyId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodyEnableWorker(world, bodyId);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void BodySetDominanceWorker(m2World* world, m2BodyId bodyId, int8_t dominance)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -678,6 +783,13 @@ void m2Body_SetDominance(m2World* world, m2BodyId bodyId, int8_t dominance)
     }
     world->bodies.dominances[index] = dominance;
     m2WakeIfDynamic(world, index);
+}
+
+void m2Body_SetDominance(m2World* world, m2BodyId bodyId, int8_t dominance)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodySetDominanceWorker(world, bodyId, dominance);
+    m2FloatEnvLeave(env);
 }
 
 // The inverses a body keeps for mass data, or false when the data has
@@ -706,7 +818,7 @@ static bool MassDataInverses(m2MassData massData, float* invMass, float* invIner
     return m2MassInversesValid(*invMass, *invInertia);
 }
 
-void m2Body_SetMassData(m2World* world, m2BodyId bodyId, m2MassData massData)
+static M2_NOINLINE void BodySetMassDataWorker(m2World* world, m2BodyId bodyId, m2MassData massData)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -737,7 +849,14 @@ void m2Body_SetMassData(m2World* world, m2BodyId bodyId, m2MassData massData)
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_ApplyMassFromShapes(m2World* world, m2BodyId bodyId)
+void m2Body_SetMassData(m2World* world, m2BodyId bodyId, m2MassData massData)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodySetMassDataWorker(world, bodyId, massData);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void BodyApplyMassFromShapesWorker(m2World* world, m2BodyId bodyId)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -752,4 +871,11 @@ void m2Body_ApplyMassFromShapes(m2World* world, m2BodyId bodyId)
     m2JournalRecord(world, m2_opMassFromShapes, &bodyId, (int32_t)sizeof(bodyId));
     m2RecomputeMass(world, index);
     m2WakeIfDynamic(world, index);
+}
+
+void m2Body_ApplyMassFromShapes(m2World* world, m2BodyId bodyId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodyApplyMassFromShapesWorker(world, bodyId);
+    m2FloatEnvLeave(env);
 }

@@ -19,6 +19,21 @@ int32_t m2BodySlot(const m2World* world, m2BodyId id)
     return index;
 }
 
+int32_t m2ShapeSlot(const m2World* world, m2ShapeId id)
+{
+    int32_t index = (int32_t)id.index1 - 1;
+    if (index < 0 || index >= world->shapes.shapeCapacity)
+    {
+        return -1;
+    }
+    if (world->shapes.shapeAlive[index] == 0 ||
+        world->shapes.shapeGenerations[index] != id.generation)
+    {
+        return -1;
+    }
+    return index;
+}
+
 m2ShapeId m2MakeShapeId(const m2World* world, int32_t shapeIndex)
 {
     m2ShapeId id = {(uint32_t)(shapeIndex + 1), world->shapes.shapeGenerations[shapeIndex]};

@@ -8,6 +8,8 @@
 #include "geometry.h"
 
 #include "core.h"
+#include "fpenv.h"
+#include "math_functions.h"
 
 #include "maul2d/base.h"
 #include "maul2d/core_math.h"
@@ -221,7 +223,8 @@ static m2Polygon BuildHull(const m2Vec2* points, int32_t count, float radius)
     return BuildPolygon(hull, n, radius);
 }
 
-m2Result m2ComputeHull(const m2Vec2* points, int32_t count, float radius, m2Polygon* polygonOut)
+static M2_NOINLINE m2Result ComputeHullWorker(const m2Vec2* points, int32_t count, float radius,
+                                              m2Polygon* polygonOut)
 {
     m2Polygon hull = BuildHull(points, count, radius);
     if (polygonOut == NULL || hull.count == 0)
@@ -230,6 +233,14 @@ m2Result m2ComputeHull(const m2Vec2* points, int32_t count, float radius, m2Poly
     }
     *polygonOut = hull;
     return m2_success;
+}
+
+m2Result m2ComputeHull(const m2Vec2* points, int32_t count, float radius, m2Polygon* polygonOut)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = ComputeHullWorker(points, count, radius, polygonOut);
+    m2FloatEnvLeave(env);
+    return result;
 }
 
 // The polygon, or one with count 0 when the points do not make one.
@@ -312,7 +323,8 @@ bool m2GeometryIsCanonical(const m2ShapeGeometry* geometry)
     }
 }
 
-m2Result m2MakePolygon(const m2Vec2* points, int32_t count, float radius, m2Polygon* polygonOut)
+static M2_NOINLINE m2Result MakePolygonWorker(const m2Vec2* points, int32_t count, float radius,
+                                              m2Polygon* polygonOut)
 {
     m2Polygon polygon = BuildPolygon(points, count, radius);
     if (polygonOut == NULL || polygon.count == 0)
@@ -323,13 +335,29 @@ m2Result m2MakePolygon(const m2Vec2* points, int32_t count, float radius, m2Poly
     return m2_success;
 }
 
-m2Polygon m2MakeBox(float halfWidth, float halfHeight)
+m2Result m2MakePolygon(const m2Vec2* points, int32_t count, float radius, m2Polygon* polygonOut)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = MakePolygonWorker(points, count, radius, polygonOut);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE m2Polygon MakeBoxWorker(float halfWidth, float halfHeight)
 {
     m2Vec2 points[4] = {{-halfWidth, -halfHeight},
                         {halfWidth, -halfHeight},
                         {halfWidth, halfHeight},
                         {-halfWidth, halfHeight}};
     return BuildPolygon(points, 4, 0.0f);
+}
+
+m2Polygon m2MakeBox(float halfWidth, float halfHeight)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Polygon result = MakeBoxWorker(halfWidth, halfHeight);
+    m2FloatEnvLeave(env);
+    return result;
 }
 
 // --- World-space AABBs (rotation-aware; f64 crossing at body position) -------
@@ -489,7 +517,7 @@ static m2MassData RoundedPolygonMass(const m2Vec2* vertices, const m2Vec2* norma
         m2Vec2 diff = {n2.x - n.x, n2.y - n.y};
         float sinHalf = 0.5f * sqrtf(diff.x * diff.x + diff.y * diff.y);
         float cosHalf = 0.5f * sqrtf(sum.x * sum.x + sum.y * sum.y);
-        float half = m2Atan2(sinHalf, cosHalf);
+        float half = m2Atan2Work(sinHalf, cosHalf);
         // At a two-vertex end the normals are opposite and the bisector
         // points along the edge, away from the other vertex.
         m2Vec2 bisector = cosHalf > 1.0e-6f
@@ -898,8 +926,9 @@ static int32_t Decompose(const m2Vec2* points, int32_t count, m2Polygon* pieces,
     return total;
 }
 
-m2Result m2DecomposeOutline(const m2Vec2* points, int32_t count, m2Polygon* pieces,
-                            int32_t capacity, int32_t* countOut)
+static M2_NOINLINE m2Result DecomposeOutlineWorker(const m2Vec2* points, int32_t count,
+                                                   m2Polygon* pieces, int32_t capacity,
+                                                   int32_t* countOut)
 {
     int32_t total = countOut != NULL ? Decompose(points, count, pieces, capacity) : -1;
     if (total < 0)
@@ -908,6 +937,15 @@ m2Result m2DecomposeOutline(const m2Vec2* points, int32_t count, m2Polygon* piec
     }
     *countOut = total;
     return m2_success;
+}
+
+m2Result m2DecomposeOutline(const m2Vec2* points, int32_t count, m2Polygon* pieces,
+                            int32_t capacity, int32_t* countOut)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = DecomposeOutlineWorker(points, count, pieces, capacity, countOut);
+    m2FloatEnvLeave(env);
+    return result;
 }
 
 // Area of a shape's core, used by the buoyancy fallback for capsules

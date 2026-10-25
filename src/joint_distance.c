@@ -6,6 +6,7 @@
 
 #include "body.h"
 #include "broadphase.h"
+#include "fpenv.h"
 #include "joint.h"
 #include "joint_solver.h"
 #include "journal.h"
@@ -37,7 +38,8 @@ static bool DefValid(const m2DistanceJointDef* def)
            m2ValidCoefficient(def->dampingRatio);
 }
 
-m2Result m2CreateDistanceJoint(m2World* world, const m2DistanceJointDef* def, m2JointId* jointOut)
+static M2_NOINLINE m2Result CreateDistanceJointWorker(m2World* world, const m2DistanceJointDef* def,
+                                                      m2JointId* jointOut)
 {
     if (jointOut == NULL)
     {
@@ -111,7 +113,16 @@ m2Result m2CreateDistanceJoint(m2World* world, const m2DistanceJointDef* def, m2
     return m2_success;
 }
 
-void m2DistanceJoint_SetLength(m2World* world, m2JointId jointId, float length)
+m2Result m2CreateDistanceJoint(m2World* world, const m2DistanceJointDef* def, m2JointId* jointOut)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = CreateDistanceJointWorker(world, def, jointOut);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE void DistanceJointSetLengthWorker(m2World* world, m2JointId jointId,
+                                                     float length)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -120,8 +131,15 @@ void m2DistanceJoint_SetLength(m2World* world, m2JointId jointId, float length)
     m2SetJointParamInternal(world, jointId, m2_jointParamLength, length);
 }
 
-void m2DistanceJoint_SetLengthRange(m2World* world, m2JointId jointId, float minLength,
-                                    float maxLength)
+void m2DistanceJoint_SetLength(m2World* world, m2JointId jointId, float length)
+{
+    uint64_t env = m2FloatEnvEnter();
+    DistanceJointSetLengthWorker(world, jointId, length);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void DistanceJointSetLengthRangeWorker(m2World* world, m2JointId jointId,
+                                                          float minLength, float maxLength)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -141,6 +159,14 @@ void m2DistanceJoint_SetLengthRange(m2World* world, m2JointId jointId, float min
     {
         m2SetJointParamInternal(world, jointId, m2_jointParamMaxLength, upper);
     }
+}
+
+void m2DistanceJoint_SetLengthRange(m2World* world, m2JointId jointId, float minLength,
+                                    float maxLength)
+{
+    uint64_t env = m2FloatEnvEnter();
+    DistanceJointSetLengthRangeWorker(world, jointId, minLength, maxLength);
+    m2FloatEnvLeave(env);
 }
 
 bool m2DistanceJoint_IsSpringEnabled(const m2World* world, m2JointId jointId)

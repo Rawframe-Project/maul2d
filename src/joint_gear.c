@@ -5,9 +5,11 @@
 
 #include "body.h"
 #include "broadphase.h"
+#include "fpenv.h"
 #include "joint.h"
 #include "joint_solver.h"
 #include "journal.h"
+#include "math_functions.h"
 #include "object_ids.h"
 #include "solver_base.h"
 #include "world_internal.h"
@@ -37,7 +39,8 @@ static bool DefValid(const m2GearJointDef* def)
     return m2ValidRatio(def->ratio);
 }
 
-m2Result m2CreateGearJoint(m2World* world, const m2GearJointDef* def, m2JointId* jointOut)
+static M2_NOINLINE m2Result CreateGearJointWorker(m2World* world, const m2GearJointDef* def,
+                                                  m2JointId* jointOut)
 {
     if (jointOut == NULL)
     {
@@ -95,7 +98,15 @@ m2Result m2CreateGearJoint(m2World* world, const m2GearJointDef* def, m2JointId*
     return m2_success;
 }
 
-void m2GearJoint_SetRatio(m2World* world, m2JointId jointId, float ratio)
+m2Result m2CreateGearJoint(m2World* world, const m2GearJointDef* def, m2JointId* jointOut)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = CreateGearJointWorker(world, def, jointOut);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE void GearJointSetRatioWorker(m2World* world, m2JointId jointId, float ratio)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -104,10 +115,25 @@ void m2GearJoint_SetRatio(m2World* world, m2JointId jointId, float ratio)
     m2SetJointParamInternal(world, jointId, m2_jointParamGearRatio, ratio);
 }
 
-float m2GearJoint_GetRatio(const m2World* world, m2JointId jointId)
+void m2GearJoint_SetRatio(m2World* world, m2JointId jointId, float ratio)
+{
+    uint64_t env = m2FloatEnvEnter();
+    GearJointSetRatioWorker(world, jointId, ratio);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE float GearJointGetRatioWorker(const m2World* world, m2JointId jointId)
 {
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_gearJoint);
     return index >= 0 ? world->joints.jointLength[index] : 0.0f;
+}
+
+float m2GearJoint_GetRatio(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = GearJointGetRatioWorker(world, jointId);
+    m2FloatEnvLeave(env);
+    return result;
 }
 
 // --- Solver ---------------------------------------------------------------
@@ -150,8 +176,8 @@ static void SolveGear(m2JointConstraint* c, const m2JointPose* pose, m2JointBodi
     float C = 0.0f;
     if (pass->biased)
     {
-        float turnA = m2Atan2(pose->turnA.s, pose->turnA.c);
-        float turnB = m2Atan2(pose->turnB.s, pose->turnB.c);
+        float turnA = m2Atan2Work(pose->turnA.s, pose->turnA.c);
+        float turnB = m2Atan2Work(pose->turnB.s, pose->turnB.c);
         C = c->angle + c->ratio * turnA + turnB;
     }
     m2JointRow row = GearRow(c);

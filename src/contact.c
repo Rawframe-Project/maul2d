@@ -6,6 +6,8 @@
 
 #include "contact.h"
 
+#include "fpenv.h"
+#include "math_functions.h"
 #include "object_ids.h"
 #include "parallel.h"
 #include "world_internal.h"
@@ -125,7 +127,7 @@ static m2RelativePose MakeRelativePose(const m2World* world, int32_t bodyA, int3
     m2RelativePose pose;
     pose.p = (m2Vec2){xfA.q.c * dx + xfA.q.s * dy, -xfA.q.s * dx + xfA.q.c * dy};
     m2Rot rel = {xfA.q.c * xfB.q.c + xfA.q.s * xfB.q.s, xfA.q.c * xfB.q.s - xfA.q.s * xfB.q.c};
-    pose.q = m2NormalizeRot(rel); // every composition renormalizes
+    pose.q = m2NormalizeRotWork(rel); // every composition renormalizes
     return pose;
 }
 
@@ -440,7 +442,7 @@ void m2UpdateContacts(m2World* world)
     m2RunParallel(world, UpdateContactsRange, &ctx, world->contacts.pairCount, 16);
 }
 
-m2ContactEvents m2World_GetContactEvents(const m2World* world)
+static M2_NOINLINE m2ContactEvents WorldGetContactEventsWorker(const m2World* world)
 {
     m2ContactEvents events = {NULL, NULL, 0, 0};
     if (world == NULL)
@@ -454,7 +456,15 @@ m2ContactEvents m2World_GetContactEvents(const m2World* world)
     return events;
 }
 
-m2SensorEvents m2World_GetSensorEvents(const m2World* world)
+m2ContactEvents m2World_GetContactEvents(const m2World* world)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2ContactEvents result = WorldGetContactEventsWorker(world);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE m2SensorEvents WorldGetSensorEventsWorker(const m2World* world)
 {
     m2SensorEvents events = {NULL, NULL, 0, 0};
     if (world == NULL)
@@ -468,7 +478,15 @@ m2SensorEvents m2World_GetSensorEvents(const m2World* world)
     return events;
 }
 
-m2JointEvents m2World_GetJointEvents(const m2World* world)
+m2SensorEvents m2World_GetSensorEvents(const m2World* world)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2SensorEvents result = WorldGetSensorEventsWorker(world);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE m2JointEvents WorldGetJointEventsWorker(const m2World* world)
 {
     m2JointEvents events = {NULL, 0};
     if (world == NULL)
@@ -480,8 +498,17 @@ m2JointEvents m2World_GetJointEvents(const m2World* world)
     return events;
 }
 
-int32_t m2Shape_GetSensorOverlaps(const m2World* world, m2ShapeId sensorShapeId,
-                                  m2ShapeId* overlaps, int32_t capacity)
+m2JointEvents m2World_GetJointEvents(const m2World* world)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2JointEvents result = WorldGetJointEventsWorker(world);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE int32_t ShapeGetSensorOverlapsWorker(const m2World* world,
+                                                        m2ShapeId sensorShapeId,
+                                                        m2ShapeId* overlaps, int32_t capacity)
 {
     if (world == NULL)
     {
@@ -521,7 +548,17 @@ int32_t m2Shape_GetSensorOverlaps(const m2World* world, m2ShapeId sensorShapeId,
     return total;
 }
 
-int32_t m2World_GetContactData(const m2World* world, m2ContactData* data, int32_t capacity)
+int32_t m2Shape_GetSensorOverlaps(const m2World* world, m2ShapeId sensorShapeId,
+                                  m2ShapeId* overlaps, int32_t capacity)
+{
+    uint64_t env = m2FloatEnvEnter();
+    int32_t result = ShapeGetSensorOverlapsWorker(world, sensorShapeId, overlaps, capacity);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE int32_t WorldGetContactDataWorker(const m2World* world, m2ContactData* data,
+                                                     int32_t capacity)
 {
     if (world == NULL)
     {
@@ -565,4 +602,12 @@ int32_t m2World_GetContactData(const m2World* world, m2ContactData* data, int32_
         total += 1;
     }
     return total;
+}
+
+int32_t m2World_GetContactData(const m2World* world, m2ContactData* data, int32_t capacity)
+{
+    uint64_t env = m2FloatEnvEnter();
+    int32_t result = WorldGetContactDataWorker(world, data, capacity);
+    m2FloatEnvLeave(env);
+    return result;
 }

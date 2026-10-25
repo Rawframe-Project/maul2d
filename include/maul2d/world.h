@@ -97,6 +97,16 @@ extern "C"
     /// its writers refuse with m2_errorState, or count one misuse where
     /// they return void. Readers stay open to it.
     ///
+    /// FLOATING POINT. A call that computes runs in the library's own
+    /// floating-point setting, whatever the calling thread's is: it rounds
+    /// to nearest, keeps subnormals and masks every exception, and gives the
+    /// thread back its rounding mode and flush-to-zero and denormals-are-zero
+    /// bits as they were. A host may run its threads in any setting and
+    /// still gets the same bits. The host code a world runs
+    /// (the task hooks, the debug draw callbacks, the allocator) runs in the
+    /// thread's own setting, and a range job sets the library's on whatever
+    /// thread the host runs it.
+    ///
     /// IDS. An id names an object of the world that issued it: a 1-based
     /// slot and a generation. A correct program never uses an id after
     /// destroying its object, so a stale id counts one misuse: a getter

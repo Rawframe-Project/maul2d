@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // The world: creation and destruction, the step, world settings,
-// enumeration and the invariant check.
+// enumeration; world_validate.c holds the invariant check.
 
 #include "world.h"
 
@@ -11,6 +11,7 @@
 #include "buoyancy.h"
 #include "contact.h"
 #include "cpu.h"
+#include "fpenv.h"
 #include "island.h"
 #include "journal.h"
 #include "parallel.h"
@@ -179,7 +180,7 @@ static void SeedFreeLists(m2World* world)
     world->chains.chainFreeCount = shapeCap;
 }
 
-m2Result m2CreateWorld(const m2WorldDef* def, m2World** worldOut)
+static M2_NOINLINE m2Result CreateWorldWorker(const m2WorldDef* def, m2World** worldOut)
 {
     if (worldOut == NULL)
     {
@@ -225,7 +226,15 @@ m2Result m2CreateWorld(const m2WorldDef* def, m2World** worldOut)
     return m2_success;
 }
 
-void m2DestroyWorld(m2World* world)
+m2Result m2CreateWorld(const m2WorldDef* def, m2World** worldOut)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result = CreateWorldWorker(def, worldOut);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE void DestroyWorldWorker(m2World* world)
 {
     if (world == NULL)
     {
@@ -237,6 +246,13 @@ void m2DestroyWorld(m2World* world)
     m2Allocator allocator = world->allocator;
     m2StateFree(world);
     m2Free(&allocator, world, sizeof(m2World));
+}
+
+void m2DestroyWorld(m2World* world)
+{
+    uint64_t env = m2FloatEnvEnter();
+    DestroyWorldWorker(world);
+    m2FloatEnvLeave(env);
 }
 
 // Opens a fresh event window: clears the public buffers, then flushes the
@@ -420,7 +436,7 @@ static void RecordProfile(m2World* world, const uint64_t marks[6])
 
 static void StepWorld(m2World* world, float dt, int32_t substepCount);
 
-void m2World_Step(m2World* world, float dt, int32_t substepCount)
+static M2_NOINLINE void WorldStepWorker(m2World* world, float dt, int32_t substepCount)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -444,6 +460,13 @@ void m2World_Step(m2World* world, float dt, int32_t substepCount)
     m2EnterHostCode(world);
     StepWorld(world, dt, substepCount);
     m2LeaveHostCode(world);
+}
+
+void m2World_Step(m2World* world, float dt, int32_t substepCount)
+{
+    uint64_t env = m2FloatEnvEnter();
+    WorldStepWorker(world, dt, substepCount);
+    m2FloatEnvLeave(env);
 }
 
 // The step itself, after the arguments are checked and the step recorded.
@@ -529,7 +552,7 @@ m2MemoryUsage m2World_GetMemoryUsage(const m2World* world)
     return usage;
 }
 
-void m2World_EnableSleeping(m2World* world, bool flag)
+static M2_NOINLINE void WorldEnableSleepingWorker(m2World* world, bool flag)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -566,12 +589,19 @@ void m2World_EnableSleeping(m2World* world, bool flag)
     }
 }
 
+void m2World_EnableSleeping(m2World* world, bool flag)
+{
+    uint64_t env = m2FloatEnvEnter();
+    WorldEnableSleepingWorker(world, flag);
+    m2FloatEnvLeave(env);
+}
+
 bool m2World_IsSleepingEnabled(const m2World* world)
 {
     return world != NULL && world->sleepEnabled != 0;
 }
 
-m2Profile m2World_GetProfile(const m2World* world)
+static M2_NOINLINE m2Profile WorldGetProfileWorker(const m2World* world)
 {
     if (world == NULL)
     {
@@ -581,7 +611,15 @@ m2Profile m2World_GetProfile(const m2World* world)
     return world->profile;
 }
 
-double m2World_GetKineticEnergy(const m2World* world)
+m2Profile m2World_GetProfile(const m2World* world)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Profile result = WorldGetProfileWorker(world);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE double WorldGetKineticEnergyWorker(const m2World* world)
 {
     if (world == NULL)
     {
@@ -607,7 +645,15 @@ double m2World_GetKineticEnergy(const m2World* world)
     return energy;
 }
 
-void m2World_SetGravity(m2World* world, m2Vec2 gravity)
+double m2World_GetKineticEnergy(const m2World* world)
+{
+    uint64_t env = m2FloatEnvEnter();
+    double result = WorldGetKineticEnergyWorker(world);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE void WorldSetGravityWorker(m2World* world, m2Vec2 gravity)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -643,12 +689,27 @@ void m2World_SetGravity(m2World* world, m2Vec2 gravity)
     }
 }
 
-m2Vec2 m2World_GetGravity(const m2World* world)
+void m2World_SetGravity(m2World* world, m2Vec2 gravity)
+{
+    uint64_t env = m2FloatEnvEnter();
+    WorldSetGravityWorker(world, gravity);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE m2Vec2 WorldGetGravityWorker(const m2World* world)
 {
     return world != NULL ? world->gravity : (m2Vec2){0.0f, 0.0f};
 }
 
-void m2World_SetWind(m2World* world, m2Vec2 velocity, float linearDrag)
+m2Vec2 m2World_GetGravity(const m2World* world)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Vec2 result = WorldGetGravityWorker(world);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE void WorldSetWindWorker(m2World* world, m2Vec2 velocity, float linearDrag)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -681,7 +742,15 @@ void m2World_SetWind(m2World* world, m2Vec2 velocity, float linearDrag)
     // integration; a settled pile stays settled until roused otherwise.
 }
 
-void m2World_GetWind(const m2World* world, m2Vec2* velocityOut, float* linearDragOut)
+void m2World_SetWind(m2World* world, m2Vec2 velocity, float linearDrag)
+{
+    uint64_t env = m2FloatEnvEnter();
+    WorldSetWindWorker(world, velocity, linearDrag);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void WorldGetWindWorker(const m2World* world, m2Vec2* velocityOut,
+                                           float* linearDragOut)
 {
     if (velocityOut != NULL)
     {
@@ -691,6 +760,13 @@ void m2World_GetWind(const m2World* world, m2Vec2* velocityOut, float* linearDra
     {
         *linearDragOut = world != NULL ? world->windLinearDrag : 0.0f;
     }
+}
+
+void m2World_GetWind(const m2World* world, m2Vec2* velocityOut, float* linearDragOut)
+{
+    uint64_t env = m2FloatEnvEnter();
+    WorldGetWindWorker(world, velocityOut, linearDragOut);
+    m2FloatEnvLeave(env);
 }
 
 m2Counters m2World_GetCounters(const m2World* world)
@@ -735,7 +811,8 @@ m2Counters m2World_GetCounters(const m2World* world)
     return counters;
 }
 
-int32_t m2World_GetBodies(const m2World* world, m2BodyId* ids, int32_t capacity)
+static M2_NOINLINE int32_t WorldGetBodiesWorker(const m2World* world, m2BodyId* ids,
+                                                int32_t capacity)
 {
     if (world == NULL)
     {
@@ -756,6 +833,14 @@ int32_t m2World_GetBodies(const m2World* world, m2BodyId* ids, int32_t capacity)
         total += 1;
     }
     return total;
+}
+
+int32_t m2World_GetBodies(const m2World* world, m2BodyId* ids, int32_t capacity)
+{
+    uint64_t env = m2FloatEnvEnter();
+    int32_t result = WorldGetBodiesWorker(world, ids, capacity);
+    m2FloatEnvLeave(env);
+    return result;
 }
 
 int32_t m2World_GetJoints(const m2World* world, m2JointId* ids, int32_t capacity)
@@ -802,122 +887,4 @@ int32_t m2World_GetChains(const m2World* world, m2ChainId* ids, int32_t capacity
         total += 1;
     }
     return total;
-}
-
-// Fails the walk on the first broken invariant; m2World_Validate never
-// stops the program, and the validate build asserts its result instead.
-#define M2_CHECK_INVARIANT(cond)                                                                   \
-    do                                                                                             \
-    {                                                                                              \
-        if (!(cond))                                                                               \
-        {                                                                                          \
-            return false;                                                                          \
-        }                                                                                          \
-    } while (0)
-
-static bool ValidBody(const m2World* world, int32_t i)
-{
-    m2Transform xf = world->bodies.transforms[i];
-    M2_CHECK_INVARIANT(m2FinitePos2(xf.p));
-    M2_CHECK_INVARIANT(m2UnitRot(xf.q));
-    m2Vec2 v = world->bodies.linearVelocities[i];
-    M2_CHECK_INVARIANT(m2FiniteVec2(v));
-    M2_CHECK_INVARIANT(m2FiniteF(world->bodies.angularVelocities[i]));
-    M2_CHECK_INVARIANT(world->bodies.types[i] <= 2);
-    return true;
-}
-
-static bool ValidBodies(const m2World* world)
-{
-    for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
-    {
-        M2_CHECK_INVARIANT(world->bodies.alive[i] == 0 || ValidBody(world, i));
-    }
-    return true;
-}
-
-static bool LiveBody(const m2World* world, int32_t body)
-{
-    return body >= 0 && body < world->bodies.bodyCapacity && world->bodies.alive[body] != 0;
-}
-
-static bool ValidJoint(const m2World* world, int32_t i)
-{
-    M2_CHECK_INVARIANT(world->joints.jointType[i] <= 10);
-    M2_CHECK_INVARIANT(LiveBody(world, world->joints.jointBodyA[i]));
-    M2_CHECK_INVARIANT(LiveBody(world, world->joints.jointBodyB[i]));
-    return true;
-}
-
-// Shapes and joints point at live bodies; contact pairs stay in key order.
-static bool ValidLinks(const m2World* world)
-{
-    for (int32_t i = 0; i < world->shapes.maxShapeIndex; ++i)
-    {
-        M2_CHECK_INVARIANT(world->shapes.shapeAlive[i] == 0 ||
-                           LiveBody(world, world->shapes.shapeBody[i]));
-    }
-    for (int32_t i = 0; i < world->joints.maxJointIndex; ++i)
-    {
-        M2_CHECK_INVARIANT(world->joints.jointAlive[i] == 0 || ValidJoint(world, i));
-    }
-    for (int32_t i = 1; i < world->contacts.pairCount; ++i)
-    {
-        // The canonical ordering law, checked where it lives.
-        M2_CHECK_INVARIANT(world->contacts.pairKeys[i - 1] < world->contacts.pairKeys[i]);
-    }
-    return true;
-}
-
-// Springs and triads join live particles only.
-static bool ValidParticleLinks(const m2World* world)
-{
-    const uint8_t* alive = world->particles.particleAlive;
-    for (int32_t k = 0; k < world->particles.particleSpringCount; ++k)
-    {
-        M2_CHECK_INVARIANT(alive[world->particles.particleSpringA[k]] != 0 &&
-                           alive[world->particles.particleSpringB[k]] != 0);
-    }
-    for (int32_t k = 0; k < world->particles.particleTriadCount; ++k)
-    {
-        M2_CHECK_INVARIANT(alive[world->particles.particleTriadA[k]] != 0 &&
-                           alive[world->particles.particleTriadB[k]] != 0 &&
-                           alive[world->particles.particleTriadC[k]] != 0);
-    }
-    return true;
-}
-
-static bool ValidParticles(const m2World* world)
-{
-    if (world->particles.particleCapacity == 0)
-    {
-        return true;
-    }
-    int32_t alive = 0;
-    for (int32_t i = 0; i < world->particles.maxParticleIndex; ++i)
-    {
-        if (world->particles.particleAlive[i] == 0)
-        {
-            continue;
-        }
-        alive += 1;
-        M2_CHECK_INVARIANT(m2FinitePos2(world->particles.particlePositions[i]));
-        M2_CHECK_INVARIANT(m2FiniteVec2(world->particles.particleVelocities[i]));
-    }
-    M2_CHECK_INVARIANT(alive == world->particles.particleCount);
-    return ValidParticleLinks(world);
-}
-
-#undef M2_CHECK_INVARIANT
-
-// The invariant walk: everything a healthy world must be able to
-// say about itself, checked loudly. Pure reader.
-bool m2World_Validate(const m2World* world)
-{
-    if (world == NULL)
-    {
-        m2Refuse(world, m2_errorInvalid);
-        return false;
-    }
-    return ValidBodies(world) && ValidLinks(world) && ValidParticles(world);
 }

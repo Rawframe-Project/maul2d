@@ -9,4 +9,4 @@ geometry.c Decompose 208 one algorithm: clip ears, merge pieces and validate the
 contact.c UpdateContactsRange 102 per-pair manifold kernel: frozen copy or recompute, one slot per pair
 query.c CastProxyClosest 95 one tree walk: cull, cast and keep the closest hit
 island.c m2UpdateIslandsAndWake 94 one island graph pass: union, fold to roots, wake, in body order
-mover.c m2World_CollideMover 92 one tree walk: a distance query and a plane per nearby shape
+mover.c WorldCollideMoverWorker 90 one tree walk: a distance query and a plane per nearby shape

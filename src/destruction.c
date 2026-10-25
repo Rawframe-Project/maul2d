@@ -7,6 +7,7 @@
 
 #include "body.h"
 #include "distance.h"
+#include "fpenv.h"
 #include "geometry.h"
 #include "journal.h"
 #include "object_ids.h"
@@ -83,7 +84,7 @@ static void BlastShape(m2World* world, const m2ExplosionDef* def, int32_t s)
     world->bodies.sleepTimes[body] = 0.0f;
 }
 
-void m2World_Explode(m2World* world, const m2ExplosionDef* def)
+static M2_NOINLINE void WorldExplodeWorker(m2World* world, const m2ExplosionDef* def)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -108,6 +109,13 @@ void m2World_Explode(m2World* world, const m2ExplosionDef* def)
             BlastShape(world, def, s);
         }
     }
+}
+
+void m2World_Explode(m2World* world, const m2ExplosionDef* def)
+{
+    uint64_t env = m2FloatEnvEnter();
+    WorldExplodeWorker(world, def);
+    m2FloatEnvLeave(env);
 }
 
 // --- Shatter: the destruction road ------------------------------------------------
@@ -170,9 +178,10 @@ static m2BodyId CreatePiece(m2World* world, int32_t parent, const m2ShapeDef* sh
     return piece;
 }
 
-m2Result m2World_ShatterBody(m2World* world, m2BodyId bodyId, const m2Polygon* pieces,
-                             int32_t pieceCount, m2BodyId* bodiesOut, int32_t capacity,
-                             int32_t* countOut)
+static M2_NOINLINE m2Result WorldShatterBodyWorker(m2World* world, m2BodyId bodyId,
+                                                   const m2Polygon* pieces, int32_t pieceCount,
+                                                   m2BodyId* bodiesOut, int32_t capacity,
+                                                   int32_t* countOut)
 {
     if (countOut != NULL)
     {
@@ -230,4 +239,15 @@ m2Result m2World_ShatterBody(m2World* world, m2BodyId bodyId, const m2Polygon* p
     m2JournalRecordShatter(world, bodyId, pieces, pieceCount, firstIndex1);
     *countOut = pieceCount;
     return m2_success;
+}
+
+m2Result m2World_ShatterBody(m2World* world, m2BodyId bodyId, const m2Polygon* pieces,
+                             int32_t pieceCount, m2BodyId* bodiesOut, int32_t capacity,
+                             int32_t* countOut)
+{
+    uint64_t env = m2FloatEnvEnter();
+    m2Result result =
+        WorldShatterBodyWorker(world, bodyId, pieces, pieceCount, bodiesOut, capacity, countOut);
+    m2FloatEnvLeave(env);
+    return result;
 }
