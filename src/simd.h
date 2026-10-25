@@ -9,9 +9,11 @@
 // backend and its hashes join the cross-platform comparison).
 //
 // Rules that keep the law:
-// - min/max are compare+select, NEVER the native instructions: SSE
-//   and NEON disagree about NaN propagation and signed zero, and
-//   MSVC on arm64 lowers the ternary differently.
+// - min/max follow the ternary law a>b?a:b and a<b?a:b. NEON and the
+//   scalar fallback spell it as compare + select, since NEON's native
+//   min/max propagate NaN and order signed zeros, and MSVC on arm64
+//   lowers the ternary differently. AVX2 uses MAXPS and MINPS, which
+//   Intel defines as exactly that law (see F8Max below).
 // - fused multiply-add is EXPLICIT and used identically everywhere:
 //   _mm256_fmadd_ps, vfmaq_f32 and fmaf are all correctly rounded, so
 //   they agree bit for bit. Implicit contraction stays forbidden by
