@@ -38,12 +38,39 @@ static void Fail(const char* promise)
     abort();
 }
 
-// The shape a polygon makes on the fuzz body, destroyed again at once.
+// The fuzz world: one dynamic body whose shapes come and go.
+static void BuildFuzzWorld(void)
+{
+    if (s_world != NULL)
+    {
+        m2DestroyWorld(s_world);
+    }
+    m2WorldDef def = m2DefaultWorldDef();
+    def.shapeCapacity = 4;
+    s_world = NewWorld(&def);
+    m2BodyDef bodyDef = m2DefaultBodyDef();
+    bodyDef.type = m2_dynamicBody;
+    s_body = NewBody(s_world, &bodyDef);
+    if (s_world == NULL || s_body.index1 == 0)
+    {
+        Fail("the fuzz body builds");
+    }
+}
+
+// The shape a polygon makes on the fuzz body, destroyed again at once. A
+// slot retires after 65536 shapes, so the four slots fill after 262144
+// and the fuzz world is built again.
 static void MustMakeShape(const m2Polygon* polygon)
 {
     m2ShapeDef def = m2DefaultShapeDef();
     m2ShapeId shape = m2_nullShapeId;
-    if (m2CreatePolygonShape(s_world, s_body, &def, polygon, &shape) != m2_success)
+    m2Result made = m2CreatePolygonShape(s_world, s_body, &def, polygon, &shape);
+    if (made == m2_errorCapacity)
+    {
+        BuildFuzzWorld();
+        made = m2CreatePolygonShape(s_world, s_body, &def, polygon, &shape);
+    }
+    if (made != m2_success)
     {
         Fail("an accepted polygon makes a shape");
     }
@@ -76,16 +103,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
 {
     if (s_world == NULL)
     {
-        m2WorldDef def = m2DefaultWorldDef();
-        def.shapeCapacity = 4;
-        s_world = NewWorld(&def);
-        m2BodyDef bodyDef = m2DefaultBodyDef();
-        bodyDef.type = m2_dynamicBody;
-        s_body = NewBody(s_world, &bodyDef);
-        if (s_world == NULL || s_body.index1 == 0)
-        {
-            Fail("the fuzz body builds");
-        }
+        BuildFuzzWorld();
     }
     if (size == 0)
     {
