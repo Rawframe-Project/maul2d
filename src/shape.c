@@ -14,6 +14,7 @@
 #include "journal.h"
 #include "mass.h"
 #include "object_ids.h"
+#include "proxies.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"

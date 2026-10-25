@@ -7,7 +7,6 @@
 
 #include "body.h"
 
-#include "broadphase.h"
 #include "chain.h"
 #include "fpenv.h"
 #include "island.h"
@@ -16,6 +15,7 @@
 #include "mass.h"
 #include "math_functions.h"
 #include "object_ids.h"
+#include "proxies.h"
 #include "shape.h"
 #include "world_internal.h"
 #include "world_state.h"

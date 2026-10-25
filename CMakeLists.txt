@@ -117,6 +117,7 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/platform_time.c
     src/query.c
     src/query_proxy.c
+    src/proxies.c
     src/ray_cast.c
     src/shape.c
     src/shape_read.c

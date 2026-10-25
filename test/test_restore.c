@@ -1086,6 +1086,22 @@ static void TestRestingBoxes(void)
     ExpectRefused(&sleeping, SleepingBoxFarAway, "a sleeping body far from its boxes is refused");
     FreeScene(&sleeping);
 
+    // Asleep for two step ends, then woken by a velocity setter, which
+    // leaves its sleep streak as it was: one 10 s step carries it 0.4 m
+    // and puts it back to sleep, and its boxes must follow.
+    world = CrawlWorld((m2Vec2){0.0f, 0.0f}, &box);
+    m2World_Step(world, M2_MAX_TIME_STEP, 1);
+    m2World_Step(world, 1.0f / 60.0f, 4);
+    m2World_Step(world, 1.0f / 60.0f, 4);
+    CHECK(!m2Body_IsAwake(world, box) && world->bodies.sleepStreak[box.index1 - 1] == 2,
+          "the box has been asleep for two step ends");
+    m2Body_SetLinearVelocity(world, box, (m2Vec2){0.04f, 0.0f});
+    m2World_Step(world, M2_MAX_TIME_STEP, 1);
+    CHECK(!m2Body_IsAwake(world, box), "the woken box falls asleep again in one long step");
+    CHECK(RoundTripsAlone(world),
+          "a box woken and put back to sleep within one step restores its own snapshot");
+    m2DestroyWorld(world);
+
     // Put to sleep by hand right after a step that carried it 1.7 m.
     world = CrawlWorld((m2Vec2){100.0f, 0.0f}, &box);
     m2World_Step(world, 1.0f / 60.0f, 4);

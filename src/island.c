@@ -14,6 +14,7 @@
 
 #include "island.h"
 
+#include "proxies.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -244,6 +245,10 @@ static void SleepReadyIslands(m2World* world)
             world->bodies.asleep[i] = 1;
             world->bodies.linearVelocities[i] = (m2Vec2){0.0f, 0.0f};
             world->bodies.angularVelocities[i] = 0.0f;
+            // The solve moved the body after its boxes were last refitted,
+            // and no step refits a sleeping body's boxes: refit them now,
+            // so they hold its shapes, as a restore requires.
+            m2RefitBodyProxies(world, i);
         }
     }
 }

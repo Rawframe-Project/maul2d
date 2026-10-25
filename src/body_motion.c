@@ -4,7 +4,6 @@
 // Body motion: velocities, impulses, forces and teleports.
 
 #include "body.h"
-#include "broadphase.h"
 #include "fpenv.h"
 #include "island.h"
 #include "joint.h"
@@ -12,6 +11,7 @@
 #include "journal.h"
 #include "math_functions.h"
 #include "object_ids.h"
+#include "proxies.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
