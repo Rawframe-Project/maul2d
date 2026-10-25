@@ -1,6 +1,6 @@
 # Limits
 
-Every number the step multiplies has a range, in meters, kilograms and seconds. Each leaves realistic game values far inside it, and each is chosen against the products the solver forms in 32-bit floats. A value outside its range is refused, whether it arrives in a def, a setter or a journal tape. A def or setter refuses it with `m2_errorInvalid` (or, for a call that returns nothing, by changing nothing), and it counts one misuse wherever a bad argument counts one. The constants are in `maul2d/base.h`.
+Every number the step multiplies has a range, in meters, kilograms and seconds. Each leaves realistic game values far inside it, and each is chosen against the products the solver forms in 32-bit floats. A value outside its range is refused, whether it arrives in a def, a setter, a journal tape or a snapshot. A def or setter refuses it with `m2_errorInvalid` (or, for a call that returns nothing, by changing nothing), and it counts one misuse wherever a bad argument counts one. A tape or snapshot is refused with `m2_errorInvalid` and counts nothing. What the step itself accumulates is held to its range as well, so every snapshot a world writes restores. A gear's phase and a ratchet's angle and tooth are the exceptions: they grow with every turn, and a restore holds them only to be finite. The constants are in `maul2d/base.h`.
 
 ## The ranges
 

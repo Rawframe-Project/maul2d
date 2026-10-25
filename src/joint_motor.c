@@ -42,7 +42,7 @@ static bool DefValid(const m2MotorJointDef* def)
 {
     return m2LocalVec2(def->linearOffset) && m2ValidAngle(def->angularOffset) &&
            m2ValidMaxForce(def->maxForce) && m2ValidMaxForce(def->maxTorque) &&
-           m2WithinF(def->correctionFactor, 0.0f, 1.0f) && m2ValidRate(def->hertz) &&
+           m2ValidFraction(def->correctionFactor) && m2ValidRate(def->hertz) &&
            m2ValidCoefficient(def->dampingRatio);
 }
 

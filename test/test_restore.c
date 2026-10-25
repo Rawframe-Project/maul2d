@@ -13,6 +13,7 @@
 #include "dynamic_tree.h"
 #include "geometry.h"
 #include "helpers.h"
+#include "joint.h"
 #include "snapshot_check.h"
 #include "test_harness.h"
 #include "world_internal.h"
@@ -21,6 +22,7 @@
 #include "maul2d/maul2d.h"
 
 #include <math.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -37,8 +39,9 @@ typedef struct Scene
 } Scene;
 
 // Three bodies, shapes on each (a chain on the ground), a joint and a few
-// particles, stepped so pairs and trees hold state.
-static Scene MakeScene(void)
+// particles, stepped the given number of times so trees, and after the
+// boxes land the pairs, hold state.
+static Scene MakeSceneAfter(int32_t steps)
 {
     Scene scene;
     memset(&scene, 0, sizeof(scene));
@@ -47,6 +50,7 @@ static Scene MakeScene(void)
     def.shapeCapacity = 16;
     def.jointCapacity = 4;
     def.particleCapacity = 8;
+    def.fluidVolumeCapacity = 1; // none made, so its slot keeps its zeros
     scene.world = NewWorld(&def);
     m2BodyDef groundDef = m2DefaultBodyDef();
     scene.ground = NewBody(scene.world, &groundDef);
@@ -79,7 +83,7 @@ static Scene MakeScene(void)
     {
         EmitParticle(scene.world, (m2Pos2){3.0 + 0.1 * (double)i, 0.6}, (m2Vec2){0.0f, 0.0f}, 0);
     }
-    for (int32_t i = 0; i < 10; ++i)
+    for (int32_t i = 0; i < steps; ++i)
     {
         m2World_Step(scene.world, 1.0f / 60.0f, 4);
     }
@@ -89,6 +93,11 @@ static Scene MakeScene(void)
           "the scene snapshots");
     scene.headerBytes = scene.size - m2StateWalk(scene.world, NULL, NULL, 2);
     return scene;
+}
+
+static Scene MakeScene(void)
+{
+    return MakeSceneAfter(10);
 }
 
 static void FreeScene(Scene* scene)
@@ -459,18 +468,21 @@ static void ExpectCheckRefuses(const Scene* scene, Edit edit, const char* what)
     free(bytes);
 }
 
-// --- Out-of-range values the step must survive -------------------------------
+// --- The fuzz finds ---------------------------------------------------------
 //
 // fuzz_snapshot found these as worlds that turned invalid a step after a
-// restore. Each edit carries the mechanism of one find:
-//   crash-6834a002: a gravity scale of -1e30 under a gravity of 1e30 makes
-//     an infinite velocity;
-//   crash-b4ff047a: a wind drag of 1e38 on a moving body makes an infinite
-//     force;
-//   crash-1844ca69: a spring impulse of 1e38, warm started, overflows a
-//     body's spin; contact impulses of 1e37 add to it.
-// The solver saturates what they feed it, so the world steps on with every
-// speed within M2_MAX_SPEED.
+// restore. Each edit carries one mechanism:
+//   crash-6834a002: a gravity scale times a gravity makes an infinite
+//     velocity;
+//   crash-b4ff047a: a wind drag on a moving body makes an infinite force;
+//   crash-1844ca69, crash-1b23f4ae, crash-352f027c, crash-d2972878: a
+//     spring impulse, warm started, overflows a body's spin; contact
+//     impulses add to it;
+//   crash-2eef07f3, crash-6becfced: a joint's point impulse, warm started;
+//   crash-4c1b1e36: a joint's upper limit impulse, warm started.
+// Past the range a restore holds each value to, the snapshot is refused.
+// At the edge of the range the solver saturates what the values feed it,
+// so the world steps on with every speed within M2_MAX_SPEED.
 
 static void PutBodyVec(const Scene* scene, uint8_t* block, const void* field, m2BodyId body,
                        m2Vec2 value)
@@ -479,27 +491,49 @@ static void PutBodyVec(const Scene* scene, uint8_t* block, const void* field, m2
            sizeof(value));
 }
 
-static void GravityOverflows(const Scene* scene, uint8_t* block)
+static void PutWorld(const Scene* scene, uint8_t* block, const void* field, const void* value,
+                     size_t bytes)
 {
-    PutBodyFloat(scene, block, &scene->world->bodies.gravityScales, scene->boxA, -1.0e30f);
-    m2Vec2 gravity = {0.0f, 1.0e30f};
-    memcpy(At(scene, block, &scene->world->gravity), &gravity, sizeof(gravity));
+    memcpy(At(scene, block, field), value, bytes);
 }
 
-static void WindDragOverflows(const Scene* scene, uint8_t* block)
+static void Gravity(const Scene* scene, uint8_t* block, float scale, float gravity)
 {
-    float drag = 1.0e38f;
-    memcpy(At(scene, block, &scene->world->windLinearDrag), &drag, sizeof(drag));
+    PutBodyFloat(scene, block, &scene->world->bodies.gravityScales, scene->boxA, scale);
+    m2Vec2 g = {0.0f, gravity};
+    PutWorld(scene, block, &scene->world->gravity, &g, sizeof(g));
+}
+
+static void GravityPast(const Scene* scene, uint8_t* block)
+{
+    Gravity(scene, block, -1.0e30f, 1.0e30f);
+}
+
+static void GravityAtTheEdge(const Scene* scene, uint8_t* block)
+{
+    Gravity(scene, block, -M2_MAX_GRAVITY_SCALE, M2_MAX_ACCELERATION);
+}
+
+static void WindDrag(const Scene* scene, uint8_t* block, float drag)
+{
+    PutWorld(scene, block, &scene->world->windLinearDrag, &drag, sizeof(drag));
     PutBodyVec(scene, block, &scene->world->bodies.linearVelocities, scene->boxA,
                (m2Vec2){10.0f, 0.0f});
 }
 
-static void WarmStartOverflows(const Scene* scene, uint8_t* block)
+static void WindDragPast(const Scene* scene, uint8_t* block)
 {
-    float spring = 1.0e38f;
-    memcpy(At(scene, block, &scene->world->joints.jointSpringImpulse), &spring, sizeof(spring));
-    float impulse = 1.0e37f;
-    // Every contact point of the scene carries the same impulse.
+    WindDrag(scene, block, 1.0e38f);
+}
+
+static void WindDragAtTheEdge(const Scene* scene, uint8_t* block)
+{
+    WindDrag(scene, block, M2_MAX_RATE);
+}
+
+// Every contact point of the scene carries the same impulse.
+static void ContactImpulses(const Scene* scene, uint8_t* block, float impulse)
+{
     int32_t pairs = GetI32(At(scene, block, &scene->world->contacts.pairCount), 0);
     uint8_t* manifolds = At(scene, block, &scene->world->contacts.manifolds);
     for (int32_t i = 0; i < pairs; ++i)
@@ -513,6 +547,54 @@ static void WarmStartOverflows(const Scene* scene, uint8_t* block)
         }
         memcpy(manifolds + (size_t)i * sizeof(m), &m, sizeof(m));
     }
+}
+
+// The pin is the scene's only joint, in slot 0.
+static void PutJointFloat(const Scene* scene, uint8_t* block, const void* field, float value)
+{
+    memcpy(At(scene, block, field), &value, sizeof(value));
+}
+
+static void SpringImpulsePast(const Scene* scene, uint8_t* block)
+{
+    PutJointFloat(scene, block, &scene->world->joints.jointSpringImpulse, 1.0e38f);
+}
+
+static void ContactImpulsesPast(const Scene* scene, uint8_t* block)
+{
+    ContactImpulses(scene, block, 1.0e37f);
+}
+
+static void WarmStartAtTheEdge(const Scene* scene, uint8_t* block)
+{
+    PutJointFloat(scene, block, &scene->world->joints.jointSpringImpulse, M2_IMPULSE_LIMIT);
+    ContactImpulses(scene, block, M2_IMPULSE_LIMIT);
+}
+
+static void PointImpulse(const Scene* scene, uint8_t* block, float impulse)
+{
+    m2Vec2 j = {impulse, -impulse};
+    PutWorld(scene, block, &scene->world->joints.jointImpulse, &j, sizeof(j));
+}
+
+static void PointImpulsePast(const Scene* scene, uint8_t* block)
+{
+    PointImpulse(scene, block, -1.7e38f);
+}
+
+static void PointImpulseAtTheEdge(const Scene* scene, uint8_t* block)
+{
+    PointImpulse(scene, block, M2_IMPULSE_LIMIT);
+}
+
+static void UpperImpulsePast(const Scene* scene, uint8_t* block)
+{
+    PutJointFloat(scene, block, &scene->world->joints.jointUpperImpulse, -1.7e38f);
+}
+
+static void UpperImpulseAtTheEdge(const Scene* scene, uint8_t* block)
+{
+    PutJointFloat(scene, block, &scene->world->joints.jointUpperImpulse, -M2_IMPULSE_LIMIT);
 }
 
 static bool SpeedsInRange(const m2World* world, m2BodyId body)
@@ -544,12 +626,330 @@ static void ExpectSteps(const Scene* scene, Edit edit, const char* what)
     free(bytes);
 }
 
-static void TestOutOfRangeValuesStep(void)
+// Whether the scene holds a contact point for the contact edits to reach.
+static bool HasContactPoints(const m2World* world)
 {
-    Scene scene = MakeScene();
-    ExpectSteps(&scene, GravityOverflows, "a gravity that overflows steps into a valid world");
-    ExpectSteps(&scene, WindDragOverflows, "a drag that overflows steps into a valid world");
-    ExpectSteps(&scene, WarmStartOverflows, "a warm start that overflows steps into a valid world");
+    for (int32_t i = 0; i < world->contacts.pairCount; ++i)
+    {
+        if (world->contacts.manifolds[i].pointCount > 0)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+static void TestFuzzFinds(void)
+{
+    Scene scene = MakeSceneAfter(60); // the boxes have landed
+    CHECK(HasContactPoints(scene.world), "the boxes rest on the ground");
+    ExpectRefused(&scene, GravityPast, "a gravity and a scale past their ranges are refused");
+    ExpectRefused(&scene, WindDragPast, "a wind drag past its range is refused");
+    ExpectRefused(&scene, SpringImpulsePast, "a spring impulse past the limit is refused");
+    ExpectRefused(&scene, ContactImpulsesPast, "contact impulses past the limit are refused");
+    ExpectRefused(&scene, PointImpulsePast, "a joint impulse past the limit is refused");
+    ExpectRefused(&scene, UpperImpulsePast, "a limit impulse past the limit is refused");
+    ExpectSteps(&scene, GravityAtTheEdge, "the strongest gravity steps into a valid world");
+    ExpectSteps(&scene, WindDragAtTheEdge, "the strongest drag steps into a valid world");
+    ExpectSteps(&scene, WarmStartAtTheEdge, "the largest warm start steps into a valid world");
+    ExpectSteps(&scene, PointImpulseAtTheEdge,
+                "the largest joint impulse steps into a valid world");
+    ExpectSteps(&scene, UpperImpulseAtTheEdge,
+                "the largest limit impulse steps into a valid world");
+    FreeScene(&scene);
+}
+
+// --- Ranges at their edges ---------------------------------------------------
+//
+// A restore holds every value to the range its def, its setter and its
+// replay take: the edge of each range restores, the next float past it is
+// refused and changes nothing.
+
+// The snapshot with one float written at a byte offset into a field's
+// incoming bytes, restored; the scene is put back after.
+static m2Result RestoreWithFloat(const Scene* scene, const void* field, size_t at, float value)
+{
+    uint8_t* bytes = (uint8_t*)malloc((size_t)scene->size);
+    CHECK(bytes != NULL, "a copy of the snapshot");
+    if (bytes == NULL)
+    {
+        return m2_errorCapacity;
+    }
+    memcpy(bytes, scene->valid, (size_t)scene->size);
+    memcpy(At(scene, bytes + scene->headerBytes, field) + at, &value, sizeof(value));
+    uint64_t misuse = m2World_GetCounters(scene->world).misuse;
+    m2Result result = m2World_Restore(scene->world, bytes, scene->size);
+    CHECK(m2World_GetCounters(scene->world).misuse == misuse, "a restore counts no misuse");
+    CHECK(Restore(scene->world, scene->valid, scene->size), "the valid snapshot restores again");
+    free(bytes);
+    return result;
+}
+
+typedef struct Bound
+{
+    const char* name;
+    const void* field;
+    size_t at;  // byte offset of the float in the field's bytes
+    float edge; // in the range
+} Bound;
+
+// The edge restores, and the next float away from the range is refused.
+static void ExpectBound(const Scene* scene, Bound bound, float outward)
+{
+    float past = nextafterf(bound.edge, outward);
+    bool edge = RestoreWithFloat(scene, bound.field, bound.at, bound.edge) == m2_success;
+    bool refused = RestoreWithFloat(scene, bound.field, bound.at, past) == m2_errorInvalid;
+    if (!edge || !refused)
+    {
+        printf("FAIL: %s: the edge %g %s, the next float %g %s\n", bound.name, (double)bound.edge,
+               edge ? "restores" : "is refused", (double)past, refused ? "is refused" : "restores");
+        s_failures += 1;
+    }
+}
+
+static void ExpectUpper(const Scene* scene, Bound bound)
+{
+    ExpectBound(scene, bound, INFINITY);
+}
+
+static void ExpectLower(const Scene* scene, Bound bound)
+{
+    ExpectBound(scene, bound, -INFINITY);
+}
+
+static void TestWorldAndBodyBounds(const Scene* scene)
+{
+    const m2World* w = scene->world;
+    size_t body = (size_t)(scene->boxA.index1 - 1) * sizeof(float);
+    size_t bodyVec = (size_t)(scene->boxA.index1 - 1) * sizeof(m2Vec2);
+    float maxInvH = (float)M2_MAX_SUBSTEPS / M2_MIN_TIME_STEP;
+    ExpectUpper(scene, (Bound){"gravity", &w->gravity, 4, M2_MAX_ACCELERATION});
+    ExpectUpper(scene, (Bound){"wind velocity", &w->windVelocity, 0, M2_MAX_SPEED});
+    ExpectUpper(scene, (Bound){"wind drag", &w->windLinearDrag, 0, M2_MAX_RATE});
+    ExpectLower(scene, (Bound){"wind drag", &w->windLinearDrag, 0, 0.0f});
+    ExpectUpper(scene, (Bound){"1 / substep", &w->lastInvH, 0, maxInvH});
+    ExpectLower(scene, (Bound){"1 / substep", &w->lastInvH, 0, 1.0f / M2_MAX_TIME_STEP});
+    ExpectUpper(scene, (Bound){"velocity", &w->bodies.linearVelocities, bodyVec + 4, M2_MAX_SPEED});
+    ExpectLower(scene, (Bound){"spin", &w->bodies.angularVelocities, body, -M2_MAX_SPEED});
+    ExpectLower(scene,
+                (Bound){"gravity scale", &w->bodies.gravityScales, body, -M2_MAX_GRAVITY_SCALE});
+    ExpectUpper(scene, (Bound){"linear damping", &w->bodies.linearDampings, body, M2_MAX_RATE});
+    ExpectLower(scene, (Bound){"angular damping", &w->bodies.angularDampings, body, 0.0f});
+    ExpectUpper(scene, (Bound){"force", &w->bodies.forces, bodyVec, M2_MAX_FORCE});
+    ExpectLower(scene, (Bound){"torque", &w->bodies.torques, body, -M2_MAX_FORCE});
+}
+
+// Shape materials in a slot no shape uses, whose mass no body takes.
+static void TestShapeAndParticleBounds(const Scene* scene)
+{
+    const m2World* w = scene->world;
+    size_t shape = (size_t)(w->shapes.shapeCapacity - 1) * sizeof(float);
+    ExpectUpper(scene, (Bound){"density", &w->shapes.shapeDensity, shape, M2_MAX_DENSITY});
+    ExpectLower(scene, (Bound){"density", &w->shapes.shapeDensity, shape, 0.0f});
+    ExpectUpper(scene, (Bound){"friction", &w->shapes.shapeFriction, shape, M2_MAX_COEFFICIENT});
+    ExpectUpper(scene, (Bound){"restitution", &w->shapes.shapeRestitution, shape, 1.0f});
+    ExpectLower(scene, (Bound){"restitution", &w->shapes.shapeRestitution, shape, 0.0f});
+    ExpectUpper(scene, (Bound){"tangent speed", &w->shapes.shapeTangentSpeed, shape, M2_MAX_SPEED});
+    ExpectLower(scene,
+                (Bound){"particle velocity", &w->particles.particleVelocities, 0, -M2_MAX_SPEED});
+    ExpectUpper(scene, (Bound){"volume density", &w->volumes.fvDensity, 0, M2_MAX_DENSITY});
+    ExpectUpper(scene, (Bound){"volume drag", &w->volumes.fvLinearDrag, 0, M2_MAX_RATE});
+    ExpectLower(scene, (Bound){"volume spin drag", &w->volumes.fvAngularDrag, 0, 0.0f});
+    ExpectUpper(scene, (Bound){"volume flow", &w->volumes.fvFlow, 4, M2_MAX_SPEED});
+}
+
+// The joint channels every kind keeps the same way, on the pin in slot 0,
+// and the impulses of a contact point.
+static void TestImpulseAndChannelBounds(const Scene* scene)
+{
+    const m2World* w = scene->world;
+    ExpectUpper(scene, (Bound){"hertz", &w->joints.jointHertz, 0, M2_MAX_RATE});
+    ExpectLower(scene, (Bound){"hertz", &w->joints.jointHertz, 0, 0.0f});
+    ExpectUpper(scene, (Bound){"damping ratio", &w->joints.jointDamping, 0, M2_MAX_COEFFICIENT});
+    ExpectUpper(scene, (Bound){"spring hertz", &w->joints.jointHertz2, 0, M2_MAX_RATE});
+    ExpectLower(scene, (Bound){"spring damping", &w->joints.jointDamping2, 0, 0.0f});
+    ExpectLower(scene, (Bound){"motor speed", &w->joints.jointMotorSpeed, 0, -M2_MAX_SPEED});
+    ExpectUpper(scene, (Bound){"max motor", &w->joints.jointMaxMotor, 0, M2_MAX_FORCE});
+    ExpectLower(scene, (Bound){"max motor", &w->joints.jointMaxMotor, 0, 0.0f});
+    ExpectUpper(scene, (Bound){"joint impulse", &w->joints.jointImpulse, 4, M2_IMPULSE_LIMIT});
+    ExpectLower(scene,
+                (Bound){"motor impulse", &w->joints.jointMotorImpulse, 0, -M2_IMPULSE_LIMIT});
+    ExpectUpper(scene, (Bound){"lower impulse", &w->joints.jointLowerImpulse, 0, M2_IMPULSE_LIMIT});
+    ExpectLower(scene,
+                (Bound){"upper impulse", &w->joints.jointUpperImpulse, 0, -M2_IMPULSE_LIMIT});
+    ExpectUpper(scene,
+                (Bound){"spring impulse", &w->joints.jointSpringImpulse, 0, M2_IMPULSE_LIMIT});
+    ExpectLower(scene, (Bound){"break force", &w->joints.jointBreakForce, 0, 0.0f});
+    ExpectLower(scene, (Bound){"break torque", &w->joints.jointBreakTorque, 0, 0.0f});
+    CHECK(RestoreWithFloat(scene, &w->joints.jointBreakForce, 0, INFINITY) == m2_success,
+          "a break force of infinity, which never breaks, restores");
+    size_t point = offsetof(m2Manifold, points);
+    ExpectUpper(scene, (Bound){"normal impulse", &w->contacts.manifolds,
+                               point + offsetof(m2ManifoldPoint, normalImpulse), M2_IMPULSE_LIMIT});
+    ExpectLower(scene,
+                (Bound){"tangent impulse", &w->contacts.manifolds,
+                        point + offsetof(m2ManifoldPoint, tangentImpulse), -M2_IMPULSE_LIMIT});
+}
+
+static void TestRangeBounds(void)
+{
+    Scene scene = MakeSceneAfter(60);
+    TestWorldAndBodyBounds(&scene);
+    TestShapeAndParticleBounds(&scene);
+    TestImpulseAndChannelBounds(&scene);
+    FreeScene(&scene);
+}
+
+// A static ground and one dynamic box per joint kind, each box held to the
+// ground by a joint of its kind, in the slot its kind's number names.
+static Scene MakeJointScene(void)
+{
+    Scene scene;
+    memset(&scene, 0, sizeof(scene));
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 16;
+    def.shapeCapacity = 16;
+    def.jointCapacity = 16;
+    scene.world = NewWorld(&def);
+    m2World* w = scene.world;
+    m2BodyDef groundDef = m2DefaultBodyDef();
+    scene.ground = NewBody(w, &groundDef);
+    m2BodyId boxes[11];
+    m2ShapeDef shapeDef = m2DefaultShapeDef();
+    m2Polygon box = m2MakeBox(0.2f, 0.2f);
+    for (int32_t k = 0; k < 11; ++k)
+    {
+        m2BodyDef boxDef = m2DefaultBodyDef();
+        boxDef.type = m2_dynamicBody;
+        boxDef.position = (m2Pos2){(double)k, 2.0};
+        boxes[k] = NewBody(w, &boxDef);
+        NewPolygonShape(w, boxes[k], &shapeDef, &box);
+    }
+    m2BodyId g = scene.ground;
+    m2DistanceJointDef distance = m2DefaultDistanceJointDef();
+    distance.bodyIdA = g;
+    distance.bodyIdB = boxes[m2_distanceJoint];
+    NewDistanceJoint(w, &distance);
+    m2RevoluteJointDef revolute = m2DefaultRevoluteJointDef();
+    revolute.bodyIdA = g;
+    revolute.bodyIdB = boxes[m2_revoluteJoint];
+    NewRevoluteJoint(w, &revolute);
+    m2PrismaticJointDef prismatic = m2DefaultPrismaticJointDef();
+    prismatic.bodyIdA = g;
+    prismatic.bodyIdB = boxes[m2_prismaticJoint];
+    NewPrismaticJoint(w, &prismatic);
+    m2WeldJointDef weld = m2DefaultWeldJointDef();
+    weld.bodyIdA = g;
+    weld.bodyIdB = boxes[m2_weldJoint];
+    NewWeldJoint(w, &weld);
+    m2WheelJointDef wheel = m2DefaultWheelJointDef();
+    wheel.bodyIdA = g;
+    wheel.bodyIdB = boxes[m2_wheelJoint];
+    NewWheelJoint(w, &wheel);
+    m2FilterJointDef filter = m2DefaultFilterJointDef();
+    filter.bodyIdA = g;
+    filter.bodyIdB = boxes[m2_filterJoint];
+    NewFilterJoint(w, &filter);
+    m2GearJointDef gear = m2DefaultGearJointDef();
+    gear.bodyIdA = g;
+    gear.bodyIdB = boxes[m2_gearJoint];
+    NewGearJoint(w, &gear);
+    m2PulleyJointDef pulley = m2DefaultPulleyJointDef();
+    pulley.bodyIdA = boxes[m2_pulleyJoint];
+    pulley.bodyIdB = boxes[m2_distanceJoint];
+    pulley.groundAnchorA = (m2Pos2){(double)m2_pulleyJoint, 5.0};
+    pulley.groundAnchorB = (m2Pos2){0.0, 5.0};
+    NewPulleyJoint(w, &pulley);
+    m2RatchetJointDef ratchet = m2DefaultRatchetJointDef();
+    ratchet.bodyIdA = g;
+    ratchet.bodyIdB = boxes[m2_ratchetJoint];
+    NewRatchetJoint(w, &ratchet);
+    m2MotorJointDef motor = m2DefaultMotorJointDef();
+    motor.bodyIdA = g;
+    motor.bodyIdB = boxes[m2_motorJoint];
+    NewMotorJoint(w, &motor);
+    m2MouseJointDef mouse = m2DefaultMouseJointDef();
+    mouse.bodyIdA = g;
+    mouse.bodyIdB = boxes[m2_mouseJoint];
+    mouse.target = (m2Pos2){(double)m2_mouseJoint, 2.0};
+    NewMouseJoint(w, &mouse);
+    for (int32_t i = 0; i < 5; ++i)
+    {
+        m2World_Step(w, 1.0f / 60.0f, 4);
+    }
+    scene.size = m2World_SnapshotSize(w);
+    scene.valid = (uint8_t*)malloc((size_t)scene.size);
+    CHECK(scene.valid != NULL && Snapshot(w, scene.valid, scene.size) == scene.size,
+          "the joint scene snapshots");
+    scene.headerBytes = scene.size - m2StateWalk(w, NULL, NULL, 2);
+    return scene;
+}
+
+// The byte offset of a joint kind's float in a joint array: the scene puts
+// each kind in its own slot, created in the order of the kinds.
+static size_t Slot(const Scene* scene, m2JointType type)
+{
+    for (int32_t j = 0; j < scene->world->joints.jointCapacity; ++j)
+    {
+        if (scene->world->joints.jointAlive[j] != 0 && scene->world->joints.jointType[j] == type)
+        {
+            return (size_t)j * sizeof(float);
+        }
+    }
+    CHECK(false, "the joint scene holds every kind");
+    return 0;
+}
+
+static void TestJointKindBounds(void)
+{
+    Scene scene = MakeJointScene();
+    const m2Joints* j = &scene.world->joints;
+    float reach = (float)M2_JOINT_REACH;
+    size_t at = Slot(&scene, m2_distanceJoint);
+    ExpectUpper(&scene, (Bound){"distance length", &j->jointLength, at, 2.0f * reach});
+    ExpectLower(&scene, (Bound){"distance length", &j->jointLength, at, 0.0f});
+    ExpectLower(&scene, (Bound){"distance minimum", &j->jointLower, at, 0.0f});
+    ExpectUpper(&scene, (Bound){"distance maximum", &j->jointUpper, at, reach});
+    CHECK(RestoreWithFloat(&scene, &j->jointUpper, at, M2_OPEN_LENGTH) == m2_success,
+          "a distance joint without a maximum restores");
+    at = Slot(&scene, m2_revoluteJoint);
+    ExpectLower(&scene, (Bound){"revolute lower", &j->jointLower, at, -M2_MAX_ANGLE});
+    ExpectUpper(&scene, (Bound){"revolute upper", &j->jointUpper, at, M2_MAX_ANGLE});
+    ExpectUpper(&scene, (Bound){"revolute reference", &j->jointRefAngle, at, M2_MAX_ANGLE});
+    at = Slot(&scene, m2_prismaticJoint);
+    ExpectLower(&scene, (Bound){"prismatic lower", &j->jointLower, at, -reach});
+    ExpectLower(&scene, (Bound){"prismatic reference", &j->jointRefAngle, at, -M2_MAX_ANGLE});
+    at = Slot(&scene, m2_wheelJoint);
+    ExpectUpper(&scene, (Bound){"wheel upper", &j->jointUpper, at, reach});
+    at = Slot(&scene, m2_weldJoint);
+    ExpectUpper(&scene, (Bound){"weld reference", &j->jointRefAngle, at, M2_MAX_ANGLE});
+    at = Slot(&scene, m2_motorJoint);
+    ExpectUpper(&scene, (Bound){"motor force", &j->jointLength, at, M2_MAX_FORCE});
+    ExpectLower(&scene, (Bound){"motor force", &j->jointLength, at, 0.0f});
+    ExpectLower(&scene, (Bound){"motor offset", &j->jointRefAngle, at, -M2_MAX_ANGLE});
+    ExpectUpper(&scene, (Bound){"motor correction", &j->jointDamping, at, 1.0f});
+    at = Slot(&scene, m2_mouseJoint);
+    ExpectUpper(&scene, (Bound){"mouse force", &j->jointLength, at, M2_MAX_FORCE});
+    at = Slot(&scene, m2_gearJoint);
+    ExpectUpper(&scene, (Bound){"gear ratio", &j->jointLength, at, M2_MAX_RATIO});
+    ExpectUpper(&scene, (Bound){"gear ratio", &j->jointLength, at, -M2_MIN_RATIO});
+    ExpectLower(&scene, (Bound){"gear ratio", &j->jointLength, at, M2_MIN_RATIO});
+    CHECK(RestoreWithFloat(&scene, &j->jointRefAngle, at, 1.0e30f) == m2_success,
+          "a gear's phase, which the step accumulates, restores at any finite value");
+    at = Slot(&scene, m2_pulleyJoint);
+    float ratio = j->jointLength[at / sizeof(float)];
+    ExpectUpper(&scene, (Bound){"pulley ratio", &j->jointLength, at, M2_MAX_RATIO});
+    ExpectLower(&scene, (Bound){"pulley ratio", &j->jointLength, at, M2_MIN_RATIO});
+    ExpectUpper(&scene,
+                (Bound){"pulley rope", &j->jointRefAngle, at, (1.0f + ratio) * 2.0f * reach});
+    ExpectLower(&scene, (Bound){"pulley rope", &j->jointRefAngle, at, 0.0f});
+    at = Slot(&scene, m2_ratchetJoint);
+    ExpectUpper(&scene, (Bound){"ratchet tooth", &j->jointLength, at, M2_MAX_ANGLE});
+    ExpectLower(&scene, (Bound){"ratchet tooth", &j->jointLength, at, M2_MIN_RATCHET_TOOTH});
+    ExpectUpper(&scene, (Bound){"ratchet phase", &j->jointRefAngle, at, M2_MAX_ANGLE});
+    CHECK(RestoreWithFloat(&scene, &j->jointUpper, at, 1.0e30f) == m2_success &&
+              RestoreWithFloat(&scene, &j->jointLower, at, -1.0e30f) == m2_success,
+          "a ratchet's angle and tooth, which the step accumulates, restore at any finite value");
     FreeScene(&scene);
 }
 
@@ -616,7 +1016,9 @@ int main(void)
 {
     TestHostileStructures();
     TestCheckStandsAlone();
-    TestOutOfRangeValuesStep();
+    TestFuzzFinds();
+    TestRangeBounds();
+    TestJointKindBounds();
     if (s_failures > 0)
     {
         printf("%d failure(s)\n", s_failures);

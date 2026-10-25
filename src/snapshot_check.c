@@ -9,6 +9,8 @@
 //   - each free queue holds every dead slot that is not retired, once;
 //   - each body's shape list holds exactly its live shapes, with no cycle;
 //   - shapes, chains and joints point at live owners;
+//   - each live joint's length, limits and reference hold what its kind
+//     keeps there, in the ranges its def and setters give them;
 //   - each body's mass data is what its shapes give it, bit for bit, or
 //     an override m2Body_SetMassData would have accepted;
 //   - each broadphase tree is a balanced tree whose leaves are exactly the
@@ -26,6 +28,7 @@
 #include "core.h"
 #include "dynamic_tree.h"
 #include "geometry.h"
+#include "joint.h"
 #include "mass.h"
 #include "world_state.h"
 
@@ -43,6 +46,13 @@ static bool InPool(int32_t index, int32_t capacity)
 static int32_t ReadI32(const uint8_t* array, int32_t index)
 {
     int32_t value;
+    memcpy(&value, array + (size_t)index * sizeof(value), sizeof(value));
+    return value;
+}
+
+static float ReadF32(const uint8_t* array, int32_t index)
+{
+    float value;
     memcpy(&value, array + (size_t)index * sizeof(value), sizeof(value));
     return value;
 }
@@ -315,12 +325,87 @@ static bool CheckChains(const m2World* world, const uint8_t* in)
 }
 
 // A live joint joins two live bodies.
+// The fields a joint's kind gives its own meaning, as one joint holds
+// them. The state table has already put every one of them in the float
+// range.
+typedef struct JointFields
+{
+    uint8_t type;
+    float length;
+    float lower;
+    float upper;
+    float reference;
+    float correction; // jointDamping
+} JointFields;
+
+// The motor and limit kinds keep angle limits (revolute) or translation
+// limits (prismatic, wheel) in lower and upper.
+static bool LimitsValid(const JointFields* f)
+{
+    if (f->type == (uint8_t)m2_revoluteJoint)
+    {
+        return m2ValidAngle(f->lower) && m2ValidAngle(f->upper);
+    }
+    return m2ValidReach(f->lower) && m2ValidReach(f->upper);
+}
+
+// What each kind keeps in the fields it overloads, by the validators its
+// def and setters use, or by what the step itself writes there. A field a
+// kind never reads needs only the state table's finite check. Ranges
+// only, not the order of a pair: a range out of order stays bounded.
+// Accumulated state the step grows without a bound (a gear's phase in
+// reference, a ratchet's angle and tooth in upper and lower) stays any
+// finite value, so every snapshot a world writes restores.
+static bool JointKindValid(const JointFields* f)
+{
+    switch ((m2JointType)f->type)
+    {
+    case m2_distanceJoint:
+        // A rest length set or taken from the anchors; a range from 0, open
+        // above when it has no maximum.
+        return m2ValidSpan(f->length) && m2ValidReach(f->lower) && f->lower >= 0.0f &&
+               ((m2ValidReach(f->upper) && f->upper >= 0.0f) || f->upper == M2_OPEN_LENGTH);
+    case m2_revoluteJoint:
+    case m2_prismaticJoint:
+        return LimitsValid(f) && m2ValidAngle(f->reference);
+    case m2_wheelJoint:
+        return LimitsValid(f);
+    case m2_weldJoint:
+        return m2ValidAngle(f->reference);
+    case m2_motorJoint:
+        // The force budget in length, the angular offset in reference.
+        return m2ValidMaxForce(f->length) && m2ValidAngle(f->reference) &&
+               m2ValidFraction(f->correction);
+    case m2_mouseJoint:
+        return m2ValidMaxForce(f->length);
+    case m2_gearJoint:
+        return m2ValidRatio(f->length);
+    case m2_pulleyJoint:
+        // The ratio in length, the rope total (one side plus ratio times
+        // the other) in reference.
+        return m2ValidRatio(f->length) && f->length > 0.0f &&
+               m2WithinF(f->reference, 0.0f, (1.0f + f->length) * 2.0f * (float)M2_JOINT_REACH);
+    case m2_ratchetJoint:
+        // The tooth pitch in length, its phase in reference.
+        return m2ValidRatchetTooth(f->length) && m2ValidAngle(f->reference);
+    case m2_filterJoint:
+        return true;
+    }
+    return false;
+}
+
 static bool CheckJoints(const m2World* world, const uint8_t* in)
 {
     const uint8_t* bodyAlive = M2_IN(bodies.alive);
     const uint8_t* jointAlive = M2_IN(joints.jointAlive);
     const uint8_t* bodyA = M2_IN(joints.jointBodyA);
     const uint8_t* bodyB = M2_IN(joints.jointBodyB);
+    const uint8_t* types = M2_IN(joints.jointType);
+    const uint8_t* lengths = M2_IN(joints.jointLength);
+    const uint8_t* lowers = M2_IN(joints.jointLower);
+    const uint8_t* uppers = M2_IN(joints.jointUpper);
+    const uint8_t* references = M2_IN(joints.jointRefAngle);
+    const uint8_t* dampings = M2_IN(joints.jointDamping);
     for (int32_t j = 0; j < world->joints.jointCapacity; ++j)
     {
         if (jointAlive[j] == 0)
@@ -331,6 +416,12 @@ static bool CheckJoints(const m2World* world, const uint8_t* in)
         int32_t b = ReadI32(bodyB, j);
         int32_t bodies = world->bodies.bodyCapacity;
         if (!InPool(a, bodies) || !InPool(b, bodies) || bodyAlive[a] == 0 || bodyAlive[b] == 0)
+        {
+            return false;
+        }
+        JointFields fields = {types[j],           ReadF32(lengths, j),    ReadF32(lowers, j),
+                              ReadF32(uppers, j), ReadF32(references, j), ReadF32(dampings, j)};
+        if (!JointKindValid(&fields))
         {
             return false;
         }
@@ -384,13 +475,6 @@ static m2MassData IncomingShapeMass(const void* context, int32_t shape)
     float density;
     memcpy(&density, shapes->densities + (size_t)shape * sizeof(density), sizeof(density));
     return m2ComputeShapeMass(&geometry, density);
-}
-
-static float ReadF32(const uint8_t* array, int32_t index)
-{
-    float value;
-    memcpy(&value, array + (size_t)index * sizeof(value), sizeof(value));
-    return value;
 }
 
 // Mass data set by m2Body_SetMassData: a dynamic body's, with inverses a

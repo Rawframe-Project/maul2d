@@ -26,7 +26,8 @@ int32_t m2StateWalk(m2World* world, uint8_t* out, const uint8_t* in, int directi
 
 // Checks an incoming snapshot block against the table before any of it
 // lands: every index in range, every flag a flag, every count within its
-// capacity. The block must be exactly the walk's size.
+// capacity, every number within its range. The block must be exactly the
+// walk's size.
 bool m2StateValidate(const m2World* world, const uint8_t* in);
 
 // Checks one body slot against the same rules a restore applies, so a

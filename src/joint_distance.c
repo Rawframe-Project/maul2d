@@ -90,7 +90,7 @@ static M2_NOINLINE m2Result CreateDistanceJointWorker(m2World* world, const m2Di
     // The hard range: off by default (0 .. huge); a def maxLength <= 0
     // means unbounded, mirroring "length <= 0 derives".
     world->joints.jointLower[index] = def->minLength > 0.0f ? def->minLength : 0.0f;
-    world->joints.jointUpper[index] = def->maxLength > 0.0f ? def->maxLength : 3.4e38f;
+    world->joints.jointUpper[index] = def->maxLength > 0.0f ? def->maxLength : M2_OPEN_LENGTH;
     if (def->enableSpring)
     {
         world->joints.jointFlags[index] |= M2_JOINT_ROPE; // rope/rod: gate the rest-length row
@@ -185,7 +185,7 @@ static void PrepareDistance(m2World* world, m2JointConstraint* c, const m2JointF
 {
     int32_t j = f->joint;
     c->length = world->joints.jointLength[j];
-    if (world->joints.jointLower[j] > 0.0f || world->joints.jointUpper[j] < 3.0e38f)
+    if (world->joints.jointLower[j] > 0.0f || world->joints.jointUpper[j] < M2_OPEN_LENGTH)
     {
         c->flags |= M2_JOINT_HARD_RANGE;
         c->spring = m2StiffJointSoftness(f->h);
@@ -242,7 +242,7 @@ static void DistanceReaction(const m2World* world, int32_t j, float invH, float*
 {
     // The rest row, plus the range rows when bounded.
     float axial = world->joints.jointImpulse[j].x;
-    if (world->joints.jointLower[j] > 0.0f || world->joints.jointUpper[j] < 3.0e38f)
+    if (world->joints.jointLower[j] > 0.0f || world->joints.jointUpper[j] < M2_OPEN_LENGTH)
     {
         axial += world->joints.jointLowerImpulse[j] - world->joints.jointUpperImpulse[j];
     }

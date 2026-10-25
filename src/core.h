@@ -55,7 +55,7 @@ static inline bool m2LocalLength(float x)
     return x >= 0.0f && x <= M2_HUGE;
 }
 // The ranges of base.h, one check per quantity, shared by the defs, the
-// setters and replay. NaN fails every one of them.
+// setters, replay and restore. NaN fails every one of them.
 static inline bool m2WithinF(float x, float lo, float hi)
 {
     return x >= lo && x <= hi;
@@ -140,6 +140,31 @@ static inline bool m2ValidAngle(float x)
 static inline bool m2ValidReach(float x)
 {
     return m2WithinF(x, -(float)M2_JOINT_REACH, (float)M2_JOINT_REACH);
+}
+// A length a joint takes from its bodies' poses (a distance joint's
+// derived rest length, one side of a pulley's rope): two points at most
+// the reach apart per axis, plus anchor levers within M2_HUGE, so below
+// the reach's diagonal and so below twice the reach.
+static inline bool m2ValidSpan(float x)
+{
+    return m2WithinF(x, 0.0f, 2.0f * (float)M2_JOINT_REACH);
+}
+// A share from none to all: a motor joint's position correction.
+static inline bool m2ValidFraction(float x)
+{
+    return m2WithinF(x, 0.0f, 1.0f);
+}
+// A ratchet's tooth pitch, signed by the free direction.
+static inline bool m2ValidRatchetTooth(float x)
+{
+    float magnitude = x < 0.0f ? -x : x;
+    return m2WithinF(magnitude, M2_MIN_RATCHET_TOOTH, M2_MAX_ANGLE);
+}
+// A joint's break force or torque: 0 turns breaking off, infinity never
+// breaks.
+static inline bool m2ValidBreakLimit(float x)
+{
+    return x >= 0.0f;
 }
 // A world-space difference as a float, clamped to M2_JOINT_REACH. World
 // positions are 64-bit and unbounded, and their difference can pass what
