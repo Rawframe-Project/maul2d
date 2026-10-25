@@ -6,17 +6,45 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
-## [0.2.0](https://github.com/Rawframe-Project/maul2d/compare/v0.1.1...v0.2.0) (2026-10-25)
+## [0.2.0](https://github.com/Rawframe-Project/maul2d/releases/tag/v0.2.0) (2026-10-25)
 
+### Changed
 
-### ⚠ BREAKING CHANGES
-
-* **geometry:** m2DecomposeOutline returns m2_errorInvalid for an outline whose pieces all fail validation, where it returned m2_success with a count of 0.
+- **Breaking:** `m2DecomposeOutline` refuses with `m2_errorInvalid`
+  an outline whose pieces all fail validation, such as a triangle
+  100 km long and 1 cm tall, where it returned `m2_success` with a
+  count of 0. In both the fill and the measure call the count is left
+  as it was, as for every refusal
+  ([#53](https://github.com/Rawframe-Project/maul2d/pull/53)).
+- On AVX2 the solver's min and max are one instruction each, with the
+  same bits. The pyramid bench scenes run faster on GCC 14 (pyramid15
+  from 8.1 to 8.9 ms down to 7.6 to 7.8 ms, pyramid30 from 57.7 to
+  59.7 ms down to 49.7 to 54.5 ms), and every bench hash is unchanged.
+  The library is also built with SSE math on 32-bit x86 and the
+  compiler's default trapping math, from the family's shared flags
+  ([#56](https://github.com/Rawframe-Project/maul2d/pull/56)).
 
 ### Fixed
 
-* **geometry:** refuse an outline that is clockwise or leaves no piece ([#53](https://github.com/Rawframe-Project/maul2d/issues/53)) ([d108e8b](https://github.com/Rawframe-Project/maul2d/commit/d108e8b3496371b3752b90f85a69538b2020638a)), closes [#54](https://github.com/Rawframe-Project/maul2d/issues/54)
-* **world:** count a body's sleep streak from when it is put to sleep ([#51](https://github.com/Rawframe-Project/maul2d/issues/51)) ([5ad0482](https://github.com/Rawframe-Project/maul2d/commit/5ad04829745023859d2347ddd655b739875d932b))
+- `m2DecomposeOutline` refuses a clockwise outline far from the
+  origin. Its winding test summed the area in float, so near 98304 m a
+  small clockwise hexagon summed positive and split into two pieces.
+  The area is now summed in double
+  ([#53](https://github.com/Rawframe-Project/maul2d/pull/53)).
+- Polygon validation accepts small polygons far from their body's
+  origin. It summed the area for its thinness test in float, so the
+  shape constructors, `m2Shape_SetPolygon`, `m2World_ShatterBody`
+  and restore refused every 0.25 m to 2 m box and right triangle at
+  65536 m and 98304 m, most of them at 10000 m, and one at 1000 m. The
+  area is now summed in double, against the same threshold
+  ([#53](https://github.com/Rawframe-Project/maul2d/pull/53)).
+- A body woken and put back to sleep before a step end, by a long step
+  that moves it or by a teleport followed by `m2Body_SetAwake(false)`,
+  refreshes its contacts. It kept its old sleep streak, so its pairs
+  kept the manifold from before the move: in the reproduction the
+  contact points sat 0.4 m behind the box. The streak now starts from
+  zero wherever a body is put to sleep
+  ([#51](https://github.com/Rawframe-Project/maul2d/pull/51)).
 
 ## [0.1.1](https://github.com/Rawframe-Project/maul2d/releases/tag/v0.1.1) (2026-10-25)
 
