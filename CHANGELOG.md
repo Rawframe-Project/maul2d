@@ -28,8 +28,8 @@ snapshot and journal formats.
   code's bugs: an invalid argument, a stale id, a writer called from
   host code. A stale id counts one misuse in every call, while a stale
   particle id counts nothing, since particles die on their own. Corrupt
-  snapshot or tape bytes count nothing. Host code a replay runs (task
-  hooks, draw callbacks, the allocator) counts like any other caller.
+  snapshot or tape bytes count nothing. Host code a replay runs (the
+  task hooks and the allocator) counts like any other caller.
   Motor and limit calls on a joint without a motor or limit change
   nothing and count one misuse; for a distance joint, use
   `m2DistanceJoint_SetLengthRange`.
@@ -116,8 +116,9 @@ snapshot and journal formats.
   ([#44](https://github.com/Rawframe-Project/maul2d/pull/44))
 - **Saturation in the step.** Every velocity saturates at
   `M2_MAX_SPEED`, and every joint and contact impulse at
-  `M2_IMPULSE_LIMIT`. A 2x2 joint solve whose couplings would overflow
-  solves its rows one at a time instead.
+  `M2_IMPULSE_LIMIT`, and water and wind loads at `M2_MAX_FORCE`. A 2x2
+  joint solve whose couplings would overflow solves its rows one at a
+  time instead.
   ([#42](https://github.com/Rawframe-Project/maul2d/pull/42))
 - **Far-apart joints.** A joint between two bodies far apart clamps
   its separation to `M2_JOINT_REACH`, where it used to leave NaN in the
