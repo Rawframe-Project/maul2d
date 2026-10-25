@@ -85,8 +85,9 @@ m2FloatHost m2FloatHostEnter(void);
 // register, whatever host code set.
 void m2FloatHostLeave(m2FloatHost host);
 
-// The thread's control register as it is: MXCSR on x86, FPCR on AArch64,
-// 0 on WebAssembly. For tests and diagnostics.
+// The thread's control register as it is: MXCSR on x86 (with the x87
+// control word in bits 32 to 47 on 32-bit x86), FPCR on AArch64, 0 on
+// WebAssembly. For tests and diagnostics.
 uint64_t m2FloatControlRead(void);
 
 // Sets the thread's control register to value; nothing on WebAssembly. For

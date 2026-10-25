@@ -3,13 +3,18 @@
 //
 // x86 keeps the environment in MXCSR: flush-to-zero is bit 15,
 // denormals-are-zero bit 6, the rounding mode bits 13 and 14, the
-// exception masks bits 7 to 12. AArch64 keeps it in FPCR: flush-to-zero
-// is bit 24, half-precision flush-to-zero bit 19, default NaN bit 25, the
-// rounding mode bits 22 and 23, the trap enables bits 8 to 12 and 15, and
-// with FEAT_AFP input flush and alternate handling bits 0 and 1.
-// WebAssembly has one environment, the one the library needs. Any other
-// architecture is refused at build time rather than computed in an
-// unknown environment.
+// exception masks bits 7 to 12. On 32-bit x86 the C library's math
+// functions also compute on the x87 unit (glibc's ldexp, for one),
+// which rounds by its own control word: there the environment is MXCSR
+// in the low 32 bits and the x87 control word in bits 32 to 47, set to
+// round to nearest with every exception masked and 64-bit precision,
+// the C library's own default there, which its math functions assume.
+// AArch64 keeps it in FPCR: flush-to-zero is bit 24, half-precision
+// flush-to-zero bit 19, default NaN bit 25, the rounding mode bits 22
+// and 23, the trap enables bits 8 to 12 and 15, and with FEAT_AFP input
+// flush and alternate handling bits 0 and 1. WebAssembly has one
+// environment, the one the library needs. Any other architecture is
+// refused at build time rather than computed in an unknown environment.
 //
 // The thread's place in the entries is a thread-local, the only state of
 // src/ (the family's rules allow it here alone): it mirrors the control
@@ -32,25 +37,24 @@
 // an earlier read, which would undo a restore.
 #if defined(_MSC_VER) && !defined(__clang__)
 #include <xmmintrin.h>
-static uint64_t ReadControl(void)
+static uint32_t ReadMxcsr(void)
 {
     return _mm_getcsr();
 }
-static void WriteControl(uint64_t value)
+static void WriteMxcsr(uint32_t value)
 {
-    _mm_setcsr((uint32_t)value);
+    _mm_setcsr(value);
 }
 #else
-static uint64_t ReadControl(void)
+static uint32_t ReadMxcsr(void)
 {
     uint32_t value = 0;
     __asm__ volatile("stmxcsr %0" : "=m"(value) : : "memory");
     return value;
 }
-static void WriteControl(uint64_t value)
+static void WriteMxcsr(uint32_t value)
 {
-    uint32_t control = (uint32_t)value;
-    __asm__ volatile("ldmxcsr %0" : : "m"(control) : "memory");
+    __asm__ volatile("ldmxcsr %0" : : "m"(value) : "memory");
 }
 #endif
 
@@ -62,14 +66,87 @@ enum
     s_denormalsAreZero = 1u << 6,
     s_roundingMode = 3u << 13,
     s_exceptionMasks = 0x3fu << 7,
+};
+
+#if defined(__i386__) || defined(_M_IX86)
+
+// No CI cell builds MSVC for 32-bit x86, so its __asm path is untried.
+#if defined(_MSC_VER) && !defined(__clang__)
+// clang-format off: MSVC's __asm statement ends at the line's end.
+static uint16_t ReadX87(void)
+{
+    uint16_t value = 0;
+    __asm fnstcw value
+    return value;
+}
+static void WriteX87(uint16_t value)
+{
+    __asm fldcw value
+}
+// clang-format on
+#else
+static uint16_t ReadX87(void)
+{
+    uint16_t value = 0;
+    __asm__ volatile("fnstcw %0" : "=m"(value) : : "memory");
+    return value;
+}
+static void WriteX87(uint16_t value)
+{
+    __asm__ volatile("fldcw %0" : : "m"(value) : "memory");
+}
+#endif
+
+// The x87 control word: exception masks bits 0 to 5, precision bits 8
+// and 9 (3 is 64-bit), rounding bits 10 and 11 (0 is to nearest).
+enum
+{
+    s_x87Masks = 0x3fu,
+    s_x87Precision = 3u << 8,
+    s_x87Rounding = 3u << 10,
     s_controlBits = 0xffffu,
 };
 
+static uint64_t ReadControl(void)
+{
+    return ReadMxcsr() | ((uint64_t)ReadX87() << 32);
+}
+static void WriteControl(uint64_t value)
+{
+    WriteMxcsr((uint32_t)value);
+    WriteX87((uint16_t)(value >> 32));
+}
+static uint64_t Wanted(uint64_t control)
+{
+    uint32_t clear = s_flushToZero | s_denormalsAreZero | s_roundingMode;
+    uint32_t mxcsr = ((uint32_t)control & ~clear) | s_exceptionMasks;
+    uint32_t x87 =
+        ((uint32_t)(control >> 32) & ~(uint32_t)s_x87Rounding) | s_x87Masks | s_x87Precision;
+    return mxcsr | ((uint64_t)(x87 & 0xffffu) << 32);
+}
+
+#else
+
+enum
+{
+    s_controlBits = 0xffffu,
+};
+
+static uint64_t ReadControl(void)
+{
+    return ReadMxcsr();
+}
+static void WriteControl(uint64_t value)
+{
+    WriteMxcsr((uint32_t)value);
+}
 static uint64_t Wanted(uint64_t control)
 {
     uint32_t clear = s_flushToZero | s_denormalsAreZero | s_roundingMode;
     return (control & ~(uint64_t)clear) | s_exceptionMasks;
 }
+
+#endif
 
 #elif defined(__aarch64__) || defined(_M_ARM64)
 
@@ -145,7 +222,8 @@ enum
 #error "maul2d: unknown floating-point environment for this architecture"
 #endif
 
-// Every control bit the library reads or sets is below the token's mark.
+// Every control bit the library reads or sets, the x87 word's included,
+// is below the token's mark.
 static_assert((uint64_t)s_controlBits <= UINT32_MAX, "the control bits are below bit 63");
 
 #if defined(_MSC_VER) && !defined(__clang__)

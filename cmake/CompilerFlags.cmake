@@ -38,13 +38,13 @@ function(maul_apply_flags target)
 
     if(MSVC)
         # clang-cl: MSVC-style driver options, clang options through /clang:.
-        # Clang's floating-point model is precise by default; turning
-        # contraction off is the only change the family needs. C23 is asked
+        # Clang's floating-point model is precise by default; the family
+        # turns contraction and errno-setting math off. C23 is asked
         # of clang directly: Visual Studio's ClangCL toolset gave a target
         # made after a fetched project's LanguageStandard_C stdclatest,
         # which it compiled below C23, in place of -clang:-std=c23.
         target_compile_options(${target} PRIVATE /W4 $<$<COMPILE_LANGUAGE:C>:/clang:-std=c23>
-                                                 /clang:-ffp-contract=off /clang:-Wshadow
+                                                 /clang:-ffp-contract=off /clang:-fno-math-errno /clang:-Wshadow
                                                  /clang:-Wmissing-prototypes)
         if(CMAKE_SIZEOF_VOID_P EQUAL 8)
             target_compile_options(${target} PRIVATE /clang:-Wshorten-64-to-32)
@@ -53,9 +53,12 @@ function(maul_apply_flags target)
             target_compile_options(${target} PRIVATE /WX)
         endif()
     else()
+        # -fno-math-errno makes sqrt the one rounded instruction on every
+        # target, never a C library call (on 32-bit x86, an x87 one). It
+        # comes after -fno-fast-math, which in GCC turns errno math back on.
         target_compile_options(${target} PRIVATE
             -ffp-contract=off -fno-trapping-math -fno-fast-math -fno-unsafe-math-optimizations
-            -Wall -Wextra -Wshadow -Wdouble-promotion -Wfloat-conversion
+            -fno-math-errno -Wall -Wextra -Wshadow -Wdouble-promotion -Wfloat-conversion
             $<$<COMPILE_LANGUAGE:C>:-Wmissing-prototypes>)
         # A 64-bit value cut to 32 bits, where pointers are 64 bits (a
         # 32-bit size_t would flag every size taken from a 64-bit value);

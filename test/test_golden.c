@@ -581,23 +581,53 @@ static void SceneBench(void)
     }
 }
 
-// The walks' tapes replayed on host setting h, serially and on three
-// workers whose threads the host starts in its setting: the calls are the
-// ones recorded, so the host's own rounding cannot reach their arguments.
-static void ReplayWalks(void)
+// Steps a replayed walk takes through the public m2World_Step.
+#define WALK_TAIL 30
+
+typedef struct WalkRun
+{
+    uint64_t replay; // the walks' hashes as JOURNAL folds them
+    uint64_t tail;   // the same, after WALK_TAIL more steps
+} WalkRun;
+
+// The walks' tapes replayed on the thread's setting, on the given number
+// of workers, whose threads the host starts in its setting: the calls are
+// the ones recorded, so the host's own rounding cannot reach their
+// arguments. A replay steps through the journal's own path, inside one
+// entry, so each world then steps on through the public m2World_Step.
+static WalkRun ReplayWalks(int32_t workers)
+{
+    WalkRun run = {0x9E3779B97F4A7C15ull, 0x9E3779B97F4A7C15ull};
+    for (int32_t i = 0; i < WALK_SEEDS; ++i)
+    {
+        m2WorldDef def = WalkWorldDef(workers);
+        m2World* world = NewWorld(&def);
+        CHECK(ReplayJournal(world, s_tapes[i], s_tapeSizes[i]), "a walk replays");
+        run.replay = JournalHash(run.replay, m2World_Hash(world));
+        for (int32_t k = 0; k < WALK_TAIL; ++k)
+        {
+            m2World_Step(world, DT, 4);
+        }
+        run.tail = JournalHash(run.tail, m2World_Hash(world));
+        m2DestroyWorld(world);
+    }
+    return run;
+}
+
+// The replays on host setting s_host must reach JOURNAL, and their tails
+// the tail the default setting reaches.
+static void CheckWalks(uint64_t expectedTail)
 {
     for (int32_t workers = 1; workers <= 3; workers += 2)
     {
-        uint64_t hash = 0x9E3779B97F4A7C15ull;
-        for (int32_t i = 0; i < WALK_SEEDS; ++i)
+        WalkRun run = ReplayWalks(workers);
+        Expect("JOURNAL", run.replay, M2_GOLDEN_JOURNAL);
+        if (run.tail != expectedTail)
         {
-            m2WorldDef def = WalkWorldDef(workers);
-            m2World* world = NewWorld(&def);
-            CHECK(ReplayJournal(world, s_tapes[i], s_tapeSizes[i]), "a walk replays");
-            hash = JournalHash(hash, m2World_Hash(world));
-            m2DestroyWorld(world);
+            printf("FAIL: the walks stepped on to %016llx on host setting %d, %d worker(s)\n",
+                   (unsigned long long)run.tail, s_host, (int)workers);
+            s_failures += 1;
         }
-        Expect("JOURNAL", hash, M2_GOLDEN_JOURNAL);
     }
 }
 
@@ -605,13 +635,15 @@ static void ReplayWalks(void)
 // host's mode too, so the scenes run whole only under the settings that
 // keep its rounding mode and add flush-to-zero and denormals-are-zero,
 // which none of their inputs reach. Under every setting, the walks'
-// recorded calls replay. After each, the host's setting is as it was.
+// recorded calls replay and step on. After each, the host's setting is as
+// it was.
 static void HostilePass(void)
 {
     void (*const scenes[])(void) = {SceneStack,    SceneContacts, SceneFluid,
                                     SceneRollback, SceneJournal,  SceneBench};
     int sceneCount = (int)(sizeof(scenes) / sizeof(scenes[0]));
     TestFloatSetting start = TestFloatGet();
+    uint64_t expectedTail = ReplayWalks(1).tail;
     for (s_host = 0; s_host < TestFloatHostileCount(); ++s_host)
     {
         TestFloatSetting host = TestFloatHostileAt(s_host);
@@ -625,7 +657,7 @@ static void HostilePass(void)
             CHECK(TestFloatSame(after, host), "the host's setting after a scene");
         }
         TestFloatSet(host);
-        ReplayWalks();
+        CheckWalks(expectedTail);
         TestFloatSetting after = TestFloatGet();
         TestFloatSet(start);
         CHECK(TestFloatSame(after, host), "the host's setting after the replays");

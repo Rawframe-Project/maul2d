@@ -12,6 +12,7 @@
 #include "test_fenv.h"
 #include "test_harness.h"
 
+#include <math.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -137,8 +138,8 @@ static void TestHostCode(TestFloatSetting host, TestFloatSetting other)
     // Host code that changes its setting: the outermost leave restores the
     // host's from its entry all the same.
     TestFloatSet(host);
-    // Only the register changes: the host's <fenv.h> mode (x87's control
-    // word on x86) is the host code's own, which the library never sets.
+    // Only the register changes: the host's <fenv.h> mode is the host
+    // code's own, which the library sets only inside an entry.
     callback.change = true;
     callback.changeTo = (TestFloatSetting){host.rounding, other.control};
     callback.host = host;
@@ -247,6 +248,46 @@ static void TestStickyFlags(void)
 }
 #endif
 
+#if defined(__i386__)
+static volatile double s_justOverTiny = 0x1.0000000000001p-1022;
+
+// The C library's ldexp is x87 code on 32-bit x86, rounding by the x87
+// control word: 2^-1025 + 2^-1077 is a subnormal an eighth of a unit past
+// 2^-1025, which round to nearest gives and rounding up does not.
+static M2_NOINLINE double LibraryLdexp(void)
+{
+    return ldexp(s_justOverTiny, -3);
+}
+
+// Inside an entry the x87 unit rounds as the library needs, whatever the
+// host set; the outermost leave gives the host its whole x87 word back,
+// precision included.
+static void TestX87(TestFloatSetting host)
+{
+    TestFloatSet(host);
+    const uint64_t precision53 = 2u << 8;
+    const uint64_t precisionBits = 3u << 8;
+    uint64_t start = m2FloatControlRead();
+    uint64_t hostWord = (start & ~(precisionBits << 32)) | (precision53 << 32);
+    m2FloatControlWrite(hostWord);
+    uint64_t token = m2FloatEnvEnter();
+    double ldexpInside = LibraryLdexp();
+    uint64_t inside = m2FloatControlRead() >> 32;
+    m2FloatEnvLeave(token);
+    uint64_t after = m2FloatControlRead();
+    m2FloatControlWrite(start);
+    CHECK(ldexpInside == 0x1p-1025, "the C library's x87 code rounds to nearest inside an entry");
+    CHECK((inside & 0xf3fu) == 0x33fu,
+          "the x87 word inside: nearest, 64-bit precision, all masked");
+    CHECK(after == hostWord, "the leave gives the host its whole x87 word back");
+}
+#else
+static void TestX87(TestFloatSetting host)
+{
+    (void)host;
+}
+#endif
+
 static void TestTokens(void)
 {
     // The register the token holds stays clear of its mark.
@@ -282,6 +323,7 @@ int main(void)
         TestHostCode(host, other);
         TestRun(host);
         TestEveryPath(host);
+        TestX87(host);
     }
     TestFloatSet(start);
     TestTokens();
