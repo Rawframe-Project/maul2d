@@ -10,7 +10,7 @@ What verifies a change, locally and in CI, and the time each may take.
 |---|---|---|
 | `changed` | The source, module, length, API documentation and snippet rules, test hygiene, the organization's documentation check, `clang-format`, and the `linux-clang-20-asan` preset (scalar backend, assertions and world validation on) with the CTest labels the changed files reach. Every preset it configures must label each of its tests. | under 2 minutes |
 | `pr` | Every rule on every file, clang-tidy over `src/`, the documentation site, and the `linux-clang-20-asan`, `linux-gcc-14` and `linux-shared` presets. | under 10 minutes |
-| `full` | Also the other Linux presets (ThreadSanitizer, Clang Release), the testbed and the nightly simulation. | under 20 minutes |
+| `full` | Also the other Linux presets (ThreadSanitizer, Clang Release), the testbed, the nightly simulation, and each fuzz target for `FUZZ_SECONDS` (default 20). | under 20 minutes |
 
 Run `changed` before every push. On the shared development machine, run `pr` and `full` through the workspace's heavy-job wrapper. Builds go to `out/<preset>`, each with its log beside it.
 
@@ -28,6 +28,7 @@ Run `changed` before every push. On the shared development machine, run `pr` and
 | `msvc-headers` | Every public header compiled by MSVC's `cl` as C17 and C++17. |
 | `testbed` | The native testbed builds. |
 | `web` | The library and its tests under Emscripten and Node, the golden test included, and the size of the static library. |
+| `fuzz` | One job per fuzz target, each from its cached corpus: 20 seconds on a pull request, 90 seconds on `main` and 600 at night or on a dispatch. On `main` and at night each corpus is then minimized and saved. A finding uploads the log and the failing input. |
 | `simulation` | At night only: a long soak and a deep API walk. |
 
 `pr-title.yml` checks that the pull request title is a conventional commit with a scope from `AGENTS.md`, and `pr-gate.yml` closes a pull request from outside the organization unless it closes an issue labeled `accepted`. `codeql.yml` runs CodeQL on pull requests, on `main` and weekly. `scorecard.yml` grades the repository's security practices weekly, and Dependabot proposes updates of the pinned actions. `pages.yml` publishes the documentation site and the browser testbed from `main`.
@@ -35,6 +36,17 @@ Run `changed` before every push. On the shared development machine, run `pr` and
 ## Test hygiene
 
 `tools/check_test_hygiene.py`, shared by the family, rejects sleeps, wall-clock reads, retry loops and skips in the test sources and skip properties in the CMake files. A use that must stay carries `// hygiene: <reason>`, in a comment and with a reason of at least three words, on its line or the one before. With `--ctest` it also rejects a test registered without a label: CI checks the default and the shared configurations, and `tools/check.sh` every preset it configures. `--self-test` runs it over the fixtures in `tools/test_hygiene/`.
+
+## Fuzzing
+
+Every fuzz target (`test/fuzz_<area>.c`) checks promises that must hold for any input, and crashes when one breaks:
+
+- `fuzz_snapshot` restores hostile snapshot bytes, raw or as edits to a valid snapshot of a fuzz scene. A refused snapshot changes nothing and counts no misuse; an accepted one validates, snapshots back to the same bytes and steps.
+- `fuzz_journal` replays hostile tapes the same two ways. A refused tape changes nothing and counts no misuse; an accepted one leaves a world that validates and steps.
+- `fuzz_geometry` feeds points to `m2MakePolygon`, `m2ComputeHull` and `m2DecomposeOutline`. Every accepted polygon makes a shape, and an accepted outline gives at least one piece, with pieces that never cover more than its area.
+- `fuzz_walk` drives the seeded API walk from its input, with every promise of the walk: replay, rollback and the threaded twin.
+
+The library is instrumented as well as the targets, with AddressSanitizer and UBSan stopping at the first fault (`-fno-sanitize-recover=all`). The targets build their valid inputs at startup, so a format bump never leaves seeds stale. Each target's corpus carries from run to run in an Actions cache of its own, `fuzz-corpus-<target>-<run id>`; every run restores the newest, and runs on `main` and at night minimize it with libFuzzer's `-merge=1` into a fresh directory, swap it in only when the merge finished, and save it. Pull requests restore but never save.
 
 ## Determinism in CI
 

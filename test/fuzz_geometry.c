@@ -8,8 +8,9 @@
 // random floats rarely do. The promises:
 //   - a refusal is a status, never a crash;
 //   - every polygon a builder accepts makes a shape;
-//   - the pieces of a decomposed outline lie within its area: they may
-//     drop slivers of near-zero area, never add any.
+//   - an accepted outline gives at least one piece, and its pieces lie
+//     within its area: they may drop slivers of near-zero area, never add
+//     any.
 
 #include "helpers.h"
 
@@ -125,9 +126,9 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     int32_t made = 0;
     if (m2DecomposeOutline(points, count, pieces, FUZZ_MAX_PIECES, &made) == m2_success)
     {
-        if (made < 0 || made > FUZZ_MAX_PIECES)
+        if (made < 1 || made > FUZZ_MAX_PIECES)
         {
-            Fail("a decomposition of 64 points fits 64 pieces");
+            Fail("a decomposition of 64 points makes 1 to 64 pieces");
         }
         double covered = 0.0;
         for (int32_t i = 0; i < made; ++i)
