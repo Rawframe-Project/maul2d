@@ -6,6 +6,25 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.4.0](https://github.com/Rawframe-Project/maul2d/compare/v0.3.0...v0.4.0) (2026-10-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* **api:** m2MassData.rotationalInertia, the inertia about the body origin, is replaced by m2MassData.centralInertia, the inertia about the center of mass, in m2Body_SetMassData and m2Body_GetMassData. A host that computed an inertia about the origin passes the inertia about the centroid instead. The journal tape format is version 7, since its set-mass-data record now carries the central inertia.
+* **snapshot:** the snapshot format is version 6 and the journal tape format is version 6. Each magic is stored so that its bytes spell its name (`M2SN`, `M2JN`). Snapshots and tapes written before this change are refused with m2_errorInvalid.
+* **snapshot:** the snapshot format is version 5 and the journal tape format is version 5. Both start with the shared 16-byte state prefix. A snapshot or tape is read only by the release that wrote it, and bytes from another release or build are refused with m2_errorVersion instead of m2_errorInvalid.
+
+### Fixed
+
+* **api:** take a body's mass data inertia about its center of mass ([#80](https://github.com/Rawframe-Project/maul2d/issues/80)) ([e4b9346](https://github.com/Rawframe-Project/maul2d/commit/e4b9346e4bc1c3e6da9491d0a4a8bd421ae9ad77))
+* **joints:** hold the weld and the mouse on a long arm ([#79](https://github.com/Rawframe-Project/maul2d/issues/79)) ([8846ddd](https://github.com/Rawframe-Project/maul2d/commit/8846dddee2d51258e1f8035eb9afffd0f99983aa)), closes [#68](https://github.com/Rawframe-Project/maul2d/issues/68)
+* **joints:** solve the point pair with the current arms ([#70](https://github.com/Rawframe-Project/maul2d/issues/70)) ([681d4b1](https://github.com/Rawframe-Project/maul2d/commit/681d4b149c92f9cd915d3bc425cb2ed59fd79996))
+* **snapshot:** let only the writing release read snapshots and tapes ([#65](https://github.com/Rawframe-Project/maul2d/issues/65)) ([cb43d6b](https://github.com/Rawframe-Project/maul2d/commit/cb43d6bc445a4db58a3e41ee87b91bd89874717e))
+* **snapshot:** refuse particle links that join a dead particle ([#73](https://github.com/Rawframe-Project/maul2d/issues/73)) ([17dc0c8](https://github.com/Rawframe-Project/maul2d/commit/17dc0c88114f0e453dad21e0b01647b707121f3c))
+* **snapshot:** store each state magic so its bytes spell its name ([#76](https://github.com/Rawframe-Project/maul2d/issues/76)) ([3c1cc5a](https://github.com/Rawframe-Project/maul2d/commit/3c1cc5abf1fa2c99b00a368b1becb4b2c256b123))
+* **solver:** keep a vanishing spring's bias finite ([#72](https://github.com/Rawframe-Project/maul2d/issues/72)) ([ae3bf41](https://github.com/Rawframe-Project/maul2d/commit/ae3bf4140faeb87b5465fdf0f10db425d8a15c4d))
+
 ## [0.3.0](https://github.com/Rawframe-Project/maul2d/releases/tag/v0.3.0) (2026-10-25)
 
 ### Changed
