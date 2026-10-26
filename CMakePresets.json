@@ -104,6 +104,32 @@
       }
     },
     {
+      "name": "linux-i686-gcc-14",
+      "displayName": "GCC 14, 32-bit x86 with SSE2 arithmetic, Release",
+      "inherits": [
+        "linux",
+        "gcc"
+      ],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_FLAGS": "-m32",
+        "CMAKE_CXX_FLAGS": "-m32"
+      }
+    },
+    {
+      "name": "linux-i686-clang-20",
+      "displayName": "Clang 20, 32-bit x86 with SSE2 arithmetic, Release",
+      "inherits": [
+        "linux",
+        "clang"
+      ],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_FLAGS": "-m32",
+        "CMAKE_CXX_FLAGS": "-m32"
+      }
+    },
+    {
       "name": "linux-testbed",
       "displayName": "GCC 14, the testbed on raylib, built without tests",
       "inherits": [
@@ -202,6 +228,14 @@
       "configurePreset": "linux-shared"
     },
     {
+      "name": "linux-i686-gcc-14",
+      "configurePreset": "linux-i686-gcc-14"
+    },
+    {
+      "name": "linux-i686-clang-20",
+      "configurePreset": "linux-i686-clang-20"
+    },
+    {
       "name": "linux-testbed",
       "configurePreset": "linux-testbed"
     },
@@ -269,6 +303,16 @@
       "name": "linux-shared",
       "inherits": "base",
       "configurePreset": "linux-shared"
+    },
+    {
+      "name": "linux-i686-gcc-14",
+      "inherits": "base",
+      "configurePreset": "linux-i686-gcc-14"
+    },
+    {
+      "name": "linux-i686-clang-20",
+      "inherits": "base",
+      "configurePreset": "linux-i686-clang-20"
     },
     {
       "name": "linux-arm64-gcc-14",

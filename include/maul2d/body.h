@@ -58,14 +58,14 @@ extern "C"
         float gravityScale;
         float linearDamping; // v / (1 + h d) per substep, implicit
         float angularDamping;
-        m2MotionLocks motionLocks; // angularZ is the same lock as fixedRotation
-        bool fixedRotation;        // never rotates: infinite rotational inertia
-        bool enableSleep;          // false: this body never sleeps
-        bool isEnabled;            // false: created dormant, outside the simulation
-        int8_t dominance;          // the higher side of a contact cannot be pushed
-        bool isBullet;             // continuous collision against non-bullets
-        uint64_t userData;         // opaque, kept through snapshots and journals
-        int32_t internalValue;     // the cookie m2DefaultBodyDef sets
+        m2MotionLocks motionLocks;   // angularZ is the same lock as fixedRotation
+        bool fixedRotation;          // never rotates: infinite rotational inertia
+        bool enableSleep;            // false: this body never sleeps
+        bool isEnabled;              // false: created dormant, outside the simulation
+        int8_t dominance;            // the higher side of a contact cannot be pushed
+        bool isBullet;               // continuous collision against non-bullets
+        M2_ALIGN8 uint64_t userData; // opaque, kept through snapshots and journals
+        int32_t internalValue;       // the cookie m2DefaultBodyDef sets
     } m2BodyDef;
 
     /// Returns a body def: a static, enabled body at the origin with

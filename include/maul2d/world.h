@@ -256,7 +256,7 @@ extern "C"
         float radius;  // 0 to M2_HUGE
         float falloff; // above 0, to M2_HUGE
         float impulse; // N s at full strength, within M2_IMPULSE_LIMIT
-        uint64_t maskBits;
+        M2_ALIGN8 uint64_t maskBits;
         int32_t internalValue; // the cookie m2DefaultExplosionDef sets
     } m2ExplosionDef;
 
@@ -354,15 +354,15 @@ extern "C"
         int32_t constraints;         // solved last step
         int32_t graphColors;         // colors used last step
         int32_t overflowConstraints; // in the serial bucket last step
-        uint64_t stepCount;
+        M2_ALIGN8 uint64_t stepCount;
         // Counted in every build. Poll them once per frame and alarm on
         // growth: there is no per-call callback, so healthy calls pay
         // nothing for the diagnosis.
-        int32_t pairOverflow;         // body pairs dropped last step (pair table full)
-        int32_t particlePairOverflow; // particle pairs dropped last step (budget)
-        int32_t particleBodyOverflow; // particle body contacts dropped last step
-        uint64_t particlePoolFull;    // emits refused by a full pool, cumulative
-        uint64_t misuse;              // calls refused as misuse, cumulative
+        int32_t pairOverflow;                // body pairs dropped last step (pair table full)
+        int32_t particlePairOverflow;        // particle pairs dropped last step (budget)
+        int32_t particleBodyOverflow;        // particle body contacts dropped last step
+        M2_ALIGN8 uint64_t particlePoolFull; // emits refused by a full pool, cumulative
+        M2_ALIGN8 uint64_t misuse;           // calls refused as misuse, cumulative
     } m2Counters;
 
     /// Sums the kinetic energy of the awake dynamic bodies, in f64 and in
@@ -497,7 +497,8 @@ extern "C"
     /// A world's memory footprint.
     typedef struct m2MemoryUsage
     {
-        int64_t persistentBytes; // everything creation allocated, the world struct included
+        M2_ALIGN8 int64_t
+            persistentBytes; // everything creation allocated, the world struct included
     } m2MemoryUsage;
 
     /// Reports a world's memory footprint. It is fixed for the world's
@@ -514,12 +515,12 @@ extern "C"
     /// Hashes of the world's parts, for hunting a divergence.
     typedef struct m2WorldHashParts
     {
-        uint64_t world;     // step count, gravity, wind and sleeping
-        uint64_t bodies;    // bodies, their shapes and chains, and their id pools
-        uint64_t contacts;  // pairs, their touching flags and manifolds
-        uint64_t joints;    // joint settings and impulses, and the joint id pool
-        uint64_t particles; // particles and the jelly nets, and the particle id pool
-        uint64_t volumes;   // fluid volumes and their id pool
+        M2_ALIGN8 uint64_t world;     // step count, gravity, wind and sleeping
+        M2_ALIGN8 uint64_t bodies;    // bodies, their shapes and chains, and their id pools
+        M2_ALIGN8 uint64_t contacts;  // pairs, their touching flags and manifolds
+        M2_ALIGN8 uint64_t joints;    // joint settings and impulses, and the joint id pool
+        M2_ALIGN8 uint64_t particles; // particles and the jelly nets, and the particle id pool
+        M2_ALIGN8 uint64_t volumes;   // fluid volumes and their id pool
     } m2WorldHashParts;
 
     /// Hashes each part of the world. Compare two runs part by part each
@@ -553,12 +554,12 @@ extern "C"
     {
         m2Pos2 regionLower; // the region, world space
         m2Pos2 regionUpper;
-        double surface;    // the waterline, world y
-        float density;     // buoyant force per submerged area; 0 to M2_MAX_DENSITY
-        float linearDrag;  // velocity damping per submerged area; 0 to M2_MAX_RATE
-        float angularDrag; // spin damping; 0 to M2_MAX_RATE
-        m2Vec2 flow;       // the current, m/s, within M2_MAX_SPEED per axis
-        uint64_t userData;
+        M2_ALIGN8 double surface; // the waterline, world y
+        float density;            // buoyant force per submerged area; 0 to M2_MAX_DENSITY
+        float linearDrag;         // velocity damping per submerged area; 0 to M2_MAX_RATE
+        float angularDrag;        // spin damping; 0 to M2_MAX_RATE
+        m2Vec2 flow;              // the current, m/s, within M2_MAX_SPEED per axis
+        M2_ALIGN8 uint64_t userData;
         int32_t internalValue; // the cookie m2DefaultFluidVolumeDef sets
     } m2FluidVolumeDef;
 

@@ -33,7 +33,7 @@ extern "C"
     /// simulation quality does not degrade far from the origin.
     typedef struct m2Pos2
     {
-        double x, y;
+        M2_ALIGN8 double x, y;
     } m2Pos2;
 
     /// A rotation stored as a unit complex number. No angles are stored;

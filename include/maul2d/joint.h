@@ -73,9 +73,9 @@ extern "C"
         /// rope (free until taut); with a minLength, a strut (free until
         /// squeezed). With hertz above 0 it behaves as off.
         bool enableSpring;
-        uint64_t userData;     // opaque, kept through snapshots and journals
-        bool collideConnected; // false: the two bodies pass through each other
-        int32_t internalValue; // the cookie m2DefaultDistanceJointDef sets
+        M2_ALIGN8 uint64_t userData; // opaque, kept through snapshots and journals
+        bool collideConnected;       // false: the two bodies pass through each other
+        int32_t internalValue;       // the cookie m2DefaultDistanceJointDef sets
     } m2DistanceJointDef;
 
     /// Pins two local anchor points together: a hinge. Limit angles, the
@@ -97,7 +97,7 @@ extern "C"
         bool enableLimit;
         float lowerAngle; // radians from the creation angle
         float upperAngle;
-        uint64_t userData;
+        M2_ALIGN8 uint64_t userData;
         bool collideConnected;
         int32_t internalValue; // the cookie m2DefaultRevoluteJointDef sets
     } m2RevoluteJointDef;
@@ -121,7 +121,7 @@ extern "C"
         bool enableLimit;
         float lowerTranslation; // meters from the separation at creation
         float upperTranslation;
-        uint64_t userData;
+        M2_ALIGN8 uint64_t userData;
         bool collideConnected;
         int32_t internalValue; // the cookie m2DefaultPrismaticJointDef sets
     } m2PrismaticJointDef;
@@ -139,7 +139,7 @@ extern "C"
         float linearDampingRatio;
         float angularHertz; // 0: rigid
         float angularDampingRatio;
-        uint64_t userData;
+        M2_ALIGN8 uint64_t userData;
         bool collideConnected;
         int32_t internalValue; // the cookie m2DefaultWeldJointDef sets
     } m2WeldJointDef;
@@ -162,7 +162,7 @@ extern "C"
         bool enableLimit;
         float lowerTranslation; // meters from the separation at creation
         float upperTranslation;
-        uint64_t userData;
+        M2_ALIGN8 uint64_t userData;
         bool collideConnected;
         int32_t internalValue; // the cookie m2DefaultWheelJointDef sets
     } m2WheelJointDef;
@@ -184,7 +184,7 @@ extern "C"
         /// and maxTorque. One stiffness serves both rows.
         float hertz;
         float dampingRatio;
-        uint64_t userData;
+        M2_ALIGN8 uint64_t userData;
         bool collideConnected;
         int32_t internalValue; // the cookie m2DefaultMotorJointDef sets
     } m2MotorJointDef;
@@ -201,7 +201,7 @@ extern "C"
         float hertz;
         float dampingRatio;
         float maxForce; // N
-        uint64_t userData;
+        M2_ALIGN8 uint64_t userData;
         bool collideConnected;
         int32_t internalValue; // the cookie m2DefaultMouseJointDef sets
     } m2MouseJointDef;
@@ -217,7 +217,7 @@ extern "C"
         /// M2_MIN_RATIO to M2_MAX_RATIO by magnitude; meshed cogs take a
         /// positive ratio and spin opposite.
         float ratio;
-        uint64_t userData;
+        M2_ALIGN8 uint64_t userData;
         bool collideConnected;
         int32_t internalValue; // the cookie m2DefaultGearJointDef sets
     } m2GearJointDef;
@@ -235,7 +235,7 @@ extern "C"
         m2Vec2 localAnchorA; // where the rope holds body A, in its frame
         m2Vec2 localAnchorB;
         float ratio; // M2_MIN_RATIO to M2_MAX_RATIO
-        uint64_t userData;
+        M2_ALIGN8 uint64_t userData;
         bool collideConnected;
         int32_t internalValue; // the cookie m2DefaultPulleyJointDef sets
     } m2PulleyJointDef;
@@ -253,7 +253,7 @@ extern "C"
         /// magnitude; its sign is the free direction.
         float ratchet;
         float phase; // offsets the teeth, radians
-        uint64_t userData;
+        M2_ALIGN8 uint64_t userData;
         bool collideConnected;
         int32_t internalValue; // the cookie m2DefaultRatchetJointDef sets
     } m2RatchetJointDef;
@@ -264,7 +264,7 @@ extern "C"
     {
         m2BodyId bodyIdA;
         m2BodyId bodyIdB;
-        uint64_t userData;
+        M2_ALIGN8 uint64_t userData;
         int32_t internalValue; // the cookie m2DefaultFilterJointDef sets
     } m2FilterJointDef;
 

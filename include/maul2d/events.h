@@ -25,9 +25,9 @@ extern "C"
     {
         m2ShapeId shapeIdA; // the lower shape index of the pair
         m2ShapeId shapeIdB;
-        uint64_t step;       // the step the event belongs to
-        m2Vec2 normal;       // world frame, from shape A toward shape B
-        float approachSpeed; // closing speed along the normal, never negative
+        M2_ALIGN8 uint64_t step; // the step the event belongs to
+        m2Vec2 normal;           // world frame, from shape A toward shape B
+        float approachSpeed;     // closing speed along the normal, never negative
         int32_t pointCount;
         m2Pos2 points[2]; // world contact positions
     } m2ContactBeginEvent;
@@ -37,7 +37,7 @@ extern "C"
     {
         m2ShapeId shapeIdA; // the ids as they were when the touch ended
         m2ShapeId shapeIdB;
-        uint64_t step;
+        M2_ALIGN8 uint64_t step;
     } m2ContactEndEvent;
 
     /// The contact events of the last step, in canonical order.
@@ -92,7 +92,7 @@ extern "C"
     typedef struct m2JointBreakEvent
     {
         m2JointId jointId; // the id the joint had
-        uint64_t step;
+        M2_ALIGN8 uint64_t step;
         float force;  // the reaction force that broke it
         float torque; // the reaction torque that broke it
     } m2JointBreakEvent;

@@ -190,7 +190,7 @@ typedef struct m2OpBodyByte
 typedef struct m2OpBodyUserData
 {
     m2BodyId body;
-    uint64_t userData;
+    M2_ALIGN8 uint64_t userData;
 } m2OpBodyUserData;
 
 typedef struct m2OpSetTransform
@@ -230,8 +230,8 @@ typedef struct m2OpShapeFloat
 typedef struct m2OpSetFilter
 {
     m2ShapeId shape;
-    uint64_t categoryBits;
-    uint64_t maskBits;
+    M2_ALIGN8 uint64_t categoryBits;
+    M2_ALIGN8 uint64_t maskBits;
     int32_t groupIndex;
 } m2OpSetFilter;
 
@@ -244,7 +244,7 @@ typedef struct m2OpSetGeometry
 typedef struct m2OpShapeUserData
 {
     m2ShapeId shape;
-    uint64_t userData;
+    M2_ALIGN8 uint64_t userData;
 } m2OpShapeUserData;
 
 typedef struct m2OpChainHeader
@@ -254,10 +254,10 @@ typedef struct m2OpChainHeader
     int32_t createdCount;
     float friction;
     float restitution;
-    uint64_t categoryBits;
-    uint64_t maskBits;
+    M2_ALIGN8 uint64_t categoryBits;
+    M2_ALIGN8 uint64_t maskBits;
     int32_t groupIndex;
-    uint64_t userData;
+    M2_ALIGN8 uint64_t userData;
     uint8_t isLoop;
 } m2OpChainHeader;
 
@@ -301,7 +301,7 @@ typedef struct m2OpJointParam
 typedef struct m2OpJointUserData
 {
     m2JointId joint;
-    uint64_t userData;
+    M2_ALIGN8 uint64_t userData;
 } m2OpJointUserData;
 
 typedef struct m2OpMotorOffsets
@@ -349,7 +349,7 @@ typedef struct m2OpParticleFloat
 typedef struct m2OpParticleUserData
 {
     m2ParticleId id;
-    uint64_t userData;
+    M2_ALIGN8 uint64_t userData;
 } m2OpParticleUserData;
 
 typedef struct m2OpCreateFluidVolume
@@ -361,7 +361,7 @@ typedef struct m2OpCreateFluidVolume
 typedef struct m2OpFluidSurface
 {
     m2FluidVolumeId id;
-    double surface;
+    M2_ALIGN8 double surface;
 } m2OpFluidSurface;
 
 typedef struct m2OpShatterHeader

@@ -82,6 +82,7 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/distance.c
     src/draw.c
     src/dynamic_tree.c
+    src/format_layout.c
     src/fpenv.c
     src/geometry.c
     src/graph_color.c

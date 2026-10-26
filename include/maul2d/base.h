@@ -40,6 +40,16 @@
 #define M2_NODISCARD
 #endif
 
+// M2_ALIGN8 gives a 64-bit member (a double or a 64-bit integer) 8-byte
+// alignment on every target. 32-bit x86 aligns them to 4 inside a struct,
+// and the journal and snapshot formats are laid out as on x86-64, with
+// every such member 8-aligned; src/format_layout.c holds them there.
+#if defined(__cplusplus) || (defined(__STDC_VERSION__) && __STDC_VERSION__ >= 202311L)
+#define M2_ALIGN8 alignas(8)
+#else
+#define M2_ALIGN8 _Alignas(8)
+#endif
+
 #ifdef __cplusplus
 extern "C"
 {
