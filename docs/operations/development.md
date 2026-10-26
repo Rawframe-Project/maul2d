@@ -64,13 +64,13 @@ A line that moves unexpectedly is a determinism bug until proven otherwise. Comp
 
 ## Reproducing a fuzz finding
 
-A finding in CI uploads the target's log and the input that failed (`crash-<hash>`) as the job's artifact. Run the target on that input locally:
+A finding in CI prints only a report: the target, the kind of each finding and the sanitizers' error. The input, its seed and the log stay on the runner. Fuzz the target locally until it finds the same fault; `tools/fuzz_target.sh` keeps each finding in `out/fuzz-crashes/<target>/` and the log in `out/fuzz-logs/`, and the input and its details stay on your machine:
 
 ```sh
 cmake -B out/fuzz -G Ninja -DCMAKE_C_COMPILER=clang-20 -DMAUL2D_FUZZ=ON -DMAUL2D_BUILD_TESTS=OFF
 cmake --build out/fuzz
-./out/fuzz/fuzz_snapshot crash-<hash>
-./out/fuzz/fuzz_snapshot -max_total_time=300 -max_len=4096 out/corpus/fuzz_snapshot
+tools/fuzz_target.sh out/fuzz/fuzz_snapshot -max_total_time=300 -max_len=4096 out/corpus/fuzz_snapshot
+./out/fuzz/fuzz_snapshot out/fuzz-crashes/fuzz_snapshot/crash-<hash>
 ```
 
 Every crash a fuzzer finds becomes a test in the suite of its module, with the smallest input that still fails (`-minimize_crash=1`) or the scene it reduces to.

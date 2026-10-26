@@ -168,10 +168,9 @@ cmake --build "$out/fuzz" -j "$jobs" >>"$out/fuzz.log"
 for target in "$out"/fuzz/fuzz_*; do
     name=$(basename "$target")
     mkdir -p "$out/corpus/$name"
-    "$target" -max_total_time="${FUZZ_SECONDS:-20}" -max_len=4096 \
-        -artifact_prefix="$out/" "$out/corpus/$name" >"$out/$name.log" 2>&1 ||
-        { tail -n 40 "$out/$name.log"; exit 1; }
-    echo "$name: no finding"
+    OUT="$out" "$root/tools/fuzz_target.sh" "$target" -max_total_time="${FUZZ_SECONDS:-20}" -max_len=4096 \
+        "$out/corpus/$name" ||
+        { cat "$out/fuzz-reports/$name.txt"; echo "log: $out/fuzz-logs/$name.log"; exit 1; }
 done
 
 step "all checks passed"
