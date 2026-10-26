@@ -374,8 +374,9 @@ typedef struct m2World
     m2FinishTaskFn* finishTask;   // serial; never snapshot state
     void* userTaskContext;
     m2Profile profile; // diagnostics only (never walked/hashed)
-    volatile long long
-        misuseCount;     // cumulative misuse; atomic access only (m2Refuse, m2MisuseCount)
+    // Cumulative misuse, accessed only atomically (m2Refuse, m2MisuseCount);
+    // 8-aligned on 32-bit x86 too, where a 64-bit atomic needs it.
+    M2_ALIGN8 volatile long long misuseCount;
     int64_t memoryBytes; // persistent footprint, from create
     volatile long busy;  // host code running: a step's tasks, debug draws; atomic access only
     uint8_t replaying;   // applying a journal tape: refusals outside host code count no misuse

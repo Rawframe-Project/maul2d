@@ -123,6 +123,8 @@ jobs:
           - { preset: linux-clang-20-asan, repeat: 3 }
           - { preset: linux-clang-20-tsan }
           - { preset: linux-shared }
+          - { preset: linux-i686-gcc-14 }
+          - { preset: linux-i686-clang-20 }
           - { preset: linux-arm64-gcc-14, runner: ubuntu-24.04-arm }
           - { preset: linux-arm64-clang-20, runner: ubuntu-24.04-arm }
           - { preset: macos-clang, runner: macos-15 }

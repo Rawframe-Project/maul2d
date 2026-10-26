@@ -89,8 +89,8 @@ extern "C"
         /// Two shapes collide when each one's category intersects the
         /// other's mask. Defaults: category 1, mask all. Queries take
         /// their own m2QueryFilter.
-        uint64_t categoryBits;
-        uint64_t maskBits;
+        M2_ALIGN8 uint64_t categoryBits;
+        M2_ALIGN8 uint64_t maskBits;
         /// The same nonzero group on both shapes overrides the mask rule:
         /// positive always collides, negative never does. Zero defers to
         /// categories and masks. Queries ignore groups.
@@ -100,7 +100,7 @@ extern "C"
         /// Its overlaps arrive through m2World_GetSensorEvents. Two sensors
         /// never detect each other.
         bool isSensor;
-        uint64_t userData;
+        M2_ALIGN8 uint64_t userData;
         int32_t internalValue; // the cookie m2DefaultShapeDef sets
     } m2ShapeDef;
 
@@ -123,10 +123,10 @@ extern "C"
         bool isLoop;
         float friction;    // 0 to M2_MAX_COEFFICIENT
         float restitution; // 0 to 1
-        uint64_t categoryBits;
-        uint64_t maskBits;
+        M2_ALIGN8 uint64_t categoryBits;
+        M2_ALIGN8 uint64_t maskBits;
         int32_t groupIndex;
-        uint64_t userData;
+        M2_ALIGN8 uint64_t userData;
         int32_t internalValue; // the cookie m2DefaultChainDef sets
     } m2ChainDef;
 
@@ -767,8 +767,8 @@ extern "C"
     /// category intersects the other's mask, as contacts do.
     typedef struct m2QueryFilter
     {
-        uint64_t categoryBits;
-        uint64_t maskBits;
+        M2_ALIGN8 uint64_t categoryBits;
+        M2_ALIGN8 uint64_t maskBits;
     } m2QueryFilter;
 
     /// Returns the default query filter, category 1 and mask all, which

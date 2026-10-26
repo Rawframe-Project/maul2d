@@ -18,6 +18,7 @@ destruction: body distance fpenv geometry journal object_ids world_internal
 distance: world_internal
 draw: fpenv world_internal
 dynamic_tree: core
+format_layout: geometry journal
 fpenv:
 geometry: core dynamic_tree fpenv math_functions
 graph_color: contact_constraint solver_base world_internal
