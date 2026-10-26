@@ -1245,7 +1245,7 @@ static void TestDormancyMassAndExplosions(void)
     m2MassData original = m2Body_GetMassData(world, heavy);
     m2MassData doubled = original;
     doubled.mass = original.mass * 2.0f;
-    doubled.rotationalInertia = original.rotationalInertia * 2.0f;
+    doubled.centralInertia = original.centralInertia * 2.0f;
     m2Body_SetMassData(world, heavy, doubled);
     CHECK(m2Body_GetMass(world, heavy) > original.mass * 1.9f, "the override sticks");
     m2Body_ApplyLinearImpulseAtPoint(world, heavy, (m2Vec2){original.mass * 2.0f, 0.0f},
@@ -3088,14 +3088,12 @@ static void TestSetMassDataChecksEveryField(void)
     }
     bad[0].center.x = NAN;
     bad[1].center.x = 2.0f * M2_HUGE;
-    bad[2].rotationalInertia = NAN;
-    bad[3].rotationalInertia = INFINITY;
+    bad[2].centralInertia = NAN;
+    bad[3].centralInertia = INFINITY;
     bad[4].mass = 1e-45f; // its inverse overflows
     bad[5].mass = INFINITY;
-    bad[6].rotationalInertia = 0.25f; // below 2 kg at 0.5 m, 0.5
-    bad[7].mass = 1.0f;
-    bad[7].center = (m2Vec2){0.0f, 0.0f};
-    bad[7].rotationalInertia = 1e-45f;                  // its inverse about the center overflows
+    bad[6].centralInertia = -1.0f;
+    bad[7].centralInertia = 1e-45f; // below M2_MIN_INERTIA; its inverse overflows
     bad[8] = (m2MassData){FLT_MAX, {0.0f, 0.0f}, 1.0f}; // its inverse's inverse overflows
     bad[9] = (m2MassData){1.0f, {0.0f, 0.0f}, FLT_MAX}; // so does the inertia's
     uint64_t misuse = m2World_GetCounters(world).misuse;
@@ -3111,13 +3109,13 @@ static void TestSetMassDataChecksEveryField(void)
         }
     }
 
-    // A fixed-rotation body reads back exactly the mass at its center, and
-    // a far center rounds its inertia away: both set again.
+    // A fixed-rotation body reads back a central inertia of 0, and a far
+    // center keeps its own: both set again.
     m2Body_SetFixedRotation(world, body, true);
     m2MassData fixed = m2Body_GetMassData(world, body);
     m2Body_SetMassData(world, body, fixed);
     m2Body_SetFixedRotation(world, body, false);
-    m2MassData distant = {1.0f, {M2_HUGE, 0.0f}, 1.0f + M2_HUGE * M2_HUGE};
+    m2MassData distant = {1.0f, {M2_HUGE, 0.0f}, 1.0f};
     m2Body_SetMassData(world, body, distant);
     m2MassData back = m2Body_GetMassData(world, body);
     m2Body_SetMassData(world, body, back);
@@ -3153,6 +3151,35 @@ static void TestSetMassDataChecksEveryField(void)
               Restore(world, snapshot, size),
           "a body with an override snapshots and restores");
     free(snapshot);
+    m2DestroyWorld(world);
+}
+
+// Mass data takes the inertia about the center of mass, so a small one
+// beside a far center is kept as given: a 1 kg body with its center 1 m
+// from its origin and a central inertia of 1e-10 is accepted, reads back
+// unchanged and turns at the rate that inertia gives.
+static void TestSmallCentralInertiaIsKept(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.gravity = (m2Vec2){0.0f, 0.0f};
+    m2World* world = NewWorld(&def);
+    m2BodyDef bodyDef = m2DefaultBodyDef();
+    bodyDef.type = m2_dynamicBody;
+    m2BodyId body = NewBody(world, &bodyDef);
+    const m2MassData data = {1.0f, {1.0f, 0.0f}, 1.0e-10f};
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    m2Body_SetMassData(world, body, data);
+    CHECK(m2World_GetCounters(world).misuse == misuse, "the mass data is accepted");
+    m2MassData back = m2Body_GetMassData(world, body);
+    float kept = 1.0f / (1.0f / data.centralInertia);
+    CHECK(back.mass == data.mass && back.center.x == data.center.x &&
+              back.center.y == data.center.y && back.centralInertia == kept &&
+              m2Body_GetRotationalInertia(world, body) == kept,
+          "and reads back as given");
+    m2Body_ApplyAngularImpulse(world, body, 1.0e-10f);
+    float spin = m2Body_GetAngularVelocity(world, body);
+    CHECK(spin > 0.99f && spin < 1.01f,
+          "an angular impulse turns it at the rate its inertia gives");
     m2DestroyWorld(world);
 }
 
@@ -3600,6 +3627,7 @@ int main(void)
     TestHashKeysSlotsAndPools();
     TestCentersAtTheBoundRestore();
     TestSetMassDataChecksEveryField();
+    TestSmallCentralInertiaIsKept();
     TestCreateWorldOutOfMemory();
     TestInfiniteInputIsRefused();
     TestDefsMatchWhatARestoreAccepts();

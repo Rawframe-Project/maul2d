@@ -540,7 +540,7 @@ static m2MassData RoundedPolygonMass(const m2Vec2* vertices, const m2Vec2* norma
     data.center = (m2Vec2){o.x + c.x, o.y + c.y};
     // About the centroid, so the caller's shift to the body center of
     // mass stays free of cancellation.
-    data.rotationalInertia = density * (m.polar - m.area * (c.x * c.x + c.y * c.y));
+    data.centralInertia = density * (m.polar - m.area * (c.x * c.x + c.y * c.y));
     return data;
 }
 
@@ -555,7 +555,7 @@ m2MassData m2ComputeShapeMass(const m2ShapeGeometry* geometry, float density)
         data.mass = density * M2_PI * r * r;
         data.center = geometry->circle.center;
         // About the centroid; the caller shifts to the body center of mass.
-        data.rotationalInertia = data.mass * 0.5f * r * r;
+        data.centralInertia = data.mass * 0.5f * r * r;
         return data;
     }
     case m2_capsuleShape:

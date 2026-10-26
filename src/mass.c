@@ -64,7 +64,7 @@ m2BodyMass m2BodyMassFromShapes(uint8_t type, bool fixedRotation, const m2MassSh
         m2MassData data = shapes->mass(shapes->context, s);
         float ox = center.x - data.center.x;
         float oy = center.y - data.center.y;
-        inertiaCenter += data.rotationalInertia + data.mass * (ox * ox + oy * oy);
+        inertiaCenter += data.centralInertia + data.mass * (ox * ox + oy * oy);
     }
     result.invMass = keptInvMass;
     result.invInertia = !fixedRotation && inertiaCenter > 0.0f
