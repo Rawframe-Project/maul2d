@@ -139,6 +139,32 @@ void m2SolvePointPair(m2Vec2 armA, m2Vec2 armB, m2JointBodies* b, m2Vec2 bias, m
                       m2Vec2* accumulated, float budget);
 void m2PushPointPair(m2Vec2 armA, m2Vec2 armB, m2JointBodies* b, m2Vec2 impulse);
 
+// Pulls B's anchor toward A's with a spring of the same stiffness in every
+// direction, k = mass w^2 with damping c = 2 mass zeta w, the mass being
+// B's own. Integrated implicitly over the substep h, the pair's impulse P
+// meets Cdot + biasRate C + gamma P = 0, with gamma = 1 / (h (c + h k)):
+// each pass adds -(K + gamma I)^-1 (Cdot + biasRate C + gamma P). The
+// caller gives gamma per inverse mass, 1 / (h w (2 zeta + h w)), as
+// compliance, and the m2MakeSoft bias rate; a compliance of 0 is no
+// spring. The softness rows scale the pull by the pair's own mass instead,
+// which is stiff along a long arm and slack across it; when the arm turns
+// fast that stiffness turns with it and can pump the swing.
+void m2SolveSpringPair(m2Vec2 armA, m2Vec2 armB, m2JointBodies* b, m2Vec2 gap, float biasRate,
+                       float compliance, m2Vec2* accumulated, float budget);
+
+// Solves a rigid weld's three rows as one block: the point pair and the
+// angle row (B's spin minus A's), all driven with the same scale and leak.
+// Solved in turn, the two converge slowly when B's arm is long against
+// its inertia, since they are then coupled almost one to one. Returns
+// false, changing nothing, when the block is singular (neither body
+// turns); the caller then solves the rows apart.
+bool m2SolveWeldBlock(m2Vec2 armA, m2Vec2 armB, m2JointBodies* b, m2Vec2 bias, float angleBias,
+                      m2RowDrive drive, m2Vec2* accumulated, float* accumulatedAngle);
+
+// Pushes a weld's point impulse and angle impulse together, each body's
+// spin changed once by their summed torque.
+void m2PushWeldBlock(m2Vec2 armA, m2Vec2 armB, m2JointBodies* b, m2Vec2 impulse, float angular);
+
 // Drives. A rigid row meets bias exactly; a held row pulls its error C
 // out through the softness while biased and is rigid while relaxing; a
 // spring pulls in every pass; a limit is speculative while open

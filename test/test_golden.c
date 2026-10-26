@@ -160,8 +160,9 @@ static m2BodyId AddBox(m2World* world, double x, double y, float halfSize)
 }
 
 // STACK: a pyramid that settles and sleeps, a revolute chain, a sprung
-// two-wheeler on wheel joints, a prismatic elevator and a welded beam,
-// far from the origin, where positions need their 64 bits.
+// two-wheeler on wheel joints, a prismatic elevator, a welded beam and a
+// crate swinging from the mouse that grips its corner, far from the
+// origin, where positions need their 64 bits.
 static void BuildStack(m2World* world)
 {
     const double ox = 1.0e6;
@@ -239,6 +240,14 @@ static void BuildStack(m2World* world)
     weld.localAnchorA = (m2Vec2){0.5f, 0.0f};
     weld.localAnchorB = (m2Vec2){-0.5f, 0.0f};
     NewWeldJoint(world, &weld);
+
+    m2BodyId crate = AddBox(world, ox + 34.0, 5.0, 0.4f);
+    m2MouseJointDef grip = m2DefaultMouseJointDef();
+    grip.bodyIdA = post;
+    grip.bodyIdB = crate;
+    grip.target = (m2Pos2){ox + 34.4, 5.4};
+    grip.maxForce = 200.0f;
+    NewMouseJoint(world, &grip);
 }
 
 static uint64_t RunStack(bool threaded)

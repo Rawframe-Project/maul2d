@@ -2475,10 +2475,12 @@ static void TestBallPendulumHolds(void)
 static void TestLongArmsHold(void)
 {
     // Each joint up to the ratio mass * arm^2 / inertia it holds, with the
-    // arm at 0, 15, 30, 45 and 60 degrees. The weld solves its angle row
-    // and its point pair in turn, which converge more slowly as the ratio
-    // grows, and the mouse diverges past 1e3 with a 1000 N budget: both
-    // are held to what they reach until #68.
+    // arm at 0, 15, 30, 45 and 60 degrees. A rigid weld solves its angle
+    // row and its point pair as one block (#68): solved in turn, they
+    // converged so slowly that the anchor sagged 1 m from 1e4 on. The
+    // mouse pulls with a spring of the body's own mass: scaled by the
+    // pair's mass, its stiffness turned with the arm and threw the body
+    // 90 m from 1e4 on. Its bound is the 10 Hz spring's own give.
     static const struct
     {
         PinKind kind;
@@ -2487,8 +2489,8 @@ static void TestLongArmsHold(void)
         double bound;
     } joints[4] = {{PIN_REVOLUTE, "revolute", 1.0e7f, 0.01},
                    {PIN_MOTOR, "motor", 1.0e7f, 0.01},
-                   {PIN_MOUSE, "mouse", 1.0e3f, 0.1},
-                   {PIN_WELD, "weld", 1.0e4f, 2.0}};
+                   {PIN_MOUSE, "mouse", 1.0e7f, 0.02},
+                   {PIN_WELD, "weld", 1.0e8f, 0.01}};
     const float degrees[5] = {0.0f, 15.0f, 30.0f, 45.0f, 60.0f};
     for (int32_t k = 0; k < 4; ++k)
     {
@@ -2515,11 +2517,13 @@ static void TestNearSingularPointPairActs(void)
     // At 45 degrees with mass * arm^2 / inertia at 1e8, k11 k22 - k12^2
     // subtracts two equal squares and rounded to zero, so the pair was
     // dropped and the body fell freely. Expanded, the determinant stays
-    // positive: one step from rest, the joint carries the weight's share
-    // along the arm, m g cos 45 = 7.07 N, while the body turns freely
-    // across it. The motor joint takes its inertia about the origin, which
-    // cannot carry a central inertia this small (#69), and the mouse holds
-    // only to a ratio of 1e3 (#68).
+    // positive: one step from rest, the revolute carries the weight's
+    // share along the arm, m g cos 45 = 7.07 N, while the body turns
+    // freely across it. The weld does not let it turn and carries the
+    // whole weight; solving its angle row and point pair in turn let the
+    // body turn part way and showed the revolute's share (#68). The motor joint takes its inertia
+    // about the origin, which cannot carry a central inertia this small (#69), and the mouse is a
+    // spring, which takes more than one step to carry the load.
     const PinKind kinds[2] = {PIN_REVOLUTE, PIN_WELD};
     const float inertias[2] = {1.0e-8f, 1.0e-12f};
     for (int32_t k = 0; k < 2; ++k)
@@ -2533,14 +2537,14 @@ static void TestNearSingularPointPairActs(void)
                 PinBody(world, kinds[k], inertias[i], (m2Vec2){0.70710678f, 0.70710678f}, &body);
             m2World_Step(world, 1.0f / 60.0f, 4);
             float carried = m2Joint_GetReactionForce(world, joint);
-            float share = 1.0f * -def.gravity.y * 0.70710678f;
+            float share = 1.0f * -def.gravity.y * (kinds[k] == PIN_WELD ? 1.0f : 0.70710678f);
             if (!(fabsf(carried - share) < 0.1f * share))
             {
                 printf("joint kind %d, inertia %g: carries %g N of %g\n", (int)kinds[k],
                        (double)inertias[i], (double)carried, (double)share);
             }
             CHECK(fabsf(carried - share) < 0.1f * share,
-                  "a near-singular point pair still carries the load along its arm");
+                  "a near-singular pin still carries its load");
             m2DestroyWorld(world);
         }
     }

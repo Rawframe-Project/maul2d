@@ -7,7 +7,7 @@ A joint connects two bodies. It joins their sleep island, wakes both when it is 
 - **Distance** keeps two anchors at a length. With `hertz` above 0 it is a spring. A hard range (`minLength`, `maxLength`) clamps whatever the spring does, so a soft rope still stops hard; with `enableSpring` and hertz 0 the joint is a slack rope (free until taut) or, with a minimum, a strut.
 - **Revolute** pins two anchors together: a hinge, with an optional motor, angle limits, and an angular spring toward its creation angle (`springHertz`; 0 is off).
 - **Prismatic** lets body B slide along an axis of body A, with a motor and travel limits; the relative rotation stays fixed.
-- **Weld** holds two bodies as one piece. Its linear and angular rows soften separately; 0 hertz is rigid.
+- **Weld** holds two bodies as one piece. Its linear and angular rows soften separately; 0 hertz is rigid. A rigid weld solves its point and its angle together, so it holds a long arm against a small inertia as firmly as a revolute joint does.
 - **Wheel** is a suspension: body B slides on a sprung axis and spins freely, and the motor drives the spin.
 
 Motors and limits belong to the revolute, prismatic and wheel joints. `m2Joint_SetMotorSpeed`, `m2Joint_SetMaxMotor`, `m2Joint_EnableMotor`, `m2Joint_EnableLimit` and `m2Joint_SetLimits` tune them at run time; on another type they change nothing and count one misuse. Angles are measured from the pose at creation.
@@ -15,7 +15,7 @@ Motors and limits belong to the revolute, prismatic and wheel joints. `m2Joint_S
 ## The utility joints
 
 - **Motor** drives body B's pose toward an offset from body A within a force and a torque budget. A moving platform calls `m2MotorJoint_SetOffsets` every frame and the physics stays correct; `m2Joint_SetMaxMotor` sets its torque budget.
-- **Mouse** is a soft spring pulling a point of body B toward a world target (`m2MouseJoint_SetTarget`): dragging, deterministic and journaled.
+- **Mouse** is a soft spring pulling a point of body B toward a world target (`m2MouseJoint_SetTarget`): dragging, deterministic and journaled. The spring has B's own mass, so it pulls equally hard in every direction, whichever point of B it holds.
 - **Filter** has no constraint: it switches collision off between its two bodies while it lives. Destroying it turns collision back on, with begin events where the bodies overlap.
 - **Gear** couples two spins at a ratio, positive for meshed cogs and negative for belts. Its phase is exact across any number of turns. Pin each body with its own joint; the gear only owns rotation.
 - **Pulley** runs a rope over two fixed world points. Length A plus ratio times length B stays at the total measured at creation, so there is no length to set wrong, and the B side feels ratio times the A-side tension (a ratio-2 hoist lifts twice the mass). Changing the ratio measures the total again from the current pose, so the machine does not snap. A side that unspools fully goes limp near its anchor instead of pushing.
