@@ -34,7 +34,7 @@ env:
 jobs:
   # Whether anything beyond documentation changed; the builds skip when not.
   changes:
-    uses: Rawframe-Project/.github/.github/workflows/changes.yml@e6b9db735576653736d19d9c50d47e1b428af77a # v0.0.22
+    uses: Rawframe-Project/.github/.github/workflows/changes.yml@56543e92d01e59abdb4299c4824a0c1facdc08ce # v0.0.25
     permissions:
       pull-requests: read
 
@@ -49,10 +49,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: Rawframe-Project/.github/.github/actions/docs-check@e6b9db735576653736d19d9c50d47e1b428af77a # v0.0.22
+      - uses: Rawframe-Project/.github/.github/actions/docs-check@56543e92d01e59abdb4299c4824a0c1facdc08ce # v0.0.25
 
   zizmor:
-    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@e6b9db735576653736d19d9c50d47e1b428af77a # v0.0.22
+    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@56543e92d01e59abdb4299c4824a0c1facdc08ce # v0.0.25
     permissions:
       contents: read
 
@@ -63,7 +63,7 @@ jobs:
   checks:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    container: ghcr.io/rawframe-project/ci-cpp:2026.10.6@sha256:50c383f608f992c272196139d749f15978e35143a2876362b1e0aef6993480bd
+    container: ghcr.io/rawframe-project/ci-cpp:2026.10.7@sha256:08c846597243dc000c83d6c008d078a8c3fabf8633d83963d46c0e6d02c2577e
     permissions:
       contents: read
     steps:
@@ -128,7 +128,7 @@ jobs:
           - { preset: macos-clang, runner: macos-15 }
           - { preset: windows-clang-cl, runner: windows-2025 }
           - { preset: windows-arm64-clang-cl, runner: windows-11-arm }
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@e6b9db735576653736d19d9c50d47e1b428af77a # v0.0.22
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@56543e92d01e59abdb4299c4824a0c1facdc08ce # v0.0.25
     permissions:
       contents: read
     with:
@@ -141,7 +141,7 @@ jobs:
   testbed:
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@e6b9db735576653736d19d9c50d47e1b428af77a # v0.0.22
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@56543e92d01e59abdb4299c4824a0c1facdc08ce # v0.0.25
     permissions:
       contents: read
     with:
@@ -205,8 +205,11 @@ jobs:
   # Each fuzz target feeds hostile snapshots, tapes and points, or drives
   # the API walk, and crashes on a broken promise: 20 seconds on a pull
   # request, 90 on main and 600 at night or on a dispatch. One job per
-  # target, each with its own corpus cache: restored first (the newest of
-  # that target's), minimized with libFuzzer's merge and saved from main.
+  # target, each with its own corpus cache: restored by every run but a
+  # pull request's (the newest of that target's), minimized with
+  # libFuzzer's merge and saved from main when the run found nothing. A
+  # pull request starts from the inputs the targets build. tools/fuzz_target.sh reports a finding
+  # without its input, and no finding, log or corpus is uploaded.
   fuzz:
     needs: changes
     if: needs.changes.outputs.code == 'true'
@@ -214,7 +217,7 @@ jobs:
     timeout-minutes: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 25 || 15 }}
     # The image cpp.yml uses; --init reaps orphaned processes.
     container:
-      image: ghcr.io/rawframe-project/ci-cpp:2026.10.6@sha256:50c383f608f992c272196139d749f15978e35143a2876362b1e0aef6993480bd
+      image: ghcr.io/rawframe-project/ci-cpp:2026.10.7@sha256:08c846597243dc000c83d6c008d078a8c3fabf8633d83963d46c0e6d02c2577e
       options: --init
     permissions:
       contents: read
@@ -232,6 +235,7 @@ jobs:
       # Caches are immutable: each run saves a new entry and the next run
       # restores the latest.
       - name: Restore the corpus
+        if: github.event_name != 'pull_request'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: out/corpus/${{ matrix.target }}
@@ -244,15 +248,13 @@ jobs:
           cmake --build out/fuzz --target "$TARGET"
       - name: Run
         run: |
-          mkdir -p "out/corpus/$TARGET" out/fuzz-logs
-          if "out/fuzz/$TARGET" -max_total_time="$FUZZ_SECONDS" -max_len=4096 "out/corpus/$TARGET" \
-            >"out/fuzz-logs/$TARGET.log" 2>&1; then
-            echo "$TARGET: no finding"
-          else
-            tail -n 60 "out/fuzz-logs/$TARGET.log"
-            echo "::error::$TARGET found something"
-            exit 1
-          fi
+          mkdir -p "out/corpus/$TARGET"
+          rm -rf out/fuzz-reports
+          status=0
+          tools/fuzz_target.sh "out/fuzz/$TARGET" -max_total_time="$FUZZ_SECONDS" -max_len=4096 \
+            "out/corpus/$TARGET" || status=$?
+          cat out/fuzz-reports/*.txt 2>/dev/null || true
+          exit "$status"
       # The corpus is merged into a fresh directory and swapped in only when
       # the merge finished, so a failed merge leaves the old corpus.
       - name: Minimize the corpus
@@ -263,8 +265,8 @@ jobs:
             >"out/fuzz-logs/$TARGET.merge.log" 2>&1; then
             rm -rf "out/corpus/$TARGET" && mv "out/merged/$TARGET" "out/corpus/$TARGET"
           else
-            tail -n 30 "out/fuzz-logs/$TARGET.merge.log"
-            echo "::error::$TARGET: the merge failed"
+            # The merge log can dump an input, so it stays on the runner.
+            echo "::error::$TARGET: the merge failed with status $?"
             exit 1
           fi
           echo "$TARGET: $(find "out/corpus/$TARGET" -type f | wc -l) inputs, $(du -sm "out/corpus/$TARGET" | cut -f1) MB"
@@ -274,19 +276,6 @@ jobs:
         with:
           path: out/corpus/${{ matrix.target }}
           key: fuzz-corpus-${{ matrix.target }}-${{ github.run_id }}
-      - name: Fuzz logs and crash inputs
-        if: failure()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: fuzz-${{ matrix.target }}
-          path: |
-            out/fuzz-logs/
-            crash-*
-            leak-*
-            timeout-*
-            oom-*
-          if-no-files-found: ignore
-          retention-days: 7
 
   # Every night: the seeded API walk over many more seeds, and a long soak
   # of one world, both checking replay, rollback and threaded twins. Not a
@@ -295,7 +284,7 @@ jobs:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    container: ghcr.io/rawframe-project/ci-cpp:2026.10.6@sha256:50c383f608f992c272196139d749f15978e35143a2876362b1e0aef6993480bd
+    container: ghcr.io/rawframe-project/ci-cpp:2026.10.7@sha256:08c846597243dc000c83d6c008d078a8c3fabf8633d83963d46c0e6d02c2577e
     permissions:
       contents: read
     steps:

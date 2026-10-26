@@ -19,6 +19,9 @@
 #   environment module, alone keeps the thread's saved control register
 #   and entry depth, which mirror the processor's per-thread register;
 # - C file names are snake_case.
+# - shell scripts pass shellcheck at warning level. CI's image carries it;
+#   where it is not installed the check says so and passes, except in CI
+#   (the CI variable set), where its absence is a finding.
 #
 # Directories listed in tools/source-dirs.txt hold more of the library's
 # sources, in DIR/src, which the rules for src/ hold too.
@@ -30,6 +33,8 @@
 
 import os
 import re
+import shutil
+import subprocess
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -260,6 +265,27 @@ def check_c_file(path, rel, in_src, bans, findings):
             findings.append(f"{rel}:{number}: assignment inside a condition: {line.strip()}")
 
 
+def check_shell(findings):
+    scripts = []
+    for top in C_DIRS + [top for top in SOURCE_DIRS if top not in C_DIRS]:
+        scripts.extend(walk(top, (".sh",)))
+    if not scripts:
+        return
+    if shutil.which("shellcheck") is None:
+        if os.environ.get("CI"):
+            findings.append("shellcheck is not installed; CI runs in ci-cpp 2026.10.7 or later")
+        else:
+            print(f"shell scripts: shellcheck is not installed, {len(scripts)} script(s) not checked")
+        return
+    names = [os.path.relpath(path, ROOT) for path in scripts]
+    result = subprocess.run(["shellcheck", "-S", "warning", "-f", "gcc", *names],
+                            cwd=ROOT, capture_output=True, text=True)
+    findings.extend(result.stdout.splitlines())
+    if result.returncode not in (0, 1):
+        findings.append(f"shellcheck could not check the scripts (exit {result.returncode}): "
+                        + result.stderr.strip())
+
+
 def main():
     findings = []
     bans = dict(FAMILY_BANS)
@@ -269,6 +295,7 @@ def main():
         for path in walk(top, (".c", ".h", ".m")):
             rel = os.path.relpath(path, ROOT)
             check_c_file(path, rel, rel.startswith(library), bans, findings)
+    check_shell(findings)
     for finding in findings:
         print(finding)
     if findings:

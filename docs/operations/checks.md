@@ -28,7 +28,7 @@ Run `changed` before every push. On the shared development machine, run `pr` and
 | `msvc-headers` | Every public header compiled by MSVC's `cl` as C17 and C++17. |
 | `testbed` | The native testbed builds. |
 | `web` | The library and its tests under Emscripten and Node, the golden test included, and the size of the static library. |
-| `fuzz` | One job per fuzz target, each from its cached corpus: 20 seconds on a pull request, 90 seconds on `main` and 600 at night or on a dispatch. On `main` and at night each corpus is then minimized and saved. A finding uploads the log and the failing input. |
+| `fuzz` | One job per fuzz target. A pull request fuzzes each for 20 seconds from the inputs the targets build; `main` fuzzes for 90 seconds and the nightly or a dispatch for 600, each from the target's cached corpus. On `main` and at night each corpus is then minimized and, when the run found nothing, saved. A finding prints a report without its input, from `tools/fuzz_target.sh`, and nothing is uploaded. |
 | `simulation` | At night only: a long soak and a deep API walk. |
 
 `pr-title.yml` checks that the pull request title is a conventional commit with a scope from `AGENTS.md`, and `pr-gate.yml` closes a pull request from outside the organization unless it closes an issue labeled `accepted`. `codeql.yml` runs CodeQL on pull requests, on `main` and weekly. `scorecard.yml` grades the repository's security practices weekly, and Dependabot proposes updates of the pinned actions. `pages.yml` publishes the documentation site and the browser testbed from `main`.
@@ -46,7 +46,7 @@ Every fuzz target (`test/fuzz_<area>.c`) checks promises that must hold for any 
 - `fuzz_geometry` feeds points to `m2MakePolygon`, `m2ComputeHull` and `m2DecomposeOutline`. Every accepted polygon makes a shape, and an accepted outline gives at least one piece, with pieces that never cover more than its area.
 - `fuzz_walk` drives the seeded API walk from its input, with every promise of the walk: replay, rollback and the threaded twin.
 
-The library is instrumented as well as the targets, with AddressSanitizer and UBSan stopping at the first fault (`-fno-sanitize-recover=all`). The targets build their valid inputs at startup, so a format bump never leaves seeds stale. Each target's corpus carries from run to run in an Actions cache of its own, `fuzz-corpus-<target>-<run id>`; every run restores the newest, and runs on `main` and at night minimize it with libFuzzer's `-merge=1` into a fresh directory, swap it in only when the merge finished, and save it. Pull requests restore but never save.
+The library is instrumented as well as the targets, with AddressSanitizer and UBSan stopping at the first fault (`-fno-sanitize-recover=all`). The targets build their valid inputs at startup, so a format bump never leaves seeds stale. Each target's corpus carries from run to run in an Actions cache of its own, `fuzz-corpus-<target>-<run id>`; every run but a pull request's restores the newest, and runs on `main` and at night minimize it with libFuzzer's `-merge=1` into a fresh directory, swap it in only when the merge finished, and save it; a run that found something saves nothing. A pull request starts from the inputs the targets build, and neither restores nor saves a corpus.
 
 ## Determinism in CI
 
