@@ -18,9 +18,9 @@
 
 #include <string.h>
 
-#define M2_SNAPSHOT_MAGIC 0x4D32534Eu // 'M2SN'
+#define M2_SNAPSHOT_MAGIC M2_STATE_MAGIC('M', '2', 'S', 'N')
 
-#define M2_SNAPSHOT_VERSION 5u
+#define M2_SNAPSHOT_VERSION 6u
 
 // --- Snapshot -------------------------------------------------------------------
 
