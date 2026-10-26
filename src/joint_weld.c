@@ -105,7 +105,8 @@ m2Result m2CreateWeldJoint(m2World* world, const m2WeldJointDef* def, m2JointId*
 //
 // The angle row (motorImpulse) on the angular softness and two point rows
 // (impulse) on the linear one. A side with a user stiffness is a real
-// spring and pulls in the relax pass too.
+// spring and pulls in the relax pass too. A rigid weld solves all three
+// rows as one block (m2SolveWeldBlock).
 
 static void PrepareWeld(m2World* world, m2JointConstraint* c, const m2JointFrame* f)
 {
@@ -119,14 +120,27 @@ static void PrepareWeld(m2World* world, m2JointConstraint* c, const m2JointFrame
 
 static void WarmStartWeld(const m2JointConstraint* c, const m2JointPose* pose, m2JointBodies* b)
 {
-    m2JointRow turn = m2TurnRow();
-    m2PushRow(&turn, b, c->motorImpulse);
-    m2PushPointPair(pose->armA, pose->armB, b, c->impulse);
+    m2PushWeldBlock(pose->armA, pose->armB, b, c->impulse, c->motorImpulse);
 }
 
 static void SolveWeld(m2JointConstraint* c, const m2JointPose* pose, m2JointBodies* b,
                       const m2JointPass* pass)
 {
+    if (!c->linearSpring && !c->angularSpring)
+    {
+        // Rigid: both parts are held on the joint's stiff softness, so the
+        // three rows share one drive and solve as one block.
+        float angle = pass->biased ? m2PoseAngle(c, pose) : 0.0f;
+        m2Vec2 gap = pass->biased ? m2PoseGap(c, pose) : (m2Vec2){0.0f, 0.0f};
+        m2RowDrive x = m2HeldDrive(c->soft, gap.x, pass->biased);
+        m2RowDrive y = m2HeldDrive(c->soft, gap.y, pass->biased);
+        m2RowDrive turn = m2HeldDrive(c->spring, angle, pass->biased);
+        if (m2SolveWeldBlock(pose->armA, pose->armB, b, (m2Vec2){x.bias, y.bias}, turn.bias, x,
+                             &c->impulse, &c->motorImpulse))
+        {
+            return;
+        }
+    }
     m2JointRow turn = m2TurnRow();
     bool angular = pass->biased || c->angularSpring;
     float angle = angular ? m2PoseAngle(c, pose) : 0.0f;

@@ -37,6 +37,7 @@ typedef struct m2JointConstraint
     float maxMotorImpulse; // h times the motor's force or torque
     float maxPullImpulse;  // motor, mouse: h times the linear force budget
     float correction;      // motor: the fraction of error removed per step
+    float compliance;      // mouse: the pull's compliance per inverse mass, 0 for none
     m2Softness soft;       // the constraint rows
     m2Softness spring;     // the kind's spring (see each kind)
     bool linearSpring;     // a real spring: pulls in the relax pass too

@@ -179,9 +179,10 @@ float m2MouseJoint_GetMaxForce(const m2World* world, m2JointId jointId)
 
 // --- Solver ---------------------------------------------------------------
 //
-// Only body B has rows: a soft spin damper (motorImpulse), then two rows
-// pulling B's anchor to the target (impulse) within the force budget.
-// The gap is B's anchor minus the target.
+// Only body B has rows: a soft spin damper (motorImpulse), then a spring
+// of B's own mass pulling B's anchor to the target (impulse) within the
+// force budget (m2SolveSpringPair). The gap is B's anchor minus the
+// target.
 
 static void PrepareMouse(m2World* world, m2JointConstraint* c, const m2JointFrame* f)
 {
@@ -193,6 +194,12 @@ static void PrepareMouse(m2World* world, m2JointConstraint* c, const m2JointFram
                  m2WorldOffset(origin.y - world->joints.jointTargets[j].y) + center.y + c->armB.y};
     c->spring = m2MakeSoft(0.5f, 0.1f, f->h);
     c->maxPullImpulse = f->h * world->joints.jointLength[j];
+    // The pull's spring, w = 2 pi hertz: 1 / (h w (2 zeta + h w)), as
+    // m2SolveSpringPair takes it, with none when that is not finite.
+    float omega = 2.0f * M2_PI * world->joints.jointHertz[j];
+    float a = f->h * omega * (2.0f * world->joints.jointDamping[j] + f->h * omega);
+    float compliance = 1.0f / a;
+    c->compliance = a > 0.0f && compliance <= M2_ROW_FREE ? compliance : 0.0f;
 }
 
 // Body B alone: A drops out of the rows with its motion and its mass.
@@ -226,10 +233,8 @@ static void SolveMouse(m2JointConstraint* c, const m2JointPose* pose, m2JointBod
                M2_ROW_FREE);
     m2Vec2 gap = {c->gap.x + pose->moveB.x + (pose->armB.x - c->armB.x),
                   c->gap.y + pose->moveB.y + (pose->armB.y - c->armB.y)};
-    m2RowDrive x = m2SpringDrive(c->soft, gap.x);
-    m2RowDrive y = m2SpringDrive(c->soft, gap.y);
-    m2SolvePointPair((m2Vec2){0.0f, 0.0f}, pose->armB, &only, (m2Vec2){x.bias, y.bias}, x,
-                     &c->impulse, c->maxPullImpulse);
+    m2SolveSpringPair((m2Vec2){0.0f, 0.0f}, pose->armB, &only, gap, c->soft.biasRate, c->compliance,
+                      &c->impulse, c->maxPullImpulse);
     b->vB = only.vB;
     b->wB = only.wB;
 }
