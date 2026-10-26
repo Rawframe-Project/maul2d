@@ -22,6 +22,7 @@
 
 #include "maul2d/maul2d.h"
 
+#include <float.h>
 #include <math.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -901,6 +902,45 @@ static size_t Slot(const Scene* scene, m2JointType type)
     return 0;
 }
 
+// Every joint's softness at the smallest hertz a rate takes, with no
+// damping: a restore takes it, as a def or a setter does, and the world
+// steps on to a valid state. h w rounded to zero there and the bias came
+// out as 0 * inf, so the first step turned every position into a NaN
+// (fuzz_snapshot).
+static void TestVanishingSpringsStep(void)
+{
+    Scene scene = MakeJointScene();
+    m2World* w = scene.world;
+    uint8_t* bytes = (uint8_t*)malloc((size_t)scene.size);
+    CHECK(bytes != NULL, "a copy of the snapshot");
+    if (bytes == NULL)
+    {
+        FreeScene(&scene);
+        return;
+    }
+    memcpy(bytes, scene.valid, (size_t)scene.size);
+    uint8_t* block = bytes + scene.headerBytes;
+    const float hertz = FLT_TRUE_MIN;
+    const float zeta = 0.0f;
+    for (int32_t j = 0; j < w->joints.maxJointIndex; ++j)
+    {
+        size_t at = (size_t)j * sizeof(float);
+        memcpy(At(&scene, block, &w->joints.jointHertz) + at, &hertz, sizeof(hertz));
+        memcpy(At(&scene, block, &w->joints.jointDamping) + at, &zeta, sizeof(zeta));
+        memcpy(At(&scene, block, &w->joints.jointHertz2) + at, &hertz, sizeof(hertz));
+        memcpy(At(&scene, block, &w->joints.jointDamping2) + at, &zeta, sizeof(zeta));
+    }
+    CHECK(m2World_Restore(w, bytes, scene.size) == m2_success,
+          "the smallest hertz with no damping restores");
+    for (int32_t i = 0; i < 4; ++i)
+    {
+        m2World_Step(w, 1.0f / 60.0f, 4);
+    }
+    CHECK(m2World_Validate(w), "vanishing springs step into a valid world");
+    free(bytes);
+    FreeScene(&scene);
+}
+
 static void TestJointKindBounds(void)
 {
     Scene scene = MakeJointScene();
@@ -1565,6 +1605,7 @@ int main(void)
     TestFuzzFinds();
     TestRangeBounds();
     TestJointKindBounds();
+    TestVanishingSpringsStep();
     TestStoredImpulsesStayInRange();
     TestRestingBoxes();
     TestResleptBodyRefreshesItsContacts();

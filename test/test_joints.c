@@ -2343,9 +2343,116 @@ static void TestFarApartJointsStayFinite(void)
     }
 }
 
+// One joint of each kind with a spring, every hertz at the smallest
+// float a rate takes and every damping ratio 0, between the ground and a
+// ball.
+static m2JointId VanishingSpring(m2World* world, int32_t kind, m2BodyId ground, m2BodyId box)
+{
+    const float hertz = FLT_TRUE_MIN;
+    if (kind == 0)
+    {
+        m2WeldJointDef jd = m2DefaultWeldJointDef();
+        jd.bodyIdA = ground;
+        jd.bodyIdB = box;
+        jd.linearHertz = hertz;
+        jd.linearDampingRatio = 0.0f;
+        jd.angularHertz = hertz;
+        jd.angularDampingRatio = 0.0f;
+        return NewWeldJoint(world, &jd);
+    }
+    if (kind == 1)
+    {
+        m2RevoluteJointDef jd = m2DefaultRevoluteJointDef();
+        jd.bodyIdA = ground;
+        jd.bodyIdB = box;
+        jd.hertz = hertz;
+        jd.dampingRatio = 0.0f;
+        jd.springHertz = hertz;
+        jd.springDampingRatio = 0.0f;
+        return NewRevoluteJoint(world, &jd);
+    }
+    if (kind == 2)
+    {
+        m2PrismaticJointDef jd = m2DefaultPrismaticJointDef();
+        jd.bodyIdA = ground;
+        jd.bodyIdB = box;
+        jd.hertz = hertz;
+        jd.dampingRatio = 0.0f;
+        return NewPrismaticJoint(world, &jd);
+    }
+    if (kind == 3)
+    {
+        m2DistanceJointDef jd = m2DefaultDistanceJointDef();
+        jd.bodyIdA = ground;
+        jd.bodyIdB = box;
+        jd.enableSpring = true;
+        jd.hertz = hertz;
+        jd.dampingRatio = 0.0f;
+        return NewDistanceJoint(world, &jd);
+    }
+    if (kind == 4)
+    {
+        m2WheelJointDef jd = m2DefaultWheelJointDef();
+        jd.bodyIdA = ground;
+        jd.bodyIdB = box;
+        jd.enableSpring = true;
+        jd.hertz = hertz;
+        jd.dampingRatio = 0.0f;
+        return NewWheelJoint(world, &jd);
+    }
+    if (kind == 5)
+    {
+        m2MotorJointDef jd = m2DefaultMotorJointDef();
+        jd.bodyIdA = ground;
+        jd.bodyIdB = box;
+        jd.hertz = hertz;
+        jd.dampingRatio = 0.0f;
+        return NewMotorJoint(world, &jd);
+    }
+    m2MouseJointDef jd = m2DefaultMouseJointDef();
+    jd.bodyIdA = ground;
+    jd.bodyIdB = box;
+    jd.target = (m2Pos2){0.0, 2.0};
+    jd.hertz = hertz;
+    jd.dampingRatio = 0.0f;
+    return NewMouseJoint(world, &jd);
+}
+
+static void TestVanishingSpringsStayFinite(void)
+{
+    // h w rounds to zero at such a hertz, and the bias was 0 * inf: the
+    // first step turned the box's position into a NaN. A spring that
+    // weak pulls with nothing.
+    static const char* const names[7] = {"weld",  "revolute", "prismatic", "distance",
+                                         "wheel", "motor",    "mouse"};
+    for (int32_t kind = 0; kind < 7; ++kind)
+    {
+        m2WorldDef def = m2DefaultWorldDef();
+        m2World* world = NewWorld(&def);
+        m2BodyDef gd = m2DefaultBodyDef();
+        m2BodyId ground = NewBody(world, &gd);
+        m2BodyId box = AddBall(world, 0.0, 2.0, 0.25f);
+        m2JointId joint = VanishingSpring(world, kind, ground, box);
+        CHECK(joint.index1 != 0, "the smallest hertz is a rate a def takes");
+        for (int32_t i = 0; i < 10; ++i)
+        {
+            m2World_Step(world, 1.0f / 60.0f, 4);
+        }
+        m2Pos2 p = m2Body_GetPosition(world, box);
+        if (!(isfinite(p.x) && isfinite(p.y) && m2World_Validate(world)))
+        {
+            printf("%s joint with a vanishing spring\n", names[kind]);
+        }
+        CHECK(isfinite(p.x) && isfinite(p.y) && m2World_Validate(world),
+              "a vanishing spring leaves the world finite");
+        m2DestroyWorld(world);
+    }
+}
+
 int main(void)
 {
     TestFarApartJointsStayFinite();
+    TestVanishingSpringsStayFinite();
     TestLocalAnchorsAreBounded();
     TestJointAdjacency();
     TestDistancePendulum();

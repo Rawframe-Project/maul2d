@@ -46,6 +46,9 @@ typedef struct m2Softness
 //   impulseScale = 1 / (1 + a)   (the lambda term on the accumulated part)
 // and a solve adds -m massScale (J v + biasRate C) - impulseScale
 // accumulated. Zero hertz is a rigid row with no position feedback.
+// Without damping, a hertz near the smallest float makes h w round to
+// zero: biasRate is then its limit 1 / h, never w / 0, which massScale
+// (0 there) would turn into a NaN.
 static inline m2Softness m2MakeSoft(float hertz, float zeta, float h)
 {
     if (hertz == 0.0f)
@@ -53,9 +56,10 @@ static inline m2Softness m2MakeSoft(float hertz, float zeta, float h)
         return (m2Softness){0.0f, 0.0f, 0.0f};
     }
     float omega = 2.0f * M2_PI * hertz;
-    float a = h * omega * (2.0f * zeta + h * omega);
+    float spread = 2.0f * zeta + h * omega;
+    float a = h * omega * spread;
     float leak = 1.0f / (1.0f + a);
-    return (m2Softness){omega / (2.0f * zeta + h * omega), a * leak, leak};
+    return (m2Softness){spread > 0.0f ? omega / spread : 1.0f / h, a * leak, leak};
 }
 
 static inline m2Vec2 m2RotateVec2(m2Rot q, m2Vec2 v)
