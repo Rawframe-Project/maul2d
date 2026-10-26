@@ -22,6 +22,7 @@
 
 #include "maul2d/maul2d.h"
 
+#include <float.h>
 #include <math.h>
 #include <stddef.h>
 #include <stdlib.h>
@@ -901,6 +902,45 @@ static size_t Slot(const Scene* scene, m2JointType type)
     return 0;
 }
 
+// Every joint's softness at the smallest hertz a rate takes, with no
+// damping: a restore takes it, as a def or a setter does, and the world
+// steps on to a valid state. h w rounded to zero there and the bias came
+// out as 0 * inf, so the first step turned every position into a NaN
+// (fuzz_snapshot).
+static void TestVanishingSpringsStep(void)
+{
+    Scene scene = MakeJointScene();
+    m2World* w = scene.world;
+    uint8_t* bytes = (uint8_t*)malloc((size_t)scene.size);
+    CHECK(bytes != NULL, "a copy of the snapshot");
+    if (bytes == NULL)
+    {
+        FreeScene(&scene);
+        return;
+    }
+    memcpy(bytes, scene.valid, (size_t)scene.size);
+    uint8_t* block = bytes + scene.headerBytes;
+    const float hertz = FLT_TRUE_MIN;
+    const float zeta = 0.0f;
+    for (int32_t j = 0; j < w->joints.maxJointIndex; ++j)
+    {
+        size_t at = (size_t)j * sizeof(float);
+        memcpy(At(&scene, block, &w->joints.jointHertz) + at, &hertz, sizeof(hertz));
+        memcpy(At(&scene, block, &w->joints.jointDamping) + at, &zeta, sizeof(zeta));
+        memcpy(At(&scene, block, &w->joints.jointHertz2) + at, &hertz, sizeof(hertz));
+        memcpy(At(&scene, block, &w->joints.jointDamping2) + at, &zeta, sizeof(zeta));
+    }
+    CHECK(m2World_Restore(w, bytes, scene.size) == m2_success,
+          "the smallest hertz with no damping restores");
+    for (int32_t i = 0; i < 4; ++i)
+    {
+        m2World_Step(w, 1.0f / 60.0f, 4);
+    }
+    CHECK(m2World_Validate(w), "vanishing springs step into a valid world");
+    free(bytes);
+    FreeScene(&scene);
+}
+
 static void TestJointKindBounds(void)
 {
     Scene scene = MakeJointScene();
@@ -968,10 +1008,9 @@ static void TestStoredImpulsesStayInRange(void)
     // A point pair whose impulse, (21 2^46, 0), is scaled to 1e15: the
     // scaled component rounds to the float above 1e15.
     float mass = 0x1p40f;
-    m2JointBodies heavy = {zero, 0.0f, zero, 0.0f, 1.0f / mass, 0.0f, 1.0f / mass, 0.0f};
-    m2PointMass pointMass = {mass, 0.0f, mass};
+    m2JointBodies heavy = {zero, 0.0f, zero, 0.0f, 0.0f, 0.0f, 1.0f / mass, 0.0f};
     m2Vec2 pair = zero;
-    m2SolvePointPair(zero, zero, pointMass, &heavy, (m2Vec2){-21.0f * 64.0f, 0.0f}, still, &pair,
+    m2SolvePointPair(zero, zero, &heavy, (m2Vec2){-21.0f * 64.0f, 0.0f}, still, &pair,
                      M2_MAX_FORCE);
     CHECK(m2ValidImpulseVec(pair) && pair.x == M2_IMPULSE_LIMIT,
           "a point pair scaled to the limit stores the limit");
@@ -1173,6 +1212,81 @@ static void TestResleptBodyRefreshesItsContacts(void)
     CHECK(fabs(anchor - (x + 0.4)) < 0.01,
           "the contact points follow a box put to sleep by hand after a move");
     m2DestroyWorld(world);
+}
+
+// --- Particle links ------------------------------------------------------------
+
+// A jelly block whose first particle has died: its springs and triads went
+// with it, so slot 0 is dead and every link joins live particles.
+static Scene MakeJellyScene(void)
+{
+    Scene scene;
+    memset(&scene, 0, sizeof(scene));
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    def.particleCapacity = 64;
+    scene.world = NewWorld(&def);
+    m2World* w = scene.world;
+    m2BodyDef floorDef = m2DefaultBodyDef();
+    floorDef.position = (m2Pos2){0.0, -0.2};
+    scene.ground = NewBody(w, &floorDef);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon slab = m2MakeBox(4.0f, 0.2f);
+    NewPolygonShape(w, scene.ground, &sd, &slab);
+    m2Polygon blob = m2MakeBox(0.25f, 0.25f);
+    m2World_FillPolygonWithParticles(w, &blob, (m2Pos2){0.0, 0.6}, (m2Vec2){0.0f, 0.0f},
+                                     m2_springParticle | m2_elasticParticle);
+    m2ParticleId first;
+    CHECK(m2World_GetParticles(w, &first, 1) > 1 && m2DestroyParticle(w, first) == m2_success,
+          "the jelly's first particle dies");
+    for (int32_t i = 0; i < 5; ++i)
+    {
+        m2World_Step(w, 1.0f / 60.0f, 4);
+    }
+    CHECK(w->particles.particleAlive[0] == 0 && w->particles.particleSpringCount > 0 &&
+              w->particles.particleTriadCount > 0,
+          "the jelly keeps springs and triads around a dead slot 0");
+    scene.size = m2World_SnapshotSize(w);
+    scene.valid = (uint8_t*)malloc((size_t)scene.size);
+    CHECK(scene.valid != NULL && Snapshot(w, scene.valid, scene.size) == scene.size,
+          "the jelly snapshots");
+    scene.headerBytes = scene.size - m2StateWalk(w, NULL, NULL, 2);
+    return scene;
+}
+
+static void SpringToADeadParticle(const Scene* scene, uint8_t* block)
+{
+    PutI32(At(scene, block, &scene->world->particles.particleSpringA), 0, 0);
+}
+
+static void TriadOnADeadParticle(const Scene* scene, uint8_t* block)
+{
+    PutI32(At(scene, block, &scene->world->particles.particleTriadC), 0, 0);
+}
+
+// What fuzz_snapshot found: one more spring counted, its slot naming the
+// dead particle.
+static void CountedSpringToADeadParticle(const Scene* scene, uint8_t* block)
+{
+    const m2Particles* p = &scene->world->particles;
+    int32_t count = p->particleSpringCount;
+    PutI32(At(scene, block, &p->particleSpringCount), 0, count + 1);
+    PutI32(At(scene, block, &p->particleSpringA), count, 0);
+    PutI32(At(scene, block, &p->particleSpringB), count, 1);
+}
+
+// m2World_Validate holds springs and triads to live particles, so a
+// restore refuses one that is not: the world it accepts must validate.
+static void TestParticleLinksJoinLiveParticles(void)
+{
+    Scene scene = MakeJellyScene();
+    CHECK(Restore(scene.world, scene.valid, scene.size), "the jelly snapshot restores");
+    ExpectRefused(&scene, SpringToADeadParticle, "a spring to a dead particle is refused");
+    ExpectRefused(&scene, TriadOnADeadParticle, "a triad on a dead particle is refused");
+    ExpectRefused(&scene, CountedSpringToADeadParticle,
+                  "a counted spring to a dead particle is refused");
+    FreeScene(&scene);
 }
 
 static void TestCheckStandsAlone(void)
@@ -1562,9 +1676,11 @@ int main(void)
 {
     TestHostileStructures();
     TestCheckStandsAlone();
+    TestParticleLinksJoinLiveParticles();
     TestFuzzFinds();
     TestRangeBounds();
     TestJointKindBounds();
+    TestVanishingSpringsStep();
     TestStoredImpulsesStayInRange();
     TestRestingBoxes();
     TestResleptBodyRefreshesItsContacts();
