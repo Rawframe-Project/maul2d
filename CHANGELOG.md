@@ -6,6 +6,82 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.4.0](https://github.com/Rawframe-Project/maul2d/compare/v0.3.0...v0.4.0) (2026-10-26)
+
+### Changed
+
+- **Breaking: snapshots and journal tapes are read only by the release
+  that wrote them.** Both formats now start with the same 16 bytes as
+  maul3d's: a magic, the writer's `M2_ABI_VERSION`, the format's own
+  version and the header's size. Bytes from another release, another
+  format version or another build are refused with `m2_errorVersion`
+  instead of `m2_errorInvalid`, and so is a tape that starts with another
+  release's snapshot. Before 1.0.0 every release is its own ABI version
+  ([#65](https://github.com/Rawframe-Project/maul2d/pull/65)).
+- **Breaking: the snapshot format is version 6.** It starts with the new
+  prefix, and its magic is stored so that a hex dump reads `M2SN`. A
+  snapshot written by an earlier release is refused
+  ([#65](https://github.com/Rawframe-Project/maul2d/pull/65),
+  [#76](https://github.com/Rawframe-Project/maul2d/pull/76)).
+- **Breaking: the journal tape format is version 7.** It starts with the
+  new prefix, its magic reads `M2JN` in a hex dump, and its
+  set-mass-data record carries the inertia about the center of mass. A
+  tape written by an earlier release is refused
+  ([#65](https://github.com/Rawframe-Project/maul2d/pull/65),
+  [#76](https://github.com/Rawframe-Project/maul2d/pull/76),
+  [#80](https://github.com/Rawframe-Project/maul2d/pull/80)).
+- **Breaking: `m2MassData` takes the inertia about the center of mass.**
+  `centralInertia` replaces `rotationalInertia`, which was the inertia
+  about the body origin, in `m2Body_SetMassData` and
+  `m2Body_GetMassData`. Pass the inertia about the centroid, as most
+  formulas give it (a disc's is m r^2 / 2), and drop any parallel-axis
+  shift. A small inertia beside a far center is now kept as given: a
+  1 kg body with its center 1 m from its origin and a central inertia of
+  1e-10 used to read back as unable to turn
+  ([#80](https://github.com/Rawframe-Project/maul2d/pull/80)).
+- **Breaking on 32-bit x86: the public structs lay out as on x86-64.**
+  Every 64-bit member of a public struct (a position's coordinates,
+  `userData`, the filter bits, the event steps, the counters) is 8-byte
+  aligned through `M2_ALIGN8`, so a program built against the old
+  headers on 32-bit x86 must be rebuilt. Other targets keep their layout
+  ([#78](https://github.com/Rawframe-Project/maul2d/pull/78)).
+- The mouse joint pulls with a spring of the body's own mass, equally
+  hard in every direction, with stiffness mass (2 pi hertz)^2. A body
+  gripped at its center feels the same pull as before; gripped off its
+  center, it is no longer slack across the arm
+  ([#79](https://github.com/Rawframe-Project/maul2d/pull/79)).
+
+### Fixed
+
+- 32-bit x86 builds and gives the same bits as every other target. It
+  did not build, and its tapes would have differed from x86-64's. GCC 14
+  and Clang 20 on 32-bit x86 are now CI cells
+  ([#78](https://github.com/Rawframe-Project/maul2d/pull/78)).
+- A joint that pins a point on a long arm against a small inertia holds
+  it. A 1 kg ball of radius 5 cm on a 1 m revolute pendulum flew about
+  760 m within 5 s. The joints now build their point mass from the arms
+  each substep reaches, in double, so the revolute and motor joints hold
+  a 1 kg body by a point 1 m from its center within 1 cm while its mass
+  times arm squared over inertia is up to 1e7
+  ([#70](https://github.com/Rawframe-Project/maul2d/pull/70)). With its
+  inertia stated about the center, the motor joint holds such a body up
+  to 1e8 ([#80](https://github.com/Rawframe-Project/maul2d/pull/80)).
+- A rigid weld holds a long arm within 0.25 mm up to a ratio of 1e8: it
+  solves its point and its angle together, where solving them in turn
+  let the anchor sag 1 cm at a ratio of 100 and more than 1 m from 1e4
+  on. The mouse joint no longer throws such a body: from a ratio of 1e4
+  on it flung it 90 to 155 m, and now holds it within 7 mm up to 1e7
+  ([#79](https://github.com/Rawframe-Project/maul2d/pull/79)).
+- A joint spring whose hertz is a subnormal float, with a damping ratio
+  of 0, no longer turns every position it touches into NaN on the first
+  step. Such a value is accepted by every def, setter and snapshot, and
+  the bug was in every release since 0.1.0
+  ([#72](https://github.com/Rawframe-Project/maul2d/pull/72)).
+- `m2World_Restore` refuses a snapshot whose particle springs or triads
+  join a dead particle, where it accepted it and left a world that
+  `m2World_Validate` refuses
+  ([#73](https://github.com/Rawframe-Project/maul2d/pull/73)).
+
 ## [0.3.0](https://github.com/Rawframe-Project/maul2d/releases/tag/v0.3.0) (2026-10-25)
 
 ### Changed
