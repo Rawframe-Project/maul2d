@@ -32,7 +32,7 @@ Three kinds of value are held to their ranges instead of refused:
 
 - **Mass from shapes.** A dynamic body's mass and inertia summed from its shapes are clamped into the mass and inertia ranges, the same way its center is clamped to `M2_HUGE`. `m2Body_GetMassData` reads back what the body kept. Within the ranges the clamp changes no bit. The everyday shapes that come nearest are specks: a 5 mm disc (the smallest circle) at density 1e-3, or a 1 cm square at density 1e-3, sits at about 1e-12 kg m^2, the inertia floor. A 100 km disc at the largest density weighs 3e16 kg and is clamped down to `M2_MAX_MASS`.
 - **Accumulated motion.** A body's velocity saturates at `M2_MAX_SPEED` per axis after an impulse, an explosion or a shatter, and its accumulated force and torque saturate at `M2_MAX_FORCE` however many calls add up. A single call past its range is still refused.
-- **The solver's own values.** Inside the step, every velocity saturates at `M2_MAX_SPEED` after every push (each joint row, point pair and contact row, the integration, and every particle pass), so does every particle's velocity, and every impulse a joint row or contact point accumulates saturates at `M2_IMPULSE_LIMIT`, alongside the speed bound the rows already had. Water and wind loads saturate at `M2_MAX_FORCE`. A coupled pair of rows whose effective-mass term passes 1e19 is solved one row at a time, so the 2x2 solve never multiplies two such terms. A limit's gap is held within four reaches before it becomes a speed, which keeps the distance joint's open-ended maximum finite. None of these is reached by a realistic scene: within the ranges they change no bit.
+- **The solver's own values.** Inside the step, every velocity saturates at `M2_MAX_SPEED` after every push (each joint row, point pair and contact row, the integration, and every particle pass), so does every particle's velocity, and every impulse a joint row or contact point accumulates saturates at `M2_IMPULSE_LIMIT`, alongside the speed bound the rows already had. Water and wind loads saturate at `M2_MAX_FORCE`. A coupled pair of rows whose effective-mass term passes 1e19 is solved one row at a time, so the 2x2 solve never multiplies two such terms. The point pair that pins a revolute, weld, motor or mouse anchor, and a rigid weld's 3x3 block, build and invert their mass in double instead; past the same bound they apply nothing. A limit's gap is held within four reaches before it becomes a speed, which keeps the distance joint's open-ended maximum finite. None of these is reached by a realistic scene: within the ranges they change no bit.
 
 ## Why these values
 
@@ -42,7 +42,7 @@ The bounds are chosen against `FLT_MAX`, about 3.4e38. The tightest product amon
 |---|---|---|
 | a row's speed J v | speed times the longest joint lever, both bodies | 2 x 1e5 x 1e9 = 2e14 |
 | a row's effective-mass term k | inverse inertia times the longest lever squared | 2 x 1e12 x (1e9)^2 = 2e30 |
-| a 2x2 solve's k11 k22 | both terms at the fallback threshold | 1e19 x 1e19 = 1e38 |
+| a row pair's k11 k22 | both terms at the fallback threshold | 1e19 x 1e19 = 1e38 |
 | a line row's impulse before its clamp | effective mass 1e12 times a limit gap of 4e9 m over the shortest substep (6.4e7 1/s) | 1e12 x 2.6e17 = 2.6e29 |
 | a turn row's impulse before its clamp | effective mass 1e24 times an angle gap of 1e5 rad over the shortest substep | 1e24 x 6.4e12 = 6.4e36 |
 | a gear row against a body that cannot turn | effective mass 1e24 / r^2 times its speed, r = 1e-3 | 1e24 x 1e5 x 1e6 = 1e35 |
