@@ -113,41 +113,71 @@ void m2PushPointPair(m2Vec2 armA, m2Vec2 armB, m2JointBodies* b, m2Vec2 impulse)
     m2SaturateBodies(b);
 }
 
-m2PointMass m2MakePointMass(m2Vec2 armA, m2Vec2 armB, const m2JointBodies* b)
+// The inverse of the 2x2 mass the point pair shows at the given arms:
+// {xx, xy, yy}, all zero when the pair is singular.
+typedef struct m2PointMass
 {
-    float m = b->mA + b->mB;
-    float k11 = m + b->iA * armA.y * armA.y + b->iB * armB.y * armB.y;
-    float k12 = -b->iA * armA.x * armA.y - b->iB * armB.x * armB.y;
-    float k22 = m + b->iA * armA.x * armA.x + b->iB * armB.x * armB.x;
-    if (!(k11 <= M2_PAIR_COUPLING_MAX && k22 <= M2_PAIR_COUPLING_MAX))
+    double xx;
+    double xy;
+    double yy;
+} m2PointMass;
+
+// The mass is K = m I + iA a' a'^T + iB b' b'^T, with m the summed inverse
+// masses and a', b' the arms turned a quarter. When an arm is long against
+// its body's inertia, K's small eigenvalue m lies along that arm and turns
+// with it, so K is built from the arms the solve is at, never kept from an
+// earlier pose. It is built and inverted in double: in float, m falls
+// below the rounding of iB |b|^2 once the ratio passes about 1e7, and the
+// inverse loses the arm's direction. Its determinant is not k11 k22 -
+// k12^2, which subtracts two near-equal squares: expanded, it is m^2 +
+// m (iA |a|^2 + iB |b|^2) + iA iB (a x b)^2, a sum of terms that are never
+// negative.
+static m2PointMass PointMass(m2Vec2 armA, m2Vec2 armB, const m2JointBodies* b)
+{
+    double ax = (double)armA.x;
+    double ay = (double)armA.y;
+    double bx = (double)armB.x;
+    double by = (double)armB.y;
+    double iA = (double)b->iA;
+    double iB = (double)b->iB;
+    double m = (double)b->mA + (double)b->mB;
+    double k11 = m + iA * ay * ay + iB * by * by;
+    double k12 = -iA * ax * ay - iB * bx * by;
+    double k22 = m + iA * ax * ax + iB * bx * bx;
+    if (!(k11 <= (double)M2_PAIR_COUPLING_MAX && k22 <= (double)M2_PAIR_COUPLING_MAX))
     {
-        return (m2PointMass){0.0f, 0.0f, 0.0f}; // too stiff to multiply: skipped
+        return (m2PointMass){0.0, 0.0, 0.0}; // too stiff to multiply: skipped
     }
-    float det = k11 * k22 - k12 * k12;
-    if (!(det > 0.0f))
+    double cross = ax * by - ay * bx;
+    double det =
+        m * m + m * (iA * (ax * ax + ay * ay) + iB * (bx * bx + by * by)) + iA * iB * cross * cross;
+    if (!(det > 0.0))
     {
-        return (m2PointMass){0.0f, 0.0f, 0.0f};
+        return (m2PointMass){0.0, 0.0, 0.0};
     }
-    float inv = 1.0f / det;
+    double inv = 1.0 / det;
     return (m2PointMass){k22 * inv, -k12 * inv, k11 * inv};
 }
 
-void m2SolvePointPair(m2Vec2 armA, m2Vec2 armB, m2PointMass mass, m2JointBodies* b, m2Vec2 bias,
-                      m2RowDrive drive, m2Vec2* accumulated, float budget)
+void m2SolvePointPair(m2Vec2 armA, m2Vec2 armB, m2JointBodies* b, m2Vec2 bias, m2RowDrive drive,
+                      m2Vec2* accumulated, float budget)
 {
-    if (mass.xx == 0.0f && mass.yy == 0.0f)
+    m2PointMass mass = PointMass(armA, armB, b);
+    if (mass.xx == 0.0 && mass.yy == 0.0)
     {
         return;
     }
     m2Vec2 speed = {b->vB.x - b->wB * armB.y - b->vA.x + b->wA * armA.y,
                     b->vB.y + b->wB * armB.x - b->vA.y - b->wA * armA.x};
-    float x = drive.scale * speed.x + bias.x;
-    float y = drive.scale * speed.y + bias.y;
+    double x = (double)(drive.scale * speed.x + bias.x);
+    double y = (double)(drive.scale * speed.y + bias.y);
     m2Vec2 old = *accumulated;
-    m2Vec2 next = {old.x - (mass.xx * x + mass.xy * y) - drive.leak * old.x,
-                   old.y - (mass.xy * x + mass.yy * y) - drive.leak * old.y};
+    // The impulse in double too: across a long arm it is far smaller than
+    // along it, and a float inverse would round it away.
+    m2Vec2 next = {(float)((double)old.x - (mass.xx * x + mass.xy * y)) - drive.leak * old.x,
+                   (float)((double)old.y - (mass.xy * x + mass.yy * y)) - drive.leak * old.y};
     // The speed bound at the pair's largest axis mass joins the budget.
-    float bound = M2_ROW_SPEED_BOUND * m2MaxF(mass.xx, mass.yy);
+    float bound = M2_ROW_SPEED_BOUND * (float)(mass.xx > mass.yy ? mass.xx : mass.yy);
     float limit = m2MinF(m2MinF(budget, bound), M2_IMPULSE_LIMIT);
     float length2 = next.x * next.x + next.y * next.y;
     if (length2 > limit * limit)

@@ -2343,6 +2343,217 @@ static void TestFarApartJointsStayFinite(void)
     }
 }
 
+// ---- Long arms against small inertias ---------------------------------------
+
+// The revolute, weld, motor and mouse joints pin a point of body B with
+// one 2x2 block. When B's arm is long against its inertia, that block's
+// mass turns sharply with the arm, so each substep builds it from the arm
+// it has reached (#66): a 1 kg ball of radius 5 cm on a 1 m pendulum flew
+// 760 m when the block was kept from the step's start.
+
+typedef enum
+{
+    PIN_REVOLUTE,
+    PIN_WELD,
+    PIN_MOTOR,
+    PIN_MOUSE
+} PinKind;
+
+// A 1 kg body of the given central inertia, its point `arm` (in its own
+// frame, from its center) pinned to the world origin by a joint of the
+// given kind and falling from rest. The motor joint pins B's origin, so
+// there the center sits at -arm from it. Returns the joint.
+static m2JointId PinBody(m2World* world, PinKind kind, float inertia, m2Vec2 arm, m2BodyId* out)
+{
+    m2BodyDef gd = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(world, &gd);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    bool atOrigin = kind == PIN_MOTOR;
+    bd.position = atOrigin ? (m2Pos2){0.0, 0.0} : (m2Pos2){(double)-arm.x, (double)-arm.y};
+    m2BodyId body = NewBody(world, &bd);
+    m2MassData mass = {1.0f, {0.0f, 0.0f}, inertia};
+    if (atOrigin)
+    {
+        mass.center = (m2Vec2){-arm.x, -arm.y};
+        mass.rotationalInertia = inertia + arm.x * arm.x + arm.y * arm.y; // about the origin
+    }
+    m2Body_SetMassData(world, body, mass);
+    *out = body;
+    if (kind == PIN_REVOLUTE)
+    {
+        m2RevoluteJointDef jd = m2DefaultRevoluteJointDef();
+        jd.bodyIdA = ground;
+        jd.bodyIdB = body;
+        jd.localAnchorB = arm;
+        return NewRevoluteJoint(world, &jd);
+    }
+    if (kind == PIN_WELD)
+    {
+        m2WeldJointDef jd = m2DefaultWeldJointDef();
+        jd.bodyIdA = ground;
+        jd.bodyIdB = body;
+        jd.localAnchorB = arm;
+        return NewWeldJoint(world, &jd);
+    }
+    if (kind == PIN_MOTOR)
+    {
+        m2MotorJointDef jd = m2DefaultMotorJointDef();
+        jd.bodyIdA = ground;
+        jd.bodyIdB = body;
+        jd.maxForce = 1000.0f;
+        jd.maxTorque = 0.0f; // free to swing
+        return NewMotorJoint(world, &jd);
+    }
+    m2MouseJointDef jd = m2DefaultMouseJointDef();
+    jd.bodyIdA = ground;
+    jd.bodyIdB = body;
+    jd.target = (m2Pos2){0.0, 0.0};
+    jd.hertz = 10.0f;
+    jd.maxForce = 1000.0f;
+    return NewMouseJoint(world, &jd);
+}
+
+// The farthest the pinned point strays from the origin over two seconds.
+static double PinnedDrift(PinKind kind, float inertia, m2Vec2 arm)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    m2BodyId body;
+    m2JointId joint = PinBody(world, kind, inertia, arm, &body);
+    CHECK(joint.index1 != 0, "the pinning joint is made");
+    m2Vec2 point = kind == PIN_MOTOR ? (m2Vec2){0.0f, 0.0f} : arm;
+    double worst = 0.0;
+    for (int32_t i = 0; i < 120; ++i)
+    {
+        m2World_Step(world, 1.0f / 60.0f, 4);
+        m2Pos2 p = m2Body_GetPosition(world, body);
+        m2Rot q = m2Body_GetRotation(world, body);
+        double x = p.x + (double)(q.c * point.x - q.s * point.y);
+        double y = p.y + (double)(q.s * point.x + q.c * point.y);
+        double d = sqrt(x * x + y * y);
+        worst = d > worst || isnan(d) ? d : worst; // a NaN sticks
+    }
+    m2DestroyWorld(world);
+    return worst;
+}
+
+static void TestBallPendulumHolds(void)
+{
+    // A ball on a 1 m revolute pendulum, released level: radii 5 cm and
+    // 1 cm put mass * arm^2 / inertia at 800 and 2e4.
+    const float radii[2] = {0.05f, 0.01f};
+    for (int32_t k = 0; k < 2; ++k)
+    {
+        m2WorldDef def = m2DefaultWorldDef();
+        m2World* world = NewWorld(&def);
+        m2BodyDef gd = m2DefaultBodyDef();
+        m2BodyId ground = NewBody(world, &gd);
+        m2BodyId ball = AddBall(world, 1.0, 0.0, radii[k]);
+        m2RevoluteJointDef jd = m2DefaultRevoluteJointDef();
+        jd.bodyIdA = ground;
+        jd.bodyIdB = ball;
+        jd.localAnchorB = (m2Vec2){-1.0f, 0.0f};
+        NewRevoluteJoint(world, &jd);
+        double worst = 0.0;
+        for (int32_t i = 0; i < 300; ++i)
+        {
+            m2World_Step(world, 1.0f / 60.0f, 4);
+            double stretch =
+                fabs(sqrt(Distance((m2Pos2){0.0, 0.0}, m2Body_GetPosition(world, ball))) - 1.0);
+            worst = stretch > worst || isnan(stretch) ? stretch : worst;
+        }
+        if (!(worst < 0.01))
+        {
+            printf("ball of radius %g strayed %g m\n", (double)radii[k], worst);
+        }
+        CHECK(worst < 0.01, "a small ball on a long pendulum keeps its arm");
+        m2DestroyWorld(world);
+    }
+}
+
+static void TestLongArmsHold(void)
+{
+    // Each joint up to the ratio mass * arm^2 / inertia it holds, with the
+    // arm at 0, 15, 30, 45 and 60 degrees. The weld solves its angle row
+    // and its point pair in turn, which converge more slowly as the ratio
+    // grows, and the mouse diverges past 1e3 with a 1000 N budget: both
+    // are held to what they reach until #68.
+    static const struct
+    {
+        PinKind kind;
+        const char* name;
+        float maxRatio;
+        double bound;
+    } joints[4] = {{PIN_REVOLUTE, "revolute", 1.0e7f, 0.01},
+                   {PIN_MOTOR, "motor", 1.0e7f, 0.01},
+                   {PIN_MOUSE, "mouse", 1.0e3f, 0.1},
+                   {PIN_WELD, "weld", 1.0e4f, 2.0}};
+    const float degrees[5] = {0.0f, 15.0f, 30.0f, 45.0f, 60.0f};
+    for (int32_t k = 0; k < 4; ++k)
+    {
+        for (float ratio = 10.0f; ratio <= joints[k].maxRatio; ratio *= 10.0f)
+        {
+            for (int32_t a = 0; a < 5; ++a)
+            {
+                float turn = degrees[a] * (M2_PI / 180.0f);
+                m2Vec2 arm = {cosf(turn), sinf(turn)};
+                double drift = PinnedDrift(joints[k].kind, 1.0f / ratio, arm);
+                if (!(drift < joints[k].bound))
+                {
+                    printf("%s at ratio %g, %g degrees: drift %g m\n", joints[k].name,
+                           (double)ratio, (double)degrees[a], drift);
+                }
+                CHECK(drift < joints[k].bound, "a long arm against a small inertia stays pinned");
+            }
+        }
+    }
+}
+
+static void TestNearSingularPointPairActs(void)
+{
+    // At 45 degrees with mass * arm^2 / inertia at 1e8, k11 k22 - k12^2
+    // subtracts two equal squares and rounded to zero, so the pair was
+    // dropped and the body fell freely. Expanded, the determinant stays
+    // positive: one step from rest, the joint carries the weight's share
+    // along the arm, m g cos 45 = 7.07 N, while the body turns freely
+    // across it. The motor joint takes its inertia about the origin, which
+    // cannot carry a central inertia this small (#69), and the mouse holds
+    // only to a ratio of 1e3 (#68).
+    const PinKind kinds[2] = {PIN_REVOLUTE, PIN_WELD};
+    const float inertias[2] = {1.0e-8f, 1.0e-12f};
+    for (int32_t k = 0; k < 2; ++k)
+    {
+        for (int32_t i = 0; i < 2; ++i)
+        {
+            m2WorldDef def = m2DefaultWorldDef();
+            m2World* world = NewWorld(&def);
+            m2BodyId body;
+            m2JointId joint =
+                PinBody(world, kinds[k], inertias[i], (m2Vec2){0.70710678f, 0.70710678f}, &body);
+            m2World_Step(world, 1.0f / 60.0f, 4);
+            float carried = m2Joint_GetReactionForce(world, joint);
+            float share = 1.0f * -def.gravity.y * 0.70710678f;
+            if (!(fabsf(carried - share) < 0.1f * share))
+            {
+                printf("joint kind %d, inertia %g: carries %g N of %g\n", (int)kinds[k],
+                       (double)inertias[i], (double)carried, (double)share);
+            }
+            CHECK(fabsf(carried - share) < 0.1f * share,
+                  "a near-singular point pair still carries the load along its arm");
+            m2DestroyWorld(world);
+        }
+    }
+    // And it holds: at 45 degrees and a ratio of 1e8 the anchor stays put
+    // instead of falling 14 m in two seconds.
+    double drift = PinnedDrift(PIN_REVOLUTE, 1.0e-8f, (m2Vec2){0.70710678f, 0.70710678f});
+    if (!(drift < 0.01))
+    {
+        printf("revolute at ratio 1e8, 45 degrees: drift %g m\n", drift);
+    }
+    CHECK(drift < 0.01, "a near-singular point pair holds its anchor");
+}
+
 // One joint of each kind with a spring, every hertz at the smallest
 // float a rate takes and every damping ratio 0, between the ground and a
 // ball.
@@ -2453,6 +2664,9 @@ int main(void)
 {
     TestFarApartJointsStayFinite();
     TestVanishingSpringsStayFinite();
+    TestBallPendulumHolds();
+    TestLongArmsHold();
+    TestNearSingularPointPairActs();
     TestLocalAnchorsAreBounded();
     TestJointAdjacency();
     TestDistancePendulum();
