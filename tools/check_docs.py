@@ -17,6 +17,9 @@
 # The API reference is generated from these blocks, so a missing one is a
 # hole in the reference.
 #
+# It reads include/<lib>/ and, for each part tools/source-dirs.txt lists,
+# DIR/include/<lib>-<part>/, whose functions <PP>_<PART>_API marks.
+#
 # usage: check_docs.py
 
 import os
@@ -70,9 +73,10 @@ def parameter_name(parameter):
     return names[-1] if names else None
 
 
-def declarations(lines, macro):
-    """Yields (line number, doc lines, declaration text) for each API function."""
-    start_pattern = re.compile(r"^\s*(?:" + macro + r"_NODISCARD\s+)?" + macro + r"_API\b")
+def declarations(lines, macro, api):
+    """Yields (line number, doc lines, declaration text) for each function the
+    api macro marks."""
+    start_pattern = re.compile(r"^\s*(?:" + macro + r"_NODISCARD\s+)?" + api + r"\b")
     i = 0
     while i < len(lines):
         if start_pattern.match(lines[i]):
@@ -97,7 +101,7 @@ def check(rel, number, doc, text, macro, errors):
         return
     name, params = match.group(1), match.group(2)
     head = text[:match.start(1)]
-    head = re.sub(r"\b" + macro + r"_(API|NODISCARD)\b", "", head).strip()
+    head = re.sub(r"\b" + macro + r"(_[A-Z0-9_]+)?_API\b|\b" + macro + r"_NODISCARD\b", "", head).strip()
     where = f"{rel}:{number}: {name}"
     if not doc:
         errors.append(f"{where}: no /// documentation")
@@ -135,20 +139,42 @@ def check(rel, number, doc, text, macro, errors):
                       "statements in tools/check_docs.py")
 
 
+def header_folders(lib, macro):
+    """(folder relative to the root, API macro) for the library's public
+    headers and for each part's that tools/source-dirs.txt lists."""
+    result = [(f"include/{lib}", f"{macro}_API")]
+    path = os.path.join(ROOT, "tools", "source-dirs.txt")
+    if not os.path.exists(path):
+        return result
+    for line in open(path, encoding="utf-8"):
+        part_dir = line.split("#", 1)[0].strip()
+        if not part_dir:
+            continue
+        include = os.path.join(ROOT, part_dir, "include")
+        if not os.path.isdir(include):
+            continue
+        for sub in sorted(os.listdir(include)):
+            if sub.startswith(lib + "-") and os.path.isdir(os.path.join(include, sub)):
+                part = sub[len(lib) + 1:].upper().replace("-", "_")
+                result.append((f"{part_dir}/include/{sub}", f"{macro}_{part}_API"))
+    return result
+
+
 def main():
     lib = cmake_setting("MAUL_LIBRARY")
     macro = cmake_setting("MAUL_MACRO_PREFIX")
-    folder = os.path.join(ROOT, "include", lib)
     errors = []
     count = 0
-    for name in sorted(os.listdir(folder)):
-        if not name.endswith(".h"):
-            continue
-        rel = f"include/{lib}/{name}"
-        lines = open(os.path.join(folder, name), encoding="utf-8").read().split("\n")
-        for number, doc, text in declarations(lines, macro):
-            count += 1
-            check(rel, number, doc, text, macro, errors)
+    for rel_folder, api in header_folders(lib, macro):
+        folder = os.path.join(ROOT, rel_folder)
+        for name in sorted(os.listdir(folder)):
+            if not name.endswith(".h"):
+                continue
+            rel = f"{rel_folder}/{name}"
+            lines = open(os.path.join(folder, name), encoding="utf-8").read().split("\n")
+            for number, doc, text in declarations(lines, macro, api):
+                count += 1
+                check(rel, number, doc, text, macro, errors)
     for error in errors:
         print(error)
     if errors:
