@@ -2345,11 +2345,11 @@ static void TestFarApartJointsStayFinite(void)
 
 // ---- Long arms against small inertias ---------------------------------------
 
-// The revolute, weld, motor and mouse joints pin a point of body B with
-// one 2x2 block. When B's arm is long against its inertia, that block's
-// mass turns sharply with the arm, so each substep builds it from the arm
-// it has reached (#66): a 1 kg ball of radius 5 cm on a 1 m pendulum flew
-// 760 m when the block was kept from the step's start.
+// The revolute, weld, motor and mouse joints pin a point of body B. When
+// B's arm is long against its inertia, the mass the pin sees turns sharply
+// with the arm, so each substep builds it from the arm it has reached, in
+// double: the point pair's 2x2, the weld's 3x3 with its angle, the mouse's
+// 2x2 with its spring.
 
 typedef enum
 {
@@ -2475,12 +2475,10 @@ static void TestBallPendulumHolds(void)
 static void TestLongArmsHold(void)
 {
     // Each joint up to the ratio mass * arm^2 / inertia it holds, with the
-    // arm at 0, 15, 30, 45 and 60 degrees. A rigid weld solves its angle
-    // row and its point pair as one block (#68): solved in turn, they
-    // converged so slowly that the anchor sagged 1 m from 1e4 on. The
-    // mouse pulls with a spring of the body's own mass: scaled by the
-    // pair's mass, its stiffness turned with the arm and threw the body
-    // 90 m from 1e4 on. Its bound is the 10 Hz spring's own give.
+    // arm at 0, 15, 30, 45 and 60 degrees. The revolute and the motor pin
+    // the point with the point pair, the weld with its 3x3 block and the
+    // mouse with a spring of the body's own mass; the mouse's bound is
+    // that 10 Hz spring's own give.
     static const struct
     {
         PinKind kind;
@@ -2514,16 +2512,15 @@ static void TestLongArmsHold(void)
 
 static void TestNearSingularPointPairActs(void)
 {
-    // At 45 degrees with mass * arm^2 / inertia at 1e8, k11 k22 - k12^2
-    // subtracts two equal squares and rounded to zero, so the pair was
-    // dropped and the body fell freely. Expanded, the determinant stays
-    // positive: one step from rest, the revolute carries the weight's
-    // share along the arm, m g cos 45 = 7.07 N, while the body turns
-    // freely across it. The weld does not let it turn and carries the
-    // whole weight; solving its angle row and point pair in turn let the
-    // body turn part way and showed the revolute's share (#68). The motor joint takes its inertia
-    // about the origin, which cannot carry a central inertia this small (#69), and the mouse is a
-    // spring, which takes more than one step to carry the load.
+    // At 45 degrees with mass * arm^2 / inertia at 1e8, the point mass's
+    // two squares k11 k22 and k12^2 are nearly equal, and the expanded
+    // determinant keeps it positive. One step from rest, the revolute
+    // carries the weight's share along the arm, m g cos 45 = 7.07 N,
+    // while the body turns freely across it; the weld does not let it
+    // turn and carries the whole weight. The motor joint takes its
+    // inertia about the origin, which cannot carry a central inertia this
+    // small (#69), and the mouse is a spring, which takes more than one
+    // step to carry the load.
     const PinKind kinds[2] = {PIN_REVOLUTE, PIN_WELD};
     const float inertias[2] = {1.0e-8f, 1.0e-12f};
     for (int32_t k = 0; k < 2; ++k)
@@ -2548,8 +2545,8 @@ static void TestNearSingularPointPairActs(void)
             m2DestroyWorld(world);
         }
     }
-    // And it holds: at 45 degrees and a ratio of 1e8 the anchor stays put
-    // instead of falling 14 m in two seconds.
+    // And it holds: at 45 degrees and a ratio of 1e8 the anchor stays
+    // within 1 cm for two seconds.
     double drift = PinnedDrift(PIN_REVOLUTE, 1.0e-8f, (m2Vec2){0.70710678f, 0.70710678f});
     if (!(drift < 0.01))
     {
