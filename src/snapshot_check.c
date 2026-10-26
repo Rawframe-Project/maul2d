@@ -8,7 +8,8 @@
 // a pool, loop forever or overflow a fixed stack:
 //   - each free queue holds every dead slot that is not retired, once;
 //   - each body's shape list holds exactly its live shapes, with no cycle;
-//   - shapes, chains and joints point at live owners;
+//   - shapes, chains and joints point at live owners, and particle
+//     springs and triads at live particles;
 //   - each live joint's length, limits and reference hold what its kind
 //     keeps there, in the ranges its def and setters give them;
 //   - each body's mass data is what its shapes give it, bit for bit, or
@@ -160,6 +161,47 @@ static int32_t InlineI32(const m2World* world, const uint8_t* in, const void* fi
     return ReadI32(m2StateIncoming(world, in, field), 0);
 }
 
+// Each end of `count` links, `ends` arrays of particle slots, is a live
+// particle.
+static bool LinksJoinLive(const m2World* world, const uint8_t* alive, const uint8_t* const* ends,
+                          int32_t endCount, int32_t count, int32_t capacity)
+{
+    if (count < 0 || count > capacity)
+    {
+        return false;
+    }
+    for (int32_t k = 0; k < count; ++k)
+    {
+        for (int32_t e = 0; e < endCount; ++e)
+        {
+            int32_t p = ReadI32(ends[e], k);
+            if (!InPool(p, world->particles.particleCapacity) || alive[p] == 0)
+            {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
+// Springs and triads join live particles only, as a particle's death
+// leaves them: one with a dead end would push that slot's velocity and
+// latch onto the next particle emitted there.
+static bool CheckParticleLinks(const m2World* world, const uint8_t* in)
+{
+    const uint8_t* alive = M2_IN(particles.particleAlive);
+    const uint8_t* springs[2] = {M2_IN(particles.particleSpringA),
+                                 M2_IN(particles.particleSpringB)};
+    const uint8_t* triads[3] = {M2_IN(particles.particleTriadA), M2_IN(particles.particleTriadB),
+                                M2_IN(particles.particleTriadC)};
+    return LinksJoinLive(world, alive, springs, 2,
+                         InlineI32(world, in, &world->particles.particleSpringCount),
+                         world->particles.particleSpringCapacity) &&
+           LinksJoinLive(world, alive, triads, 3,
+                         InlineI32(world, in, &world->particles.particleTriadCount),
+                         world->particles.particleTriadCapacity);
+}
+
 // The particle and fluid volume pools, which exist only in worlds that
 // have them.
 static bool CheckFluidPools(m2World* world, const uint8_t* in)
@@ -178,7 +220,8 @@ static bool CheckFluidPools(m2World* world, const uint8_t* in)
                                 InlineI32(world, in, &world->particles.particleRetiredCount),
                                 InlineI32(world, in, &world->particles.maxParticleIndex)};
         int32_t live = CheckPool(marks, &particles);
-        if (live < 0 || live != InlineI32(world, in, &world->particles.particleCount))
+        if (live < 0 || live != InlineI32(world, in, &world->particles.particleCount) ||
+            !CheckParticleLinks(world, in))
         {
             return false;
         }
