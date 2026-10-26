@@ -77,7 +77,7 @@ m2Pos2 resting = m2Body_GetPosition(world, ball);
 m2DestroyWorld(world);
 ```
 
-Step at a fixed timestep, always: determinism starts with feeding the same `dt` every step, and 1/60 with 4 substeps is the tuned default. A step takes 1 to `M2_MAX_SUBSTEPS` (64) substeps; `dt` must be positive and finite and is bounded by nothing else, since the solver's speed caps keep a long step finite.
+Step at a fixed timestep, always: determinism starts with feeding the same `dt` every step, and 1/60 with 4 substeps is the tuned default. A step takes 1 to `M2_MAX_SUBSTEPS` (64) substeps and a `dt` from `M2_MIN_TIME_STEP` to `M2_MAX_TIME_STEP` (1e-6 to 10 s); anything else changes nothing and counts one misuse ([Limits](limits.md)).
 
 ## The model
 

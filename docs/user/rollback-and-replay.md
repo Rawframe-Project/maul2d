@@ -61,7 +61,7 @@ When two runs that should match drift apart, `m2World_GetHashParts` says where a
 
 ## Bytes from outside
 
-Snapshots and tapes are checked before any byte lands. One from another library build or another world shape, an index or count out of range, a flag that is not a flag, a non-finite number, or a value past its range in [limits.md](limits.md) is refused with `m2_errorInvalid`, and the world stays as it was. Such a refusal counts no misuse, so a corrupt file or a hostile peer cannot move `m2Counters.misuse`. Code the world runs for the program during a replay (a task hook, the allocator) is still the program's, and what it gets wrong counts. The checks make every index safe to use; they do not rebuild every structural invariant, so restore only snapshots this library wrote.
+Snapshots and tapes are checked before any byte lands. One from another world shape, an index or count out of range, a flag that is not a flag, a non-finite number, or a value past its range in [limits.md](limits.md) is refused with `m2_errorInvalid`, and one another release or build wrote with `m2_errorVersion` ([below](#versions-and-formats)); either way the world stays as it was. Such a refusal counts no misuse, so a corrupt file or a hostile peer cannot move `m2Counters.misuse`. Code the world runs for the program during a replay (a task hook, the allocator) is still the program's, and what it gets wrong counts. The checks make every index safe to use; they do not rebuild every structural invariant, so restore only snapshots this library wrote.
 
 ## Versions and formats
 
