@@ -421,6 +421,12 @@ typedef struct m2StatePrefix
     uint32_t headerBytes;
 } m2StatePrefix;
 
+// A format's magic: the uint32_t whose little-endian bytes are the four
+// characters in order, so the bytes as stored spell the name.
+#define M2_STATE_MAGIC(a, b, c, d)                                                                 \
+    ((uint32_t)(uint8_t)(a) | (uint32_t)(uint8_t)(b) << 8 | (uint32_t)(uint8_t)(c) << 16 |         \
+     (uint32_t)(uint8_t)(d) << 24)
+
 // The prefix this release writes for a format.
 m2StatePrefix m2MakeStatePrefix(uint32_t magic, uint32_t formatVersion, int32_t headerBytes);
 

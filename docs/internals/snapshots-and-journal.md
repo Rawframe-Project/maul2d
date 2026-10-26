@@ -12,7 +12,7 @@ Every state format starts with the same 16 bytes, shared with maul3d, each a lit
 
 | Offset | Field | Meaning |
 |---|---|---|
-| 0 | `magic` | Four ASCII bytes naming the library and the format. |
+| 0 | `magic` | Four ASCII bytes naming the library and the format, in order, so a hex dump of the bytes reads the name. Read as a little-endian `uint32_t`, it is the value whose bytes spell the name. |
 | 4 | `abiVersion` | The writer's `M2_ABI_VERSION`. A reader refuses any other value with `m2_errorVersion`. |
 | 8 | `formatVersion` | The format's own number, bumped whenever its bytes change. A reader refuses any other value with `m2_errorVersion`. |
 | 12 | `headerBytes` | The size of the whole header, this prefix and the format's own fields, a multiple of 8. The content starts there. A reader refuses any other value with `m2_errorInvalid`. |

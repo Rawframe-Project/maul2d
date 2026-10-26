@@ -502,10 +502,28 @@ static uint32_t ReadWord(const uint8_t* bytes, int32_t offset)
     return word;
 }
 
+static uint32_t Reversed(uint32_t word)
+{
+    return word >> 24 | (word >> 8 & 0xFF00u) | (word << 8 & 0xFF0000u) | word << 24;
+}
+
+// Offers state bytes: a snapshot to m2World_Restore, a tape to
+// m2World_ReplayJournal. The refusal must be the expected status, change
+// nothing and count nothing, since the bytes are untrusted.
+static void ExpectRefused(m2World* world, const uint8_t* bytes, int32_t size, bool tape,
+                          m2Result expected, const char* what)
+{
+    uint64_t hash = m2World_Hash(world);
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    m2Result result =
+        tape ? m2World_ReplayJournal(world, bytes, size) : m2World_Restore(world, bytes, size);
+    CHECK(result == expected, what);
+    CHECK(m2World_Hash(world) == hash && m2World_GetCounters(world).misuse == misuse,
+          "refused state bytes change nothing and count nothing");
+}
+
 // Offers state bytes with one 32-bit word changed and every other byte
-// equal: a snapshot to m2World_Restore, a tape to m2World_ReplayJournal.
-// The refusal must be the expected status, change nothing and count
-// nothing, since the bytes are untrusted.
+// equal.
 static void ExpectWordRefused(m2World* world, const uint8_t* bytes, int32_t size, bool tape,
                               int32_t offset, uint32_t word, m2Result expected, const char* what)
 {
@@ -517,21 +535,34 @@ static void ExpectWordRefused(m2World* world, const uint8_t* bytes, int32_t size
     }
     memcpy(edited, bytes, (size_t)size);
     memcpy(edited + offset, &word, sizeof(word));
-    uint64_t hash = m2World_Hash(world);
-    uint64_t misuse = m2World_GetCounters(world).misuse;
-    m2Result result =
-        tape ? m2World_ReplayJournal(world, edited, size) : m2World_Restore(world, edited, size);
-    CHECK(result == expected, what);
-    CHECK(m2World_Hash(world) == hash && m2World_GetCounters(world).misuse == misuse,
-          "refused state bytes change nothing and count nothing");
+    ExpectRefused(world, edited, size, tape, expected, what);
     free(edited);
+}
+
+// Offers the first `keep` bytes of state bytes, in an allocation of
+// exactly that size, so AddressSanitizer catches a reader that looks past
+// the end. Each cut is refused as m2_errorInvalid.
+static void ExpectCutRefused(m2World* world, const uint8_t* bytes, int32_t keep, bool tape,
+                             const char* what)
+{
+    uint8_t* cut = (uint8_t*)malloc((size_t)keep);
+    CHECK(cut != NULL, "a copy of the state bytes");
+    if (cut == NULL)
+    {
+        return;
+    }
+    memcpy(cut, bytes, (size_t)keep);
+    ExpectRefused(world, cut, keep, tape, m2_errorInvalid, what);
+    free(cut);
 }
 
 // Only the release that wrote a snapshot or a tape reads it: another ABI
 // version, format number or build hash is m2_errorVersion, while another
 // magic or header size is not this format at all and is m2_errorInvalid.
 // The tape's embedded snapshot is checked the same way and its status
-// passes through.
+// passes through. Each magic's bytes spell its name in order, and the
+// same name stored in the other byte order is another magic. Bytes cut
+// short behind a valid prefix are m2_errorInvalid.
 static void TestOtherReleasesAreRefused(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
@@ -562,6 +593,11 @@ static void TestOtherReleasesAreRefused(void)
     CHECK(ReadWord(snap, PREFIX_ABI) == M2_ABI_VERSION &&
               ReadWord(tape, PREFIX_ABI) == M2_ABI_VERSION,
           "both headers carry this release's ABI version");
+    uint32_t tapeHeader = ReadWord(tape, PREFIX_HEADER_BYTES);
+    int32_t embedded = (int32_t)tapeHeader;
+    CHECK(memcmp(snap, "M2SN", 4) == 0 && memcmp(tape, "M2JN", 4) == 0 &&
+              memcmp(tape + embedded, "M2SN", 4) == 0,
+          "each magic's bytes spell its name");
     const uint32_t otherRelease = M2_ABI_VERSION ^ 0x100u; // the next minor before 1.0
     uint32_t snapFormat = ReadWord(snap, PREFIX_FORMAT);
     uint32_t snapHeader = ReadWord(snap, PREFIX_HEADER_BYTES);
@@ -574,11 +610,13 @@ static void TestOtherReleasesAreRefused(void)
                       "a snapshot from another build is m2_errorVersion");
     ExpectWordRefused(world, snap, size, false, 0, ReadWord(snap, 0) ^ 0xFFu, m2_errorInvalid,
                       "bytes with another magic are m2_errorInvalid");
+    ExpectWordRefused(world, snap, size, false, 0, Reversed(ReadWord(snap, 0)), m2_errorInvalid,
+                      "a snapshot magic in the other byte order is m2_errorInvalid");
     ExpectWordRefused(world, snap, size, false, PREFIX_HEADER_BYTES, snapHeader + 8u,
                       m2_errorInvalid, "a snapshot with another header size is m2_errorInvalid");
 
-    uint32_t tapeHeader = ReadWord(tape, PREFIX_HEADER_BYTES);
-    int32_t embedded = (int32_t)tapeHeader;
+    ExpectWordRefused(world, tape, tapeBytes, true, 0, Reversed(ReadWord(tape, 0)), m2_errorInvalid,
+                      "a tape magic in the other byte order is m2_errorInvalid");
     ExpectWordRefused(world, tape, tapeBytes, true, PREFIX_ABI, otherRelease, m2_errorVersion,
                       "a tape from another release is m2_errorVersion");
     ExpectWordRefused(world, tape, tapeBytes, true, PREFIX_FORMAT,
@@ -589,6 +627,23 @@ static void TestOtherReleasesAreRefused(void)
     ExpectWordRefused(world, tape, tapeBytes, true, embedded + PREFIX_ABI, otherRelease,
                       m2_errorVersion,
                       "a tape embedding another release's snapshot is m2_errorVersion");
+
+    // Cut behind a valid prefix: at the prefix, one byte short of the
+    // header, inside the tape's embedded snapshot header and one byte
+    // short of the end.
+    int32_t snapHeaderBytes = (int32_t)snapHeader;
+    ExpectCutRefused(world, snap, 16, false, "a snapshot of its prefix alone is m2_errorInvalid");
+    ExpectCutRefused(world, snap, snapHeaderBytes - 1, false,
+                     "a snapshot cut inside its header is m2_errorInvalid");
+    ExpectCutRefused(world, snap, size - 1, false, "a snapshot cut short is m2_errorInvalid");
+    ExpectCutRefused(world, tape, 16, true, "a tape of its prefix alone is m2_errorInvalid");
+    ExpectCutRefused(world, tape, embedded - 1, true,
+                     "a tape cut inside its header is m2_errorInvalid");
+    ExpectCutRefused(world, tape, embedded + 16, true,
+                     "a tape cut after its snapshot's prefix is m2_errorInvalid");
+    ExpectCutRefused(world, tape, embedded + snapHeaderBytes - 1, true,
+                     "a tape cut inside its snapshot's header is m2_errorInvalid");
+    ExpectCutRefused(world, tape, tapeBytes - 1, true, "a tape cut short is m2_errorInvalid");
 
     // The bytes as written still load, so only the changed word was refused.
     CHECK(Restore(world, snap, size), "the snapshot as written restores");
