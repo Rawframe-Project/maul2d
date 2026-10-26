@@ -2376,7 +2376,6 @@ static m2JointId PinBody(m2World* world, PinKind kind, float inertia, m2Vec2 arm
     if (atOrigin)
     {
         mass.center = (m2Vec2){-arm.x, -arm.y};
-        mass.rotationalInertia = inertia + arm.x * arm.x + arm.y * arm.y; // about the origin
     }
     m2Body_SetMassData(world, body, mass);
     *out = body;
@@ -2486,7 +2485,7 @@ static void TestLongArmsHold(void)
         float maxRatio;
         double bound;
     } joints[4] = {{PIN_REVOLUTE, "revolute", 1.0e7f, 0.01},
-                   {PIN_MOTOR, "motor", 1.0e7f, 0.01},
+                   {PIN_MOTOR, "motor", 1.0e8f, 0.01},
                    {PIN_MOUSE, "mouse", 1.0e7f, 0.02},
                    {PIN_WELD, "weld", 1.0e8f, 0.01}};
     const float degrees[5] = {0.0f, 15.0f, 30.0f, 45.0f, 60.0f};
@@ -2516,14 +2515,12 @@ static void TestNearSingularPointPairActs(void)
     // two squares k11 k22 and k12^2 are nearly equal, and the expanded
     // determinant keeps it positive. One step from rest, the revolute
     // carries the weight's share along the arm, m g cos 45 = 7.07 N,
-    // while the body turns freely across it; the weld does not let it
-    // turn and carries the whole weight. The motor joint takes its
-    // inertia about the origin, which cannot carry a central inertia this
-    // small (#69), and the mouse is a spring, which takes more than one
-    // step to carry the load.
-    const PinKind kinds[2] = {PIN_REVOLUTE, PIN_WELD};
+    // while the body turns freely across it, and so does the motor; the
+    // weld does not let it turn and carries the whole weight. The mouse is
+    // a spring, which takes more than one step to carry the load.
+    const PinKind kinds[3] = {PIN_REVOLUTE, PIN_WELD, PIN_MOTOR};
     const float inertias[2] = {1.0e-8f, 1.0e-12f};
-    for (int32_t k = 0; k < 2; ++k)
+    for (int32_t k = 0; k < 3; ++k)
     {
         for (int32_t i = 0; i < 2; ++i)
         {

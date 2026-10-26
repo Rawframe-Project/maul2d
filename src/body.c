@@ -799,28 +799,21 @@ void m2Body_SetDominance(m2World* world, m2BodyId bodyId, int8_t dominance)
 }
 
 // The inverses a body keeps for mass data, or false when the data has
-// none a float holds: a mass that is not positive or finite, a center
-// beyond M2_HUGE, a rotational inertia that is not finite or falls below
-// what the mass at the center gives, or inverses m2MassInversesValid
-// refuses: one that overflows, or one whose own inverse does, as the
-// inverse of a mass of FLT_MAX does. An
-// inertia of exactly the mass at the center gives a body that cannot turn.
+// none a float holds: a mass outside its range, a center beyond M2_HUGE,
+// a central inertia that is neither 0 nor within its range, or inverses
+// m2MassInversesValid refuses: one that overflows, or one whose own
+// inverse does, as the inverse of a mass of FLT_MAX does. The inertia is
+// taken about the center as given, so no shift from another point cancels
+// a small one away; 0 gives a body that cannot turn.
 static bool MassDataInverses(m2MassData massData, float* invMass, float* invInertia)
 {
     if (!m2ValidMass(massData.mass) || !m2LocalVec2(massData.center) ||
-        !m2FiniteF(massData.rotationalInertia))
-    {
-        return false;
-    }
-    float inertiaCenter =
-        massData.rotationalInertia - massData.mass * (massData.center.x * massData.center.x +
-                                                      massData.center.y * massData.center.y);
-    if (!m2ValidInertia(inertiaCenter))
+        !m2ValidInertia(massData.centralInertia))
     {
         return false;
     }
     *invMass = 1.0f / massData.mass;
-    *invInertia = inertiaCenter > 0.0f ? 1.0f / inertiaCenter : 0.0f;
+    *invInertia = massData.centralInertia > 0.0f ? 1.0f / massData.centralInertia : 0.0f;
     return m2MassInversesValid(*invMass, *invInertia);
 }
 

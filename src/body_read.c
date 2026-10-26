@@ -316,9 +316,7 @@ static M2_NOINLINE m2MassData BodyGetMassDataWorker(const m2World* world, m2Body
     data.mass = invMass > 0.0f ? 1.0f / invMass : 0.0f;
     data.center = world->bodies.localCenters[index];
     float invI = world->bodies.invInertia[index];
-    float inertiaCenter = invI > 0.0f ? 1.0f / invI : 0.0f;
-    data.rotationalInertia =
-        inertiaCenter + data.mass * (data.center.x * data.center.x + data.center.y * data.center.y);
+    data.centralInertia = invI > 0.0f ? 1.0f / invI : 0.0f;
     return data;
 }
 

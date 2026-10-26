@@ -275,26 +275,25 @@ extern "C"
     /// A body's mass properties.
     typedef struct m2MassData
     {
-        float mass;              // kg
-        m2Vec2 center;           // the body-local centroid
-        float rotationalInertia; // about the body origin
+        float mass;           // kg
+        m2Vec2 center;        // the body-local centroid
+        float centralInertia; // rotational inertia about the center of mass
     } m2MassData;
 
     /// Overrides the mass a dynamic body's shapes give it. The override
     /// lasts until a shape change, a fixed-rotation change or
     /// m2Body_ApplyMassFromShapes recomputes the mass. The body wakes. A
     /// stale id, a body that is not dynamic, a mass outside M2_MIN_MASS to
-    /// M2_MAX_MASS, a center beyond M2_HUGE, or a rotational inertia whose
-    /// part about the center (the inertia minus mass times the squared
-    /// distance of the center) is neither 0 nor within M2_MIN_INERTIA to
-    /// M2_MAX_INERTIA, changes nothing and counts one misuse. Every
-    /// override this accepts survives a snapshot. An inertia about the
-    /// center of 0 leaves the body unable to turn. Mass computed from
-    /// shapes is clamped into the same ranges. Journaled.
+    /// M2_MAX_MASS, a center beyond M2_HUGE, or a central inertia that is
+    /// neither 0 nor within M2_MIN_INERTIA to M2_MAX_INERTIA, changes
+    /// nothing and counts one misuse. Every override this accepts survives
+    /// a snapshot. A central inertia of 0 leaves the body unable to turn.
+    /// Mass computed from shapes is clamped into the same ranges.
+    /// Journaled.
     ///
     /// @param world     The world.
     /// @param bodyId    The body.
-    /// @param massData  The mass, centroid and inertia about the origin.
+    /// @param massData  The mass, centroid and inertia about the centroid.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_API void m2Body_SetMassData(m2World* world, m2BodyId bodyId, m2MassData massData);
@@ -303,8 +302,8 @@ extern "C"
     ///
     /// @param world   The world.
     /// @param bodyId  The body; a stale id counts one misuse.
-    /// @return The mass, centroid and inertia about the origin; zeroed for
-    ///         a stale id.
+    /// @return The mass, centroid and inertia about the centroid; zeroed
+    ///         for a stale id.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.

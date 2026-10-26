@@ -183,7 +183,7 @@ static void RunSession(m2World* world, uint8_t* journal, int32_t capacity, int32
     m2Body_Enable(world, ram);                                  // op 36
     m2MassData heavier = m2Body_GetMassData(world, bob);
     heavier.mass *= 2.0f;
-    heavier.rotationalInertia *= 2.0f;
+    heavier.centralInertia *= 2.0f;
     m2Body_SetMassData(world, bob, heavier); // op 37
     m2Body_ApplyMassFromShapes(world, bob);  // op 38
     m2ExplosionDef boom = m2DefaultExplosionDef();

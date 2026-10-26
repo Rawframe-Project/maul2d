@@ -500,7 +500,7 @@ static void TestMassEdges(void)
     (void)NewCircleShape(world, small, &foam, &speck);
     m2MassData kept = m2Body_GetMassData(world, small);
     CHECK(kept.mass == 1.0f / (1.0f / M2_MIN_MASS) &&
-              kept.rotationalInertia == 1.0f / (1.0f / M2_MIN_INERTIA),
+              kept.centralInertia == 1.0f / (1.0f / M2_MIN_INERTIA),
           "a speck's mass and inertia are clamped up to the smallest");
 
     m2ShapeDef lead = m2DefaultShapeDef();
@@ -511,7 +511,7 @@ static void TestMassEdges(void)
     (void)NewCircleShape(world, large, &lead, &slab);
     kept = m2Body_GetMassData(world, large);
     CHECK(kept.mass == 1.0f / (1.0f / M2_MAX_MASS) &&
-              kept.rotationalInertia == 1.0f / (1.0f / M2_MAX_INERTIA),
+              kept.centralInertia == 1.0f / (1.0f / M2_MAX_INERTIA),
           "a giant's mass and inertia are clamped down to the largest");
     ExpectRestores(world);
     m2DestroyWorld(world);

@@ -163,7 +163,7 @@ M2_PIN_AT(m2BodyDef, internalValue, 72);
 M2_PIN_SIZE(m2MassData, 16);
 M2_PIN_AT(m2MassData, mass, 0);
 M2_PIN_AT(m2MassData, center, 4);
-M2_PIN_AT(m2MassData, rotationalInertia, 12);
+M2_PIN_AT(m2MassData, centralInertia, 12);
 
 M2_PIN_SIZE(m2ShapeDef, 56);
 M2_PIN_AT(m2ShapeDef, density, 0);
