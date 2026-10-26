@@ -39,7 +39,7 @@ Run `changed` before every push. On the shared development machine, run `pr` and
 
 ## Quarantine
 
-A failing test is never rerun to pass. One that fails without a fault in the change under test is quarantined: an issue records the failure and its run, and the test (or the one check that failed, split into a test of its own) is registered with `maul_add_test(<name> QUARANTINE)` or labeled with `maul_quarantine(<name>)`. Every test preset leaves out the `quarantine` label, so the required runs and `tools/check.sh` skip it. The nightly `simulation` job runs it through `tools/run_quarantine.sh out/linux-clang-20`: a failure there is a warning and a line in the job summary, while a skipped test, a sanitizer report or a crash fails the night. A test leaves quarantine when its issue's fix lands and 14 nights in a row have passed it. maul2d has no quarantined test today.
+A failing test is never rerun to pass. One that fails without a fault in the change under test is quarantined: an issue records the failure and its run, and the test (or the one check that failed, split into a test of its own) is registered with `maul_add_test(<name> QUARANTINE)` or labeled with `maul_quarantine(<name>)`. Every test preset leaves out the `quarantine` label, so the required runs and `tools/check.sh` skip it. The nightly `simulation` job runs it through `tools/run_quarantine.sh out/linux-clang-20 --timeout 300`, the test presets' timeout: a failure there is a warning and a line in the job summary, while a skipped test, a sanitizer report or a crash fails the night. A test leaves quarantine when its issue's fix lands and 14 nights in a row have passed it. maul2d has no quarantined test today.
 
 ## Fuzzing
 

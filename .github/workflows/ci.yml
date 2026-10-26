@@ -294,9 +294,11 @@ jobs:
           cmake --preset linux-clang-20 >/dev/null
           cmake --build --preset linux-clang-20
       # The tests the required runs leave out: a failed one is a known
-      # flake and a warning, anything else fails the step.
+      # flake and a warning, anything else fails the step. ctest runs
+      # without a preset here, so the base preset's timeout is given again:
+      # a hung test is reported instead of cancelling the job.
       - name: Quarantined tests
-        run: tools/run_quarantine.sh out/linux-clang-20
+        run: tools/run_quarantine.sh out/linux-clang-20 --timeout 300
       - name: Long soak
         run: ./out/linux-clang-20/test_soak 300000
       - name: Deep API walk
