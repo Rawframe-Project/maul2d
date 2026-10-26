@@ -1008,10 +1008,9 @@ static void TestStoredImpulsesStayInRange(void)
     // A point pair whose impulse, (21 2^46, 0), is scaled to 1e15: the
     // scaled component rounds to the float above 1e15.
     float mass = 0x1p40f;
-    m2JointBodies heavy = {zero, 0.0f, zero, 0.0f, 1.0f / mass, 0.0f, 1.0f / mass, 0.0f};
-    m2PointMass pointMass = {mass, 0.0f, mass};
+    m2JointBodies heavy = {zero, 0.0f, zero, 0.0f, 0.0f, 0.0f, 1.0f / mass, 0.0f};
     m2Vec2 pair = zero;
-    m2SolvePointPair(zero, zero, pointMass, &heavy, (m2Vec2){-21.0f * 64.0f, 0.0f}, still, &pair,
+    m2SolvePointPair(zero, zero, &heavy, (m2Vec2){-21.0f * 64.0f, 0.0f}, still, &pair,
                      M2_MAX_FORCE);
     CHECK(m2ValidImpulseVec(pair) && pair.x == M2_IMPULSE_LIMIT,
           "a point pair scaled to the limit stores the limit");
