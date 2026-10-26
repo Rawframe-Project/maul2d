@@ -11,6 +11,7 @@
 // format. A change to one of these types is a format change: update its
 // numbers here and bump the format's version.
 
+#include "dynamic_tree.h"
 #include "geometry.h"
 #include "journal.h"
 
@@ -96,7 +97,8 @@ M2_PIN_AT(m2ChainSegment, segment, 0);
 M2_PIN_AT(m2ChainSegment, ghost1, 16);
 M2_PIN_AT(m2ChainSegment, ghost2, 24);
 
-// The structs the snapshot walks as array elements (src/world_state.c).
+// The structs the snapshot walks (src/world_state.c): array elements, and
+// the broadphase trees, held inline in the world.
 M2_PIN_SIZE(m2ShapeGeometry, 140);
 M2_PIN_AT(m2ShapeGeometry, type, 0);
 M2_PIN_AT(m2ShapeGeometry, circle, 4);
@@ -119,6 +121,25 @@ M2_PIN_AT(m2Manifold, points, 0);
 M2_PIN_AT(m2Manifold, normal, 64);
 M2_PIN_AT(m2Manifold, pointCount, 72);
 M2_PIN_AT(m2Manifold, padding, 76);
+
+M2_PIN_SIZE(m2Aabb, 32);
+M2_PIN_AT(m2Aabb, lowerBound, 0);
+M2_PIN_AT(m2Aabb, upperBound, 16);
+
+M2_PIN_SIZE(m2TreeNode, 56);
+M2_PIN_AT(m2TreeNode, aabb, 0);
+M2_PIN_AT(m2TreeNode, child1, 32);
+M2_PIN_AT(m2TreeNode, child2, 36);
+M2_PIN_AT(m2TreeNode, parent, 40);
+M2_PIN_AT(m2TreeNode, height, 44);
+M2_PIN_AT(m2TreeNode, userData, 48);
+M2_PIN_AT(m2TreeNode, pad, 52);
+
+M2_PIN_SIZE(m2DynamicTree, 16);
+M2_PIN_AT(m2DynamicTree, root, 0);
+M2_PIN_AT(m2DynamicTree, nodeCount, 4);
+M2_PIN_AT(m2DynamicTree, nodeCapacity, 8);
+M2_PIN_AT(m2DynamicTree, freeList, 12);
 
 // The public defs a record embeds as given.
 M2_PIN_SIZE(m2BodyDef, 80);
