@@ -34,7 +34,7 @@ env:
 jobs:
   # Whether anything beyond documentation changed; the builds skip when not.
   changes:
-    uses: Rawframe-Project/.github/.github/workflows/changes.yml@56543e92d01e59abdb4299c4824a0c1facdc08ce # v0.0.25
+    uses: Rawframe-Project/.github/.github/workflows/changes.yml@bf59dbcd696369b51a9831145fb3b60f3bc71280 # v0.0.26
     permissions:
       pull-requests: read
 
@@ -49,10 +49,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: Rawframe-Project/.github/.github/actions/docs-check@56543e92d01e59abdb4299c4824a0c1facdc08ce # v0.0.25
+      - uses: Rawframe-Project/.github/.github/actions/docs-check@bf59dbcd696369b51a9831145fb3b60f3bc71280 # v0.0.26
 
   zizmor:
-    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@56543e92d01e59abdb4299c4824a0c1facdc08ce # v0.0.25
+    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@bf59dbcd696369b51a9831145fb3b60f3bc71280 # v0.0.26
     permissions:
       contents: read
 
@@ -130,7 +130,7 @@ jobs:
           - { preset: macos-clang, runner: macos-15 }
           - { preset: windows-clang-cl, runner: windows-2025 }
           - { preset: windows-arm64-clang-cl, runner: windows-11-arm }
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@56543e92d01e59abdb4299c4824a0c1facdc08ce # v0.0.25
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@bf59dbcd696369b51a9831145fb3b60f3bc71280 # v0.0.26
     permissions:
       contents: read
     with:
@@ -143,7 +143,7 @@ jobs:
   testbed:
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@56543e92d01e59abdb4299c4824a0c1facdc08ce # v0.0.25
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@bf59dbcd696369b51a9831145fb3b60f3bc71280 # v0.0.26
     permissions:
       contents: read
     with:
@@ -259,19 +259,14 @@ jobs:
           cat out/fuzz-reports/*.txt 2>/dev/null || true
           exit "$status"
       # The corpus is merged into a fresh directory and swapped in only when
-      # the merge finished, so a failed merge leaves the old corpus.
+      # the merge finished without a finding, so a failed merge leaves the
+      # old corpus. tools/fuzz_target.sh keeps the merge's log on the runner.
       - name: Minimize the corpus
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: |
           mkdir -p "out/merged/$TARGET"
-          if "out/fuzz/$TARGET" -merge=1 -max_len=4096 "out/merged/$TARGET" "out/corpus/$TARGET" \
-            >"out/fuzz-logs/$TARGET.merge.log" 2>&1; then
-            rm -rf "out/corpus/$TARGET" && mv "out/merged/$TARGET" "out/corpus/$TARGET"
-          else
-            # The merge log can dump an input, so it stays on the runner.
-            echo "::error::$TARGET: the merge failed with status $?"
-            exit 1
-          fi
+          tools/fuzz_target.sh --merge "out/fuzz/$TARGET" "out/merged/$TARGET" "out/corpus/$TARGET"
+          rm -rf "out/corpus/$TARGET" && mv "out/merged/$TARGET" "out/corpus/$TARGET"
           echo "$TARGET: $(find "out/corpus/$TARGET" -type f | wc -l) inputs, $(du -sm "out/corpus/$TARGET" | cut -f1) MB"
       - name: Save the corpus
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
@@ -297,7 +292,11 @@ jobs:
       - name: Build
         run: |
           cmake --preset linux-clang-20 >/dev/null
-          cmake --build --preset linux-clang-20 --target test_soak test_walk
+          cmake --build --preset linux-clang-20
+      # The tests the required runs leave out: a failed one is a known
+      # flake and a warning, anything else fails the step.
+      - name: Quarantined tests
+        run: tools/run_quarantine.sh out/linux-clang-20
       - name: Long soak
         run: ./out/linux-clang-20/test_soak 300000
       - name: Deep API walk

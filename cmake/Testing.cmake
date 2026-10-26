@@ -1,4 +1,4 @@
-# maul_add_test(<name> [WHITEBOX] [THREADS] [POSIX] [MANUAL])
+# maul_add_test(<name> [WHITEBOX] [THREADS] [POSIX] [MANUAL] [QUARANTINE])
 #
 # Builds test/test_<name>.c into test_<name> and registers it with
 # CTest as <name>, labeled <name>, so a check can run the suites a change
@@ -8,9 +8,11 @@
 #   THREADS   links the platform thread library.
 #   POSIX     uses POSIX threads directly and is skipped on Windows.
 #   MANUAL    is built but not registered: soaks and timing runs.
+#   QUARANTINE also labels it quarantine: the required runs leave it out
+#             and the nightly runs it through tools/run_quarantine.sh.
 
 function(maul_add_test name)
-    cmake_parse_arguments(ARG "WHITEBOX;THREADS;POSIX;MANUAL" "" "" ${ARGN})
+    cmake_parse_arguments(ARG "WHITEBOX;THREADS;POSIX;MANUAL;QUARANTINE" "" "" ${ARGN})
     if(ARG_POSIX AND WIN32)
         return()
     endif()
@@ -31,7 +33,20 @@ function(maul_add_test name)
     if(NOT ARG_MANUAL)
         add_test(NAME ${name} COMMAND ${target})
         set_tests_properties(${name} PROPERTIES LABELS ${name})
+        if(ARG_QUARANTINE)
+            maul_quarantine(${name})
+        endif()
     endif()
+endfunction()
+
+# maul_quarantine(<test> ...)
+#
+# Adds the quarantine label to tests registered some other way, such as a
+# page or a fixture-driven run, as maul_add_test's QUARANTINE does.
+function(maul_quarantine)
+    foreach(test IN LISTS ARGN)
+        set_property(TEST ${test} APPEND PROPERTY LABELS quarantine)
+    endforeach()
 endfunction()
 
 # maul_add_exports_test([EXCLUDE <header> ...] [PROGRAM <function> ...])

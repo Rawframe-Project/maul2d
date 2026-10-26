@@ -29,13 +29,17 @@ Run `changed` before every push. On the shared development machine, run `pr` and
 | `testbed` | The native testbed builds. |
 | `web` | The library and its tests under Emscripten and Node, the golden test included, and the size of the static library. |
 | `fuzz` | One job per fuzz target. A pull request fuzzes each for 20 seconds from the inputs the targets build; `main` fuzzes for 90 seconds and the nightly or a dispatch for 600 (`fuzz_walk` for 3600), each from the target's cached corpus. On `main` and at night each corpus is then minimized and, when the run found nothing, saved. A finding prints a report without its input, from `tools/fuzz_target.sh`, and nothing is uploaded. |
-| `simulation` | At night only: a long soak and a deep API walk. |
+| `simulation` | At night only: the quarantined tests, a long soak and a deep API walk. |
 
 `pr-title.yml` checks that the pull request title is a conventional commit with a scope from `AGENTS.md`, and `pr-gate.yml` closes a pull request from outside the organization unless it closes an issue labeled `accepted`. `codeql.yml` runs CodeQL on pull requests, on `main` and weekly. `scorecard.yml` grades the repository's security practices weekly, and Dependabot proposes updates of the pinned actions. `pages.yml` publishes the documentation site and the browser testbed from `main`.
 
 ## Test hygiene
 
 `tools/check_test_hygiene.py`, shared by the family, rejects sleeps, wall-clock reads, retry loops and skips in the test sources and skip properties in the CMake files. A use that must stay carries `// hygiene: <reason>`, in a comment and with a reason of at least three words, on its line or the one before. With `--ctest` it also rejects a test registered without a label: CI checks the default and the shared configurations, and `tools/check.sh` every preset it configures. `--self-test` runs it over the fixtures in `tools/test_hygiene/`.
+
+## Quarantine
+
+A failing test is never rerun to pass. One that fails without a fault in the change under test is quarantined: an issue records the failure and its run, and the test (or the one check that failed, split into a test of its own) is registered with `maul_add_test(<name> QUARANTINE)` or labeled with `maul_quarantine(<name>)`. Every test preset leaves out the `quarantine` label, so the required runs and `tools/check.sh` skip it. The nightly `simulation` job runs it through `tools/run_quarantine.sh out/linux-clang-20`: a failure there is a warning and a line in the job summary, while a skipped test, a sanitizer report or a crash fails the night. A test leaves quarantine when its issue's fix lands and 14 nights in a row have passed it. maul2d has no quarantined test today.
 
 ## Fuzzing
 

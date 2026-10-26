@@ -277,6 +277,11 @@
         "noTestsAction": "error",
         "timeout": 300,
         "jobs": 4
+      },
+      "filter": {
+        "exclude": {
+          "label": "^quarantine$"
+        }
       }
     },
     {
