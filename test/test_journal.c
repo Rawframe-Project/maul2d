@@ -159,12 +159,12 @@ static void RunSession(m2World* world, uint8_t* journal, int32_t capacity, int32
     }
     DestroyBody(world, victim);
     DestroyJoint(world, rod);
-    DestroyChain(world, chainId);                        // op 24
-    m2Body_ApplyForce(world, bob, (m2Vec2){3.0f, 1.0f}); // op 28
-    m2Body_ApplyTorque(world, bob, 0.8f);                // op 29
-    m2Body_SetLinearDamping(world, bob, 0.2f);           // op 25
-    m2Body_SetFixedRotation(world, bob, true);           // op 25
-    m2World_EnableSleeping(world, false);                // op 26
+    DestroyChain(world, chainId);                                           // op 24
+    m2Body_ApplyForce(world, bob, (m2Vec2){3.0f, 1.0f});                    // op 28
+    m2Body_ApplyTorque(world, bob, 0.8f);                                   // op 29
+    m2Body_SetLinearDamping(world, bob, 0.2f);                              // op 25
+    m2Body_SetMotionLocks(world, bob, (m2MotionLocks){false, false, true}); // op 25
+    m2World_EnableSleeping(world, false);                                   // op 26
     m2World_EnableSleeping(world, true);
     m2MotorJointDef chase = m2DefaultMotorJointDef(); // op 31
     chase.bodyIdA = anchor;
@@ -515,8 +515,7 @@ static void TestTapeBoolsAreZeroOrOne(void)
     CHECK(StartJournal(world, tape, capacity), "the journal starts again");
     m2BodyId body = NewBody(world, &bodyDef);
     int32_t bytes = StopJournal(world);
-    const size_t bodyBools[] = {offsetof(m2BodyDef, fixedRotation),
-                                offsetof(m2BodyDef, enableSleep), offsetof(m2BodyDef, isEnabled),
+    const size_t bodyBools[] = {offsetof(m2BodyDef, enableSleep), offsetof(m2BodyDef, isEnabled),
                                 offsetof(m2BodyDef, isBullet),
                                 offsetof(m2BodyDef, motionLocks.angularZ)};
     for (size_t i = 0; i < sizeof(bodyBools) / sizeof(bodyBools[0]); ++i)

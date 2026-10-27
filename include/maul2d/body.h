@@ -38,8 +38,8 @@ extern "C"
     /// Per-axis motion locks. A locked axis holds still: its velocity is
     /// zeroed each substep, so contacts, joints, gravity and impulses
     /// cannot move the body along it. linearX and linearY lock world-frame
-    /// translation; angularZ locks rotation and is the same lock as
-    /// fixedRotation (setting either locks the spin). All default false.
+    /// translation; angularZ locks rotation, which also makes the
+    /// rotational inertia infinite. All default false.
     typedef struct m2MotionLocks
     {
         bool linearX;
@@ -58,8 +58,7 @@ extern "C"
         float gravityScale;
         float linearDamping; // v / (1 + h d) per substep, implicit
         float angularDamping;
-        m2MotionLocks motionLocks;   // angularZ is the same lock as fixedRotation
-        bool fixedRotation;          // never rotates: infinite rotational inertia
+        m2MotionLocks motionLocks;   // angularZ: never rotates, infinite inertia
         bool enableSleep;            // false: this body never sleeps
         bool isEnabled;              // false: created dormant, outside the simulation
         int8_t dominance;            // the higher side of a contact cannot be pushed
@@ -468,7 +467,18 @@ extern "C"
     /// several readers at once.
     M2_API m2Pos2 m2Body_GetWorldCenterOfMass(const m2World* world, m2BodyId bodyId);
 
-    /// Reads a body's rotational inertia about its center of mass.
+    /// Reads a body's mass: m2MassData.mass.
+    ///
+    /// @param world   The world.
+    /// @param bodyId  The body; a stale id counts one misuse.
+    /// @return The mass, kg; 0 for a body that is not dynamic or a stale id.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M2_API float m2Body_GetMass(const m2World* world, m2BodyId bodyId);
+
+    /// Reads a body's rotational inertia about its center of mass:
+    /// m2MassData.centralInertia.
     ///
     /// @param world   The world.
     /// @param bodyId  The body; a stale id counts one misuse.
@@ -476,7 +486,7 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API float m2Body_GetRotationalInertia(const m2World* world, m2BodyId bodyId);
+    M2_API float m2Body_GetCentralInertia(const m2World* world, m2BodyId bodyId);
 
     /// Computes the tight box around every shape of a body, without the
     /// broadphase margins.
@@ -653,30 +663,9 @@ extern "C"
     /// Safe from any thread; a world is used by one thread at a time.
     M2_API void m2Body_SetGravityScale(m2World* world, m2BodyId bodyId, float scale);
 
-    /// Fixes or frees a body's rotation. Fixing it zeroes the angular
-    /// velocity, and either way the inertia recomputes; it is the same lock
-    /// as m2MotionLocks.angularZ. A stale id counts one misuse. Journaled.
-    ///
-    /// @param world   The world.
-    /// @param bodyId  The body.
-    /// @param flag    True to fix the rotation.
-    /// @par Thread safety
-    /// Safe from any thread; a world is used by one thread at a time.
-    M2_API void m2Body_SetFixedRotation(m2World* world, m2BodyId bodyId, bool flag);
-
-    /// Tells whether a body's rotation is fixed.
-    ///
-    /// @param world   The world.
-    /// @param bodyId  The body; a stale id counts one misuse.
-    /// @return True when fixed; false for a stale id.
-    /// @par Thread safety
-    /// Safe from any thread; a world is used by one thread at a time, or by
-    /// several readers at once.
-    M2_API bool m2Body_IsFixedRotation(const m2World* world, m2BodyId bodyId);
-
-    /// Sets a body's motion locks. angularZ is the same lock as
-    /// fixedRotation, and changing it recomputes the inertia. The body
-    /// wakes. A stale id counts one misuse. Journaled.
+    /// Sets a body's motion locks. Locking an axis zeroes its velocity, and
+    /// changing angularZ recomputes the inertia. The body wakes. A stale id
+    /// counts one misuse. Journaled.
     ///
     /// @param world   The world.
     /// @param bodyId  The body.

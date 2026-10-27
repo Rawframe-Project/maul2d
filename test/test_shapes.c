@@ -103,7 +103,7 @@ static void TestAabbAndMass(void)
     NewPolygonShape(worldId, boxBody, &sd2, &box);
     CHECK_NEAR(m2Body_GetMass(worldId, boxBody), 1.0f, 1.0e-4f, "unit box mass");
     float expectedInvI = 1.0f / (1.0f * (1.0f + 1.0f) / 12.0f);
-    CHECK_NEAR(1.0f / m2Body_GetRotationalInertia(worldId, boxBody), expectedInvI, 1.0e-2f,
+    CHECK_NEAR(1.0f / m2Body_GetCentralInertia(worldId, boxBody), expectedInvI, 1.0e-2f,
                "box inertia");
 
     // Zero-density dynamic body: the minimum-mass floor, never NaN.
@@ -131,7 +131,7 @@ static void TestAabbAndMass(void)
     m2Circle farCircle = {{1000.0f, 0.0f}, 1.0f};
     NewCircleShape(worldId, farBody, &sd4, &farCircle);
     float farMass = m2Body_GetMass(worldId, farBody);
-    CHECK_NEAR(m2Body_GetRotationalInertia(worldId, farBody), farMass * 0.5f, 1.0e-3f,
+    CHECK_NEAR(m2Body_GetCentralInertia(worldId, farBody), farMass * 0.5f, 1.0e-3f,
                "a far-off-origin circle's inertia is cancellation-free");
 
     // Two circles straddling the origin: the COM lands between them, so the
@@ -144,7 +144,7 @@ static void TestAabbAndMass(void)
     NewCircleShape(worldId, two, &sd4, &right);
     float mc = 3.14159f * 0.25f; // each circle mass, r=0.5
     float twoExpected = 2.0f * (mc * 0.5f * 0.25f + mc * 9.0f);
-    CHECK_NEAR(m2Body_GetRotationalInertia(worldId, two), twoExpected, 1.0e-2f,
+    CHECK_NEAR(m2Body_GetCentralInertia(worldId, two), twoExpected, 1.0e-2f,
                "a symmetric two-circle body matches the analytic inertia");
 
     m2DestroyWorld(worldId);
@@ -365,7 +365,7 @@ static void TestMassClosedForms(void)
     double lc = 4.0 * 0.5 / (3.0 * 3.14159265358979);
     double capsuleInertia = 2.0 * (4.0 + 1.0) / 12.0 + disc * (0.5 * 0.25 + 1.0 + 2.0 * lc);
     CHECK(fabs((double)m2Body_GetMass(world, pill) - (2.0 + disc)) < 1.0e-4, "capsule mass");
-    CHECK(fabs((double)m2Body_GetRotationalInertia(world, pill) - capsuleInertia) < 1.0e-4,
+    CHECK(fabs((double)m2Body_GetCentralInertia(world, pill) - capsuleInertia) < 1.0e-4,
           "capsule inertia");
 
     m2BodyId block = NewBody(world, &bd);
@@ -380,8 +380,7 @@ static void TestMassClosedForms(void)
     double out = 1.41421356237310 + reach;
     double corners = 4.0 * (quarter * (0.5 * 0.25 - reach * reach) + quarter * out * out);
     CHECK(fabs((double)m2Body_GetMass(world, block) - area) < 1.0e-4, "rounded square mass");
-    CHECK(fabs((double)m2Body_GetRotationalInertia(world, block) - (core + rects + corners)) <
-              1.0e-3,
+    CHECK(fabs((double)m2Body_GetCentralInertia(world, block) - (core + rects + corners)) < 1.0e-3,
           "rounded square inertia");
     m2DestroyWorld(world);
 }

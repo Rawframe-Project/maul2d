@@ -751,16 +751,6 @@ extern "C"
     /// several readers at once.
     M2_API uint64_t m2Shape_GetUserData(const m2World* world, m2ShapeId shapeId);
 
-    /// Reads a body's mass, derived from its shapes' densities.
-    ///
-    /// @param world   The world.
-    /// @param bodyId  The body; a stale id counts one misuse.
-    /// @return The mass; 0 for a body that is not dynamic or a stale id.
-    /// @par Thread safety
-    /// Safe from any thread; a world is used by one thread at a time, or by
-    /// several readers at once.
-    M2_API float m2Body_GetMass(const m2World* world, m2BodyId bodyId);
-
     static const m2ShapeId m2_nullShapeId = {0, 0};
 
     /// The filter of a query. A shape answers a query when each side's

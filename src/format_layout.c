@@ -152,11 +152,10 @@ M2_PIN_AT(m2BodyDef, gravityScale, 44);
 M2_PIN_AT(m2BodyDef, linearDamping, 48);
 M2_PIN_AT(m2BodyDef, angularDamping, 52);
 M2_PIN_AT(m2BodyDef, motionLocks, 56);
-M2_PIN_AT(m2BodyDef, fixedRotation, 59);
-M2_PIN_AT(m2BodyDef, enableSleep, 60);
-M2_PIN_AT(m2BodyDef, isEnabled, 61);
-M2_PIN_AT(m2BodyDef, dominance, 62);
-M2_PIN_AT(m2BodyDef, isBullet, 63);
+M2_PIN_AT(m2BodyDef, enableSleep, 59);
+M2_PIN_AT(m2BodyDef, isEnabled, 60);
+M2_PIN_AT(m2BodyDef, dominance, 61);
+M2_PIN_AT(m2BodyDef, isBullet, 62);
 M2_PIN_AT(m2BodyDef, userData, 64);
 M2_PIN_AT(m2BodyDef, internalValue, 72);
 

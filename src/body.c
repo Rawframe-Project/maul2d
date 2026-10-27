@@ -98,11 +98,11 @@ static M2_NOINLINE m2Result CreateBodyWorker(m2World* world, const m2BodyDef* de
     // angularZ-locked) body drops any initial angular velocity at birth,
     // the same as the runtime setter does.
     world->bodies.angularVelocities[index] =
-        (def->fixedRotation || def->motionLocks.angularZ) ? 0.0f : def->angularVelocity;
+        def->motionLocks.angularZ ? 0.0f : def->angularVelocity;
     world->bodies.gravityScales[index] = def->gravityScale;
     world->bodies.linearDampings[index] = def->linearDamping;
     world->bodies.angularDampings[index] = def->angularDamping;
-    world->bodies.fixedRotations[index] = (def->fixedRotation || def->motionLocks.angularZ) ? 1 : 0;
+    world->bodies.fixedRotations[index] = def->motionLocks.angularZ ? 1 : 0;
     world->bodies.motionLocks[index] =
         (uint8_t)((def->motionLocks.linearX ? M2_LOCK_LINEAR_X : 0u) |
                   (def->motionLocks.linearY ? M2_LOCK_LINEAR_Y : 0u));
@@ -411,24 +411,6 @@ void m2Body_SetGravityScale(m2World* world, m2BodyId bodyId, float scale)
     BodySetGravityScaleWorker(world, bodyId, scale);
     m2FloatEnvLeave(env);
 }
-
-static M2_NOINLINE void BodySetFixedRotationWorker(m2World* world, m2BodyId bodyId, bool flag)
-{
-    if (m2CheckWriter(world) != m2_success)
-    {
-        return;
-    }
-    m2SetBodyParamInternal(world, bodyId, m2_bodyParamFixedRotation, flag ? 1.0f : 0.0f);
-}
-
-void m2Body_SetFixedRotation(m2World* world, m2BodyId bodyId, bool flag)
-{
-    uint64_t env = m2FloatEnvEnter();
-    BodySetFixedRotationWorker(world, bodyId, flag);
-    m2FloatEnvLeave(env);
-}
-
-M2_BODY_GETTER(bool, m2Body_IsFixedRotation, world->bodies.fixedRotations[index] != 0, false)
 
 static M2_NOINLINE void BodySetMotionLocksWorker(m2World* world, m2BodyId bodyId,
                                                  m2MotionLocks locks)
