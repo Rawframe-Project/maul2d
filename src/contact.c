@@ -539,7 +539,7 @@ static M2_NOINLINE int32_t ShapeGetSensorOverlapsWorker(const m2World* world,
         {
             continue;
         }
-        if (total < capacity)
+        if (overlaps != NULL && total < capacity)
         {
             overlaps[total] = m2MakeShapeId(world, a == sensor ? b : a);
         }
@@ -579,7 +579,7 @@ static M2_NOINLINE int32_t WorldGetContactDataWorker(const m2World* world, m2Con
                 continue; // sensors carry no physical contact
             }
         }
-        if (total < capacity)
+        if (data != NULL && total < capacity)
         {
             int32_t shapeA = (int32_t)(world->contacts.pairKeys[i] >> 32);
             int32_t shapeB = (int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu);

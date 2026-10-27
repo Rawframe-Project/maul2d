@@ -594,6 +594,8 @@ static void TestContactData(void)
 
     // Capacity clamp stays truthful.
     CHECK(m2World_GetContactData(world, data, 0) == 1, "total reported beyond capacity");
+    CHECK(m2World_GetContactData(world, NULL, 4) == 1,
+          "a null array measures, whatever the capacity");
 
     m2DestroyWorld(world);
 }
