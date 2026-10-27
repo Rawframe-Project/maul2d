@@ -6,6 +6,18 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.5.0](https://github.com/Rawframe-Project/maul2d/compare/v0.4.0...v0.5.0) (2026-10-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* **world:** m2CreateWorld refuses with m2_errorCapacity a def whose world would snapshot to more than M2_MAX_SNAPSHOT_BYTES (1,073,741,801 bytes, about 840,000 shape slots), before it allocates anything.
+
+### Fixed
+
+* **api:** measure with a null array at any capacity ([#95](https://github.com/Rawframe-Project/maul2d/issues/95)) ([16fcb22](https://github.com/Rawframe-Project/maul2d/commit/16fcb2214b8c2a07767570043d3139c8d60abd9c)), closes [#94](https://github.com/Rawframe-Project/maul2d/issues/94)
+* **world:** refuse a world too large for a snapshot and its journal ([#92](https://github.com/Rawframe-Project/maul2d/issues/92)) ([f47dc56](https://github.com/Rawframe-Project/maul2d/commit/f47dc566d9f3582e5ab5831add419923fcfc00fc))
+
 ## [0.4.0](https://github.com/Rawframe-Project/maul2d/compare/v0.3.0...v0.4.0) (2026-10-26)
 
 ### Changed
