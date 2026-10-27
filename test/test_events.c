@@ -277,6 +277,11 @@ static void TestTypeChangeBookends(void)
     m2DestroyWorld(world);
 }
 
+static bool SameShape(m2ShapeId a, m2ShapeId b)
+{
+    return a.index1 == b.index1 && a.generation == b.generation;
+}
+
 static void TestSensors(void)
 {
     // A checkpoint zone: the runner falls through it (no response),
@@ -309,33 +314,29 @@ static void TestSensors(void)
     m2BodyId runner = NewBody(world, &bd);
     m2ShapeDef rs = m2DefaultShapeDef();
     m2Circle ball = {{0.0f, 0.0f}, 0.3f};
-    NewCircleShape(world, runner, &rs, &ball);
+    m2ShapeId runnerId = NewCircleShape(world, runner, &rs, &ball);
 
     bool sawEnter = false;
     bool sawExit = false;
     bool contactStreamPolluted = false;
-    int32_t enterPointCount = -1;
-    double enterPointY = 0.0;
+    uint64_t enterStep = 0;
     for (int32_t i = 0; i < 180; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
         m2SensorEvents sensor = m2World_GetSensorEvents(world);
         for (int32_t k = 0; k < sensor.beginCount; ++k)
         {
-            bool isZone = sensor.beginEvents[k].shapeIdA.index1 == zoneId.index1 ||
-                          sensor.beginEvents[k].shapeIdB.index1 == zoneId.index1;
-            sawEnter = sawEnter || isZone;
-            if (isZone && enterPointCount < 0)
+            const m2SensorBeginEvent* e = &sensor.beginEvents[k];
+            if (SameShape(e->sensorShapeId, zoneId) && SameShape(e->visitorShapeId, runnerId))
             {
-                // The overlap hit point rides the begin event.
-                enterPointCount = sensor.beginEvents[k].pointCount;
-                enterPointY = sensor.beginEvents[k].points[0].y;
+                sawEnter = true;
+                enterStep = e->step;
             }
         }
         for (int32_t k = 0; k < sensor.endCount; ++k)
         {
-            sawExit = sawExit || sensor.endEvents[k].shapeIdA.index1 == zoneId.index1 ||
-                      sensor.endEvents[k].shapeIdB.index1 == zoneId.index1;
+            sawExit = sawExit || (SameShape(sensor.endEvents[k].sensorShapeId, zoneId) &&
+                                  SameShape(sensor.endEvents[k].visitorShapeId, runnerId));
         }
         m2ContactEvents contact = m2World_GetContactEvents(world);
         for (int32_t k = 0; k < contact.beginCount; ++k)
@@ -349,8 +350,7 @@ static void TestSensors(void)
     CHECK(sawExit, "and leaving out the bottom");
     CHECK(!contactStreamPolluted, "the contact stream never hears about sensors");
     CHECK(m2Body_GetPosition(world, runner).y < 1.0, "the runner fell straight through the zone");
-    CHECK(enterPointCount > 0, "the sensor begin carries the overlap hit point");
-    CHECK(enterPointY > 2.0 && enterPointY < 4.0, "the hit point sits at the zone overlap");
+    CHECK(enterStep > 0, "the sensor begin carries its step");
 
     // A box parked inside a sensor zone still sleeps (sensors never
     // hold anyone awake).
@@ -386,6 +386,45 @@ static void TestSensors(void)
     }
     CHECK(sawDestroyEnd, "destroying an overlapped sensor emits its end");
 
+    m2DestroyWorld(world);
+}
+
+static void TestSensorEventRoles(void)
+{
+    // The sensor is created after the shape it senses, so it has the
+    // higher index and the second place in the pair; the events still
+    // name it as the sensor, on the step's stream and on the destroy queue.
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    bd.position = (m2Pos2){0.0, 2.0};
+    bd.gravityScale = 0.0f;
+    m2BodyId visitorBody = NewBody(world, &bd);
+    m2ShapeDef vs = m2DefaultShapeDef();
+    m2Circle ball = {{0.0f, 0.0f}, 0.3f};
+    m2ShapeId visitor = NewCircleShape(world, visitorBody, &vs, &ball);
+    m2BodyDef zd = m2DefaultBodyDef();
+    zd.position = (m2Pos2){0.0, 2.0};
+    m2BodyId zoneBody = NewBody(world, &zd);
+    m2ShapeDef zs = m2DefaultShapeDef();
+    zs.isSensor = true;
+    m2Polygon area = m2MakeBox(1.0f, 1.0f);
+    m2ShapeId zone = NewPolygonShape(world, zoneBody, &zs, &area);
+
+    m2World_Step(world, 1.0f / 60.0f, 4);
+    m2SensorEvents begin = m2World_GetSensorEvents(world);
+    CHECK(begin.beginCount == 1 && SameShape(begin.beginEvents[0].sensorShapeId, zone) &&
+              SameShape(begin.beginEvents[0].visitorShapeId, visitor) &&
+              begin.beginEvents[0].step + 1 == m2World_GetStepCount(world),
+          "a sensor of higher index is named as the sensor on its begin");
+
+    DestroyBody(world, visitorBody);
+    m2World_Step(world, 1.0f / 60.0f, 4);
+    m2SensorEvents end = m2World_GetSensorEvents(world);
+    CHECK(end.endCount == 1 && SameShape(end.endEvents[0].sensorShapeId, zone) &&
+              SameShape(end.endEvents[0].visitorShapeId, visitor),
+          "and on the end a destroyed visitor queues");
     m2DestroyWorld(world);
 }
 
@@ -495,6 +534,7 @@ int main(void)
     TestSensorOverlapQuery();
     TestBeginEventPayload();
     TestSensors();
+    TestSensorEventRoles();
     TestTypeChangeBookends();
     TestDestroyShapeBookends();
     TestLifecycleSymmetry();

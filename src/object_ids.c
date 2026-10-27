@@ -39,3 +39,11 @@ m2ShapeId m2MakeShapeId(const m2World* world, int32_t shapeIndex)
     m2ShapeId id = {(uint32_t)(shapeIndex + 1), world->shapes.shapeGenerations[shapeIndex]};
     return id;
 }
+
+void m2SensorPairIds(const m2World* world, int32_t shapeA, int32_t shapeB, m2ShapeId* sensorOut,
+                     m2ShapeId* visitorOut)
+{
+    bool aIsSensor = world->shapes.shapeSensor[shapeA] != 0;
+    *sensorOut = m2MakeShapeId(world, aIsSensor ? shapeA : shapeB);
+    *visitorOut = m2MakeShapeId(world, aIsSensor ? shapeB : shapeA);
+}

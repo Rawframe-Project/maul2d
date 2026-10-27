@@ -356,7 +356,7 @@ static void EmitTouchEvents(m2World* world)
             {
                 if (sensor)
                 {
-                    m2EmitSensorBegin(world, a, b, i);
+                    m2EmitSensorBegin(world, a, b);
                 }
                 else
                 {
