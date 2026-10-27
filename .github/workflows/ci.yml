@@ -206,7 +206,8 @@ jobs:
 
   # Each fuzz target feeds hostile snapshots, tapes and points, or drives
   # the API walk, and crashes on a broken promise: 20 seconds on a pull
-  # request, 90 on main and 600 at night or on a dispatch. One job per
+  # request, 90 on main and 600 at night or on a dispatch, where the walk,
+  # whose inputs are slow and distinct, takes 3600. One job per
   # target, each with its own corpus cache: restored by every run but a
   # pull request's (the newest of that target's), minimized with
   # libFuzzer's merge and saved from main when the run found nothing. A
@@ -216,7 +217,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.code == 'true'
     runs-on: ubuntu-24.04
-    timeout-minutes: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 25 || 15 }}
+    timeout-minutes: ${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && (matrix.target == 'fuzz_walk' && 75 || 25) || 15 }}
     # The image cpp.yml uses; --init reaps orphaned processes.
     container:
       image: ghcr.io/rawframe-project/ci-cpp:2026.10.7@sha256:08c846597243dc000c83d6c008d078a8c3fabf8633d83963d46c0e6d02c2577e
@@ -229,7 +230,7 @@ jobs:
         target: [fuzz_snapshot, fuzz_journal, fuzz_geometry, fuzz_walk]
     env:
       TARGET: ${{ matrix.target }}
-      FUZZ_SECONDS: ${{ github.event_name == 'pull_request' && 20 || ((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && 600 || 90) }}
+      FUZZ_SECONDS: ${{ github.event_name == 'pull_request' && 20 || ((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && (matrix.target == 'fuzz_walk' && 3600 || 600) || 90) }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
