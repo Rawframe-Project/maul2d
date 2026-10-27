@@ -48,6 +48,7 @@ validity, types, flags, ids and user data:
     m2Body_SetUserData
     m2Chain_GetSegmentCount
     m2Chain_GetShapes
+    m2Chain_IsLoop
     m2Chain_IsValid
     m2FluidVolume_GetUserData
     m2FluidVolume_IsValid
@@ -60,7 +61,6 @@ validity, types, flags, ids and user data:
     m2Joint_IsSpringEnabled
     m2Joint_IsValid
     m2Joint_SetUserData
-    m2DistanceJoint_IsSpringEnabled
     m2Particle_GetFlags
     m2Particle_GetUserData
     m2Particle_IsValid
@@ -79,7 +79,7 @@ validity, types, flags, ids and user data:
     m2World_GetParticleCount
     m2World_GetParticles
     m2World_GetStepCount
-    m2World_IsSleepingEnabled
+    m2World_IsSleepEnabled
 
 stored values read back as they are (M2_BODY_GETTER and M2_GEOMETRY_GETTER):
     m2Body_GetAngularDamping

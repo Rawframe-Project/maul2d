@@ -149,6 +149,7 @@ static void TestChainDestroy(void)
     m2ChainId chainId = NewChain(world, ground, &chain);
     CHECK(m2Chain_IsValid(world, chainId), "chain id is live after create");
     CHECK(m2Chain_GetSegmentCount(world, chainId) == 3, "six open points make three segments");
+    CHECK(!m2Chain_IsLoop(world, chainId), "and read back as an open chain");
 
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
@@ -170,6 +171,7 @@ static void TestChainDestroy(void)
     DestroyChain(world, chainId);
     CHECK(!m2Chain_IsValid(world, chainId), "destroyed chain id misses on generation");
     CHECK(m2Chain_GetSegmentCount(world, chainId) == 0, "destroyed chain reports zero segments");
+    CHECK(!m2Chain_IsLoop(world, chainId), "and is no loop");
     CHECK(m2Body_IsValid(world, ground), "the owning body outlives its chain");
 
     for (int32_t i = 0; i < 90; ++i)

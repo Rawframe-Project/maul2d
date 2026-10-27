@@ -58,7 +58,7 @@ static void RecordPrismaticJointDef(m2PrismaticJointDef* out, const m2PrismaticJ
     out->lowerTranslation = def->lowerTranslation;
     out->upperTranslation = def->upperTranslation;
     out->userData = def->userData;
-    out->collideConnected = def->collideConnected;
+    out->enableConnectedCollision = def->enableConnectedCollision;
     out->internalValue = def->internalValue;
 }
 
@@ -105,8 +105,8 @@ static M2_NOINLINE m2Result CreatePrismaticJointWorker(m2World* world,
         m2FinishJoint(world, index, (uint8_t)m2_prismaticJoint, bodyA, bodyB, def->localAnchorA,
                       def->localAnchorB, 0.0f, def->hertz, def->dampingRatio);
     world->joints.jointUserData[index] = def->userData;
-    world->joints.jointCollide[index] = def->collideConnected ? 1 : 0;
-    if (def->collideConnected == false)
+    world->joints.jointCollide[index] = def->enableConnectedCollision ? 1 : 0;
+    if (def->enableConnectedCollision == false)
     {
         m2RefilterJointedBodies(world, bodyA, bodyB);
     }

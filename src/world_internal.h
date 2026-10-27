@@ -151,6 +151,7 @@ typedef struct m2Chains
     int32_t maxChainIndex;
     uint8_t* chainAlive;
     int32_t* chainBody;
+    uint8_t* chainLoop; // 1 for a closed loop; read back only, never by the step
     uint32_t* chainGenerations;
     int32_t* chainFreeQueue;
     int32_t chainFreeHead;

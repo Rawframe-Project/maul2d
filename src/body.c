@@ -701,22 +701,9 @@ void m2Body_SetUserData(m2World* world, m2BodyId bodyId, uint64_t userData)
     world->bodies.userData[index] = userData;
 }
 
-static M2_NOINLINE void BodyDisableWorker(m2World* world, m2BodyId bodyId)
+// Takes a live, enabled body's shapes out of the broadphase.
+static void DisableBody(m2World* world, m2BodyId bodyId, int32_t index)
 {
-    if (m2CheckWriter(world) != m2_success)
-    {
-        return;
-    }
-    int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0)
-    {
-        m2Refuse(world, m2_errorStale);
-        return;
-    }
-    if (world->bodies.disabled[index] != 0)
-    {
-        return; // already dormant: no-op stays unjournaled
-    }
     m2JournalRecord(world, m2_opDisableBody, &bodyId, (int32_t)sizeof(bodyId));
     for (int32_t s = world->bodies.bodyShapeHead[index]; s != -1; s = world->shapes.shapeNext[s])
     {
@@ -727,29 +714,9 @@ static M2_NOINLINE void BodyDisableWorker(m2World* world, m2BodyId bodyId)
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_Disable(m2World* world, m2BodyId bodyId)
+// Puts a live, disabled body's shapes back into the broadphase.
+static void EnableBody(m2World* world, m2BodyId bodyId, int32_t index)
 {
-    uint64_t env = m2FloatEnvEnter();
-    BodyDisableWorker(world, bodyId);
-    m2FloatEnvLeave(env);
-}
-
-static M2_NOINLINE void BodyEnableWorker(m2World* world, m2BodyId bodyId)
-{
-    if (m2CheckWriter(world) != m2_success)
-    {
-        return;
-    }
-    int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0)
-    {
-        m2Refuse(world, m2_errorStale);
-        return;
-    }
-    if (world->bodies.disabled[index] == 0)
-    {
-        return; // already enabled
-    }
     m2JournalRecord(world, m2_opEnableBody, &bodyId, (int32_t)sizeof(bodyId));
     world->bodies.disabled[index] = 0;
     int32_t tree = world->bodies.types[index];
@@ -764,10 +731,36 @@ static M2_NOINLINE void BodyEnableWorker(m2World* world, m2BodyId bodyId)
     world->bodies.sleepTimes[index] = 0.0f;
 }
 
-void m2Body_Enable(m2World* world, m2BodyId bodyId)
+static M2_NOINLINE void BodySetEnabledWorker(m2World* world, m2BodyId bodyId, bool flag)
+{
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
+    int32_t index = m2BodySlot(world, bodyId);
+    if (index < 0)
+    {
+        m2Refuse(world, m2_errorStale);
+        return;
+    }
+    if ((world->bodies.disabled[index] == 0) == flag)
+    {
+        return; // no change: a no-op stays unjournaled
+    }
+    if (flag)
+    {
+        EnableBody(world, bodyId, index);
+    }
+    else
+    {
+        DisableBody(world, bodyId, index);
+    }
+}
+
+void m2Body_SetEnabled(m2World* world, m2BodyId bodyId, bool flag)
 {
     uint64_t env = m2FloatEnvEnter();
-    BodyEnableWorker(world, bodyId);
+    BodySetEnabledWorker(world, bodyId, flag);
     m2FloatEnvLeave(env);
 }
 

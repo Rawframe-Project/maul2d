@@ -153,7 +153,7 @@ void m2UpdatePairs(m2World* world)
                 if (m2JointsForbidPair(world, world->shapes.shapeBody[shapeIndex],
                                        world->shapes.shapeBody[other]))
                 {
-                    continue; // connected without collideConnected
+                    continue; // connected without enableConnectedCollision
                 }
                 if (collected < world->contacts.pairCapacity)
                 {

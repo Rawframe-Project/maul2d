@@ -54,7 +54,7 @@ static void RecordDistanceJointDef(m2DistanceJointDef* out, const m2DistanceJoin
     out->dampingRatio = def->dampingRatio;
     out->enableSpring = def->enableSpring;
     out->userData = def->userData;
-    out->collideConnected = def->collideConnected;
+    out->enableConnectedCollision = def->enableConnectedCollision;
     out->internalValue = def->internalValue;
 }
 
@@ -116,8 +116,8 @@ static M2_NOINLINE m2Result CreateDistanceJointWorker(m2World* world, const m2Di
         world->joints.jointFlags[index] |= M2_JOINT_ROPE; // rope/rod: gate the rest-length row
     }
     world->joints.jointUserData[index] = def->userData;
-    world->joints.jointCollide[index] = def->collideConnected ? 1 : 0;
-    if (def->collideConnected == false)
+    world->joints.jointCollide[index] = def->enableConnectedCollision ? 1 : 0;
+    if (def->enableConnectedCollision == false)
     {
         m2RefilterJointedBodies(world, bodyA, bodyB);
     }
@@ -187,12 +187,6 @@ void m2DistanceJoint_SetLengthRange(m2World* world, m2JointId jointId, float min
     uint64_t env = m2FloatEnvEnter();
     DistanceJointSetLengthRangeWorker(world, jointId, minLength, maxLength);
     m2FloatEnvLeave(env);
-}
-
-bool m2DistanceJoint_IsSpringEnabled(const m2World* world, m2JointId jointId)
-{
-    int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_distanceJoint);
-    return index >= 0 && (world->joints.jointFlags[index] & M2_JOINT_ROPE) != 0;
 }
 
 // --- Solver ---------------------------------------------------------------

@@ -49,7 +49,7 @@ enum
     m2_opSetFilter = 23,
     m2_opDestroyChain = 24,
     m2_opBodyParam = 25,
-    m2_opEnableSleeping = 26,
+    m2_opEnableSleep = 26,
     m2_opApplyForce = 27,
     m2_opApplyForceCenter = 28,
     m2_opApplyTorque = 29,
@@ -132,6 +132,8 @@ enum
     m2_jointParamMaxLength = 14,
     m2_jointParamGearRatio = 15,
     m2_jointParamPulleyRatio = 16,
+    m2_jointParamEnableSpring = 17,       // distance and wheel; resets the spring's impulses
+    m2_jointParamConnectedCollision = 18, // every kind but the filter joint
     m2_jointParamCount
 };
 

@@ -469,7 +469,7 @@ static void TestContactsAndAABBs(void)
     m2BodyId ghost = AddBody(world, m2_dynamicBody, 5.0, 5.0);
     m2Polygon gb = m2MakeBox(0.3f, 0.3f);
     NewPolygonShape(world, ghost, &sd, &gb);
-    m2Body_Disable(world, ghost);
+    m2Body_SetEnabled(world, ghost, false);
 
     Rec ra = {0};
     m2DebugDraw da = FullDraw(&ra);

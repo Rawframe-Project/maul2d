@@ -33,6 +33,10 @@ int32_t m2TypedJointSlot(const m2World* world, m2JointId jointId, uint8_t type);
     ((1u << m2_revoluteJoint) | (1u << m2_prismaticJoint) | (1u << m2_wheelJoint))
 #define M2_MAX_MOTOR_KINDS (M2_MOTOR_LIMIT_KINDS | (1u << m2_motorJoint))
 
+// The joint kinds with a spring toggle: a distance joint's rope or strut
+// and a wheel's suspension.
+#define M2_SPRING_KINDS ((1u << m2_distanceJoint) | (1u << m2_wheelJoint))
+
 // A distance joint's maximum length when it has none.
 #define M2_OPEN_LENGTH 3.4e38f
 

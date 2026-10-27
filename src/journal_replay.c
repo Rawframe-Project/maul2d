@@ -42,13 +42,13 @@ static bool ApplyDestroyBody(m2ReplayCursor* r, const m2OpPayload* p)
 
 static bool ApplyDisableBody(m2ReplayCursor* r, const m2OpPayload* p)
 {
-    m2Body_Disable(r->world, p->bodyId);
+    m2Body_SetEnabled(r->world, p->bodyId, false);
     return true;
 }
 
 static bool ApplyEnableBody(m2ReplayCursor* r, const m2OpPayload* p)
 {
-    m2Body_Enable(r->world, p->bodyId);
+    m2Body_SetEnabled(r->world, p->bodyId, true);
     return true;
 }
 
@@ -428,9 +428,9 @@ static bool ApplySetWind(m2ReplayCursor* r, const m2OpPayload* p)
     return true;
 }
 
-static bool ApplyEnableSleeping(m2ReplayCursor* r, const m2OpPayload* p)
+static bool ApplyEnableSleep(m2ReplayCursor* r, const m2OpPayload* p)
 {
-    m2World_EnableSleeping(r->world, p->flag.flag != 0);
+    m2World_EnableSleep(r->world, p->flag.flag != 0);
     return true;
 }
 
@@ -496,24 +496,29 @@ static const uint16_t s_bodyBools[] = {M2_AT(m2OpCreateBody, def.motionLocks.lin
                                        M2_AT(m2OpCreateBody, def.isEnabled),
                                        M2_AT(m2OpCreateBody, def.isBullet)};
 static const uint16_t s_shapeBools[] = {M2_AT(m2OpCreateShape, def.isSensor)};
-static const uint16_t s_distanceBools[] = {M2_AT(m2OpCreateDistanceJoint, def.enableSpring),
-                                           M2_AT(m2OpCreateDistanceJoint, def.collideConnected)};
-static const uint16_t s_revoluteBools[] = {M2_AT(m2OpCreateRevoluteJoint, def.enableMotor),
-                                           M2_AT(m2OpCreateRevoluteJoint, def.enableLimit),
-                                           M2_AT(m2OpCreateRevoluteJoint, def.collideConnected)};
-static const uint16_t s_prismaticBools[] = {M2_AT(m2OpCreatePrismaticJoint, def.enableMotor),
-                                            M2_AT(m2OpCreatePrismaticJoint, def.enableLimit),
-                                            M2_AT(m2OpCreatePrismaticJoint, def.collideConnected)};
-static const uint16_t s_weldBools[] = {M2_AT(m2OpCreateWeldJoint, def.collideConnected)};
+static const uint16_t s_distanceBools[] = {
+    M2_AT(m2OpCreateDistanceJoint, def.enableSpring),
+    M2_AT(m2OpCreateDistanceJoint, def.enableConnectedCollision)};
+static const uint16_t s_revoluteBools[] = {
+    M2_AT(m2OpCreateRevoluteJoint, def.enableMotor),
+    M2_AT(m2OpCreateRevoluteJoint, def.enableLimit),
+    M2_AT(m2OpCreateRevoluteJoint, def.enableConnectedCollision)};
+static const uint16_t s_prismaticBools[] = {
+    M2_AT(m2OpCreatePrismaticJoint, def.enableMotor),
+    M2_AT(m2OpCreatePrismaticJoint, def.enableLimit),
+    M2_AT(m2OpCreatePrismaticJoint, def.enableConnectedCollision)};
+static const uint16_t s_weldBools[] = {M2_AT(m2OpCreateWeldJoint, def.enableConnectedCollision)};
 static const uint16_t s_wheelBools[] = {M2_AT(m2OpCreateWheelJoint, def.enableSpring),
                                         M2_AT(m2OpCreateWheelJoint, def.enableMotor),
                                         M2_AT(m2OpCreateWheelJoint, def.enableLimit),
-                                        M2_AT(m2OpCreateWheelJoint, def.collideConnected)};
-static const uint16_t s_motorBools[] = {M2_AT(m2OpCreateMotorJoint, def.collideConnected)};
-static const uint16_t s_mouseBools[] = {M2_AT(m2OpCreateMouseJoint, def.collideConnected)};
-static const uint16_t s_gearBools[] = {M2_AT(m2OpCreateGearJoint, def.collideConnected)};
-static const uint16_t s_pulleyBools[] = {M2_AT(m2OpCreatePulleyJoint, def.collideConnected)};
-static const uint16_t s_ratchetBools[] = {M2_AT(m2OpCreateRatchetJoint, def.collideConnected)};
+                                        M2_AT(m2OpCreateWheelJoint, def.enableConnectedCollision)};
+static const uint16_t s_motorBools[] = {M2_AT(m2OpCreateMotorJoint, def.enableConnectedCollision)};
+static const uint16_t s_mouseBools[] = {M2_AT(m2OpCreateMouseJoint, def.enableConnectedCollision)};
+static const uint16_t s_gearBools[] = {M2_AT(m2OpCreateGearJoint, def.enableConnectedCollision)};
+static const uint16_t s_pulleyBools[] = {
+    M2_AT(m2OpCreatePulleyJoint, def.enableConnectedCollision)};
+static const uint16_t s_ratchetBools[] = {
+    M2_AT(m2OpCreateRatchetJoint, def.enableConnectedCollision)};
 #undef M2_AT
 
 static const m2JournalCommand s_commands[m2_opCount] = {
@@ -546,7 +551,7 @@ static const m2JournalCommand s_commands[m2_opCount] = {
     M2_COMMAND(m2_opSetFilter, m2OpSetFilter, ApplySetFilter),
     M2_COMMAND(m2_opDestroyChain, m2ChainId, ApplyDestroyChain),
     M2_COMMAND(m2_opBodyParam, m2OpBodyParam, ApplyBodyParam),
-    M2_COMMAND(m2_opEnableSleeping, m2OpFlag, ApplyEnableSleeping),
+    M2_COMMAND(m2_opEnableSleep, m2OpFlag, ApplyEnableSleep),
     M2_COMMAND(m2_opApplyForce, m2OpBodyPoint, ApplyApplyForce),
     M2_COMMAND(m2_opApplyForceCenter, m2OpBodyVec, ApplyApplyForceCenter),
     M2_COMMAND(m2_opApplyTorque, m2OpBodyFloat, ApplyApplyTorque),

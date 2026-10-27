@@ -11,6 +11,15 @@ Maul2D simulates rigid bodies, joints and particle fluids in a world that snapsh
 - **Data formats:** two state formats, the snapshot and the journal tape, and no asset format. Neither is read across 1.y: only the release that wrote one reads it, by its `M2_ABI_VERSION` (from 1.0.0, the patch releases of its minor version too), and any other refuses it with `m2_errorVersion`. A host keeps its own game state, not snapshots or tapes, across an upgrade. [snapshots-and-journal.md](snapshots-and-journal.md) has the layout.
 - **Platform dependencies:** none beyond the C standard library; the `<math.h>` functions it may call are the correctly rounded ones in `tools/libm-allowed.txt`. The testbed, which is not part of the library, uses raylib.
 
+## API names
+
+Every public name follows these rules, so a new one is decided by them rather than by its neighbors.
+
+- **Objects.** An object is made by `m2CreateX(world, def, idOut)` from a def that `m2DefaultXDef` initializes, returns `m2Result`, and goes with `m2DestroyX(world, id)`. A create that makes several (`m2CreateParticlesInPolygon`) reports its count through an out argument.
+- **Values.** A value an object keeps is read by `<Obj>_GetX` and changed by `<Obj>_SetX`.
+- **Switches.** A def's bool fields come in two kinds. `isX` names what an object is or the state it starts in (`isSensor`, `isLoop`, `isBullet`, `isEnabled`); `enableX` names an optional behavior it runs (`enableSleep`, `enableSpring`, `enableMotor`, `enableLimit`, `enableConnectedCollision`). An `enableX` field gets `<Obj>_EnableX(obj, bool)` and `<Obj>_IsXEnabled(obj)`. An `isX` field that can change gets `<Obj>_SetX(obj, bool)` and `<Obj>_IsX(obj)`. A kind fixed at creation (`isSensor`, `isLoop`) gets only `<Obj>_IsX`.
+- **Joints.** A feature several joint kinds share is `m2Joint_X`, and its doc names the kinds; another kind counts one misuse. A feature one kind has uses that kind's prefix (`m2DistanceJoint_SetLength`).
+
 ## Ids and misuse
 
 A correct program never uses an id after destroying its object, so a stale id is misuse: it counts one in `m2Counters.misuse`, a getter returns the zeroed value, a setter changes nothing, and a call with a status returns `m2_errorStale`. Joints break on their own, but every break is reported in the joint event stream, so a program that reads its events never holds a broken joint's id unknowingly; joints follow the same rule.

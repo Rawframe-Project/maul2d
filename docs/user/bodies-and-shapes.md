@@ -16,7 +16,7 @@ The frame helpers (`m2Body_GetWorldPoint`, `m2Body_GetLocalPoint`, the vector an
 
 Bodies that come to rest sleep in islands: everything connected by contacts or joints sleeps and wakes together. When every dynamic body sleeps and nothing kinematic moves, a step costs almost nothing and changes nothing. Everything that should wake a body does: impulses, forces, teleports, type, filter and mass changes, a gravity change, a destroyed neighbor, a broken joint, water, a conveyor that changes speed.
 
-`m2Body_EnableSleep(world, body, false)` keeps one body awake for good, and `m2World_EnableSleeping(world, false)` wakes everyone and keeps them awake.
+`m2Body_EnableSleep(world, body, false)` keeps one body awake for good, and `m2World_EnableSleep(world, false)` wakes everyone and keeps them awake.
 
 ## Dominance
 
@@ -24,7 +24,7 @@ A body with a higher dominance (`m2Body_SetDominance`) cannot be pushed by a low
 
 ## Dormant bodies and mass
 
-`m2Body_Disable` takes a body out of the simulation without destroying it: its contacts end, whatever rested on it wakes, queries stop seeing it, and its joints wait. `m2Body_Enable` puts it back where it stood.
+`m2Body_SetEnabled(world, body, false)` takes a body out of the simulation without destroying it: its contacts end, whatever rested on it wakes, queries stop seeing it, and its joints wait. `m2Body_SetEnabled(world, body, true)` puts it back where it stood.
 
 A dynamic body's mass comes from its shapes' densities. `m2Body_SetMassData` overrides it until a shape change, a fixed-rotation change or `m2Body_ApplyMassFromShapes` computes it from the shapes again. The override takes a mass from `M2_MIN_MASS` to `M2_MAX_MASS` (1e-9 to 1e12 kg), a center within `M2_HUGE`, and `centralInertia`, the rotational inertia about that center, which is either 0, which makes a body that cannot turn, or from `M2_MIN_INERTIA` to `M2_MAX_INERTIA` (1e-12 to 1e24 kg m^2). The inertia is about the center, as most formulas give it (a disc's is m r^2 / 2), so a small one beside a far center is kept as given. Anything else is refused and counts one misuse, a mass of `FLT_MAX` and a central inertia of `FLT_MAX` among them. Mass summed from shapes is clamped into the same ranges, and `m2Body_GetMassData` reads back what the body kept ([Limits](limits.md)).
 
@@ -36,7 +36,7 @@ Shapes can change at run time: materials, filters, density, and the geometry its
 
 ## Filters and sensors
 
-Two shapes collide when each one's category bits intersect the other's mask bits. A nonzero group index shared by both overrides that: positive always collides, negative never does. Two bodies joined by a joint do not collide unless the joint's `collideConnected` is set; the filter joint does nothing else.
+Two shapes collide when each one's category bits intersect the other's mask bits. A nonzero group index shared by both overrides that: positive always collides, negative never does. Two bodies joined by a joint do not collide unless the joint's `enableConnectedCollision` is set; the filter joint does nothing else.
 
 A sensor detects overlaps and never pushes back, and never affects sleep. Its overlaps arrive as sensor events, and `m2Shape_GetSensorOverlaps` lists who is inside now.
 

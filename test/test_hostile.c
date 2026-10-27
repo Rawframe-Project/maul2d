@@ -1160,6 +1160,7 @@ static void TestLoopChainBowl(void)
     chain.count = 4;
     chain.isLoop = true;
     m2ChainId bowlChain = NewChain(world, frame, &chain);
+    CHECK(m2Chain_IsLoop(world, bowlChain), "a loop reads back as one");
     CHECK(m2Chain_GetSegmentCount(world, bowlChain) == 4,
           "a loop of four points makes four segments");
 

@@ -174,6 +174,7 @@ static M2_NOINLINE m2Result CreateChainWorker(m2World* world, m2BodyId bodyId,
     }
     world->chains.chainAlive[chainIndex] = 1;
     world->chains.chainBody[chainIndex] = bodyIndex;
+    world->chains.chainLoop[chainIndex] = def->isLoop ? 1 : 0;
     if (chainIndex + 1 > world->chains.maxChainIndex)
     {
         world->chains.maxChainIndex = chainIndex + 1;
@@ -279,6 +280,17 @@ int32_t m2Chain_GetSegmentCount(const m2World* world, m2ChainId chainId)
         count += world->shapes.shapeChain[s] == index ? 1 : 0;
     }
     return count;
+}
+
+bool m2Chain_IsLoop(const m2World* world, m2ChainId chainId)
+{
+    int32_t index = world != NULL ? ChainSlot(world, chainId) : -1;
+    if (index < 0)
+    {
+        m2Refuse(world, m2_errorInvalid);
+        return false;
+    }
+    return world->chains.chainLoop[index] != 0;
 }
 
 static void ChainMaterialInternal(m2World* world, m2ChainId chainId, int32_t chainIndex, uint8_t op,

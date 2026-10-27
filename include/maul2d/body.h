@@ -317,25 +317,19 @@ extern "C"
     /// Safe from any thread; a world is used by one thread at a time.
     M2_API void m2Body_ApplyMassFromShapes(m2World* world, m2BodyId bodyId);
 
-    /// Takes a body out of the simulation without destroying it: its shapes
-    /// leave the broadphase (contacts end, riders wake), its joints stay
-    /// attached but inert, and queries stop seeing it. A disabled body
-    /// changes nothing. A stale id counts one misuse. Journaled.
+    /// Takes a body out of the simulation without destroying it, or puts
+    /// it back where it was. A disabled body's shapes leave the broadphase
+    /// (contacts end, riders wake), its joints stay attached but inert, and
+    /// queries stop seeing it. Setting the state a body already has changes
+    /// nothing and records nothing. A stale id counts one misuse.
+    /// Journaled.
     ///
     /// @param world   The world.
     /// @param bodyId  The body.
+    /// @param flag    True to enable it, false to disable it.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
-    M2_API void m2Body_Disable(m2World* world, m2BodyId bodyId);
-
-    /// Puts a disabled body back where it was. An enabled body changes
-    /// nothing. A stale id counts one misuse. Journaled.
-    ///
-    /// @param world   The world.
-    /// @param bodyId  The body.
-    /// @par Thread safety
-    /// Safe from any thread; a world is used by one thread at a time.
-    M2_API void m2Body_Enable(m2World* world, m2BodyId bodyId);
+    M2_API void m2Body_SetEnabled(m2World* world, m2BodyId bodyId, bool flag);
 
     /// Tells whether a body takes part in the simulation.
     ///
