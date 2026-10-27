@@ -187,11 +187,13 @@ typedef struct Ledger
     int64_t liveBytes;
     int32_t failAfter; // refuse every allocation past this many; -1 never
     int32_t badAlignment;
+    int32_t asked; // every call, refused or not
 } Ledger;
 
 static void* LedgerAlloc(size_t size, size_t alignment, void* context)
 {
     Ledger* ledger = (Ledger*)context;
+    ledger->asked += 1;
     if (alignment == 0 || (alignment & (alignment - 1)) != 0)
     {
         ledger->badAlignment += 1;
@@ -231,8 +233,8 @@ static void TestWorldAllocator(void)
     // Every allocation of a world goes through its own allocator, each free
     // hands back the size it was given, and a world's whole life balances
     // to zero. Two worlds keep two allocators: there is no process-wide one.
-    Ledger first = {0, 0, 0, -1, 0};
-    Ledger second = {0, 0, 0, -1, 0};
+    Ledger first = {0, 0, 0, -1, 0, 0};
+    Ledger second = {0, 0, 0, -1, 0, 0};
     m2WorldDef firstDef = LedgerDef(&first);
     m2WorldDef secondDef = LedgerDef(&second);
     m2World* a = NewWorld(&firstDef);
@@ -268,6 +270,49 @@ static void TestWorldAllocator(void)
     m2World* refused = (m2World*)&first;
     CHECK(m2CreateWorld(&half, &refused) == m2_errorInvalid, "a half allocator refuses");
     CHECK(refused == NULL, "and leaves the null world");
+}
+
+// The snapshot bytes of a world of shapeCapacity shapes and one body and
+// one joint.
+static int64_t ShapeWorldSnapshot(int32_t shapeCapacity)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 1;
+    def.shapeCapacity = shapeCapacity;
+    def.jointCapacity = 1;
+    m2World* world = NewWorld(&def);
+    int64_t size = m2World_SnapshotSize(world);
+    m2DestroyWorld(world);
+    return size;
+}
+
+static void TestWorldSnapshotBound(void)
+{
+    // A world's snapshot grows by the same bytes per shape slot, so the
+    // largest shape capacity M2_MAX_SNAPSHOT_BYTES allows follows from two
+    // small worlds.
+    int64_t perShape = (ShapeWorldSnapshot(2000) - ShapeWorldSnapshot(1000)) / 1000;
+    int64_t fixed = ShapeWorldSnapshot(1000) - 1000 * perShape;
+    CHECK(perShape > 0 && ShapeWorldSnapshot(3000) == fixed + 3000 * perShape,
+          "a world's snapshot grows by the same bytes per shape slot");
+    int32_t most = (int32_t)((M2_MAX_SNAPSHOT_BYTES - fixed) / perShape);
+
+    // An allocator that refuses everything shows how far creation got: a
+    // def past the bound is refused before anything is asked for, and one
+    // at the bound passes the size check and is refused by the allocator.
+    Ledger ledger = {0, 0, 0, 0, 0, 0};
+    m2WorldDef def = LedgerDef(&ledger);
+    def.bodyCapacity = 1;
+    def.jointCapacity = 1;
+    def.shapeCapacity = most + 1;
+    m2World* world = (m2World*)&ledger;
+    CHECK(m2CreateWorld(&def, &world) == m2_errorCapacity && world == NULL,
+          "a world whose snapshot passes M2_MAX_SNAPSHOT_BYTES is refused");
+    CHECK(ledger.asked == 0, "before anything is allocated");
+    def.shapeCapacity = most;
+    CHECK(m2CreateWorld(&def, &world) == m2_errorCapacity && world == NULL && ledger.asked > 0,
+          "a world whose snapshot is M2_MAX_SNAPSHOT_BYTES or less goes on to allocate");
+    CHECK(ledger.live == 0, "and the refused allocations leave nothing behind");
 }
 
 // --- World defs, versions and results ------------------------------------------
@@ -348,6 +393,7 @@ int main(void)
     printf("maul2d %d.%d.%d (%s backend)\n", version.major, version.minor, version.patch,
            m2GetSimdBackend());
     TestWorldAllocator();
+    TestWorldSnapshotBound();
     TestWorldDefChecks();
     TestVersionAndResultNames();
 

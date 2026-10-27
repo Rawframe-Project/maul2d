@@ -48,8 +48,8 @@ m2ChainDef m2DefaultChainDef(void)
 static m2ChainSegment ChainSegmentAt(const m2ChainDef* def, int32_t i)
 {
     m2ChainSegment seg;
-    int32_t n = def->count;
-    int32_t first = def->isLoop ? i + n - 1 : i;
+    int64_t n = def->count;
+    int64_t first = def->isLoop ? (int64_t)i + n - 1 : i; // wide, for any count
     seg.ghost1 = def->points[first % n];
     seg.segment.point1 = def->points[(first + 1) % n];
     seg.segment.point2 = def->points[(first + 2) % n];

@@ -17,6 +17,7 @@
 #include "parallel.h"
 #include "particle.h"
 #include "proxies.h"
+#include "snapshot.h"
 #include "solver.h"
 #include "world_internal.h"
 #include "world_state.h"
@@ -206,6 +207,15 @@ static M2_NOINLINE m2Result CreateWorldWorker(const m2WorldDef* def, m2World** w
     if (!ValidWorldDef(def))
     {
         return m2_errorInvalid;
+    }
+    // The world's snapshot, and a journal holding two of them, must fit
+    // their int32_t byte counts: measured on the def's capacities alone,
+    // before anything is allocated.
+    m2World shape;
+    memset(&shape, 0, sizeof(shape));
+    if (!ApplyWorldDef(&shape, def) || !m2SnapshotFits(&shape))
+    {
+        return m2_errorCapacity;
     }
     m2Allocator allocator = m2ResolveAllocator(&def->allocator);
     m2World* world = m2AllocZeroed(&allocator, sizeof(m2World));

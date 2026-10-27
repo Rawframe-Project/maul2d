@@ -16,6 +16,8 @@
 
 #include "maul2d/base.h"
 
+#include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 
 #define M2_SNAPSHOT_MAGIC M2_STATE_MAGIC('M', '2', 'S', 'N')
@@ -63,12 +65,25 @@ static uint64_t ConfigHash(void)
     return h;
 }
 
-// Single source of truth: the size IS the walk (measure mode). The
-// duplicated byte formula died here after its third drift (assert-caught
-// every time; root cause now removed).
-static int32_t BlockBytes(const m2World* world)
+// The snapshot's bytes, its header and the state table's block, from the
+// world's capacities; INT64_MAX when they do not fit a size_t. The block
+// is the walk's own size: m2StateSnapshotBytes sums the per-array sizes
+// m2StateWalk copies. A world m2CreateWorld accepted keeps them within
+// M2_MAX_SNAPSHOT_BYTES.
+static int64_t SnapshotBytes(const m2World* world)
 {
-    return m2StateWalk((m2World*)world, NULL, NULL, 2);
+    size_t block = 0;
+    if (!m2StateSnapshotBytes(world, &block) ||
+        block > (size_t)INT64_MAX - sizeof(m2SnapshotHeader))
+    {
+        return INT64_MAX;
+    }
+    return (int64_t)(sizeof(m2SnapshotHeader) + block);
+}
+
+bool m2SnapshotFits(const m2World* world)
+{
+    return SnapshotBytes(world) <= M2_MAX_SNAPSHOT_BYTES;
 }
 
 static M2_NOINLINE int32_t WorldSnapshotSizeWorker(const m2World* world)
@@ -77,7 +92,9 @@ static M2_NOINLINE int32_t WorldSnapshotSizeWorker(const m2World* world)
     {
         return 0;
     }
-    return (int32_t)sizeof(m2SnapshotHeader) + BlockBytes(world);
+    int64_t size = SnapshotBytes(world);
+    M2_ASSERT(size <= M2_MAX_SNAPSHOT_BYTES);
+    return size <= M2_MAX_SNAPSHOT_BYTES ? (int32_t)size : 0;
 }
 
 int32_t m2World_SnapshotSize(const m2World* world)
@@ -103,10 +120,11 @@ static M2_NOINLINE m2Result WorldSnapshotWorker(const m2World* world, void* buff
     {
         return m2Refuse(world, m2_errorInvalid);
     }
-    int32_t size = m2World_SnapshotSize(world);
-    if (capacity < size)
+    int64_t size = SnapshotBytes(world);
+    if ((int64_t)capacity < size)
     {
-        *bytesOut = size; // the size a buffer must have
+        // The size a buffer must have.
+        *bytesOut = size <= M2_MAX_SNAPSHOT_BYTES ? (int32_t)size : 0;
         return m2_errorCapacity;
     }
 
@@ -119,10 +137,10 @@ static M2_NOINLINE m2Result WorldSnapshotWorker(const m2World* world, void* buff
 
     uint8_t* out = buffer;
     memcpy(out, &header, sizeof(header));
-    int32_t cursor =
-        (int32_t)sizeof(header) + m2StateWalk((m2World*)world, out + sizeof(header), NULL, 0);
-    M2_ASSERT(cursor == size);
-    *bytesOut = cursor;
+    size_t cursor = sizeof(header) + m2StateWalk((m2World*)world, out + sizeof(header), NULL, 0);
+    M2_ASSERT(cursor == (size_t)size);
+    (void)cursor;
+    *bytesOut = (int32_t)size; // at most capacity
     return m2_success;
 }
 
@@ -169,15 +187,14 @@ static M2_NOINLINE m2Result WorldRestoreWorker(m2World* world, const void* buffe
     // Hostile bytes are checked before any of them land: every row the
     // table describes, cursors included, then how the rows fit together.
     const uint8_t* in = buffer;
-    if (size != (int32_t)sizeof(header) + BlockBytes(world) ||
-        !m2StateValidate(world, in + sizeof(header)) ||
+    if ((int64_t)size != SnapshotBytes(world) || !m2StateValidate(world, in + sizeof(header)) ||
         !m2SnapshotCheck(world, in + sizeof(header)))
     {
         return m2_errorInvalid;
     }
 
-    int32_t cursor = (int32_t)sizeof(header) + m2StateWalk(world, NULL, in + sizeof(header), 1);
-    M2_ASSERT(cursor == size);
+    size_t cursor = sizeof(header) + m2StateWalk(world, NULL, in + sizeof(header), 1);
+    M2_ASSERT(cursor == (size_t)size);
     (void)cursor;
     m2RebuildJointEdges(world);
 

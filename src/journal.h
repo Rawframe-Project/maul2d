@@ -447,6 +447,10 @@ typedef union m2OpPayload
 
 // Recording (src/journal.c). Each call appends one op; a full buffer
 // sets the overflow flag, reported by m2World_StopJournal.
+
+// Whether a record of 1 + bytes fits a tape of capacity bytes written up
+// to cursor (0 <= cursor <= capacity), computed in 64 bits.
+bool m2JournalRecordFits(int32_t cursor, int32_t capacity, int64_t bytes);
 void m2JournalRecord(m2World* world, uint8_t op, const void* payload, int32_t bytes);
 void m2JournalRecordRestore(m2World* world, const void* snapshot, int32_t size);
 void m2JournalRecordShatter(m2World* world, m2BodyId bodyId, const m2Polygon* pieces,
