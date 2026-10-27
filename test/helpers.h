@@ -192,26 +192,26 @@ static inline int32_t DecomposeOutline(const m2Vec2* points, int32_t count, m2Po
 }
 
 // The bytes written, or 0 on any failure.
-static inline int32_t Snapshot(const m2World* world, void* buffer, int32_t capacity)
+static inline int64_t Snapshot(const m2World* world, void* buffer, int64_t capacity)
 {
-    int32_t bytes = 0;
+    int64_t bytes = 0;
     return m2World_Snapshot(world, buffer, capacity, &bytes) == m2_success ? bytes : 0;
 }
 
-static inline bool Restore(m2World* world, const void* buffer, int32_t size)
+static inline bool Restore(m2World* world, const void* buffer, int64_t size)
 {
     return m2World_Restore(world, buffer, size) == m2_success;
 }
 
-static inline bool StartJournal(m2World* world, void* buffer, int32_t capacity)
+static inline bool StartJournal(m2World* world, void* buffer, int64_t capacity)
 {
     return m2World_StartJournal(world, buffer, capacity) == m2_success;
 }
 
 // The tape's size, or 0 when it overflowed or nothing was recording.
-static inline int32_t StopJournal(m2World* world)
+static inline int64_t StopJournal(m2World* world)
 {
-    int32_t bytes = 0;
+    int64_t bytes = 0;
     m2Result result = m2World_StopJournal(world, &bytes);
     (void)result;
     return bytes;
@@ -227,7 +227,7 @@ static inline int32_t ShatterBody(m2World* world, m2BodyId bodyId, const m2Polyg
     return made;
 }
 
-static inline bool ReplayJournal(m2World* world, const void* data, int32_t size)
+static inline bool ReplayJournal(m2World* world, const void* data, int64_t size)
 {
     return m2World_ReplayJournal(world, data, size) == m2_success;
 }

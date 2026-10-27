@@ -1130,7 +1130,7 @@ int main(void)
     // and time runs backward; release and the simulation resumes from
     // wherever you let go. This is the rollback contract, visible.
     uint8_t* ring = NULL;
-    int32_t ringEntry = 0; // bytes per snapshot
+    int64_t ringEntry = 0; // bytes per snapshot
     int32_t ringCapacity = 0;
     int32_t ringCount = 0; // valid entries behind the present
     int32_t ringStart = 0; // oldest entry (true circular ring, no sliding)

@@ -236,9 +236,9 @@ static void TestRollbackFrame(void)
     m2BodyId ball = DropBall(world, 2.0);
     CHECK(DropBall(twin, 2.0).index1 != 0 && ball.index1 != 0, "with a ball each");
 
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     void* frame = malloc((size_t)size);
-    int32_t written = 0;
+    int64_t written = 0;
     bool saved = frame != NULL && m2World_Snapshot(world, frame, size, &written) == m2_success;
 
     m2Body_ApplyLinearImpulse(world, ball, (m2Vec2){3.0f, 0.0f}); // a mispredicted input
@@ -266,9 +266,9 @@ static void TestRecordAndReplay(void)
     CHECK(world != NULL && m2CreateWorld(&def, &replica) == m2_success, "two worlds build");
     CHECK(DropBall(world, 2.0).index1 != 0, "a ball drops");
 
-    int32_t capacity = m2World_GetJournalBaseSize(world) + 64 * 1024;
+    int64_t capacity = m2World_GetJournalBaseSize(world) + 64 * 1024;
     void* tape = malloc((size_t)capacity);
-    int32_t tapeSize = 0;
+    int64_t tapeSize = 0;
     bool recorded = tape != NULL && m2World_StartJournal(world, tape, capacity) == m2_success;
     for (int32_t i = 0; recorded && i < 60; ++i)
     {

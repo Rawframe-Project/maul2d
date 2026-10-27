@@ -59,13 +59,13 @@ int main(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    int size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
     if (snap == NULL)
     {
         return 1;
     }
-    int written = 0;
+    int64_t written = 0;
     Require(m2World_Snapshot(world, snap, size, &written), "take a snapshot");
     unsigned long long before = (unsigned long long)m2World_Hash(world);
 

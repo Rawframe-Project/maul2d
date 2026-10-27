@@ -443,7 +443,7 @@ static bool ApplyExplode(m2ReplayCursor* r, const m2OpPayload* p)
 
 static bool ApplyRestore(m2ReplayCursor* r, const m2OpPayload* p)
 {
-    int32_t bytes = p->restoreSize;
+    int64_t bytes = p->restoreSize;
     if (bytes <= 0 || bytes > r->size - r->offset)
     {
         return false; // truncated restore payload
@@ -545,7 +545,7 @@ static const m2JournalCommand s_commands[m2_opCount] = {
     M2_COMMAND(m2_opSetJointParam, m2OpJointParam, ApplySetJointParam),
     M2_COMMAND(m2_opSetTransform, m2OpSetTransform, ApplySetTransform),
     M2_COMMAND(m2_opSetType, m2OpBodyByte, ApplySetType),
-    M2_COMMAND(m2_opRestore, int32_t, ApplyRestore),
+    M2_COMMAND(m2_opRestore, int64_t, ApplyRestore),
     M2_COMMAND(m2_opCreateChain, m2OpChainHeader, ApplyCreateChain),
     M2_COMMAND(m2_opSetGravity, m2OpVec, ApplySetGravity),
     M2_COMMAND(m2_opShapeParam, m2OpShapeParam, ApplyShapeParam),

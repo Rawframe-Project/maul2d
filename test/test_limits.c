@@ -250,7 +250,7 @@ static m2BodyId Box(m2World* world, m2BodyType type, float x)
 
 static void ExpectRestores(m2World* world)
 {
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     uint8_t* bytes = (uint8_t*)malloc((size_t)size);
     CHECK(bytes != NULL, "snapshot buffer");
     uint64_t hash = m2World_Hash(world);

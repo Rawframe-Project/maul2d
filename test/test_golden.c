@@ -495,7 +495,7 @@ static void SceneRollback(void)
     {
         m2World_Step(world, DT, 4);
     }
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     uint8_t* snapshot = malloc((size_t)size);
     uint8_t* again = malloc((size_t)size);
     CHECK(Snapshot(world, snapshot, size) == size, "ROLLBACK: the snapshot writes");
@@ -538,7 +538,7 @@ static void SceneRollback(void)
 
 // The walks' tapes, kept for the hostile host to replay.
 static uint8_t* s_tapes[WALK_SEEDS];
-static int32_t s_tapeSizes[WALK_SEEDS];
+static int64_t s_tapeSizes[WALK_SEEDS];
 
 static uint64_t JournalHash(uint64_t hash, uint64_t walk)
 {

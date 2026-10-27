@@ -444,17 +444,17 @@ typedef union m2OpPayload
     m2JointId jointId;
     m2ParticleId particleId;
     m2FluidVolumeId fluidVolumeId;
-    int32_t restoreSize;
+    int64_t restoreSize;
 } m2OpPayload;
 
 // Recording (src/journal.c). Each call appends one op; a full buffer
 // sets the overflow flag, reported by m2World_StopJournal.
 
 // Whether a record of 1 + bytes fits a tape of capacity bytes written up
-// to cursor (0 <= cursor <= capacity), computed in 64 bits.
-bool m2JournalRecordFits(int32_t cursor, int32_t capacity, int64_t bytes);
+// to cursor (0 <= cursor <= capacity).
+bool m2JournalRecordFits(int64_t cursor, int64_t capacity, int64_t bytes);
 void m2JournalRecord(m2World* world, uint8_t op, const void* payload, int32_t bytes);
-void m2JournalRecordRestore(m2World* world, const void* snapshot, int32_t size);
+void m2JournalRecordRestore(m2World* world, const void* snapshot, int64_t size);
 void m2JournalRecordShatter(m2World* world, m2BodyId bodyId, const m2Polygon* pieces,
                             int32_t pieceCount, int32_t expectedFirst);
 void m2JournalRecordChain(m2World* world, m2BodyId bodyId, const m2ChainDef* def,
@@ -467,8 +467,8 @@ typedef struct m2ReplayCursor
 {
     m2World* world;
     const uint8_t* data;
-    int32_t size;
-    int32_t offset;
+    int64_t size;
+    int64_t offset;
 } m2ReplayCursor;
 
 typedef bool m2ReplayApplyFn(m2ReplayCursor* cursor, const m2OpPayload* payload);
