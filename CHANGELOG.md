@@ -8,15 +8,14 @@ snapshot and journal formats.
 
 ## [0.5.0](https://github.com/Rawframe-Project/maul2d/compare/v0.4.0...v0.5.0) (2026-10-27)
 
+### Changed
 
-### ⚠ BREAKING CHANGES
-
-* **world:** m2CreateWorld refuses with m2_errorCapacity a def whose world would snapshot to more than M2_MAX_SNAPSHOT_BYTES (1,073,741,801 bytes, about 840,000 shape slots), before it allocates anything.
+- **Breaking:** `m2CreateWorld` refuses with `m2_errorCapacity` a definition whose world would snapshot to more than `M2_MAX_SNAPSHOT_BYTES` (1,073,741,801 bytes, about 840,000 shape slots), before it allocates anything. Every world below that size snapshots, restores and records a journal ([#92](https://github.com/Rawframe-Project/maul2d/pull/92)).
 
 ### Fixed
 
-* **api:** measure with a null array at any capacity ([#95](https://github.com/Rawframe-Project/maul2d/issues/95)) ([16fcb22](https://github.com/Rawframe-Project/maul2d/commit/16fcb2214b8c2a07767570043d3139c8d60abd9c)), closes [#94](https://github.com/Rawframe-Project/maul2d/issues/94)
-* **world:** refuse a world too large for a snapshot and its journal ([#92](https://github.com/Rawframe-Project/maul2d/issues/92)) ([f47dc56](https://github.com/Rawframe-Project/maul2d/commit/f47dc566d9f3582e5ab5831add419923fcfc00fc))
+- A world's snapshot, restore and journal sizes are computed in 64 bits, and a snapshot is measured with the same per-array sizes the snapshot walk writes and the restore reads, so very large worlds no longer get a wrong size ([#92](https://github.com/Rawframe-Project/maul2d/pull/92)).
+- `m2Shape_GetSensorOverlaps` and `m2World_GetContactData` measure with a null array at any capacity, as documented; a null array with a capacity above 0 used to crash ([#95](https://github.com/Rawframe-Project/maul2d/pull/95)).
 
 ## [0.4.0](https://github.com/Rawframe-Project/maul2d/compare/v0.3.0...v0.4.0) (2026-10-26)
 
