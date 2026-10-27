@@ -582,26 +582,26 @@ static void TestParticleFill(void)
 // fill refuses it as a shape would.
 static m2Polygon FarTriangle(void)
 {
-    m2Polygon far;
-    memset(&far, 0, sizeof(far));
-    far.count = 3;
-    far.vertices[0] = (m2Vec2){0.0f, -1.0e30f};
-    far.vertices[1] = (m2Vec2){0.29f, 1.0e30f};
-    far.vertices[2] = (m2Vec2){-0.29f, 1.0e30f};
-    far.normals[0] = (m2Vec2){1.0f, 0.0f};
-    far.normals[1] = (m2Vec2){0.0f, 1.0f};
-    far.normals[2] = (m2Vec2){-1.0f, 0.0f};
-    return far;
+    m2Polygon distant;
+    memset(&distant, 0, sizeof(distant));
+    distant.count = 3;
+    distant.vertices[0] = (m2Vec2){0.0f, -1.0e30f};
+    distant.vertices[1] = (m2Vec2){0.29f, 1.0e30f};
+    distant.vertices[2] = (m2Vec2){-0.29f, 1.0e30f};
+    distant.normals[0] = (m2Vec2){1.0f, 0.0f};
+    distant.normals[1] = (m2Vec2){0.0f, 1.0f};
+    distant.normals[2] = (m2Vec2){-1.0f, 0.0f};
+    return distant;
 }
 
 static void TestFillChecksItsPolygon(void)
 {
     m2WorldDef def = FluidWorldDef(64);
     m2World* world = NewWorld(&def);
-    m2Polygon far = FarTriangle();
+    m2Polygon distant = FarTriangle();
     uint64_t misuse = m2World_GetCounters(world).misuse;
-    CHECK(m2World_FillPolygonWithParticles(world, &far, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f},
-                                           0) == 0,
+    CHECK(m2World_FillPolygonWithParticles(world, &distant, (m2Pos2){0.0, 0.0},
+                                           (m2Vec2){0.0f, 0.0f}, 0) == 0,
           "a polygon past M2_HUGE fills nothing");
     CHECK(m2World_GetCounters(world).misuse == misuse + 1 && m2World_GetParticleCount(world) == 0,
           "and is refused as a misuse");
@@ -624,7 +624,7 @@ static void TestFillChecksItsPolygon(void)
     m2DestroyWorld(twin);
     m2DestroyWorld(world);
 
-    // A tape whose fill record carries the far triangle is refused whole.
+    // A tape whose fill record carries the distant triangle is refused whole.
     m2World* recorder = NewWorld(&def);
     int32_t capacity = m2World_GetJournalBaseSize(recorder) + 4096;
     uint8_t* tape = (uint8_t*)malloc((size_t)capacity);
@@ -637,11 +637,11 @@ static void TestFillChecksItsPolygon(void)
         at = memcmp(tape + i, &box, sizeof(box)) == 0 ? i : -1;
     }
     CHECK(at > 0, "the fill record carries the box");
-    memcpy(tape + at, &far, sizeof(far));
+    memcpy(tape + at, &distant, sizeof(distant));
     m2World* fresh = NewWorld(&def);
     uint64_t before = m2World_Hash(fresh);
     CHECK(m2World_ReplayJournal(fresh, tape, bytes) == m2_errorInvalid,
-          "replay refuses the far triangle's fill");
+          "replay refuses the distant triangle's fill");
     CHECK(m2World_Hash(fresh) == before && m2World_GetCounters(fresh).misuse == 0,
           "and changes nothing, counting no misuse");
     m2DestroyWorld(fresh);
