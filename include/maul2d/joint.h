@@ -625,7 +625,7 @@ extern "C"
     /// Sets a distance joint's hard length range. Each bound is raised to
     /// the linear slop (0.005 m) and the two are put in order. Another
     /// joint type or a bound beyond M2_JOINT_REACH counts one misuse. Read the range
-    /// with m2Joint_GetLimits.
+    /// with m2DistanceJoint_GetLengthRange.
     ///
     /// @param world      The world.
     /// @param jointId    A distance joint.
