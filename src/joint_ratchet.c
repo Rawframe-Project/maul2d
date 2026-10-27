@@ -50,7 +50,7 @@ static void RecordRatchetJointDef(m2RatchetJointDef* out, const m2RatchetJointDe
     out->ratchet = def->ratchet;
     out->phase = def->phase;
     out->userData = def->userData;
-    out->collideConnected = def->collideConnected;
+    out->enableConnectedCollision = def->enableConnectedCollision;
     out->internalValue = def->internalValue;
 }
 

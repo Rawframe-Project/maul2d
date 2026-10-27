@@ -54,7 +54,7 @@ static void RecordDistanceJointDef(m2DistanceJointDef* out, const m2DistanceJoin
     out->dampingRatio = def->dampingRatio;
     out->enableSpring = def->enableSpring;
     out->userData = def->userData;
-    out->collideConnected = def->collideConnected;
+    out->enableConnectedCollision = def->enableConnectedCollision;
     out->internalValue = def->internalValue;
 }
 

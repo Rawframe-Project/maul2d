@@ -59,7 +59,7 @@ static void RecordRevoluteJointDef(m2RevoluteJointDef* out, const m2RevoluteJoin
     out->lowerAngle = def->lowerAngle;
     out->upperAngle = def->upperAngle;
     out->userData = def->userData;
-    out->collideConnected = def->collideConnected;
+    out->enableConnectedCollision = def->enableConnectedCollision;
     out->internalValue = def->internalValue;
 }
 

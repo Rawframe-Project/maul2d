@@ -61,7 +61,7 @@ static void RecordMotorJointDef(m2MotorJointDef* out, const m2MotorJointDef* def
     out->hertz = def->hertz;
     out->dampingRatio = def->dampingRatio;
     out->userData = def->userData;
-    out->collideConnected = def->collideConnected;
+    out->enableConnectedCollision = def->enableConnectedCollision;
     out->internalValue = def->internalValue;
 }
 

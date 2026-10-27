@@ -48,7 +48,7 @@ static void RecordGearJointDef(m2GearJointDef* out, const m2GearJointDef* def)
     out->bodyIdB = def->bodyIdB;
     out->ratio = def->ratio;
     out->userData = def->userData;
-    out->collideConnected = def->collideConnected;
+    out->enableConnectedCollision = def->enableConnectedCollision;
     out->internalValue = def->internalValue;
 }
 

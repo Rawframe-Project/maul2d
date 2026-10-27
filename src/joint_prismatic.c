@@ -58,7 +58,7 @@ static void RecordPrismaticJointDef(m2PrismaticJointDef* out, const m2PrismaticJ
     out->lowerTranslation = def->lowerTranslation;
     out->upperTranslation = def->upperTranslation;
     out->userData = def->userData;
-    out->collideConnected = def->collideConnected;
+    out->enableConnectedCollision = def->enableConnectedCollision;
     out->internalValue = def->internalValue;
 }
 

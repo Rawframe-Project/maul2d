@@ -71,7 +71,7 @@ static void RecordPulleyJointDef(m2PulleyJointDef* out, const m2PulleyJointDef* 
     out->localAnchorB = def->localAnchorB;
     out->ratio = def->ratio;
     out->userData = def->userData;
-    out->collideConnected = def->collideConnected;
+    out->enableConnectedCollision = def->enableConnectedCollision;
     out->internalValue = def->internalValue;
 }
 

@@ -51,7 +51,7 @@ static void RecordMouseJointDef(m2MouseJointDef* out, const m2MouseJointDef* def
     out->dampingRatio = def->dampingRatio;
     out->maxForce = def->maxForce;
     out->userData = def->userData;
-    out->collideConnected = def->collideConnected;
+    out->enableConnectedCollision = def->enableConnectedCollision;
     out->internalValue = def->internalValue;
 }
 

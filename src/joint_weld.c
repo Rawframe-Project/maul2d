@@ -50,7 +50,7 @@ static void RecordWeldJointDef(m2WeldJointDef* out, const m2WeldJointDef* def)
     out->angularHertz = def->angularHertz;
     out->angularDampingRatio = def->angularDampingRatio;
     out->userData = def->userData;
-    out->collideConnected = def->collideConnected;
+    out->enableConnectedCollision = def->enableConnectedCollision;
     out->internalValue = def->internalValue;
 }
 

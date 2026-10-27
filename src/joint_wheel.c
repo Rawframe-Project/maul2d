@@ -62,7 +62,7 @@ static void RecordWheelJointDef(m2WheelJointDef* out, const m2WheelJointDef* def
     out->lowerTranslation = def->lowerTranslation;
     out->upperTranslation = def->upperTranslation;
     out->userData = def->userData;
-    out->collideConnected = def->collideConnected;
+    out->enableConnectedCollision = def->enableConnectedCollision;
     out->internalValue = def->internalValue;
 }
 

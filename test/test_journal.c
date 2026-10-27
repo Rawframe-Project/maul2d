@@ -633,7 +633,7 @@ static void FilledDistanceJointDef(m2DistanceJointDef* to, const m2DistanceJoint
     to->dampingRatio = from->dampingRatio;
     to->enableSpring = from->enableSpring;
     to->userData = from->userData;
-    to->collideConnected = from->collideConnected;
+    to->enableConnectedCollision = from->enableConnectedCollision;
     to->internalValue = from->internalValue;
 }
 
@@ -656,7 +656,7 @@ static void FilledRevoluteJointDef(m2RevoluteJointDef* to, const m2RevoluteJoint
     to->lowerAngle = from->lowerAngle;
     to->upperAngle = from->upperAngle;
     to->userData = from->userData;
-    to->collideConnected = from->collideConnected;
+    to->enableConnectedCollision = from->enableConnectedCollision;
     to->internalValue = from->internalValue;
 }
 
@@ -678,7 +678,7 @@ static void FilledPrismaticJointDef(m2PrismaticJointDef* to, const m2PrismaticJo
     to->lowerTranslation = from->lowerTranslation;
     to->upperTranslation = from->upperTranslation;
     to->userData = from->userData;
-    to->collideConnected = from->collideConnected;
+    to->enableConnectedCollision = from->enableConnectedCollision;
     to->internalValue = from->internalValue;
 }
 
@@ -694,7 +694,7 @@ static void FilledWeldJointDef(m2WeldJointDef* to, const m2WeldJointDef* from, u
     to->angularHertz = from->angularHertz;
     to->angularDampingRatio = from->angularDampingRatio;
     to->userData = from->userData;
-    to->collideConnected = from->collideConnected;
+    to->enableConnectedCollision = from->enableConnectedCollision;
     to->internalValue = from->internalValue;
 }
 
@@ -716,7 +716,7 @@ static void FilledWheelJointDef(m2WheelJointDef* to, const m2WheelJointDef* from
     to->lowerTranslation = from->lowerTranslation;
     to->upperTranslation = from->upperTranslation;
     to->userData = from->userData;
-    to->collideConnected = from->collideConnected;
+    to->enableConnectedCollision = from->enableConnectedCollision;
     to->internalValue = from->internalValue;
 }
 
@@ -742,7 +742,7 @@ static void FilledMotorJointDef(m2MotorJointDef* to, const m2MotorJointDef* from
     to->hertz = from->hertz;
     to->dampingRatio = from->dampingRatio;
     to->userData = from->userData;
-    to->collideConnected = from->collideConnected;
+    to->enableConnectedCollision = from->enableConnectedCollision;
     to->internalValue = from->internalValue;
 }
 
@@ -756,7 +756,7 @@ static void FilledMouseJointDef(m2MouseJointDef* to, const m2MouseJointDef* from
     to->dampingRatio = from->dampingRatio;
     to->maxForce = from->maxForce;
     to->userData = from->userData;
-    to->collideConnected = from->collideConnected;
+    to->enableConnectedCollision = from->enableConnectedCollision;
     to->internalValue = from->internalValue;
 }
 
@@ -767,7 +767,7 @@ static void FilledGearJointDef(m2GearJointDef* to, const m2GearJointDef* from, u
     to->bodyIdB = from->bodyIdB;
     to->ratio = from->ratio;
     to->userData = from->userData;
-    to->collideConnected = from->collideConnected;
+    to->enableConnectedCollision = from->enableConnectedCollision;
     to->internalValue = from->internalValue;
 }
 
@@ -782,7 +782,7 @@ static void FilledPulleyJointDef(m2PulleyJointDef* to, const m2PulleyJointDef* f
     to->localAnchorB = from->localAnchorB;
     to->ratio = from->ratio;
     to->userData = from->userData;
-    to->collideConnected = from->collideConnected;
+    to->enableConnectedCollision = from->enableConnectedCollision;
     to->internalValue = from->internalValue;
 }
 
@@ -795,7 +795,7 @@ static void FilledRatchetJointDef(m2RatchetJointDef* to, const m2RatchetJointDef
     to->ratchet = from->ratchet;
     to->phase = from->phase;
     to->userData = from->userData;
-    to->collideConnected = from->collideConnected;
+    to->enableConnectedCollision = from->enableConnectedCollision;
     to->internalValue = from->internalValue;
 }
 
