@@ -14,12 +14,13 @@ extern "C"
 {
 #endif
 
-    /// A world-space box in f64, for editor and camera math.
-    typedef struct m2AabbResult
+    /// A box in world space, its corners 64-bit positions: what a body or
+    /// shape covers, and the region a box query looks in.
+    typedef struct m2WorldAabb
     {
         m2Pos2 lowerBound;
         m2Pos2 upperBound;
-    } m2AabbResult;
+    } m2WorldAabb;
 
     typedef enum m2BodyType
     {
@@ -498,7 +499,7 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API m2AabbResult m2Body_ComputeAabb(const m2World* world, m2BodyId bodyId);
+    M2_API m2WorldAabb m2Body_ComputeAabb(const m2World* world, m2BodyId bodyId);
 
     /// Sets the velocity of a body's center of mass and wakes it. A stale
     /// id, a static body or a velocity beyond M2_MAX_SPEED on either axis

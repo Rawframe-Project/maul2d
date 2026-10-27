@@ -420,7 +420,7 @@ static void TestOverlap(void)
     AddStaticBox(world, 40.0, 0.0, 0.5, 0.5); // far away
 
     m2ShapeId results[8];
-    int32_t total = m2World_OverlapAabb(world, (m2Pos2){-1.0, -1.0}, (m2Pos2){4.2, 1.0}, results, 8,
+    int32_t total = m2World_OverlapAabb(world, (m2WorldAabb){{-1.0, -1.0}, {4.2, 1.0}}, results, 8,
                                         m2DefaultQueryFilter());
     CHECK(total == 3, "overlap finds exactly the three");
     CHECK(SameShape(results[0], a) && SameShape(results[1], b) && SameShape(results[2], c),
@@ -429,13 +429,13 @@ static void TestOverlap(void)
     // Truthful total under a tight capacity; the kept ones are the
     // lowest indices.
     m2ShapeId two[2];
-    int32_t clamped = m2World_OverlapAabb(world, (m2Pos2){-1.0, -1.0}, (m2Pos2){4.2, 1.0}, two, 2,
+    int32_t clamped = m2World_OverlapAabb(world, (m2WorldAabb){{-1.0, -1.0}, {4.2, 1.0}}, two, 2,
                                           m2DefaultQueryFilter());
     CHECK(clamped == 3, "total reported even beyond capacity");
     CHECK(SameShape(two[0], a) && SameShape(two[1], b), "capacity keeps the canonical head");
 
     // Empty region.
-    int32_t none = m2World_OverlapAabb(world, (m2Pos2){100.0, 100.0}, (m2Pos2){101.0, 101.0},
+    int32_t none = m2World_OverlapAabb(world, (m2WorldAabb){{100.0, 100.0}, {101.0, 101.0}},
                                        results, 8, m2DefaultQueryFilter());
     CHECK(none == 0, "empty region reports zero");
 
@@ -477,8 +477,8 @@ static void TestQueriesAreReadOnly(void)
     {
         m2World_CastRayClosest(world, (m2Pos2){-5.0 + 0.2 * (double)i, 3.0}, (m2Vec2){0.3f, -6.0f},
                                m2DefaultQueryFilter());
-        m2World_OverlapAabb(world, (m2Pos2){-4.0, -1.0}, (m2Pos2){0.1 * (double)i, 2.0}, results,
-                            32, m2DefaultQueryFilter());
+        m2World_OverlapAabb(world, (m2WorldAabb){{-4.0, -1.0}, {0.1 * (double)i, 2.0}}, results, 32,
+                            m2DefaultQueryFilter());
     }
     CHECK(m2World_Hash(world) == before, "queries never touch simulation state");
 
@@ -550,7 +550,7 @@ static void TestQueryFilters(void)
 
     m2ShapeId results[4];
     int32_t total =
-        m2World_OverlapAabb(world, (m2Pos2){0.0, -1.0}, (m2Pos2){5.0, 1.0}, results, 4, wallsOnly);
+        m2World_OverlapAabb(world, (m2WorldAabb){{0.0, -1.0}, {5.0, 1.0}}, results, 4, wallsOnly);
     CHECK(total == 1 && results[0].index1 == wallId.index1, "filtered overlap lists walls only");
 
     m2DestroyWorld(world);

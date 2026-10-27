@@ -238,9 +238,9 @@ float m2Body_GetCentralInertia(const m2World* world, m2BodyId bodyId)
     return result;
 }
 
-static M2_NOINLINE m2AabbResult BodyComputeAabbWorker(const m2World* world, m2BodyId bodyId)
+static M2_NOINLINE m2WorldAabb BodyComputeAabbWorker(const m2World* world, m2BodyId bodyId)
 {
-    m2AabbResult result = {{0.0, 0.0}, {0.0, 0.0}};
+    m2WorldAabb result = {{0.0, 0.0}, {0.0, 0.0}};
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0)
     {
@@ -273,10 +273,10 @@ static M2_NOINLINE m2AabbResult BodyComputeAabbWorker(const m2World* world, m2Bo
     return result;
 }
 
-m2AabbResult m2Body_ComputeAabb(const m2World* world, m2BodyId bodyId)
+m2WorldAabb m2Body_ComputeAabb(const m2World* world, m2BodyId bodyId)
 {
     uint64_t env = m2FloatEnvEnter();
-    m2AabbResult result = BodyComputeAabbWorker(world, bodyId);
+    m2WorldAabb result = BodyComputeAabbWorker(world, bodyId);
     m2FloatEnvLeave(env);
     return result;
 }
