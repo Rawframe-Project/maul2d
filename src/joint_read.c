@@ -87,7 +87,7 @@ m2Vec2 m2Joint_GetLocalAxisA(const m2World* world, m2JointId jointId)
     return result;
 }
 
-static M2_NOINLINE float JointGetLengthWorker(const m2World* world, m2JointId jointId)
+static M2_NOINLINE float DistanceJointGetLengthWorker(const m2World* world, m2JointId jointId)
 {
     int32_t index = JointSlotOfKind(world, jointId, 1u << m2_distanceJoint);
     if (index < 0)
@@ -97,43 +97,43 @@ static M2_NOINLINE float JointGetLengthWorker(const m2World* world, m2JointId jo
     return world->joints.jointLength[index];
 }
 
-float m2Joint_GetLength(const m2World* world, m2JointId jointId)
+float m2DistanceJoint_GetLength(const m2World* world, m2JointId jointId)
 {
     uint64_t env = m2FloatEnvEnter();
-    float result = JointGetLengthWorker(world, jointId);
+    float result = DistanceJointGetLengthWorker(world, jointId);
     m2FloatEnvLeave(env);
     return result;
 }
 
-static M2_NOINLINE float JointGetHertzWorker(const m2World* world, m2JointId jointId)
+static M2_NOINLINE float JointGetSpringHertzWorker(const m2World* world, m2JointId jointId)
 {
     int32_t index = JointSlotRefusing(world, jointId);
     return index >= 0 ? world->joints.jointHertz[index] : 0.0f;
 }
 
-float m2Joint_GetHertz(const m2World* world, m2JointId jointId)
+float m2Joint_GetSpringHertz(const m2World* world, m2JointId jointId)
 {
     uint64_t env = m2FloatEnvEnter();
-    float result = JointGetHertzWorker(world, jointId);
+    float result = JointGetSpringHertzWorker(world, jointId);
     m2FloatEnvLeave(env);
     return result;
 }
 
-static M2_NOINLINE float JointGetDampingRatioWorker(const m2World* world, m2JointId jointId)
+static M2_NOINLINE float JointGetSpringDampingRatioWorker(const m2World* world, m2JointId jointId)
 {
     int32_t index = JointSlotRefusing(world, jointId);
     return index >= 0 ? world->joints.jointDamping[index] : 0.0f;
 }
 
-float m2Joint_GetDampingRatio(const m2World* world, m2JointId jointId)
+float m2Joint_GetSpringDampingRatio(const m2World* world, m2JointId jointId)
 {
     uint64_t env = m2FloatEnvEnter();
-    float result = JointGetDampingRatioWorker(world, jointId);
+    float result = JointGetSpringDampingRatioWorker(world, jointId);
     m2FloatEnvLeave(env);
     return result;
 }
 
-static M2_NOINLINE float JointGetAngularHertzWorker(const m2World* world, m2JointId jointId)
+static M2_NOINLINE float JointGetAngularSpringHertzWorker(const m2World* world, m2JointId jointId)
 {
     int32_t index =
         JointSlotOfKind(world, jointId, (1u << m2_weldJoint) | (1u << m2_revoluteJoint));
@@ -144,15 +144,16 @@ static M2_NOINLINE float JointGetAngularHertzWorker(const m2World* world, m2Join
     return world->joints.jointHertz2[index];
 }
 
-float m2Joint_GetAngularHertz(const m2World* world, m2JointId jointId)
+float m2Joint_GetAngularSpringHertz(const m2World* world, m2JointId jointId)
 {
     uint64_t env = m2FloatEnvEnter();
-    float result = JointGetAngularHertzWorker(world, jointId);
+    float result = JointGetAngularSpringHertzWorker(world, jointId);
     m2FloatEnvLeave(env);
     return result;
 }
 
-static M2_NOINLINE float JointGetAngularDampingRatioWorker(const m2World* world, m2JointId jointId)
+static M2_NOINLINE float JointGetAngularSpringDampingRatioWorker(const m2World* world,
+                                                                 m2JointId jointId)
 {
     int32_t index =
         JointSlotOfKind(world, jointId, (1u << m2_weldJoint) | (1u << m2_revoluteJoint));
@@ -163,10 +164,10 @@ static M2_NOINLINE float JointGetAngularDampingRatioWorker(const m2World* world,
     return world->joints.jointDamping2[index];
 }
 
-float m2Joint_GetAngularDampingRatio(const m2World* world, m2JointId jointId)
+float m2Joint_GetAngularSpringDampingRatio(const m2World* world, m2JointId jointId)
 {
     uint64_t env = m2FloatEnvEnter();
-    float result = JointGetAngularDampingRatioWorker(world, jointId);
+    float result = JointGetAngularSpringDampingRatioWorker(world, jointId);
     m2FloatEnvLeave(env);
     return result;
 }
@@ -220,9 +221,7 @@ bool m2Joint_IsSpringEnabled(const m2World* world, m2JointId jointId)
 static M2_NOINLINE void JointGetLimitsWorker(const m2World* world, m2JointId jointId,
                                              float* lowerOut, float* upperOut)
 {
-    // A distance joint reads its length range here.
-    int32_t index =
-        JointSlotOfKind(world, jointId, M2_MOTOR_LIMIT_KINDS | (1u << m2_distanceJoint));
+    int32_t index = JointSlotOfKind(world, jointId, M2_MOTOR_LIMIT_KINDS);
     if (lowerOut != NULL)
     {
         *lowerOut = index >= 0 ? world->joints.jointLower[index] : 0.0f;
@@ -237,6 +236,28 @@ void m2Joint_GetLimits(const m2World* world, m2JointId jointId, float* lowerOut,
 {
     uint64_t env = m2FloatEnvEnter();
     JointGetLimitsWorker(world, jointId, lowerOut, upperOut);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void DistanceJointGetLengthRangeWorker(const m2World* world, m2JointId jointId,
+                                                          float* minLengthOut, float* maxLengthOut)
+{
+    int32_t index = JointSlotOfKind(world, jointId, 1u << m2_distanceJoint);
+    if (minLengthOut != NULL)
+    {
+        *minLengthOut = index >= 0 ? world->joints.jointLower[index] : 0.0f;
+    }
+    if (maxLengthOut != NULL)
+    {
+        *maxLengthOut = index >= 0 ? world->joints.jointUpper[index] : 0.0f;
+    }
+}
+
+void m2DistanceJoint_GetLengthRange(const m2World* world, m2JointId jointId, float* minLengthOut,
+                                    float* maxLengthOut)
+{
+    uint64_t env = m2FloatEnvEnter();
+    DistanceJointGetLengthRangeWorker(world, jointId, minLengthOut, maxLengthOut);
     m2FloatEnvLeave(env);
 }
 
@@ -260,59 +281,4 @@ void m2Joint_GetBreakLimits(const m2World* world, m2JointId jointId, float* maxF
     uint64_t env = m2FloatEnvEnter();
     JointGetBreakLimitsWorker(world, jointId, maxForceOut, maxTorqueOut);
     m2FloatEnvLeave(env);
-}
-
-// Spring-named getter aliases: the setters say Spring, the readers
-// now can too. Same slots, same validation.
-static M2_NOINLINE float JointGetSpringHertzWorker(const m2World* world, m2JointId jointId)
-{
-    return m2Joint_GetHertz(world, jointId);
-}
-
-float m2Joint_GetSpringHertz(const m2World* world, m2JointId jointId)
-{
-    uint64_t env = m2FloatEnvEnter();
-    float result = JointGetSpringHertzWorker(world, jointId);
-    m2FloatEnvLeave(env);
-    return result;
-}
-
-static M2_NOINLINE float JointGetSpringDampingRatioWorker(const m2World* world, m2JointId jointId)
-{
-    return m2Joint_GetDampingRatio(world, jointId);
-}
-
-float m2Joint_GetSpringDampingRatio(const m2World* world, m2JointId jointId)
-{
-    uint64_t env = m2FloatEnvEnter();
-    float result = JointGetSpringDampingRatioWorker(world, jointId);
-    m2FloatEnvLeave(env);
-    return result;
-}
-
-static M2_NOINLINE float JointGetAngularSpringHertzWorker(const m2World* world, m2JointId jointId)
-{
-    return m2Joint_GetAngularHertz(world, jointId);
-}
-
-float m2Joint_GetAngularSpringHertz(const m2World* world, m2JointId jointId)
-{
-    uint64_t env = m2FloatEnvEnter();
-    float result = JointGetAngularSpringHertzWorker(world, jointId);
-    m2FloatEnvLeave(env);
-    return result;
-}
-
-static M2_NOINLINE float JointGetAngularSpringDampingRatioWorker(const m2World* world,
-                                                                 m2JointId jointId)
-{
-    return m2Joint_GetAngularDampingRatio(world, jointId);
-}
-
-float m2Joint_GetAngularSpringDampingRatio(const m2World* world, m2JointId jointId)
-{
-    uint64_t env = m2FloatEnvEnter();
-    float result = JointGetAngularSpringDampingRatioWorker(world, jointId);
-    m2FloatEnvLeave(env);
-    return result;
 }

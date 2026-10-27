@@ -625,7 +625,7 @@ extern "C"
     /// Sets a distance joint's hard length range. Each bound is raised to
     /// the linear slop (0.005 m) and the two are put in order. Another
     /// joint type or a bound beyond M2_JOINT_REACH counts one misuse. Read the range
-    /// with m2Joint_GetLimits.
+    /// with m2DistanceJoint_GetLengthRange.
     ///
     /// @param world      The world.
     /// @param jointId    A distance joint.
@@ -647,6 +647,30 @@ extern "C"
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
     M2_API bool m2DistanceJoint_IsSpringEnabled(const m2World* world, m2JointId jointId);
+
+    /// Reads a distance joint's rest length.
+    ///
+    /// @param world    The world.
+    /// @param jointId  A distance joint; another type or a stale id counts
+    ///                 one misuse.
+    /// @return The length, meters; 0 for another joint type or a stale id.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M2_API float m2DistanceJoint_GetLength(const m2World* world, m2JointId jointId);
+
+    /// Reads the length range m2DistanceJoint_SetLengthRange sets.
+    ///
+    /// @param world         The world.
+    /// @param jointId       A distance joint; another type or a stale id
+    ///                      writes zeros and counts one misuse.
+    /// @param minLengthOut  Receives the shortest length, meters; may be null.
+    /// @param maxLengthOut  Receives the longest length, meters; may be null.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M2_API void m2DistanceJoint_GetLengthRange(const m2World* world, m2JointId jointId,
+                                               float* minLengthOut, float* maxLengthOut);
 
     /// Reads the force a joint carried on the last step: its stored
     /// impulses over that step's substep length. The break pass compares
@@ -722,16 +746,6 @@ extern "C"
     /// several readers at once.
     M2_API m2Vec2 m2Joint_GetLocalAxisA(const m2World* world, m2JointId jointId);
 
-    /// Reads a distance joint's rest length.
-    ///
-    /// @param world    The world.
-    /// @param jointId  A distance joint.
-    /// @return The length, meters; 0 for another joint type or a stale id.
-    /// @par Thread safety
-    /// Safe from any thread; a world is used by one thread at a time, or by
-    /// several readers at once.
-    M2_API float m2Joint_GetLength(const m2World* world, m2JointId jointId);
-
     /// Reads the frequency m2Joint_SetSpringHertz sets.
     ///
     /// @param world    The world.
@@ -771,50 +785,6 @@ extern "C"
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
     M2_API float m2Joint_GetAngularSpringDampingRatio(const m2World* world, m2JointId jointId);
-
-    /// Reads the main rows' frequency; the same value as
-    /// m2Joint_GetSpringHertz.
-    ///
-    /// @param world    The world.
-    /// @param jointId  The joint.
-    /// @return The frequency; 0 for a stale id.
-    /// @par Thread safety
-    /// Safe from any thread; a world is used by one thread at a time, or by
-    /// several readers at once.
-    M2_API float m2Joint_GetHertz(const m2World* world, m2JointId jointId);
-
-    /// Reads the main rows' damping ratio; the same value as
-    /// m2Joint_GetSpringDampingRatio.
-    ///
-    /// @param world    The world.
-    /// @param jointId  The joint.
-    /// @return The ratio; 0 for a stale id.
-    /// @par Thread safety
-    /// Safe from any thread; a world is used by one thread at a time, or by
-    /// several readers at once.
-    M2_API float m2Joint_GetDampingRatio(const m2World* world, m2JointId jointId);
-
-    /// Reads the angular spring's frequency; the same value as
-    /// m2Joint_GetAngularSpringHertz.
-    ///
-    /// @param world    The world.
-    /// @param jointId  A revolute or weld joint.
-    /// @return The frequency; 0 for another joint type or a stale id.
-    /// @par Thread safety
-    /// Safe from any thread; a world is used by one thread at a time, or by
-    /// several readers at once.
-    M2_API float m2Joint_GetAngularHertz(const m2World* world, m2JointId jointId);
-
-    /// Reads the angular spring's damping ratio; the same value as
-    /// m2Joint_GetAngularSpringDampingRatio.
-    ///
-    /// @param world    The world.
-    /// @param jointId  A revolute or weld joint.
-    /// @return The ratio; 0 for another joint type or a stale id.
-    /// @par Thread safety
-    /// Safe from any thread; a world is used by one thread at a time, or by
-    /// several readers at once.
-    M2_API float m2Joint_GetAngularDampingRatio(const m2World* world, m2JointId jointId);
 
     /// Reads a motor's target speed.
     ///
@@ -868,11 +838,11 @@ extern "C"
     /// several readers at once.
     M2_API bool m2Joint_IsSpringEnabled(const m2World* world, m2JointId jointId);
 
-    /// Reads the limits, or a distance joint's length range.
+    /// Reads the limits m2Joint_SetLimits sets.
     ///
     /// @param world     The world.
-    /// @param jointId   A revolute, prismatic, wheel or distance joint;
-    ///                  another type or a stale id writes zeros.
+    /// @param jointId   A revolute, prismatic or wheel joint; another type
+    ///                  or a stale id writes zeros.
     /// @param lowerOut  Receives the lower limit; may be null.
     /// @param upperOut  Receives the upper limit; may be null.
     /// @par Thread safety

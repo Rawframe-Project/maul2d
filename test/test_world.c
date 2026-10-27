@@ -766,8 +766,8 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.bodyIdA = a;
             jd.bodyIdB = b;
             jd.target = m2MouseJoint_GetTarget(source, id);
-            jd.hertz = m2Joint_GetHertz(source, id);
-            jd.dampingRatio = m2Joint_GetDampingRatio(source, id);
+            jd.hertz = m2Joint_GetSpringHertz(source, id);
+            jd.dampingRatio = m2Joint_GetSpringDampingRatio(source, id);
             jd.maxForce = m2MouseJoint_GetMaxForce(source, id);
             jd.collideConnected = m2Joint_GetCollideConnected(source, id);
             made = NewMouseJoint(mirror, &jd);
@@ -779,11 +779,11 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.bodyIdB = b;
             jd.localAnchorA = m2Joint_GetLocalAnchorA(source, id);
             jd.localAnchorB = m2Joint_GetLocalAnchorB(source, id);
-            jd.length = m2Joint_GetLength(source, id);
-            m2Joint_GetLimits(source, id, &jd.minLength, &jd.maxLength);
+            jd.length = m2DistanceJoint_GetLength(source, id);
+            m2DistanceJoint_GetLengthRange(source, id, &jd.minLength, &jd.maxLength);
             jd.collideConnected = m2Joint_GetCollideConnected(source, id);
-            jd.hertz = m2Joint_GetHertz(source, id);
-            jd.dampingRatio = m2Joint_GetDampingRatio(source, id);
+            jd.hertz = m2Joint_GetSpringHertz(source, id);
+            jd.dampingRatio = m2Joint_GetSpringDampingRatio(source, id);
             jd.enableSpring = m2DistanceJoint_IsSpringEnabled(source, id);
             made = NewDistanceJoint(mirror, &jd);
         }
@@ -794,10 +794,10 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.bodyIdB = b;
             jd.localAnchorA = m2Joint_GetLocalAnchorA(source, id);
             jd.localAnchorB = m2Joint_GetLocalAnchorB(source, id);
-            jd.hertz = m2Joint_GetHertz(source, id);
-            jd.dampingRatio = m2Joint_GetDampingRatio(source, id);
-            jd.springHertz = m2Joint_GetAngularHertz(source, id);
-            jd.springDampingRatio = m2Joint_GetAngularDampingRatio(source, id);
+            jd.hertz = m2Joint_GetSpringHertz(source, id);
+            jd.dampingRatio = m2Joint_GetSpringDampingRatio(source, id);
+            jd.springHertz = m2Joint_GetAngularSpringHertz(source, id);
+            jd.springDampingRatio = m2Joint_GetAngularSpringDampingRatio(source, id);
             jd.enableMotor = m2Joint_IsMotorEnabled(source, id);
             jd.motorSpeed = m2Joint_GetMotorSpeed(source, id);
             jd.maxMotorTorque = m2Joint_GetMaxMotor(source, id);
@@ -814,8 +814,8 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.localAnchorA = m2Joint_GetLocalAnchorA(source, id);
             jd.localAnchorB = m2Joint_GetLocalAnchorB(source, id);
             jd.localAxisA = m2Joint_GetLocalAxisA(source, id);
-            jd.hertz = m2Joint_GetHertz(source, id);
-            jd.dampingRatio = m2Joint_GetDampingRatio(source, id);
+            jd.hertz = m2Joint_GetSpringHertz(source, id);
+            jd.dampingRatio = m2Joint_GetSpringDampingRatio(source, id);
             jd.enableMotor = m2Joint_IsMotorEnabled(source, id);
             jd.motorSpeed = m2Joint_GetMotorSpeed(source, id);
             jd.maxMotorForce = m2Joint_GetMaxMotor(source, id);
@@ -831,10 +831,10 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.bodyIdB = b;
             jd.localAnchorA = m2Joint_GetLocalAnchorA(source, id);
             jd.localAnchorB = m2Joint_GetLocalAnchorB(source, id);
-            jd.linearHertz = m2Joint_GetHertz(source, id);
-            jd.linearDampingRatio = m2Joint_GetDampingRatio(source, id);
-            jd.angularHertz = m2Joint_GetAngularHertz(source, id);
-            jd.angularDampingRatio = m2Joint_GetAngularDampingRatio(source, id);
+            jd.linearHertz = m2Joint_GetSpringHertz(source, id);
+            jd.linearDampingRatio = m2Joint_GetSpringDampingRatio(source, id);
+            jd.angularHertz = m2Joint_GetAngularSpringHertz(source, id);
+            jd.angularDampingRatio = m2Joint_GetAngularSpringDampingRatio(source, id);
             jd.collideConnected = m2Joint_GetCollideConnected(source, id);
             made = NewWeldJoint(mirror, &jd);
         }
@@ -847,8 +847,8 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.localAnchorB = m2Joint_GetLocalAnchorB(source, id);
             jd.localAxisA = m2Joint_GetLocalAxisA(source, id);
             jd.enableSpring = m2Joint_IsSpringEnabled(source, id);
-            jd.hertz = m2Joint_GetHertz(source, id);
-            jd.dampingRatio = m2Joint_GetDampingRatio(source, id);
+            jd.hertz = m2Joint_GetSpringHertz(source, id);
+            jd.dampingRatio = m2Joint_GetSpringDampingRatio(source, id);
             jd.enableMotor = m2Joint_IsMotorEnabled(source, id);
             jd.motorSpeed = m2Joint_GetMotorSpeed(source, id);
             jd.maxMotorTorque = m2Joint_GetMaxMotor(source, id);
@@ -2428,7 +2428,7 @@ static void TestEveryRefusalHasAReason(void)
     m2World_Step(world, 1.0f / 60.0f, 0);
     CHECK(m2World_GetStepCount(world) == stepsBefore, "a zero dt and zero substeps are refused");
     m2JointId staleJoint = {1, 1};
-    CHECK(m2Joint_GetLength(world, staleJoint) == 0.0f, "a stale joint read returns zero");
+    CHECK(m2DistanceJoint_GetLength(world, staleJoint) == 0.0f, "a stale joint read returns zero");
     CHECK(m2World_GetCounters(world).misuse == misuseBefore + 3, "and each refusal counts once");
     m2DestroyWorld(world);
 }
