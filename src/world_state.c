@@ -535,7 +535,29 @@ void m2StateFree(m2World* world)
     }
 }
 
-int32_t m2StateWalk(m2World* world, uint8_t* out, const uint8_t* in, int direction)
+bool m2StateSnapshotBytes(const m2World* world, size_t* bytesOut)
+{
+    size_t total = 0;
+    for (size_t i = 0; i < sizeof(s_state) / sizeof(s_state[0]); ++i)
+    {
+        const m2StateArray* array = &s_state[i];
+        if ((array->flags & M2_STATE_SNAPSHOT) == 0 || !Present(world, array->flags))
+        {
+            continue;
+        }
+        size_t bytes = array->elementSize;
+        if (((array->flags & M2_STATE_POINTER) != 0 &&
+             ckd_mul(&bytes, ExtentCount(world, array->extent), array->elementSize)) ||
+            ckd_add(&total, total, bytes))
+        {
+            return false;
+        }
+    }
+    *bytesOut = total;
+    return true;
+}
+
+size_t m2StateWalk(m2World* world, uint8_t* out, const uint8_t* in, int direction)
 {
     size_t cursor = 0;
     for (size_t i = 0; i < sizeof(s_state) / sizeof(s_state[0]); ++i)
@@ -559,7 +581,7 @@ int32_t m2StateWalk(m2World* world, uint8_t* out, const uint8_t* in, int directi
         }
         cursor += bytes;
     }
-    return (int32_t)cursor;
+    return cursor;
 }
 
 static bool CheckBlock(const m2World* world, const m2StateArray* array, const uint8_t* data,

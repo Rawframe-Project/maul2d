@@ -15,6 +15,7 @@
 
 #include "maul2d/base.h"
 
+#include <stdint.h>
 #include <string.h>
 
 #define M2_JOURNAL_MAGIC   M2_STATE_MAGIC('M', '2', 'J', 'N')
@@ -31,23 +32,34 @@ typedef struct m2JournalHeader
 } m2JournalHeader;
 
 _Static_assert(sizeof(m2JournalHeader) == 40, "journal header must be padding-free");
+// A tape of any world holds its header, the snapshot it starts from and
+// the record of one restore of a snapshot of that size.
+_Static_assert(2 * (int64_t)M2_MAX_SNAPSHOT_BYTES + (int64_t)sizeof(m2JournalHeader) + 1 +
+                       (int64_t)sizeof(int32_t) <=
+                   INT32_MAX,
+               "a journal of the largest snapshot and one restore fits an int32_t");
+
+bool m2JournalRecordFits(int32_t cursor, int32_t capacity, int64_t bytes)
+{
+    return bytes >= 0 && bytes <= (int64_t)capacity - (int64_t)cursor - 1;
+}
 
 // Reserves one record of 1 + bytes and writes its op byte. Returns where
 // the payload goes, or NULL when nothing is recording or the buffer is
 // full (the overflow is reported by m2World_StopJournal, never silent).
-static uint8_t* ReserveRecord(m2World* world, uint8_t op, int32_t bytes)
+static uint8_t* ReserveRecord(m2World* world, uint8_t op, int64_t bytes)
 {
     if (world->recorder.journalActive == 0 || world->recorder.journalOverflow != 0)
     {
         return NULL;
     }
-    if (world->recorder.journalCursor + 1 + bytes > world->recorder.journalCapacity)
+    if (!m2JournalRecordFits(world->recorder.journalCursor, world->recorder.journalCapacity, bytes))
     {
         world->recorder.journalOverflow = 1;
         return NULL;
     }
     uint8_t* record = world->recorder.journal + world->recorder.journalCursor;
-    world->recorder.journalCursor += 1 + bytes;
+    world->recorder.journalCursor += 1 + (int32_t)bytes; // within the capacity
     record[0] = op;
     return record + 1;
 }
@@ -63,7 +75,7 @@ void m2JournalRecord(m2World* world, uint8_t op, const void* payload, int32_t by
 
 void m2JournalRecordRestore(m2World* world, const void* snapshot, int32_t size)
 {
-    uint8_t* out = ReserveRecord(world, m2_opRestore, (int32_t)sizeof(int32_t) + size);
+    uint8_t* out = ReserveRecord(world, m2_opRestore, (int64_t)sizeof(int32_t) + size);
     if (out != NULL)
     {
         memcpy(out, &size, sizeof(int32_t));
@@ -74,9 +86,9 @@ void m2JournalRecordRestore(m2World* world, const void* snapshot, int32_t size)
 void m2JournalRecordShatter(m2World* world, m2BodyId bodyId, const m2Polygon* pieces,
                             int32_t pieceCount, int32_t expectedFirst)
 {
-    int32_t pieceBytes = pieceCount * (int32_t)sizeof(m2Polygon);
+    int64_t pieceBytes = (int64_t)pieceCount * (int64_t)sizeof(m2Polygon);
     uint8_t* out =
-        ReserveRecord(world, m2_opShatterBody, (int32_t)sizeof(m2OpShatterHeader) + pieceBytes);
+        ReserveRecord(world, m2_opShatterBody, (int64_t)sizeof(m2OpShatterHeader) + pieceBytes);
     if (out == NULL)
     {
         return;
@@ -93,9 +105,9 @@ void m2JournalRecordShatter(m2World* world, m2BodyId bodyId, const m2Polygon* pi
 void m2JournalRecordChain(m2World* world, m2BodyId bodyId, const m2ChainDef* def,
                           int32_t createdCount)
 {
-    int32_t pointBytes = def->count * (int32_t)sizeof(m2Vec2);
+    int64_t pointBytes = (int64_t)def->count * (int64_t)sizeof(m2Vec2);
     uint8_t* out =
-        ReserveRecord(world, m2_opCreateChain, (int32_t)sizeof(m2OpChainHeader) + pointBytes);
+        ReserveRecord(world, m2_opCreateChain, (int64_t)sizeof(m2OpChainHeader) + pointBytes);
     if (out == NULL)
     {
         return;
@@ -150,7 +162,7 @@ static M2_NOINLINE m2Result WorldStartJournalWorker(m2World* world, void* buffer
         return m2Refuse(world, m2_errorState);
     }
     int32_t snapshotSize = m2World_SnapshotSize(world);
-    if (capacity < (int32_t)sizeof(m2JournalHeader) + snapshotSize)
+    if ((int64_t)capacity < (int64_t)sizeof(m2JournalHeader) + snapshotSize)
     {
         return m2Refuse(world, m2_errorCapacity);
     }

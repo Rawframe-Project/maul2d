@@ -172,8 +172,9 @@ extern "C"
     ///         rest of the def (a capacity below 1, an allocator with one
     ///         function set, a gravity beyond M2_MAX_ACCELERATION, a
     ///         particle parameter out of its range);
-    ///         m2_errorCapacity when the allocator refuses or a size does
-    ///         not fit.
+    ///         m2_errorCapacity, before anything is allocated, when the
+    ///         world would snapshot to more than M2_MAX_SNAPSHOT_BYTES, and
+    ///         when the allocator refuses or a size does not fit.
     /// @par Thread safety
     /// Safe from any thread.
     M2_NODISCARD M2_API m2Result m2CreateWorld(const m2WorldDef* def, m2World** worldOut);
@@ -420,7 +421,7 @@ extern "C"
     M2_API uint64_t m2World_GetStepCount(const m2World* world);
 
     /// Returns the size of this world's snapshot. It is fixed for the
-    /// world's life.
+    /// world's life and at most M2_MAX_SNAPSHOT_BYTES.
     ///
     /// @param world  The world.
     /// @return The size in bytes; 0 for a null world.

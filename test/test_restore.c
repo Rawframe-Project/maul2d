@@ -15,6 +15,7 @@
 #include "helpers.h"
 #include "joint.h"
 #include "joint_row.h"
+#include "journal.h"
 #include "snapshot_check.h"
 #include "test_harness.h"
 #include "world_internal.h"
@@ -25,6 +26,7 @@
 #include <float.h>
 #include <math.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -93,7 +95,7 @@ static Scene MakeSceneAfter(int32_t steps)
     scene.valid = (uint8_t*)malloc((size_t)scene.size);
     CHECK(scene.valid != NULL && Snapshot(scene.world, scene.valid, scene.size) == scene.size,
           "the scene snapshots");
-    scene.headerBytes = scene.size - m2StateWalk(scene.world, NULL, NULL, 2);
+    scene.headerBytes = scene.size - (int32_t)m2StateWalk(scene.world, NULL, NULL, 2);
     return scene;
 }
 
@@ -883,7 +885,7 @@ static Scene MakeJointScene(void)
     scene.valid = (uint8_t*)malloc((size_t)scene.size);
     CHECK(scene.valid != NULL && Snapshot(w, scene.valid, scene.size) == scene.size,
           "the joint scene snapshots");
-    scene.headerBytes = scene.size - m2StateWalk(w, NULL, NULL, 2);
+    scene.headerBytes = scene.size - (int32_t)m2StateWalk(w, NULL, NULL, 2);
     return scene;
 }
 
@@ -1118,7 +1120,7 @@ static void TestRestingBoxes(void)
     sleeping.valid = (uint8_t*)malloc((size_t)sleeping.size);
     CHECK(sleeping.valid != NULL && Snapshot(world, sleeping.valid, sleeping.size) == sleeping.size,
           "the sleeping world snapshots");
-    sleeping.headerBytes = sleeping.size - m2StateWalk(world, NULL, NULL, 2);
+    sleeping.headerBytes = sleeping.size - (int32_t)m2StateWalk(world, NULL, NULL, 2);
     uint64_t hash = m2World_Hash(world);
     CHECK(Restore(world, sleeping.valid, sleeping.size) && m2World_Hash(world) == hash,
           "a body that fell asleep after moving past its margin restores its own snapshot");
@@ -1251,7 +1253,7 @@ static Scene MakeJellyScene(void)
     scene.valid = (uint8_t*)malloc((size_t)scene.size);
     CHECK(scene.valid != NULL && Snapshot(w, scene.valid, scene.size) == scene.size,
           "the jelly snapshots");
-    scene.headerBytes = scene.size - m2StateWalk(w, NULL, NULL, 2);
+    scene.headerBytes = scene.size - (int32_t)m2StateWalk(w, NULL, NULL, 2);
     return scene;
 }
 
@@ -1557,7 +1559,7 @@ static void RestoreSpentPool(const SpentPool* pool, const void* freeQueue, const
     CHECK(m2World_Restore(pool->world, bytes, size) == m2_success &&
               m2World_Hash(pool->world) == hash,
           "a spent pool round-trips");
-    int32_t header = size - m2StateWalk(pool->world, NULL, NULL, 2);
+    int32_t header = size - (int32_t)m2StateWalk(pool->world, NULL, NULL, 2);
     uint8_t* block = edited + header;
 
     memcpy(edited, bytes, (size_t)size);
@@ -1672,6 +1674,26 @@ static void TestSpentSlotsRetire(void)
     m2DestroyWorld(w);
 }
 
+static void TestJournalRecordRoom(void)
+{
+    // A record's room on a tape is reckoned in 64 bits: its op byte and
+    // payload against what is left, at every capacity an int32_t names
+    // and for every payload a record can carry.
+    CHECK(m2JournalRecordFits(0, 10, 9) && !m2JournalRecordFits(0, 10, 10),
+          "a record takes its op byte and its payload");
+    CHECK(m2JournalRecordFits(INT32_MAX - 10, INT32_MAX, 9) &&
+              !m2JournalRecordFits(INT32_MAX - 10, INT32_MAX, 10),
+          "the same at the largest capacity");
+    CHECK(!m2JournalRecordFits(INT32_MAX, INT32_MAX, 0), "a full tape takes no record");
+    CHECK(!m2JournalRecordFits(M2_MAX_SNAPSHOT_BYTES + 40, INT32_MAX, INT32_MAX),
+          "a payload as large as a tape does not fit behind a snapshot");
+    CHECK(!m2JournalRecordFits(40, INT32_MAX, (int64_t)INT32_MAX + 4),
+          "nor one past what an int32_t names");
+    CHECK(m2JournalRecordFits(M2_MAX_SNAPSHOT_BYTES + 40, INT32_MAX, M2_MAX_SNAPSHOT_BYTES + 4),
+          "the restore of the largest snapshot fits behind the one a tape starts from");
+    CHECK(!m2JournalRecordFits(0, 10, -1), "a negative payload takes no room");
+}
+
 int main(void)
 {
     TestHostileStructures();
@@ -1685,6 +1707,7 @@ int main(void)
     TestRestingBoxes();
     TestResleptBodyRefreshesItsContacts();
     TestSpentSlotsRetire();
+    TestJournalRecordRoom();
     if (s_failures > 0)
     {
         printf("%d failure(s)\n", s_failures);

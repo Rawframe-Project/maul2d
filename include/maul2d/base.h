@@ -187,6 +187,13 @@ extern "C"
 // tape, from running without bound.
 #define M2_MAX_SUBSTEPS 64
 
+// The largest snapshot in bytes, about 1 GiB. Snapshot and journal sizes
+// are int32_t byte counts, and a journal holds its 40-byte header, the
+// snapshot it starts from and the record of a restore of a snapshot of the
+// same size (5 bytes before it): (INT32_MAX - 45) / 2. m2CreateWorld
+// refuses a def whose world would snapshot to more.
+#define M2_MAX_SNAPSHOT_BYTES 1073741801
+
 // The largest magnitude of a body-local length, in meters: shape
 // coordinates and radii, the points of polygons, hulls, outlines and
 // chains, and joint anchors. Larger ones are refused: the solver works in

@@ -26,6 +26,10 @@ Every number the step multiplies has a range, in meters, kilograms and seconds. 
 
 World positions are 64-bit and not bounded. A joint takes bodies farther apart than `M2_JOINT_REACH` along an axis as that far apart, and so does an impulse or force applied at a far point. At the solver's 400 m/s cap, closing 1e9 m takes a month.
 
+## World size
+
+A world's snapshot is at most `M2_MAX_SNAPSHOT_BYTES`, about 1 GiB. Snapshot and journal sizes are `int32_t` byte counts, and a journal holds the snapshot it starts from and the record of a restore of the same size. `m2CreateWorld` refuses a def whose world would snapshot to more with `m2_errorCapacity`, before it allocates anything. A shape slot takes about 1.3 KB of the snapshot, its contact pairs included, a particle about 170 bytes, a body about 110 and a joint about 160, so the bound sits near 840,000 shapes. `m2World_SnapshotSize` gives a world's exact size.
+
 ## Clamped and saturated values
 
 Three kinds of value are held to their ranges instead of refused:

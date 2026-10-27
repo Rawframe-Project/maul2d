@@ -19,10 +19,15 @@
 bool m2StateAllocate(m2World* world);
 void m2StateFree(m2World* world);
 
+// The bytes of the snapshot state, from the capacities already set in the
+// world alone, so a def is measured before anything is allocated. Returns
+// false when the sum does not fit a size_t.
+bool m2StateSnapshotBytes(const m2World* world, size_t* bytesOut);
+
 // Walks the snapshot state in byte order: direction 0 copies into out,
 // 1 copies from in, and any other value only measures. Returns the
-// number of bytes.
-int32_t m2StateWalk(m2World* world, uint8_t* out, const uint8_t* in, int direction);
+// number of bytes, m2StateSnapshotBytes' count.
+size_t m2StateWalk(m2World* world, uint8_t* out, const uint8_t* in, int direction);
 
 // Checks an incoming snapshot block against the table before any of it
 // lands: every index in range, every flag a flag, every count within its
