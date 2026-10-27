@@ -187,7 +187,8 @@ static bool LinksJoinLive(const m2World* world, const uint8_t* alive, const uint
 // A spring's rest length and a triad's spawn corners hold what a fill
 // makes: a rest length above 0 and at most one particle diameter, and
 // corners within one lattice stride of their centroid on each axis. The
-// counts are already in range.
+// header has matched the snapshot's particle radius to this world's, and
+// the counts are already in range.
 static bool LinkShapesInRange(const m2World* world, const uint8_t* in)
 {
     float diameter = 2.0f * world->particles.particleRadius;

@@ -19,7 +19,7 @@
 #include <string.h>
 
 #define M2_JOURNAL_MAGIC   M2_STATE_MAGIC('M', '2', 'J', 'N')
-#define M2_JOURNAL_VERSION 7u
+#define M2_JOURNAL_VERSION 8u
 
 typedef struct m2JournalHeader
 {

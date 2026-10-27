@@ -1694,8 +1694,8 @@ static void TestJournalRecordRoom(void)
     CHECK(!m2JournalRecordFits(0, 10, -1), "a negative payload takes no room");
 }
 
-// A snapshot of a world holding one spring and elastic fill, with the
-// offset of its state block.
+// A snapshot of a world with the given particle radius holding one spring
+// and elastic fill, with the offset of its state block.
 typedef struct LinkScene
 {
     m2World* world;
@@ -1704,13 +1704,14 @@ typedef struct LinkScene
     int32_t header;
 } LinkScene;
 
-static LinkScene MakeLinkScene(void)
+static LinkScene MakeLinkScene(float radius)
 {
     LinkScene scene;
     m2WorldDef def = m2DefaultWorldDef();
     def.particleCapacity = 32;
+    def.particleRadius = radius;
     scene.world = NewWorld(&def);
-    m2Polygon drop = m2MakeBox(0.1f, 0.1f);
+    m2Polygon drop = m2MakeBox(2.0f * radius, 2.0f * radius);
     CHECK(m2World_FillPolygonWithParticles(scene.world, &drop, (m2Pos2){0.0, 1.0},
                                            (m2Vec2){0.0f, 0.0f},
                                            m2_springParticle | m2_elasticParticle) > 1,
@@ -1737,7 +1738,7 @@ static uint8_t* LinkField(const LinkScene* scene, const void* field)
 // world steps on finite.
 static void TestDistantLinkEndStaysFinite(void)
 {
-    LinkScene scene = MakeLinkScene();
+    LinkScene scene = MakeLinkScene(0.05f);
     m2World* world = scene.world;
     int32_t distant = world->particles.particleTriadA[0];
     uint8_t* positions = LinkField(&scene, &world->particles.particlePositions);
@@ -1759,7 +1760,7 @@ static void TestDistantLinkEndStaysFinite(void)
 // makes; a snapshot that holds others is refused.
 static void TestLinkShapesInRange(void)
 {
-    LinkScene scene = MakeLinkScene();
+    LinkScene scene = MakeLinkScene(0.05f);
     m2World* world = scene.world;
     uint64_t hash = m2World_Hash(world);
     uint8_t* rests = LinkField(&scene, &world->particles.particleSpringRest);
@@ -1788,6 +1789,39 @@ static void TestLinkShapesInRange(void)
     m2DestroyWorld(world);
 }
 
+// The particle radius is part of a world's shape: a fill in a world of
+// radius 0.1 makes springs longer than a world of radius 0.05 can, and
+// its snapshots, an empty world's too, restore only into a world of
+// radius 0.1.
+static void TestRestoreKeepsTheParticleRadius(void)
+{
+    LinkScene scene = MakeLinkScene(0.1f);
+    m2WorldDef def = m2DefaultWorldDef();
+    def.particleCapacity = 32;
+    def.particleRadius = 0.05f;
+    m2World* narrower = NewWorld(&def);
+    uint64_t hash = m2World_Hash(narrower);
+    CHECK(m2World_Restore(narrower, scene.bytes, scene.size) == m2_errorInvalid,
+          "a snapshot from a world of another particle radius is refused");
+    def.particleRadius = 0.1f;
+    m2World* same = NewWorld(&def);
+    int32_t emptySize = m2World_SnapshotSize(same);
+    uint8_t* empty = (uint8_t*)malloc((size_t)emptySize);
+    CHECK(empty != NULL && Snapshot(same, empty, emptySize) == emptySize,
+          "an empty world snapshots");
+    CHECK(m2World_Restore(narrower, empty, emptySize) == m2_errorInvalid,
+          "and is refused there too, holding no particle");
+    free(empty);
+    CHECK(m2World_Hash(narrower) == hash && m2World_GetCounters(narrower).misuse == 0,
+          "changing nothing and counting no misuse");
+    CHECK(Restore(same, scene.bytes, scene.size) && m2World_Hash(same) == m2World_Hash(scene.world),
+          "and restores into a world of its own radius");
+    m2DestroyWorld(same);
+    m2DestroyWorld(narrower);
+    free(scene.bytes);
+    m2DestroyWorld(scene.world);
+}
+
 int main(void)
 {
     TestHostileStructures();
@@ -1804,6 +1838,7 @@ int main(void)
     TestJournalRecordRoom();
     TestDistantLinkEndStaysFinite();
     TestLinkShapesInRange();
+    TestRestoreKeepsTheParticleRadius();
     if (s_failures > 0)
     {
         printf("%d failure(s)\n", s_failures);
