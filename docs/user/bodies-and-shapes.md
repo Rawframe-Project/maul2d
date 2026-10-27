@@ -42,7 +42,7 @@ A sensor detects overlaps and never pushes back, and never affects sleep. Its ov
 
 ## Chains
 
-A chain is terrain bodies cannot snag on: a run of one-sided segments whose seams are smoothed by ghost points. Wind it so the solid side is on the right walking from one point to the next: for a floor, list the points right to left. An open chain uses its first and last points as ghosts and needs at least four. `m2CreateChain` returns one id for the whole run: `m2DestroyChain` removes every segment at once, and `m2Chain_SetFriction` and `m2Chain_SetRestitution` retune them all. A chain is the way to build one-way platforms.
+A chain is terrain bodies cannot snag on: a run of one-sided segments whose seams are smoothed by ghost points. Wind it so the solid side is on the right walking from one point to the next: for a floor, list the points right to left. An open chain uses its first and last points as ghosts and needs at least four. `m2CreateChain` returns one id for the whole run: `m2DestroyChain` removes every segment at once, and `m2Chain_SetFriction` and `m2Chain_SetRestitution` retune them all. A shape pool that runs out partway leaves a shorter chain, which keeps its id, and the create returns `m2_errorCapacity`; `m2Chain_GetSegmentCount` tells how many segments it has. A chain is the way to build one-way platforms.
 
 ## Geometry from points
 

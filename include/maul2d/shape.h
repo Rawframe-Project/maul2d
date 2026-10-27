@@ -145,18 +145,23 @@ extern "C"
     M2_API m2ChainDef m2DefaultChainDef(void);
 
     /// Creates a chain's segment shapes on a body. A shape pool that runs
-    /// out midway leaves a shorter chain, which m2Chain_GetSegmentCount
-    /// reports. The id names the whole chain; destroying the body retires
-    /// it too. Journaled as one operation.
+    /// out midway leaves a shorter chain: its segments and its id stay, the
+    /// create returns m2_errorCapacity, and m2Chain_GetSegmentCount tells
+    /// how many it has. The id names the whole chain; destroying the body
+    /// retires it too. Journaled as one operation, a chain cut short
+    /// included.
     ///
     /// @param world     The world.
     /// @param bodyId    The body the segments attach to.
     /// @param def       The chain, from m2DefaultChainDef.
-    /// @param chainOut  Receives the chain; the null id on failure.
-    /// @return m2_success; m2_errorStale for a stale body; m2_errorInvalid
-    ///         for a bad def or a null chainOut; m2_errorCapacity when the
-    ///         chain or shape pool has no room at all; m2_errorState from
-    ///         host code the world is running.
+    /// @param chainOut  Receives the chain, a chain cut short included; the
+    ///                  null id when the create is refused.
+    /// @return m2_success; m2_errorCapacity, counting no misuse, when the
+    ///         shape pool ran out before the last segment (chainOut names
+    ///         the shorter chain) or the chain or shape pool has no room at
+    ///         all (chainOut is the null id); m2_errorStale for a stale
+    ///         body; m2_errorInvalid for a bad def or a null chainOut;
+    ///         m2_errorState from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2CreateChain(m2World* world, m2BodyId bodyId,
