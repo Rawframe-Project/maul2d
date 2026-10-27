@@ -32,8 +32,10 @@ m2WeldJointDef m2DefaultWeldJointDef(void)
 static bool DefValid(const m2WeldJointDef* def)
 {
     return m2LocalVec2(def->localAnchorA) && m2LocalVec2(def->localAnchorB) &&
-           m2ValidRate(def->linearHertz) && m2ValidCoefficient(def->linearDampingRatio) &&
-           m2ValidRate(def->angularHertz) && m2ValidCoefficient(def->angularDampingRatio);
+           m2ValidRate(def->linearSpringHertz) &&
+           m2ValidCoefficient(def->linearSpringDampingRatio) &&
+           m2ValidRate(def->angularSpringHertz) &&
+           m2ValidCoefficient(def->angularSpringDampingRatio);
 }
 
 // The create record holds the def's fields and zero bytes between them:
@@ -45,10 +47,10 @@ static void RecordWeldJointDef(m2WeldJointDef* out, const m2WeldJointDef* def)
     out->bodyIdB = def->bodyIdB;
     out->localAnchorA = def->localAnchorA;
     out->localAnchorB = def->localAnchorB;
-    out->linearHertz = def->linearHertz;
-    out->linearDampingRatio = def->linearDampingRatio;
-    out->angularHertz = def->angularHertz;
-    out->angularDampingRatio = def->angularDampingRatio;
+    out->linearSpringHertz = def->linearSpringHertz;
+    out->linearSpringDampingRatio = def->linearSpringDampingRatio;
+    out->angularSpringHertz = def->angularSpringHertz;
+    out->angularSpringDampingRatio = def->angularSpringDampingRatio;
     out->userData = def->userData;
     out->enableConnectedCollision = def->enableConnectedCollision;
     out->internalValue = def->internalValue;
@@ -86,17 +88,17 @@ static M2_NOINLINE m2Result CreateWeldJointWorker(m2World* world, const m2WeldJo
     {
         return m2Refuse(world, m2_errorCapacity);
     }
-    m2JointId jointId =
-        m2FinishJoint(world, index, (uint8_t)m2_weldJoint, bodyA, bodyB, def->localAnchorA,
-                      def->localAnchorB, 0.0f, def->linearHertz, def->linearDampingRatio);
+    m2JointId jointId = m2FinishJoint(world, index, (uint8_t)m2_weldJoint, bodyA, bodyB,
+                                      def->localAnchorA, def->localAnchorB, 0.0f,
+                                      def->linearSpringHertz, def->linearSpringDampingRatio);
     world->joints.jointUserData[index] = def->userData;
     world->joints.jointCollide[index] = def->enableConnectedCollision ? 1 : 0;
     if (def->enableConnectedCollision == false)
     {
         m2RefilterJointedBodies(world, bodyA, bodyB);
     }
-    world->joints.jointHertz2[index] = def->angularHertz;
-    world->joints.jointDamping2[index] = def->angularDampingRatio;
+    world->joints.jointHertz2[index] = def->angularSpringHertz;
+    world->joints.jointDamping2[index] = def->angularSpringDampingRatio;
     world->joints.jointRefAngle[index] =
         m2RelativeJointAngle(world->bodies.transforms[bodyA].q, world->bodies.transforms[bodyB].q);
     if (world->recorder.journalActive != 0)

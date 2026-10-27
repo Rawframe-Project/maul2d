@@ -766,8 +766,8 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.bodyIdA = a;
             jd.bodyIdB = b;
             jd.target = m2MouseJoint_GetTarget(source, id);
-            jd.hertz = m2Joint_GetSpringHertz(source, id);
-            jd.dampingRatio = m2Joint_GetSpringDampingRatio(source, id);
+            jd.springHertz = m2Joint_GetSpringHertz(source, id);
+            jd.springDampingRatio = m2Joint_GetSpringDampingRatio(source, id);
             jd.maxForce = m2MouseJoint_GetMaxForce(source, id);
             jd.enableConnectedCollision = m2Joint_IsConnectedCollisionEnabled(source, id);
             made = NewMouseJoint(mirror, &jd);
@@ -782,8 +782,8 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.length = m2DistanceJoint_GetLength(source, id);
             m2DistanceJoint_GetLengthRange(source, id, &jd.minLength, &jd.maxLength);
             jd.enableConnectedCollision = m2Joint_IsConnectedCollisionEnabled(source, id);
-            jd.hertz = m2Joint_GetSpringHertz(source, id);
-            jd.dampingRatio = m2Joint_GetSpringDampingRatio(source, id);
+            jd.springHertz = m2Joint_GetSpringHertz(source, id);
+            jd.springDampingRatio = m2Joint_GetSpringDampingRatio(source, id);
             jd.enableSpring = m2Joint_IsSpringEnabled(source, id);
             made = NewDistanceJoint(mirror, &jd);
         }
@@ -794,10 +794,11 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.bodyIdB = b;
             jd.localAnchorA = m2Joint_GetLocalAnchorA(source, id);
             jd.localAnchorB = m2Joint_GetLocalAnchorB(source, id);
-            jd.hertz = m2Joint_GetSpringHertz(source, id);
-            jd.dampingRatio = m2Joint_GetSpringDampingRatio(source, id);
-            jd.springHertz = m2Joint_GetAngularSpringHertz(source, id);
-            jd.springDampingRatio = m2Joint_GetAngularSpringDampingRatio(source, id);
+            jd.constraintHertz = m2Joint_GetConstraintHertz(source, id);
+            jd.constraintDampingRatio = m2Joint_GetConstraintDampingRatio(source, id);
+            jd.springHertz = m2Joint_GetSpringHertz(source, id);
+            jd.springDampingRatio = m2Joint_GetSpringDampingRatio(source, id);
+            jd.enableSpring = m2Joint_IsSpringEnabled(source, id);
             jd.enableMotor = m2Joint_IsMotorEnabled(source, id);
             jd.motorSpeed = m2Joint_GetMotorSpeed(source, id);
             jd.maxMotorTorque = m2Joint_GetMaxMotor(source, id);
@@ -814,8 +815,8 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.localAnchorA = m2Joint_GetLocalAnchorA(source, id);
             jd.localAnchorB = m2Joint_GetLocalAnchorB(source, id);
             jd.localAxisA = m2Joint_GetLocalAxisA(source, id);
-            jd.hertz = m2Joint_GetSpringHertz(source, id);
-            jd.dampingRatio = m2Joint_GetSpringDampingRatio(source, id);
+            jd.constraintHertz = m2Joint_GetConstraintHertz(source, id);
+            jd.constraintDampingRatio = m2Joint_GetConstraintDampingRatio(source, id);
             jd.enableMotor = m2Joint_IsMotorEnabled(source, id);
             jd.motorSpeed = m2Joint_GetMotorSpeed(source, id);
             jd.maxMotorForce = m2Joint_GetMaxMotor(source, id);
@@ -831,10 +832,10 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.bodyIdB = b;
             jd.localAnchorA = m2Joint_GetLocalAnchorA(source, id);
             jd.localAnchorB = m2Joint_GetLocalAnchorB(source, id);
-            jd.linearHertz = m2Joint_GetSpringHertz(source, id);
-            jd.linearDampingRatio = m2Joint_GetSpringDampingRatio(source, id);
-            jd.angularHertz = m2Joint_GetAngularSpringHertz(source, id);
-            jd.angularDampingRatio = m2Joint_GetAngularSpringDampingRatio(source, id);
+            jd.linearSpringHertz = m2WeldJoint_GetLinearSpringHertz(source, id);
+            jd.linearSpringDampingRatio = m2WeldJoint_GetLinearSpringDampingRatio(source, id);
+            jd.angularSpringHertz = m2WeldJoint_GetAngularSpringHertz(source, id);
+            jd.angularSpringDampingRatio = m2WeldJoint_GetAngularSpringDampingRatio(source, id);
             jd.enableConnectedCollision = m2Joint_IsConnectedCollisionEnabled(source, id);
             made = NewWeldJoint(mirror, &jd);
         }
@@ -847,8 +848,8 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.localAnchorB = m2Joint_GetLocalAnchorB(source, id);
             jd.localAxisA = m2Joint_GetLocalAxisA(source, id);
             jd.enableSpring = m2Joint_IsSpringEnabled(source, id);
-            jd.hertz = m2Joint_GetSpringHertz(source, id);
-            jd.dampingRatio = m2Joint_GetSpringDampingRatio(source, id);
+            jd.springHertz = m2Joint_GetSpringHertz(source, id);
+            jd.springDampingRatio = m2Joint_GetSpringDampingRatio(source, id);
             jd.enableMotor = m2Joint_IsMotorEnabled(source, id);
             jd.motorSpeed = m2Joint_GetMotorSpeed(source, id);
             jd.maxMotorTorque = m2Joint_GetMaxMotor(source, id);
@@ -949,8 +950,9 @@ static void TestMirrorRebuild(void)
     m2DistanceJointDef dj = m2DefaultDistanceJointDef();
     dj.bodyIdA = hook;
     dj.bodyIdB = boxA;
-    dj.hertz = 4.0f;
-    dj.dampingRatio = 0.6f;
+    dj.enableSpring = true;
+    dj.springHertz = 4.0f;
+    dj.springDampingRatio = 0.6f;
     dj.minLength = 0.5f;
     dj.maxLength = 4.0f;
     m2JointId rope = NewDistanceJoint(world, &dj);
@@ -979,10 +981,10 @@ static void TestMirrorRebuild(void)
     m2WeldJointDef wj = m2DefaultWeldJointDef();
     wj.bodyIdA = boxA;
     wj.bodyIdB = boxB;
-    wj.linearHertz = 3.0f;
-    wj.linearDampingRatio = 0.5f;
-    wj.angularHertz = 6.0f;
-    wj.angularDampingRatio = 0.8f;
+    wj.linearSpringHertz = 3.0f;
+    wj.linearSpringDampingRatio = 0.5f;
+    wj.angularSpringHertz = 6.0f;
+    wj.angularSpringDampingRatio = 0.8f;
     NewWeldJoint(world, &wj);
     m2RatchetJointDef pawl = m2DefaultRatchetJointDef();
     pawl.bodyIdA = boxB;
@@ -1015,8 +1017,8 @@ static void TestMirrorRebuild(void)
     grip.bodyIdA = ground;
     grip.bodyIdB = boxD;
     grip.target = (m2Pos2){-6.0, 2.5};
-    grip.hertz = 5.0f;
-    grip.dampingRatio = 0.8f;
+    grip.springHertz = 5.0f;
+    grip.springDampingRatio = 0.8f;
     grip.maxForce = 44.0f;
     grip.enableConnectedCollision = true;
     NewMouseJoint(world, &grip);
@@ -1029,8 +1031,8 @@ static void TestMirrorRebuild(void)
     whj.bodyIdB = boxD;
     whj.localAxisA = (m2Vec2){0.0f, 1.0f};
     whj.enableSpring = true;
-    whj.hertz = 2.5f;
-    whj.dampingRatio = 0.7f;
+    whj.springHertz = 2.5f;
+    whj.springDampingRatio = 0.7f;
     whj.enableMotor = true;
     whj.motorSpeed = 4.0f;
     whj.maxMotorTorque = 15.0f;
@@ -3420,13 +3422,21 @@ static void ChangeMaxMotor(const HashScene* s)
 {
     m2Joint_SetMaxMotor(s->world, s->revolute, 5.0f);
 }
-static void ChangeAngularSpring(const HashScene* s)
+static void ChangeRevoluteSpring(const HashScene* s)
 {
-    m2Joint_SetAngularSpringHertz(s->world, s->revolute, 3.0f);
+    m2Joint_SetSpringHertz(s->world, s->revolute, 3.0f);
 }
-static void ChangeAngularSpringDamping(const HashScene* s)
+static void ChangeRevoluteSpringDamping(const HashScene* s)
 {
-    m2Joint_SetAngularSpringDampingRatio(s->world, s->revolute, 0.3f);
+    m2Joint_SetSpringDampingRatio(s->world, s->revolute, 0.3f);
+}
+static void ChangeConstraint(const HashScene* s)
+{
+    m2Joint_SetConstraintHertz(s->world, s->revolute, 30.0f);
+}
+static void ChangeConstraintDamping(const HashScene* s)
+{
+    m2Joint_SetConstraintDampingRatio(s->world, s->revolute, 0.3f);
 }
 static void ChangeSpring(const HashScene* s)
 {
@@ -3490,8 +3500,10 @@ static void TestHashCoversEverySetting(void)
         {"motor switch", HASH_SCENE_PLAIN, ChangeMotorSwitch, PART_JOINTS},
         {"motor speed", HASH_SCENE_PLAIN, ChangeMotorSpeed, PART_JOINTS},
         {"motor budget", HASH_SCENE_PLAIN, ChangeMaxMotor, PART_JOINTS},
-        {"angular spring", HASH_SCENE_PLAIN, ChangeAngularSpring, PART_JOINTS},
-        {"angular spring damping", HASH_SCENE_PLAIN, ChangeAngularSpringDamping, PART_JOINTS},
+        {"revolute spring", HASH_SCENE_PLAIN, ChangeRevoluteSpring, PART_JOINTS},
+        {"revolute spring damping", HASH_SCENE_PLAIN, ChangeRevoluteSpringDamping, PART_JOINTS},
+        {"constraint softness", HASH_SCENE_PLAIN, ChangeConstraint, PART_JOINTS},
+        {"constraint damping", HASH_SCENE_PLAIN, ChangeConstraintDamping, PART_JOINTS},
         {"spring", HASH_SCENE_PLAIN, ChangeSpring, PART_JOINTS},
         {"spring damping", HASH_SCENE_PLAIN, ChangeSpringDamping, PART_JOINTS},
         {"break limits", HASH_SCENE_PLAIN, ChangeBreakLimits, PART_JOINTS},

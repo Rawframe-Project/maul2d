@@ -818,7 +818,7 @@ static void TestHostileJointDefs(void)
     m2DistanceJointDef dj = m2DefaultDistanceJointDef();
     dj.bodyIdA = ground;
     dj.bodyIdB = box;
-    dj.hertz = -2.0f;
+    dj.springHertz = -2.0f;
     CHECK(NewDistanceJoint(world, &dj).index1 == 0, "a negative stiffness is refused");
 
     m2MotorJointDef mj = m2DefaultMotorJointDef();

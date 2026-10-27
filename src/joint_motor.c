@@ -42,8 +42,8 @@ static bool DefValid(const m2MotorJointDef* def)
 {
     return m2LocalVec2(def->linearOffset) && m2ValidAngle(def->angularOffset) &&
            m2ValidMaxForce(def->maxForce) && m2ValidMaxForce(def->maxTorque) &&
-           m2ValidFraction(def->correctionFactor) && m2ValidRate(def->hertz) &&
-           m2ValidCoefficient(def->dampingRatio);
+           m2ValidFraction(def->correctionFactor) && m2ValidRate(def->springHertz) &&
+           m2ValidCoefficient(def->springDampingRatio);
 }
 
 // The create record holds the def's fields and zero bytes between them:
@@ -58,8 +58,8 @@ static void RecordMotorJointDef(m2MotorJointDef* out, const m2MotorJointDef* def
     out->maxForce = def->maxForce;
     out->maxTorque = def->maxTorque;
     out->correctionFactor = def->correctionFactor;
-    out->hertz = def->hertz;
-    out->dampingRatio = def->dampingRatio;
+    out->springHertz = def->springHertz;
+    out->springDampingRatio = def->springDampingRatio;
     out->userData = def->userData;
     out->enableConnectedCollision = def->enableConnectedCollision;
     out->internalValue = def->internalValue;
@@ -108,8 +108,8 @@ static M2_NOINLINE m2Result CreateMotorJointWorker(m2World* world, const m2Motor
     // Spring drive rides the otherwise-idle secondary spring slots
     // (jointHertz2/jointDamping2 are only read for the angular spring of
     // the revolute and weld, which type 6 is not).
-    world->joints.jointHertz2[index] = def->hertz;
-    world->joints.jointDamping2[index] = def->dampingRatio;
+    world->joints.jointHertz2[index] = def->springHertz;
+    world->joints.jointDamping2[index] = def->springDampingRatio;
     world->joints.jointUserData[index] = def->userData;
     world->joints.jointCollide[index] = def->enableConnectedCollision ? 1 : 0;
     if (def->enableConnectedCollision == false)

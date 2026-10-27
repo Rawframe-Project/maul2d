@@ -253,8 +253,8 @@ static void SceneCar(m2World* world)
         wj.localAnchorA = (m2Vec2){i == 0 ? -0.75f : 0.75f, -0.4f};
         wj.localAxisA = (m2Vec2){0.0f, 1.0f};
         wj.enableSpring = true;
-        wj.hertz = 4.0f;
-        wj.dampingRatio = 0.7f;
+        wj.springHertz = 4.0f;
+        wj.springDampingRatio = 0.7f;
         wj.enableMotor = true;
         wj.motorSpeed = 0.0f;
         wj.maxMotorTorque = 24.0f;
@@ -539,10 +539,10 @@ static void SceneJointZoo(m2World* world)
     wj.bodyIdB = flag;
     wj.localAnchorA = (m2Vec2){0.35f, 0.2f};
     wj.localAnchorB = (m2Vec2){-0.35f, 0.0f};
-    wj.linearHertz = 4.0f;
-    wj.linearDampingRatio = 0.4f;
-    wj.angularHertz = 4.0f;
-    wj.angularDampingRatio = 0.4f;
+    wj.linearSpringHertz = 4.0f;
+    wj.linearSpringDampingRatio = 0.4f;
+    wj.angularSpringHertz = 4.0f;
+    wj.angularSpringDampingRatio = 0.4f;
     NewWeldJoint(world, &wj);
 
     m2BodyDef sd2 = m2DefaultBodyDef();
@@ -558,8 +558,8 @@ static void SceneJointZoo(m2World* world)
     whj.bodyIdB = hub;
     whj.localAxisA = (m2Vec2){0.0f, 1.0f};
     whj.enableSpring = true;
-    whj.hertz = 2.0f;
-    whj.dampingRatio = 0.4f;
+    whj.springHertz = 2.0f;
+    whj.springDampingRatio = 0.4f;
     NewWheelJoint(world, &whj);
 
     m2BodyDef md2 = m2DefaultBodyDef();
@@ -642,8 +642,9 @@ static void SceneCurtain(m2World* world)
             m2DistanceJointDef dj = m2DefaultDistanceJointDef();
             dj.bodyIdA = prev[col];
             dj.bodyIdB = cell;
-            dj.hertz = 8.0f;
-            dj.dampingRatio = 0.6f;
+            dj.enableSpring = true;
+            dj.springHertz = 8.0f;
+            dj.springDampingRatio = 0.6f;
             m2JointId link = NewDistanceJoint(world, &dj);
             m2Joint_SetBreakLimits(world, link, 55.0f, 0.0f);
             prev[col] = cell;
@@ -1011,6 +1012,7 @@ static void SceneMachinery(m2World* world)
     springPin.bodyIdA = paddlePost;
     springPin.bodyIdB = paddle;
     springPin.localAnchorB = (m2Vec2){-1.1f, 0.0f};
+    springPin.enableSpring = true;
     springPin.springHertz = 5.0f;
     springPin.springDampingRatio = 0.4f;
     NewRevoluteJoint(world, &springPin);
@@ -1268,7 +1270,7 @@ int main(void)
                     m2BodyId anchor = NewBody(world, &ad);
                     sj.bodyIdA = anchor;
                     sj.target = cursor;
-                    sj.hertz = 6.0f;
+                    sj.springHertz = 6.0f;
                     sj.maxForce = 120.0f * m2Body_GetMass(world, body);
                     grip = NewMouseJoint(world, &sj);
                 }

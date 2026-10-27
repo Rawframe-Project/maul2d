@@ -4,10 +4,10 @@ A joint connects two bodies. It joins their sleep island, wakes both when it is 
 
 ## The core joints
 
-- **Distance** keeps two anchors at a length. With `hertz` above 0 it is a spring. A hard range (`minLength`, `maxLength`) clamps whatever the spring does, so a soft rope still stops hard; with `enableSpring` and hertz 0 the joint is a slack rope (free until taut) or, with a minimum, a strut.
-- **Revolute** pins two anchors together: a hinge, with an optional motor, angle limits, and an angular spring toward its creation angle (`springHertz`; 0 is off).
+- **Distance** keeps two anchors at a length: a rigid rod, or with `enableSpring` a spring of `springHertz`. A hard range (`minLength`, `maxLength`) clamps whatever the spring does, so a soft rope still stops hard; with `enableSpring` and a spring hertz of 0 the joint is a slack rope (free until taut) or, with a minimum, a strut.
+- **Revolute** pins two anchors together: a hinge, with an optional motor, angle limits, and, with `enableSpring`, an angular spring of `springHertz` toward its creation angle.
 - **Prismatic** lets body B slide along an axis of body A, with a motor and travel limits; the relative rotation stays fixed.
-- **Weld** holds two bodies as one piece. Its linear and angular rows soften separately; 0 hertz is rigid. A rigid weld solves its point and its angle together, so it holds a long arm against a small inertia as firmly as a revolute joint does.
+- **Weld** holds two bodies as one piece. Its linear and angular rows soften separately into springs (`linearSpringHertz`, `angularSpringHertz`); 0 hertz is rigid. A rigid weld solves its point and its angle together, so it holds a long arm against a small inertia as firmly as a revolute joint does.
 - **Wheel** is a suspension: body B slides on a sprung axis and spins freely, and the motor drives the spin.
 
 Motors and limits belong to the revolute, prismatic and wheel joints. `m2Joint_SetMotorSpeed`, `m2Joint_SetMaxMotor`, `m2Joint_EnableMotor`, `m2Joint_EnableLimit` and `m2Joint_SetLimits` tune them at run time; on another type they change nothing and count one misuse. Angles are measured from the pose at creation.
@@ -23,7 +23,7 @@ Motors and limits belong to the revolute, prismatic and wheel joints. `m2Joint_S
 
 ## Tuning and reading back
 
-Every parameter of a def can be read back and most can be set at run time; each change is journaled. `m2Joint_SetSpringHertz` and `m2Joint_SetSpringDampingRatio` soften a joint's main rows (the distance spring, the wheel suspension, the weld's linear row, the mouse spring); the angular variants tune the revolute spring and the weld's angular row. `m2Joint_EnableSpring` turns the distance spring or the wheel suspension on and off, and `m2Joint_EnableConnectedCollision` lets a joint's bodies collide or keeps them apart. A call made for one type, such as `m2DistanceJoint_SetLength` on a weld, changes nothing and counts one misuse.
+Every parameter of a def can be read back and most can be set at run time; each change is journaled. A joint's stiffness comes in two words. A spring (`springHertz`, `springDampingRatio`) pulls toward a rest pose: the distance spring, the wheel suspension, the revolute spring, the motor joint's drive and the mouse joint's drag, tuned by `m2Joint_SetSpringHertz` and `m2Joint_SetSpringDampingRatio`, with a weld's two springs under `m2WeldJoint_`. A constraint softness (`constraintHertz`, `constraintDampingRatio`) loosens the rows that hold a revolute, prismatic, gear, pulley or ratchet joint together, through `m2Joint_SetConstraintHertz` and `m2Joint_SetConstraintDampingRatio`; 0 hertz is the stiff default. `m2Joint_EnableSpring` turns the distance, wheel or revolute spring on and off, and `m2Joint_EnableConnectedCollision` lets a joint's bodies collide or keeps them apart. A call made for one type, such as `m2DistanceJoint_SetLength` on a weld, changes nothing and counts one misuse.
 
 `m2Joint_GetLinearSeparation` and `m2Joint_GetAngularSeparation` say how far a joint is from what it holds right now, which shows a rig being pulled apart. A joint takes bodies more than `M2_JOINT_REACH` (1e9 m) apart along an axis as that far apart: world positions are 64-bit and unbounded, but the solver works in 32-bit floats, and the clamp keeps it finite when a teleport sends one body to the far end of the world.
 

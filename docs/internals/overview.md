@@ -19,6 +19,7 @@ Every public name follows these rules, so a new one is decided by them rather th
 - **Values.** A value an object keeps is read by `<Obj>_GetX` and changed by `<Obj>_SetX`.
 - **Switches.** A def's bool fields come in two kinds. `isX` names what an object is or the state it starts in (`isSensor`, `isLoop`, `isBullet`, `isEnabled`); `enableX` names an optional behavior it runs (`enableSleep`, `enableSpring`, `enableMotor`, `enableLimit`, `enableConnectedCollision`). An `enableX` field gets `<Obj>_EnableX(obj, bool)` and `<Obj>_IsXEnabled(obj)`. An `isX` field that can change gets `<Obj>_SetX(obj, bool)` and `<Obj>_IsX(obj)`. A kind fixed at creation (`isSensor`, `isLoop`) gets only `<Obj>_IsX`.
 - **Joints.** A feature several joint kinds share is `m2Joint_X`, and its doc names the kinds; another kind counts one misuse. A feature one kind has uses that kind's prefix (`m2DistanceJoint_SetLength`).
+- **Stiffness.** A spring is `enableSpring` with `springHertz` and `springDampingRatio`, or only the two values where the joint is a spring by nature (motor, mouse); a joint with a linear and an angular spring prefixes both (`linearSpringHertz`). The softness of the rows that hold a joint together is `constraintHertz` and `constraintDampingRatio`.
 
 ## Ids and misuse
 

@@ -24,8 +24,8 @@ m2MouseJointDef m2DefaultMouseJointDef(void)
 {
     m2MouseJointDef def;
     memset(&def, 0, sizeof(def));
-    def.hertz = 4.0f;
-    def.dampingRatio = 1.0f;
+    def.springHertz = 4.0f;
+    def.springDampingRatio = 1.0f;
     def.maxForce = 35.0f;
     def.internalValue = M2_MSJOINT_COOKIE;
     return def;
@@ -35,8 +35,8 @@ m2MouseJointDef m2DefaultMouseJointDef(void)
 // ordered ranges.
 static bool DefValid(const m2MouseJointDef* def)
 {
-    return m2FinitePos2(def->target) && m2ValidRate(def->hertz) &&
-           m2ValidCoefficient(def->dampingRatio) && m2ValidMaxForce(def->maxForce);
+    return m2FinitePos2(def->target) && m2ValidRate(def->springHertz) &&
+           m2ValidCoefficient(def->springDampingRatio) && m2ValidMaxForce(def->maxForce);
 }
 
 // The create record holds the def's fields and zero bytes between them:
@@ -47,8 +47,8 @@ static void RecordMouseJointDef(m2MouseJointDef* out, const m2MouseJointDef* def
     out->bodyIdA = def->bodyIdA;
     out->bodyIdB = def->bodyIdB;
     out->target = def->target;
-    out->hertz = def->hertz;
-    out->dampingRatio = def->dampingRatio;
+    out->springHertz = def->springHertz;
+    out->springDampingRatio = def->springDampingRatio;
     out->maxForce = def->maxForce;
     out->userData = def->userData;
     out->enableConnectedCollision = def->enableConnectedCollision;
@@ -99,7 +99,7 @@ static M2_NOINLINE m2Result CreateMouseJointWorker(m2World* world, const m2Mouse
     }
     m2Vec2 zero = {0.0f, 0.0f};
     m2JointId jointId = m2FinishJoint(world, index, (uint8_t)m2_mouseJoint, bodyA, bodyB, zero,
-                                      grab, 0.0f, def->hertz, def->dampingRatio);
+                                      grab, 0.0f, def->springHertz, def->springDampingRatio);
     world->joints.jointLength[index] = def->maxForce;
     world->joints.jointTargets[index] = def->target;
     world->joints.jointUserData[index] = def->userData;

@@ -510,6 +510,7 @@ static const uint16_t s_distanceBools[] = {
     M2_AT(m2OpCreateDistanceJoint, def.enableSpring),
     M2_AT(m2OpCreateDistanceJoint, def.enableConnectedCollision)};
 static const uint16_t s_revoluteBools[] = {
+    M2_AT(m2OpCreateRevoluteJoint, def.enableSpring),
     M2_AT(m2OpCreateRevoluteJoint, def.enableMotor),
     M2_AT(m2OpCreateRevoluteJoint, def.enableLimit),
     M2_AT(m2OpCreateRevoluteJoint, def.enableConnectedCollision)};
