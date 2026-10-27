@@ -414,8 +414,9 @@ static void DoRandomOp(m2World* world)
             jd.bodyIdB = b;
             jd.localAnchorA = anchorA;
             jd.localAnchorB = anchorB;
-            jd.hertz = (float)Pick(3) * 2.0f;
-            jd.dampingRatio = PickUnit();
+            jd.springHertz = (float)Pick(3) * 2.0f;
+            jd.springDampingRatio = PickUnit();
+            jd.enableSpring = jd.springHertz > 0.0f;
             made = NewDistanceJoint(world, &jd);
         }
         else if (type == 1)
@@ -427,6 +428,7 @@ static void DoRandomOp(m2World* world)
             jd.localAnchorA = anchorA;
             jd.localAnchorB = anchorB;
             uint32_t springOn = Pick(2);
+            jd.enableSpring = springOn == 1;
             jd.springHertz = springOn == 1 ? 2.0f : 0.0f;
             jd.springDampingRatio = 0.5f;
             jd.enableMotor = Pick(2) == 0;
@@ -459,10 +461,10 @@ static void DoRandomOp(m2World* world)
             jd.bodyIdB = b;
             jd.localAnchorA = anchorA;
             jd.localAnchorB = anchorB;
-            jd.linearHertz = (float)Pick(3) * 2.0f;
-            jd.linearDampingRatio = PickUnit();
-            jd.angularHertz = (float)Pick(3) * 3.0f;
-            jd.angularDampingRatio = PickUnit();
+            jd.linearSpringHertz = (float)Pick(3) * 2.0f;
+            jd.linearSpringDampingRatio = PickUnit();
+            jd.angularSpringHertz = (float)Pick(3) * 3.0f;
+            jd.angularSpringDampingRatio = PickUnit();
             made = NewWeldJoint(world, &jd);
         }
         else
@@ -475,8 +477,8 @@ static void DoRandomOp(m2World* world)
             jd.localAnchorB = anchorB;
             jd.localAxisA = (m2Vec2){0.0f, 1.0f};
             jd.enableSpring = Pick(2) == 0;
-            jd.hertz = 1.0f + (float)Pick(4);
-            jd.dampingRatio = PickUnit();
+            jd.springHertz = 1.0f + (float)Pick(4);
+            jd.springDampingRatio = PickUnit();
             jd.enableMotor = Pick(3) == 0;
             jd.motorSpeed = (float)((int32_t)Pick(9) - 4);
             jd.maxMotorTorque = 5.0f + (float)Pick(15);
@@ -789,9 +791,24 @@ static void DoRandomOp(m2World* world)
         {
             float hertz = (float)Pick(30) * 0.5f;
             m2JointType type = m2Joint_GetType(world, joint);
-            if (type != m2_motorJoint && type != m2_filterJoint)
+            if (type == m2_distanceJoint)
+            {
+                // A distance joint the walk tunes is a spring exactly while
+                // it has a frequency, as its create made it.
+                m2Joint_EnableSpring(world, joint, hertz > 0.0f);
+                m2Joint_SetSpringHertz(world, joint, hertz);
+            }
+            else if (type == m2_wheelJoint || type == m2_mouseJoint)
             {
                 m2Joint_SetSpringHertz(world, joint, hertz);
+            }
+            else if (type == m2_weldJoint)
+            {
+                m2WeldJoint_SetLinearSpringHertz(world, joint, hertz);
+            }
+            else if (type != m2_motorJoint && type != m2_filterJoint)
+            {
+                m2Joint_SetConstraintHertz(world, joint, hertz);
             }
         }
         else

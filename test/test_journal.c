@@ -237,11 +237,14 @@ static void RunSession(m2World* world, uint8_t* journal, int32_t capacity, int32
     m2RevoluteJointDef swingDef = m2DefaultRevoluteJointDef();
     swingDef.bodyIdA = anchor;
     swingDef.bodyIdB = cylinder;
+    swingDef.enableSpring = true;
     swingDef.springHertz = 3.0f; // the def echo carries the spring pair
     swingDef.springDampingRatio = 0.5f;
     m2JointId swing = NewRevoluteJoint(world, &swingDef);
-    m2Joint_SetAngularSpringHertz(world, swing, 1.5f);         // param 10 on a revolute
-    m2Joint_SetAngularSpringDampingRatio(world, swing, 0.25f); // param 11 on a revolute
+    m2Joint_SetSpringHertz(world, swing, 1.5f);            // param 10 on a revolute
+    m2Joint_SetSpringDampingRatio(world, swing, 0.25f);    // param 11 on a revolute
+    m2Joint_SetConstraintHertz(world, swing, 40.0f);       // param 8 on a revolute
+    m2Joint_SetConstraintDampingRatio(world, swing, 2.0f); // param 9 on a revolute
     m2ParticleId drop = EmitParticle(world, (m2Pos2){0.5, 6.0}, (m2Vec2){0.0f, 0.0f}, 0); // op 53
     m2Particle_SetVelocity(world, drop, (m2Vec2){0.2f, 0.0f});                            // op 55
     m2ParticleId drop2 = EmitParticle(world, (m2Pos2){0.7, 6.0}, (m2Vec2){0.0f, 0.0f}, 0);
@@ -266,13 +269,14 @@ static void RunSession(m2World* world, uint8_t* journal, int32_t capacity, int32
     m2DistanceJointDef drj = m2DefaultDistanceJointDef();
     drj.bodyIdA = drHook;
     drj.bodyIdB = bob;
-    drj.hertz = 1.0f;
+    drj.enableSpring = true;
+    drj.springHertz = 1.0f;
     m2JointId leash = NewDistanceJoint(world, &drj);
     m2DistanceJoint_SetLength(world, leash, 1.8f);            // param 12
     m2DistanceJoint_SetLengthRange(world, leash, 0.4f, 2.2f); // params 13+14
     m2Joint_SetSpringHertz(world, leash, 6.0f);               // param 8
     m2Joint_SetSpringDampingRatio(world, leash, 0.5f);        // param 9
-    m2Joint_EnableSpring(world, leash, true);                 // param 17
+    m2Joint_EnableSpring(world, leash, false);                // param 17
     m2Joint_EnableConnectedCollision(world, leash, true);     // param 18
     for (int32_t i = 0; i < 30; ++i)
     {
@@ -629,8 +633,8 @@ static void FilledDistanceJointDef(m2DistanceJointDef* to, const m2DistanceJoint
     to->length = from->length;
     to->minLength = from->minLength;
     to->maxLength = from->maxLength;
-    to->hertz = from->hertz;
-    to->dampingRatio = from->dampingRatio;
+    to->springHertz = from->springHertz;
+    to->springDampingRatio = from->springDampingRatio;
     to->enableSpring = from->enableSpring;
     to->userData = from->userData;
     to->enableConnectedCollision = from->enableConnectedCollision;
@@ -645,10 +649,11 @@ static void FilledRevoluteJointDef(m2RevoluteJointDef* to, const m2RevoluteJoint
     to->bodyIdB = from->bodyIdB;
     to->localAnchorA = from->localAnchorA;
     to->localAnchorB = from->localAnchorB;
-    to->hertz = from->hertz;
-    to->dampingRatio = from->dampingRatio;
+    to->constraintHertz = from->constraintHertz;
+    to->constraintDampingRatio = from->constraintDampingRatio;
     to->springHertz = from->springHertz;
     to->springDampingRatio = from->springDampingRatio;
+    to->enableSpring = from->enableSpring;
     to->enableMotor = from->enableMotor;
     to->motorSpeed = from->motorSpeed;
     to->maxMotorTorque = from->maxMotorTorque;
@@ -669,8 +674,8 @@ static void FilledPrismaticJointDef(m2PrismaticJointDef* to, const m2PrismaticJo
     to->localAnchorA = from->localAnchorA;
     to->localAnchorB = from->localAnchorB;
     to->localAxisA = from->localAxisA;
-    to->hertz = from->hertz;
-    to->dampingRatio = from->dampingRatio;
+    to->constraintHertz = from->constraintHertz;
+    to->constraintDampingRatio = from->constraintDampingRatio;
     to->enableMotor = from->enableMotor;
     to->motorSpeed = from->motorSpeed;
     to->maxMotorForce = from->maxMotorForce;
@@ -689,10 +694,10 @@ static void FilledWeldJointDef(m2WeldJointDef* to, const m2WeldJointDef* from, u
     to->bodyIdB = from->bodyIdB;
     to->localAnchorA = from->localAnchorA;
     to->localAnchorB = from->localAnchorB;
-    to->linearHertz = from->linearHertz;
-    to->linearDampingRatio = from->linearDampingRatio;
-    to->angularHertz = from->angularHertz;
-    to->angularDampingRatio = from->angularDampingRatio;
+    to->linearSpringHertz = from->linearSpringHertz;
+    to->linearSpringDampingRatio = from->linearSpringDampingRatio;
+    to->angularSpringHertz = from->angularSpringHertz;
+    to->angularSpringDampingRatio = from->angularSpringDampingRatio;
     to->userData = from->userData;
     to->enableConnectedCollision = from->enableConnectedCollision;
     to->internalValue = from->internalValue;
@@ -707,8 +712,8 @@ static void FilledWheelJointDef(m2WheelJointDef* to, const m2WheelJointDef* from
     to->localAnchorB = from->localAnchorB;
     to->localAxisA = from->localAxisA;
     to->enableSpring = from->enableSpring;
-    to->hertz = from->hertz;
-    to->dampingRatio = from->dampingRatio;
+    to->springHertz = from->springHertz;
+    to->springDampingRatio = from->springDampingRatio;
     to->enableMotor = from->enableMotor;
     to->motorSpeed = from->motorSpeed;
     to->maxMotorTorque = from->maxMotorTorque;
@@ -739,8 +744,8 @@ static void FilledMotorJointDef(m2MotorJointDef* to, const m2MotorJointDef* from
     to->maxForce = from->maxForce;
     to->maxTorque = from->maxTorque;
     to->correctionFactor = from->correctionFactor;
-    to->hertz = from->hertz;
-    to->dampingRatio = from->dampingRatio;
+    to->springHertz = from->springHertz;
+    to->springDampingRatio = from->springDampingRatio;
     to->userData = from->userData;
     to->enableConnectedCollision = from->enableConnectedCollision;
     to->internalValue = from->internalValue;
@@ -752,8 +757,8 @@ static void FilledMouseJointDef(m2MouseJointDef* to, const m2MouseJointDef* from
     to->bodyIdA = from->bodyIdA;
     to->bodyIdB = from->bodyIdB;
     to->target = from->target;
-    to->hertz = from->hertz;
-    to->dampingRatio = from->dampingRatio;
+    to->springHertz = from->springHertz;
+    to->springDampingRatio = from->springDampingRatio;
     to->maxForce = from->maxForce;
     to->userData = from->userData;
     to->enableConnectedCollision = from->enableConnectedCollision;

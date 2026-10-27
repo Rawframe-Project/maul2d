@@ -32,7 +32,7 @@ m2RevoluteJointDef m2DefaultRevoluteJointDef(void)
 static bool DefValid(const m2RevoluteJointDef* def)
 {
     return m2LocalVec2(def->localAnchorA) && m2LocalVec2(def->localAnchorB) &&
-           m2ValidRate(def->hertz) && m2ValidCoefficient(def->dampingRatio) &&
+           m2ValidRate(def->constraintHertz) && m2ValidCoefficient(def->constraintDampingRatio) &&
            m2ValidRate(def->springHertz) && m2ValidCoefficient(def->springDampingRatio) &&
            m2ValidSpeed(def->motorSpeed) && m2ValidMaxForce(def->maxMotorTorque) &&
            m2ValidAngle(def->lowerAngle) && m2ValidAngle(def->upperAngle) &&
@@ -48,10 +48,11 @@ static void RecordRevoluteJointDef(m2RevoluteJointDef* out, const m2RevoluteJoin
     out->bodyIdB = def->bodyIdB;
     out->localAnchorA = def->localAnchorA;
     out->localAnchorB = def->localAnchorB;
-    out->hertz = def->hertz;
-    out->dampingRatio = def->dampingRatio;
+    out->constraintHertz = def->constraintHertz;
+    out->constraintDampingRatio = def->constraintDampingRatio;
     out->springHertz = def->springHertz;
     out->springDampingRatio = def->springDampingRatio;
+    out->enableSpring = def->enableSpring;
     out->enableMotor = def->enableMotor;
     out->motorSpeed = def->motorSpeed;
     out->maxMotorTorque = def->maxMotorTorque;
@@ -97,15 +98,16 @@ static M2_NOINLINE m2Result CreateRevoluteJointWorker(m2World* world, const m2Re
     }
     m2JointId jointId =
         m2FinishJoint(world, index, (uint8_t)m2_revoluteJoint, bodyA, bodyB, def->localAnchorA,
-                      def->localAnchorB, 0.0f, def->hertz, def->dampingRatio);
+                      def->localAnchorB, 0.0f, def->constraintHertz, def->constraintDampingRatio);
     world->joints.jointUserData[index] = def->userData;
     world->joints.jointCollide[index] = def->enableConnectedCollision ? 1 : 0;
     if (def->enableConnectedCollision == false)
     {
         m2RefilterJointedBodies(world, bodyA, bodyB);
     }
-    world->joints.jointFlags[index] =
-        (def->enableMotor ? M2_JOINT_MOTOR : 0u) | (def->enableLimit ? M2_JOINT_LIMIT : 0u);
+    world->joints.jointFlags[index] = (def->enableMotor ? M2_JOINT_MOTOR : 0u) |
+                                      (def->enableLimit ? M2_JOINT_LIMIT : 0u) |
+                                      (def->enableSpring ? M2_JOINT_SPRING : 0u);
     world->joints.jointMotorSpeed[index] = def->motorSpeed;
     world->joints.jointMaxMotor[index] = def->maxMotorTorque;
     world->joints.jointLower[index] = def->lowerAngle;
@@ -143,7 +145,7 @@ m2Result m2CreateRevoluteJoint(m2World* world, const m2RevoluteJointDef* def, m2
 static void PrepareRevolute(m2World* world, m2JointConstraint* c, const m2JointFrame* f)
 {
     int32_t j = f->joint;
-    c->angularSpring = world->joints.jointHertz2[j] > 0.0f;
+    c->angularSpring = (c->flags & M2_JOINT_SPRING) != 0 && world->joints.jointHertz2[j] > 0.0f;
     if (c->angularSpring)
     {
         c->spring = m2MakeSoft(world->joints.jointHertz2[j], world->joints.jointDamping2[j], f->h);

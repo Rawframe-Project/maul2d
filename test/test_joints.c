@@ -91,7 +91,7 @@ static void TestDistanceRope(void)
     jd.bodyIdA = anchor;
     jd.bodyIdB = ball;
     jd.enableSpring = true; // rope: free until a limit bites
-    jd.hertz = 0.0f;
+    jd.springHertz = 0.0f;
     jd.maxLength = 3.0f;
     m2JointId rope = NewDistanceJoint(world, &jd);
     CHECK(m2Joint_IsValid(world, rope), "rope joint created");
@@ -145,7 +145,7 @@ static void TestDistanceRope(void)
         j2.bodyIdA = a;
         j2.bodyIdB = b;
         j2.enableSpring = true;
-        j2.hertz = 0.0f;
+        j2.springHertz = 0.0f;
         j2.maxLength = 3.0f;
         NewDistanceJoint(w, &j2);
         for (int32_t i = 0; i < 40; ++i)
@@ -200,8 +200,8 @@ static void TestMotorSpring(void)
     mj.linearOffset = (m2Vec2){2.0f, 1.0f};
     mj.maxForce = 500.0f;
     mj.maxTorque = 50.0f;
-    mj.hertz = 3.0f; // soft spring drive
-    mj.dampingRatio = 1.0f;
+    mj.springHertz = 3.0f; // soft spring drive
+    mj.springDampingRatio = 1.0f;
     NewMotorJoint(world, &mj);
 
     // Early: the soft drive is still easing in, not snapped to target.
@@ -242,8 +242,8 @@ static void TestMotorSpring(void)
         mj2.linearOffset = (m2Vec2){2.0f, 1.0f};
         mj2.maxForce = 500.0f;
         mj2.maxTorque = 50.0f;
-        mj2.hertz = 3.0f;
-        mj2.dampingRatio = 1.0f;
+        mj2.springHertz = 3.0f;
+        mj2.springDampingRatio = 1.0f;
         NewMotorJoint(w, &mj2);
         for (int32_t i = 0; i < 30; ++i)
         {
@@ -669,8 +669,8 @@ static void TestWheelSuspension(void)
     wd.bodyIdB = wheel;
     wd.localAnchorA = (m2Vec2){0.0f, -0.6f};
     wd.localAxisA = (m2Vec2){0.0f, 1.0f};
-    wd.hertz = 3.0f;
-    wd.dampingRatio = 0.7f;
+    wd.springHertz = 3.0f;
+    wd.springDampingRatio = 0.7f;
     wd.enableLimit = true;
     wd.lowerTranslation = -0.25f;
     wd.upperTranslation = 0.25f;
@@ -726,8 +726,8 @@ static void TestWheelCar(void)
         wd.bodyIdB = wheels[i];
         wd.localAnchorA = (m2Vec2){(float)xs[i], -0.45f};
         wd.localAxisA = (m2Vec2){0.0f, 1.0f};
-        wd.hertz = 4.0f;
-        wd.dampingRatio = 0.7f;
+        wd.springHertz = 4.0f;
+        wd.springDampingRatio = 0.7f;
         wd.enableLimit = true;
         wd.lowerTranslation = -0.2f;
         wd.upperTranslation = 0.2f;
@@ -841,8 +841,8 @@ static void TestSoftWeld(void)
         weld.localAnchorB = (m2Vec2){-0.9f, 0.0f};
         if (soft == 1)
         {
-            weld.angularHertz = 1.5f;
-            weld.angularDampingRatio = 0.3f;
+            weld.angularSpringHertz = 1.5f;
+            weld.angularSpringDampingRatio = 0.3f;
         }
         NewWeldJoint(world, &weld);
     }
@@ -1027,8 +1027,9 @@ static void TestConnectedCollisionAndFilterJoint(void)
         dj.bodyIdA = left;
         dj.bodyIdB = right;
         dj.length = 0.1f; // a short soft rod pulling them together
-        dj.hertz = 5.0f;
-        dj.dampingRatio = 0.7f;
+        dj.enableSpring = true;
+        dj.springHertz = 5.0f;
+        dj.springDampingRatio = 0.7f;
         dj.enableConnectedCollision = pass == 1;
         NewDistanceJoint(world, &dj);
         for (int32_t i = 0; i < 120; ++i)
@@ -1174,8 +1175,8 @@ static void TestDistanceSpringToggleReadsBack(void)
     m2DistanceJointDef copy = m2DefaultDistanceJointDef();
     copy.length = m2DistanceJoint_GetLength(world, original);
     m2DistanceJoint_GetLengthRange(world, original, &copy.minLength, &copy.maxLength);
-    copy.hertz = m2Joint_GetSpringHertz(world, original);
-    copy.dampingRatio = m2Joint_GetSpringDampingRatio(world, original);
+    copy.springHertz = m2Joint_GetSpringHertz(world, original);
+    copy.springDampingRatio = m2Joint_GetSpringDampingRatio(world, original);
     copy.enableSpring = m2Joint_IsSpringEnabled(world, original);
     m2JointId rebuilt;
     m2World* twin = RopeWorld(&copy, &rebuilt);
@@ -1190,12 +1191,12 @@ static void TestDistanceSpringToggleReadsBack(void)
     m2JointId plain;
     m2World* rodWorld = RopeWorld(&rod, &plain);
     CHECK(!m2Joint_IsSpringEnabled(rodWorld, plain), "a plain rod reads off");
-    m2RevoluteJointDef pin = m2DefaultRevoluteJointDef();
-    pin.bodyIdA = m2Joint_GetBodyA(rodWorld, plain);
-    pin.bodyIdB = m2Joint_GetBodyB(rodWorld, plain);
-    m2JointId hinge = NewRevoluteJoint(rodWorld, &pin);
+    m2WeldJointDef glue = m2DefaultWeldJointDef();
+    glue.bodyIdA = m2Joint_GetBodyA(rodWorld, plain);
+    glue.bodyIdB = m2Joint_GetBodyB(rodWorld, plain);
+    m2JointId weld = NewWeldJoint(rodWorld, &glue);
     uint64_t misuse = m2World_GetCounters(rodWorld).misuse;
-    CHECK(!m2Joint_IsSpringEnabled(rodWorld, hinge), "a hinge has no rope toggle");
+    CHECK(!m2Joint_IsSpringEnabled(rodWorld, weld), "a weld has no spring switch");
     CHECK(m2World_GetCounters(rodWorld).misuse == misuse + 1, "and asking counts one misuse");
     m2DestroyWorld(rodWorld);
     m2DestroyWorld(twin);
@@ -1233,8 +1234,9 @@ static void TestDistanceRange(void)
         jd.bodyIdA = hook;
         jd.bodyIdB = crates[i];
         jd.length = 2.0f;
-        jd.hertz = 0.5f; // a squishy rod that converges near 2
-        jd.dampingRatio = 0.7f;
+        jd.enableSpring = true;
+        jd.springHertz = 0.5f; // a squishy rod that converges near 2
+        jd.springDampingRatio = 0.7f;
         if (i == 1)
         {
             jd.minLength = 0.5f;
@@ -1353,13 +1355,14 @@ static void TestRevoluteSpring(void)
         rj.localAnchorB = (m2Vec2){-1.0f, 0.0f};
         if (i == 1)
         {
+            rj.enableSpring = true;
             rj.springHertz = 12.0f;
             rj.springDampingRatio = 1.0f;
         }
         pins[i] = NewRevoluteJoint(world, &rj);
     }
-    CHECK(m2Joint_GetAngularSpringHertz(world, pins[1]) == 12.0f, "the spring hertz reads back");
-    CHECK(m2Joint_GetAngularSpringDampingRatio(world, pins[1]) == 1.0f,
+    CHECK(m2Joint_GetSpringHertz(world, pins[1]) == 12.0f, "the spring hertz reads back");
+    CHECK(m2Joint_GetSpringDampingRatio(world, pins[1]) == 1.0f,
           "the spring damping ratio reads back");
 
     for (int32_t i = 0; i < 300; ++i)
@@ -1373,8 +1376,10 @@ static void TestRevoluteSpring(void)
     CHECK(m2Joint_GetReactionTorque(world, pins[1]) > 0.0f, "the spring carries the bar's weight");
 
     // Kill the spring at runtime: the held bar falls like its twin.
-    m2Joint_SetAngularSpringHertz(world, pins[1], 0.0f);
-    CHECK(m2Joint_GetAngularSpringHertz(world, pins[1]) == 0.0f, "the disabled spring reads back");
+    m2Joint_EnableSpring(world, pins[1], false);
+    CHECK(!m2Joint_IsSpringEnabled(world, pins[1]) &&
+              m2Joint_GetSpringHertz(world, pins[1]) == 12.0f,
+          "the disabled spring reads back, its frequency kept");
     for (int32_t i = 0; i < 300; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
@@ -2156,7 +2161,7 @@ static bool FarJoint(m2World* world, m2JointType type, m2BodyId a, m2BodyId b)
         def.minLength = 0.5f;
         def.maxLength = 2.0f;
         def.enableSpring = true;
-        def.hertz = 4.0f;
+        def.springHertz = 4.0f;
         joint = NewDistanceJoint(world, &def);
         break;
     }
@@ -2207,7 +2212,7 @@ static bool FarJoint(m2World* world, m2JointType type, m2BodyId a, m2BodyId b)
         def.bodyIdA = a;
         def.bodyIdB = b;
         def.enableSpring = true;
-        def.hertz = 4.0f;
+        def.springHertz = 4.0f;
         def.enableMotor = true;
         def.motorSpeed = 1.0f;
         def.maxMotorTorque = 10.0f;
@@ -2415,7 +2420,7 @@ static m2JointId PinBody(m2World* world, PinKind kind, float inertia, m2Vec2 arm
     jd.bodyIdA = ground;
     jd.bodyIdB = body;
     jd.target = (m2Pos2){0.0, 0.0};
-    jd.hertz = 10.0f;
+    jd.springHertz = 10.0f;
     jd.maxForce = 1000.0f;
     return NewMouseJoint(world, &jd);
 }
@@ -2570,10 +2575,10 @@ static m2JointId VanishingSpring(m2World* world, int32_t kind, m2BodyId ground, 
         m2WeldJointDef jd = m2DefaultWeldJointDef();
         jd.bodyIdA = ground;
         jd.bodyIdB = box;
-        jd.linearHertz = hertz;
-        jd.linearDampingRatio = 0.0f;
-        jd.angularHertz = hertz;
-        jd.angularDampingRatio = 0.0f;
+        jd.linearSpringHertz = hertz;
+        jd.linearSpringDampingRatio = 0.0f;
+        jd.angularSpringHertz = hertz;
+        jd.angularSpringDampingRatio = 0.0f;
         return NewWeldJoint(world, &jd);
     }
     if (kind == 1)
@@ -2581,8 +2586,9 @@ static m2JointId VanishingSpring(m2World* world, int32_t kind, m2BodyId ground, 
         m2RevoluteJointDef jd = m2DefaultRevoluteJointDef();
         jd.bodyIdA = ground;
         jd.bodyIdB = box;
-        jd.hertz = hertz;
-        jd.dampingRatio = 0.0f;
+        jd.constraintHertz = hertz;
+        jd.constraintDampingRatio = 0.0f;
+        jd.enableSpring = true;
         jd.springHertz = hertz;
         jd.springDampingRatio = 0.0f;
         return NewRevoluteJoint(world, &jd);
@@ -2592,8 +2598,8 @@ static m2JointId VanishingSpring(m2World* world, int32_t kind, m2BodyId ground, 
         m2PrismaticJointDef jd = m2DefaultPrismaticJointDef();
         jd.bodyIdA = ground;
         jd.bodyIdB = box;
-        jd.hertz = hertz;
-        jd.dampingRatio = 0.0f;
+        jd.constraintHertz = hertz;
+        jd.constraintDampingRatio = 0.0f;
         return NewPrismaticJoint(world, &jd);
     }
     if (kind == 3)
@@ -2602,8 +2608,8 @@ static m2JointId VanishingSpring(m2World* world, int32_t kind, m2BodyId ground, 
         jd.bodyIdA = ground;
         jd.bodyIdB = box;
         jd.enableSpring = true;
-        jd.hertz = hertz;
-        jd.dampingRatio = 0.0f;
+        jd.springHertz = hertz;
+        jd.springDampingRatio = 0.0f;
         return NewDistanceJoint(world, &jd);
     }
     if (kind == 4)
@@ -2612,8 +2618,8 @@ static m2JointId VanishingSpring(m2World* world, int32_t kind, m2BodyId ground, 
         jd.bodyIdA = ground;
         jd.bodyIdB = box;
         jd.enableSpring = true;
-        jd.hertz = hertz;
-        jd.dampingRatio = 0.0f;
+        jd.springHertz = hertz;
+        jd.springDampingRatio = 0.0f;
         return NewWheelJoint(world, &jd);
     }
     if (kind == 5)
@@ -2621,16 +2627,16 @@ static m2JointId VanishingSpring(m2World* world, int32_t kind, m2BodyId ground, 
         m2MotorJointDef jd = m2DefaultMotorJointDef();
         jd.bodyIdA = ground;
         jd.bodyIdB = box;
-        jd.hertz = hertz;
-        jd.dampingRatio = 0.0f;
+        jd.springHertz = hertz;
+        jd.springDampingRatio = 0.0f;
         return NewMotorJoint(world, &jd);
     }
     m2MouseJointDef jd = m2DefaultMouseJointDef();
     jd.bodyIdA = ground;
     jd.bodyIdB = box;
     jd.target = (m2Pos2){0.0, 2.0};
-    jd.hertz = hertz;
-    jd.dampingRatio = 0.0f;
+    jd.springHertz = hertz;
+    jd.springDampingRatio = 0.0f;
     return NewMouseJoint(world, &jd);
 }
 

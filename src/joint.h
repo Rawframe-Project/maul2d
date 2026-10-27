@@ -14,7 +14,7 @@
 // mean different things to different kinds.
 #define M2_JOINT_MOTOR  1u // motor enabled
 #define M2_JOINT_LIMIT  2u // limit (or wheel travel stops) enabled
-#define M2_JOINT_SPRING 4u // wheel suspension spring enabled
+#define M2_JOINT_SPRING 4u // wheel suspension or revolute angular spring enabled
 
 #define M2_JOINT_HARD_RANGE  8u  // distance: a finite length range is active
 #define M2_JOINT_ROPE        16u // distance: spring enabled (stored with the joint)
@@ -33,9 +33,32 @@ int32_t m2TypedJointSlot(const m2World* world, m2JointId jointId, uint8_t type);
     ((1u << m2_revoluteJoint) | (1u << m2_prismaticJoint) | (1u << m2_wheelJoint))
 #define M2_MAX_MOTOR_KINDS (M2_MOTOR_LIMIT_KINDS | (1u << m2_motorJoint))
 
-// The joint kinds with a spring toggle: a distance joint's rope or strut
-// and a wheel's suspension.
-#define M2_SPRING_KINDS ((1u << m2_distanceJoint) | (1u << m2_wheelJoint))
+// The joint kinds with a spring toggle: a distance joint's spring, rope or
+// strut, a wheel's suspension and a revolute joint's angular spring.
+#define M2_SPRING_KINDS                                                                            \
+    ((1u << m2_distanceJoint) | (1u << m2_wheelJoint) | (1u << m2_revoluteJoint))
+
+// A joint keeps two stiffness pairs: the first (jointHertz, jointDamping)
+// and the second (jointHertz2, jointDamping2). Each public tuning names
+// the kinds it is valid for and the pair it reads and writes there:
+// - constraint: the softness of the rows that hold a revolute, prismatic,
+//   gear, pulley or ratchet joint together, in the first pair;
+// - spring: a distance, wheel or mouse joint's spring in the first pair,
+//   a revolute's angular spring or a motor joint's drive in the second;
+// - weld linear and weld angular: a weld's two springs, first and second.
+typedef enum m2JointTuning
+{
+    m2_tuneConstraint,
+    m2_tuneSpring,
+    m2_tuneWeldLinear,
+    m2_tuneWeldAngular,
+} m2JointTuning;
+
+// The live slot of a joint a tuning is valid for, and in secondOut
+// whether the tuning uses its second pair; -1 and one misuse counted for
+// a stale id or another kind.
+int32_t m2JointTuningSlot(const m2World* world, m2JointId jointId, m2JointTuning tuning,
+                          bool* secondOut);
 
 // A distance joint's maximum length when it has none.
 #define M2_OPEN_LENGTH 3.4e38f

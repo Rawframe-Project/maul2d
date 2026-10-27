@@ -406,7 +406,7 @@ static void TestJointEdges(void)
     m2WeldJointDef weld = m2DefaultWeldJointDef();
     weld.bodyIdA = a;
     weld.bodyIdB = b;
-    weld.angularHertz = Past(M2_MAX_RATE);
+    weld.angularSpringHertz = Past(M2_MAX_RATE);
     misuse = Misuse(world);
     CHECK(m2CreateWeldJoint(world, &weld, &refused) == m2_errorInvalid && refused.index1 == 0 &&
               Misuse(world) == misuse + 1,

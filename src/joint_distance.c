@@ -34,8 +34,8 @@ static bool DefValid(const m2DistanceJointDef* def)
     return m2LocalVec2(def->localAnchorA) && m2LocalVec2(def->localAnchorB) &&
            m2ValidReach(def->length) && m2ValidReach(def->minLength) &&
            m2ValidReach(def->maxLength) &&
-           !(def->maxLength > 0.0f && def->minLength > def->maxLength) && m2ValidRate(def->hertz) &&
-           m2ValidCoefficient(def->dampingRatio);
+           !(def->maxLength > 0.0f && def->minLength > def->maxLength) &&
+           m2ValidRate(def->springHertz) && m2ValidCoefficient(def->springDampingRatio);
 }
 
 // The create record holds the def's fields and zero bytes between them:
@@ -50,8 +50,8 @@ static void RecordDistanceJointDef(m2DistanceJointDef* out, const m2DistanceJoin
     out->length = def->length;
     out->minLength = def->minLength;
     out->maxLength = def->maxLength;
-    out->hertz = def->hertz;
-    out->dampingRatio = def->dampingRatio;
+    out->springHertz = def->springHertz;
+    out->springDampingRatio = def->springDampingRatio;
     out->enableSpring = def->enableSpring;
     out->userData = def->userData;
     out->enableConnectedCollision = def->enableConnectedCollision;
@@ -106,7 +106,7 @@ static M2_NOINLINE m2Result CreateDistanceJointWorker(m2World* world, const m2Di
     }
     m2JointId jointId =
         m2FinishJoint(world, index, (uint8_t)m2_distanceJoint, bodyA, bodyB, def->localAnchorA,
-                      def->localAnchorB, length, def->hertz, def->dampingRatio);
+                      def->localAnchorB, length, def->springHertz, def->springDampingRatio);
     // The hard range: off by default (0 .. huge); a def maxLength <= 0
     // means unbounded, mirroring "length <= 0 derives".
     world->joints.jointLower[index] = def->minLength > 0.0f ? def->minLength : 0.0f;
@@ -193,12 +193,18 @@ void m2DistanceJoint_SetLengthRange(m2World* world, m2JointId jointId, float min
 //
 // One row along the line between the anchors: the rest length (impulse.x)
 // unless the joint is a free rope, and the length range when one is set.
-// The range stays hard on a soft rope: its rows use the stiff softness.
+// The rest row is a spring only while the spring is on; off, the joint is
+// a rod. The range stays hard on a soft rope: its rows use the stiff
+// softness.
 
 static void PrepareDistance(m2World* world, m2JointConstraint* c, const m2JointFrame* f)
 {
     int32_t j = f->joint;
     c->length = world->joints.jointLength[j];
+    if ((c->flags & M2_JOINT_ROPE) == 0)
+    {
+        c->soft = m2StiffJointSoftness(f->h);
+    }
     if (world->joints.jointLower[j] > 0.0f || world->joints.jointUpper[j] < M2_OPEN_LENGTH)
     {
         c->flags |= M2_JOINT_HARD_RANGE;
