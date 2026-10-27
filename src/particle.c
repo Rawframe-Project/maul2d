@@ -569,14 +569,16 @@ static M2_NOINLINE m2Result CreateParticlesInPolygonWorker(m2World* world, const
         batch.prevRow[i] = -1;
     }
     // The row coordinate accumulates stride by stride, since the sum is
-    // part of the result. The fill ends where a row no longer moves it.
+    // part of the result. The fill ends where a row no longer moves it, or
+    // where the pool runs out.
+    bool full = false;
     bool open = true;
     float y = lower.y + 0.5f * batch.stride;
     while (y < upper.y && open)
     {
-        open = FillRow(world, &batch, &region, lower.x, upper.x, y, &op);
+        full = !FillRow(world, &batch, &region, lower.x, upper.x, y, &op);
         float next = y + batch.stride;
-        open = open && next > y;
+        open = !full && next > y;
         y = next;
     }
     if ((def->flags & m2_springParticle) != 0)
@@ -587,7 +589,9 @@ static M2_NOINLINE m2Result CreateParticlesInPolygonWorker(m2World* world, const
     op.expected = batch.count;
     m2JournalRecord(world, m2_opFillParticles, &op, (int32_t)sizeof(op));
     *countOut = batch.count;
-    return m2_success;
+    // A fill the pool cut short keeps what it created and says so; a full
+    // pool is a runtime fact, not misuse.
+    return full ? m2_errorCapacity : m2_success;
 }
 
 m2Result m2CreateParticlesInPolygon(m2World* world, const m2ParticleDef* def,

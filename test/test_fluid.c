@@ -1087,7 +1087,8 @@ static void TestDeadIdsStayDead(void)
 // A particle is created from a def like every other object: a create
 // or fill without a def from m2DefaultParticleDef, or without its out
 // argument, is refused as a misuse; a full pool refuses a create with
-// m2_errorCapacity and ends a fill early, neither counting misuse.
+// m2_errorCapacity and cuts a fill short with it, neither counting
+// misuse.
 static void TestParticleDefs(void)
 {
     m2WorldDef def = FluidWorldDef(4);
@@ -1119,13 +1120,51 @@ static void TestParticleDefs(void)
     CHECK(m2World_GetCounters(world).misuse == misuse + 7 && m2World_GetParticleCount(world) == 0,
           "each counting one misuse and creating nothing");
 
-    CHECK(m2CreateParticlesInPolygon(world, &particleDef, &tub, &count) == m2_success && count == 4,
-          "a fill larger than the pool succeeds with the particles that fit");
-    CHECK(m2CreateParticlesInPolygon(world, &particleDef, &tub, &count) == m2_success && count == 0,
+    CHECK(m2CreateParticlesInPolygon(world, &particleDef, &tub, &count) == m2_errorCapacity &&
+              count == 4 && m2World_GetParticleCount(world) == 4,
+          "a fill larger than the pool keeps the particles that fit and says it was cut short");
+    CHECK(m2CreateParticlesInPolygon(world, &particleDef, &tub, &count) == m2_errorCapacity &&
+              count == 0,
           "and one into a full pool creates none");
     CHECK(m2CreateParticle(world, &particleDef, &id) == m2_errorCapacity && id.index1 == 0,
           "a create into a full pool is refused");
     CHECK(m2World_GetCounters(world).misuse == misuse + 7, "neither counting misuse");
+    m2DestroyWorld(world);
+}
+
+// A fill the pool cuts short keeps the particles that fit, returns
+// m2_errorCapacity with their count and is recorded: its replay cuts
+// short the same way and reaches the same world.
+static void TestFillCutShortReplays(void)
+{
+    m2WorldDef def = FluidWorldDef(8);
+    m2World* world = NewWorld(&def);
+    for (int32_t i = 0; i < 5; ++i)
+    {
+        EmitParticle(world, (m2Pos2){(double)i, 3.0}, (m2Vec2){0.0f, 0.0f}, 0);
+    }
+    m2World* replayed = NewWorld(&def);
+    int32_t capacity = m2World_GetJournalBaseSize(world) + 4096;
+    uint8_t* tape = (uint8_t*)malloc((size_t)capacity);
+    CHECK(tape != NULL && StartJournal(world, tape, capacity), "the journal starts");
+    m2Counters before = m2World_GetCounters(world);
+    m2Polygon tub = m2MakeBox(0.5f, 0.5f);
+    m2ParticleDef particleDef = m2DefaultParticleDef();
+    particleDef.flags = m2_springParticle;
+    int32_t count = -1;
+    CHECK(m2CreateParticlesInPolygon(world, &particleDef, &tub, &count) == m2_errorCapacity &&
+              count == 3 && m2World_GetParticleCount(world) == 8,
+          "a fill into a nearly full pool creates the 3 that fit and says so");
+    m2Counters after = m2World_GetCounters(world);
+    CHECK(after.misuse == before.misuse && after.particlePoolFull == before.particlePoolFull + 1,
+          "counting no misuse and one full pool");
+    m2World_Step(world, 1.0f / 60.0f, 4);
+    int32_t bytes = StopJournal(world);
+    CHECK(bytes > 0 && ReplayJournal(replayed, tape, bytes) &&
+              m2World_Hash(replayed) == m2World_Hash(world),
+          "and its replay reaches the same world");
+    free(tape);
+    m2DestroyWorld(replayed);
     m2DestroyWorld(world);
 }
 
@@ -1135,6 +1174,7 @@ int main(void)
     TestCappedCandidatesIgnoreTreeHistory();
     TestLifecycle();
     TestParticleDefs();
+    TestFillCutShortReplays();
     TestFarParticlesStep();
     TestOverflowIsQuiet();
     TestPairOverflow();

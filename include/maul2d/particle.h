@@ -203,10 +203,11 @@ extern "C"
 
     /// Fills a convex polygon with particles on the rest stride (0.75
     /// diameters), row by row from the bottom, left to right. A full pool
-    /// ends the fill early, which is a runtime fact and no failure. With
+    /// ends the fill early: the particles created so far stay, and the
+    /// fill returns m2_errorCapacity with their count, which may be 0. With
     /// the spring or elastic flag the batch becomes a body: springs keep
     /// their spawn lengths and triads their spawn shape. Journaled as one
-    /// operation.
+    /// operation, a fill cut short included.
     ///
     /// @param world     The world.
     /// @param def       Every particle's velocity and flags, and where the
@@ -215,15 +216,16 @@ extern "C"
     ///                  polygon a shape would take, within M2_HUGE, convex
     ///                  and not a sliver. Its normals are recomputed from
     ///                  its vertices.
-    /// @param countOut  Receives the number of particles created, fewer
-    ///                  than the polygon holds when the pool fills; 0 on
-    ///                  failure.
-    /// @return m2_success; m2_errorInvalid when the world has no particle
-    ///         system, an argument is null, def was not initialized by
-    ///         m2DefaultParticleDef or a value of it is not finite or out of
-    ///         range, the polygon is one m2MakePolygon would refuse or it is
-    ///         wider than 256 strides; m2_errorState from host code the
-    ///         world is running.
+    /// @param countOut  Receives the number of particles created; 0 when
+    ///                  the fill is refused.
+    /// @return m2_success; m2_errorCapacity when the pool ran out before
+    ///         the polygon was full, which counts no misuse and counts once
+    ///         in m2Counters.particlePoolFull; m2_errorInvalid when the
+    ///         world has no particle system, an argument is null, def was
+    ///         not initialized by m2DefaultParticleDef or a value of it is
+    ///         not finite or out of range, the polygon is one m2MakePolygon
+    ///         would refuse or it is wider than 256 strides; m2_errorState
+    ///         from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2CreateParticlesInPolygon(m2World* world,

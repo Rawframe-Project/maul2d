@@ -369,8 +369,8 @@ static bool ApplyFillParticles(m2ReplayCursor* r, const m2OpPayload* p)
     const m2OpFillParticles* op = &p->fillParticles;
     m2ParticleDef def = RecordedParticleDef(op->position, op->velocity, op->flags);
     int32_t made = 0;
-    return m2CreateParticlesInPolygon(r->world, &def, &op->polygon, &made) == m2_success &&
-           made == op->expected;
+    m2Result result = m2CreateParticlesInPolygon(r->world, &def, &op->polygon, &made);
+    return (result == m2_success || result == m2_errorCapacity) && made == op->expected;
 }
 
 static bool ApplyDestroyParticle(m2ReplayCursor* r, const m2OpPayload* p)
