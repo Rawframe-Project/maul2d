@@ -673,10 +673,16 @@ static void TestCastHitOut(void)
     CHECK(m2World_CastRayClosest(world, (m2Pos2){0.0, 3.0}, (m2Vec2){0.0f, -6.0f}, all, &hit) &&
               hit.shapeId.index1 == floor.index1 && hit.normal.y == 1.0f,
           "a ray that hits says so and writes the hit");
-    m2CastHit kept = hit;
-    CHECK(!m2World_CastRayClosest(world, (m2Pos2){9.0, 3.0}, (m2Vec2){0.0f, -6.0f}, all, &hit) &&
-              memcmp(&hit, &kept, sizeof(hit)) == 0,
-          "a miss leaves the hit as it was");
+    // Both filled with one pattern, padding included: a copy by assignment
+    // need not copy padding, so the reference is never assigned.
+    m2CastHit untouched;
+    m2CastHit pattern;
+    memset(&untouched, 0x5A, sizeof(untouched));
+    memset(&pattern, 0x5A, sizeof(pattern));
+    CHECK(!m2World_CastRayClosest(world, (m2Pos2){9.0, 3.0}, (m2Vec2){0.0f, -6.0f}, all,
+                                  &untouched) &&
+              memcmp(&untouched, &pattern, sizeof(untouched)) == 0,
+          "a miss leaves every byte of the hit as it was");
     m2Circle ball = {{0.0f, 0.0f}, 0.25f};
     m2Capsule rod = {{-0.25f, 0.0f}, {0.25f, 0.0f}, 0.1f};
     m2Polygon chip = m2MakeBox(0.25f, 0.25f);
