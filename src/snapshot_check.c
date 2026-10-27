@@ -184,6 +184,43 @@ static bool LinksJoinLive(const m2World* world, const uint8_t* alive, const uint
     return true;
 }
 
+// A spring's rest length and a triad's spawn corners hold what a fill
+// makes: a rest length above 0 and at most one particle diameter, and
+// corners within one lattice stride of their centroid on each axis. The
+// counts are already in range.
+static bool LinkShapesInRange(const m2World* world, const uint8_t* in)
+{
+    float diameter = 2.0f * world->particles.particleRadius;
+    float stride = 0.75f * diameter; // the fill's lattice stride
+    const uint8_t* rests = M2_IN(particles.particleSpringRest);
+    int32_t springs = InlineI32(world, in, &world->particles.particleSpringCount);
+    for (int32_t k = 0; k < springs; ++k)
+    {
+        float rest = ReadF32(rests, k);
+        if (!(rest > 0.0f && rest <= diameter))
+        {
+            return false;
+        }
+    }
+    const uint8_t* corners[3] = {M2_IN(particles.particleTriadPA), M2_IN(particles.particleTriadPB),
+                                 M2_IN(particles.particleTriadPC)};
+    int32_t triads = InlineI32(world, in, &world->particles.particleTriadCount);
+    for (int32_t k = 0; k < triads; ++k)
+    {
+        for (int32_t c = 0; c < 3; ++c)
+        {
+            // An m2Vec2 is two floats.
+            float x = ReadF32(corners[c], 2 * k);
+            float y = ReadF32(corners[c], 2 * k + 1);
+            if (!(m2AbsF(x) <= stride && m2AbsF(y) <= stride))
+            {
+                return false;
+            }
+        }
+    }
+    return true;
+}
+
 // Springs and triads join live particles only, as a particle's death
 // leaves them: one with a dead end would push that slot's velocity and
 // latch onto the next particle emitted there.
@@ -199,7 +236,8 @@ static bool CheckParticleLinks(const m2World* world, const uint8_t* in)
                          world->particles.particleSpringCapacity) &&
            LinksJoinLive(world, alive, triads, 3,
                          InlineI32(world, in, &world->particles.particleTriadCount),
-                         world->particles.particleTriadCapacity);
+                         world->particles.particleTriadCapacity) &&
+           LinkShapesInRange(world, in);
 }
 
 // The particle and fluid volume pools, which exist only in worlds that
