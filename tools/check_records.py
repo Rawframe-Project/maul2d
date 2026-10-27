@@ -2,18 +2,21 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Sirac Ozmen
 #
-# The journal rule for defs: a record copies a caller's def field by
-# field into zeroed memory, never whole. A whole copy carries the bytes
-# between the def's fields, which the caller never set, onto the tape, so
-# two recordings of the same calls could differ. In src/, this refuses
+# The journal rule for what a caller passes in: a record copies a def
+# field by field into zeroed memory, and a polygon in its canonical form
+# (m2CanonicalPolygon), never whole. A whole copy carries bytes the caller
+# never set onto the tape, the padding between a def's fields or a
+# polygon's normals and unused slots, so two recordings of the same calls
+# could differ. In src/, this refuses
 #
-#   - a dereferenced def as a whole value: assigned (record.def = *def;)
-#     or in an initializer ({.def = *def, ...});
-#   - a def as the source of memcpy or memmove;
-#   - a def passed straight to m2JournalRecord as its payload.
+#   - a dereferenced def or polygon as a whole value: assigned
+#     (record.def = *def;) or in an initializer ({.def = *def, ...});
+#   - a def or polygon as the source of memcpy or memmove;
+#   - a def or polygon passed straight to m2JournalRecord as its payload.
 #
-# A def is a pointer named def or ending in Def. --self-test checks the
-# patterns against a table of lines they must refuse and accept.
+# A def is a pointer named def or ending in Def; a polygon, one named
+# polygon or pieces or ending in Polygon. --self-test checks the patterns
+# against a table of lines they must refuse and accept.
 #
 # usage: check_records.py [--self-test]
 
@@ -22,12 +25,15 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DEF = r"(?:def|\w+Def)"
-WHOLE = "copies a def whole"
+DEF = r"(?:def|\w+Def|polygon|pieces|\w+Polygon)"
+WHOLE = "copies a def or polygon whole"
 RULES = (
     (re.compile(r"=\s*\(?\s*\*\s*" + DEF + r"\s*\)?\s*[;,}]"), WHOLE),
     (re.compile(r"\bmem(?:cpy|move)\s*\([^;]*?,\s*\(?\s*\*?\s*" + DEF + r"\s*\)?\s*,"), WHOLE),
-    (re.compile(r"\bm2JournalRecord\s*\([^;]*?,[^;]*?,\s*" + DEF + r"\s*,"), "records a def whole"),
+    (
+        re.compile(r"\bm2JournalRecord\s*\([^;]*?,[^;]*?,\s*" + DEF + r"\s*,"),
+        "records a def or polygon whole",
+    ),
 )
 
 REFUSED = (
@@ -41,6 +47,9 @@ REFUSED = (
     "memcpy(&record.def, shapeDef, sizeof(*shapeDef));",
     "memmove(&record.def, (def), sizeof(record.def));",
     "m2JournalRecord(world, m2_opExplode, def, (int32_t)sizeof(*def));",
+    "op.polygon = *polygon;",
+    "memcpy(out + sizeof(header), pieces, (size_t)pieceBytes);",
+    "record.shape = *localPolygon;",
 )
 
 ACCEPTED = (
@@ -53,6 +62,8 @@ ACCEPTED = (
     "if (def == NULL || def->internalValue != M2_SHAPE_COOKIE)",
     "m2Result result = m2CreateShape(world, bodyId, def, geometry, shapeOut);",
     "float density = *densityOut;",
+    "op.polygon = region;",
+    "m2Polygon piece = m2CanonicalPolygon(&pieces[i]);",
 )
 
 
@@ -86,7 +97,10 @@ def main():
         if name.endswith(".c"):
             text = open(os.path.join(src, name), encoding="utf-8").read()
             for number, what in findings_in(text):
-                found.append(f"src/{name}:{number}: {what}; copy it field by field instead")
+                found.append(
+                    f"src/{name}:{number}: {what}; copy a def field by field and a polygon "
+                    "through m2CanonicalPolygon"
+                )
     for line in found:
         print(line)
     if found:

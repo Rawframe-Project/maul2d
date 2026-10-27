@@ -11,6 +11,7 @@
 #include "journal.h"
 
 #include "fpenv.h"
+#include "geometry.h"
 #include "world_internal.h"
 
 #include "maul2d/base.h"
@@ -99,7 +100,13 @@ void m2JournalRecordShatter(m2World* world, m2BodyId bodyId, const m2Polygon* pi
     header.pieceCount = pieceCount;
     header.expectedFirst = expectedFirst;
     memcpy(out, &header, sizeof(header));
-    memcpy(out + sizeof(header), pieces, (size_t)pieceBytes);
+    // Each piece in its canonical form, as its shape holds it: the normals
+    // the library computes and zero unused slots, never the caller's bytes.
+    for (int32_t i = 0; i < pieceCount; ++i)
+    {
+        m2Polygon piece = m2CanonicalPolygon(&pieces[i]);
+        memcpy(out + sizeof(header) + (size_t)i * sizeof(m2Polygon), &piece, sizeof(piece));
+    }
 }
 
 void m2JournalRecordChain(m2World* world, m2BodyId bodyId, const m2ChainDef* def,
