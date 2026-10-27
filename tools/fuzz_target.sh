@@ -2,9 +2,11 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 Sirac Ozmen
 #
-# Runs one libFuzzer target and reports a finding without its input.
+# Runs one libFuzzer target, or merges a corpus with it, and reports a
+# finding without its input.
 #
 #   tools/fuzz_target.sh TARGET [LIBFUZZER ARGUMENT...]
+#   tools/fuzz_target.sh --merge TARGET MERGED INPUT_DIR...
 #
 # The target runs with an explicit seed, never 0 (which libFuzzer takes
 # as "pick one"), and writes its findings to out/fuzz-crashes/NAME/ and
@@ -36,12 +38,30 @@
 #     xargs -P 4 -I {} tools/fuzz_target.sh {} ... || status=$?
 #   cat out/fuzz-reports/*.txt 2>/dev/null || true
 #   exit "$status"
+#
+# --merge minimizes INPUT_DIR... into MERGED with libFuzzer's -merge=1,
+# which runs every input again. Its log stays on the machine too, and it
+# prints one line. libFuzzer's merge exits 0 even when an input crashes,
+# so the script looks for a finding itself (a new file under
+# out/fuzz-crashes/NAME/ or a sanitizer report in the log) and reports
+# it as a run does, exiting 1, so that a corpus holding a finding is not
+# saved.
+#
+# AddressSanitizer's register dump is turned off: registers may hold the
+# input's bytes.
 set -euo pipefail
 
-if [ $# -lt 1 ]; then
+merge=0
+if [ "${1:-}" = --merge ]; then
+  merge=1
+  shift
+fi
+if [ $# -lt 1 ] || { [ "$merge" = 1 ] && [ $# -lt 3 ]; }; then
   echo "usage: tools/fuzz_target.sh TARGET [LIBFUZZER ARGUMENT...]" >&2
+  echo "       tools/fuzz_target.sh --merge TARGET MERGED INPUT_DIR..." >&2
   exit 2
 fi
+export ASAN_OPTIONS="${ASAN_OPTIONS:+$ASAN_OPTIONS:}dump_registers=0"
 target=$1
 shift
 name=$(basename "$target")
@@ -54,16 +74,31 @@ mkdir -p "$crashes" "$out/fuzz-logs" "$out/fuzz-reports"
 rm -f "$report"
 touch "$stamp"
 
-seed=$(($(od -An -N4 -tu4 /dev/urandom) % 2147483647 + 1))
-echo "seed $seed" >"$log"
-if "$target" -seed="$seed" -artifact_prefix="$crashes/" "$@" >>"$log" 2>&1; then
-  echo "$name: no finding"
-  exit 0
+if [ "$merge" = 1 ]; then
+  log="$out/fuzz-logs/$name.merge.log"
+  merged=$1
+  shift
+  mkdir -p "$merged"
+  if "$target" -merge=1 -artifact_prefix="$crashes/" "$merged" "$@" >"$log" 2>&1 &&
+    [ -z "$(find "$crashes" -maxdepth 1 -type f -newer "$stamp")" ] &&
+    ! grep -q -E '^==[0-9]+== *ERROR: |: runtime error: ' "$log"; then
+    echo "$name: merged into $(find "$merged" -maxdepth 1 -type f | wc -l) files"
+    exit 0
+  fi
+else
+  seed=$(($(od -An -N4 -tu4 /dev/urandom) % 2147483647 + 1))
+  echo "seed $seed" >"$log"
+  if "$target" -seed="$seed" -artifact_prefix="$crashes/" "$@" >>"$log" 2>&1; then
+    echo "$name: no finding"
+    exit 0
+  fi
 fi
 
-# Everything from the first mutation line on is libFuzzer's dump of the
-# input; no line of it is read.
-head=$(sed '/^MS: [0-9]/,$d' "$log")
+# Everything from the first line of libFuzzer's dump of an input on (its
+# mutation line, the bytes, where it was written, its Base64) is never
+# read. A merge's dump has no mutation line, so each form ends the part
+# that is read.
+head=$(sed -E '/^(MS: [0-9]|0x[0-9a-fA-F]{1,2},|artifact_prefix=|Base64: )/,$d' "$log")
 {
   echo "$name:"
   # Only this run's findings, not those an earlier run left, by kind.
