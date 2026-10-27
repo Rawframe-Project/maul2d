@@ -22,20 +22,25 @@
 
 #define M2_SNAPSHOT_MAGIC M2_STATE_MAGIC('M', '2', 'S', 'N')
 
-#define M2_SNAPSHOT_VERSION 6u
+#define M2_SNAPSHOT_VERSION 7u
 
 // --- Snapshot -------------------------------------------------------------------
 
 // The header says which release, which build and which world shape wrote
 // the bytes; everything else, pool cursors included, is the state table's.
+// The world shape is the capacities and the particle radius, which sets
+// the particle state a world can make (spring rest lengths, triad spawn
+// corners) and is the one def setting the restore check measures by. It
+// is held widened to a double, which keeps the header free of padding.
 typedef struct m2SnapshotHeader
 {
     m2StatePrefix prefix;
     uint64_t configHash;
     int32_t capacities[6];
+    double particleRadius;
 } m2SnapshotHeader;
 
-_Static_assert(sizeof(m2SnapshotHeader) == 48, "snapshot header must be padding-free");
+_Static_assert(sizeof(m2SnapshotHeader) == 56, "snapshot header must be padding-free");
 
 static void WorldCapacities(const m2World* world, int32_t capacities[6])
 {
@@ -134,6 +139,7 @@ static M2_NOINLINE m2Result WorldSnapshotWorker(const m2World* world, void* buff
         m2MakeStatePrefix(M2_SNAPSHOT_MAGIC, M2_SNAPSHOT_VERSION, (int32_t)sizeof(header));
     header.configHash = ConfigHash();
     WorldCapacities(world, header.capacities);
+    header.particleRadius = (double)world->particles.particleRadius;
 
     uint8_t* out = buffer;
     memcpy(out, &header, sizeof(header));
@@ -180,7 +186,8 @@ static M2_NOINLINE m2Result WorldRestoreWorker(m2World* world, const void* buffe
     }
     int32_t capacities[6];
     WorldCapacities(world, capacities);
-    if (memcmp(header.capacities, capacities, sizeof(capacities)) != 0)
+    if (memcmp(header.capacities, capacities, sizeof(capacities)) != 0 ||
+        !(header.particleRadius == (double)world->particles.particleRadius))
     {
         return m2_errorInvalid; // another world shape
     }

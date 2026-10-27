@@ -247,7 +247,8 @@ static m2Pos2 Ahead(const m2Particles* p, int32_t i, float dt)
 
 // Each triad matches its spawn shape to where its corners are heading:
 // the best-fit rotation of the spawn offsets onto the current ones about
-// their mean, and a velocity toward each rotated spawn corner.
+// their mean, and a velocity toward each rotated spawn corner. A corner's
+// offset from the mean is held to M2_JOINT_REACH per axis, as a joint's is.
 static void ElasticTriads(m2Particles* p, const Fluid* f)
 {
     float strength = f->invDt * p->particleElasticStrength;
@@ -263,7 +264,7 @@ static void ElasticTriads(m2Particles* p, const Fluid* f)
         float cosine = 0.0f;
         for (int32_t c = 0; c < 3; ++c)
         {
-            now[c] = (m2Vec2){(float)(at[c].x - mx), (float)(at[c].y - my)};
+            now[c] = (m2Vec2){m2WorldOffset(at[c].x - mx), m2WorldOffset(at[c].y - my)};
             sine += spawn[c].x * now[c].y - spawn[c].y * now[c].x;
             cosine += spawn[c].x * now[c].x + spawn[c].y * now[c].y;
         }
@@ -283,7 +284,9 @@ static void ElasticTriads(m2Particles* p, const Fluid* f)
 }
 
 // Each spring pulls its two ends toward its spawn length, measured where
-// they are heading.
+// they are heading. Like a joint, it takes ends farther apart than
+// M2_JOINT_REACH along an axis as that far apart. With the rest lengths
+// and spawn corners a restore accepts, every product stays finite.
 static void SpringNets(m2Particles* p, const Fluid* f)
 {
     float strength = f->invDt * p->particleSpringStrength;
@@ -293,7 +296,7 @@ static void SpringNets(m2Particles* p, const Fluid* f)
         int32_t b = p->particleSpringB[k];
         m2Pos2 pa = Ahead(p, a, f->dt);
         m2Pos2 pb = Ahead(p, b, f->dt);
-        m2Vec2 d = {(float)(pb.x - pa.x), (float)(pb.y - pa.y)};
+        m2Vec2 d = {m2WorldOffset(pb.x - pa.x), m2WorldOffset(pb.y - pa.y)};
         float length = sqrtf(d.x * d.x + d.y * d.y);
         if (length > 1.0e-6f)
         {

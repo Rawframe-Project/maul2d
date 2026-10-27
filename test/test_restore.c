@@ -1694,6 +1694,134 @@ static void TestJournalRecordRoom(void)
     CHECK(!m2JournalRecordFits(0, 10, -1), "a negative payload takes no room");
 }
 
+// A snapshot of a world with the given particle radius holding one spring
+// and elastic fill, with the offset of its state block.
+typedef struct LinkScene
+{
+    m2World* world;
+    uint8_t* bytes;
+    int32_t size;
+    int32_t header;
+} LinkScene;
+
+static LinkScene MakeLinkScene(float radius)
+{
+    LinkScene scene;
+    m2WorldDef def = m2DefaultWorldDef();
+    def.particleCapacity = 32;
+    def.particleRadius = radius;
+    scene.world = NewWorld(&def);
+    m2Polygon drop = m2MakeBox(2.0f * radius, 2.0f * radius);
+    CHECK(m2World_FillPolygonWithParticles(scene.world, &drop, (m2Pos2){0.0, 1.0},
+                                           (m2Vec2){0.0f, 0.0f},
+                                           m2_springParticle | m2_elasticParticle) > 1,
+          "the drop fills");
+    CHECK(scene.world->particles.particleSpringCount > 0 &&
+              scene.world->particles.particleTriadCount > 0,
+          "with springs and triads");
+    scene.size = m2World_SnapshotSize(scene.world);
+    scene.bytes = (uint8_t*)malloc((size_t)scene.size);
+    CHECK(scene.bytes != NULL && Snapshot(scene.world, scene.bytes, scene.size) == scene.size,
+          "the world snapshots");
+    scene.header = scene.size - (int32_t)m2StateWalk(scene.world, NULL, NULL, 2);
+    return scene;
+}
+
+// Where the incoming copy of a field sits in the scene's snapshot.
+static uint8_t* LinkField(const LinkScene* scene, const void* field)
+{
+    return (uint8_t*)m2StateIncoming(scene->world, scene->bytes + scene->header, field);
+}
+
+// A restored particle 1e98 m from its spring and triad partners: the
+// links take their ends as M2_JOINT_REACH apart along each axis, so the
+// world steps on finite.
+static void TestDistantLinkEndStaysFinite(void)
+{
+    LinkScene scene = MakeLinkScene(0.05f);
+    m2World* world = scene.world;
+    int32_t distant = world->particles.particleTriadA[0];
+    uint8_t* positions = LinkField(&scene, &world->particles.particlePositions);
+    m2Pos2 at;
+    memcpy(&at, positions + (size_t)distant * sizeof(m2Pos2), sizeof(at));
+    at.x = -1.0e98;
+    memcpy(positions + (size_t)distant * sizeof(m2Pos2), &at, sizeof(at));
+    CHECK(Restore(world, scene.bytes, scene.size), "a particle at any finite position restores");
+    for (int32_t i = 0; i < 4; ++i)
+    {
+        m2World_Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(m2World_Validate(world), "its springs and triads step it on finite");
+    free(scene.bytes);
+    m2DestroyWorld(world);
+}
+
+// A spring's rest length and a triad's spawn corners are what a fill
+// makes; a snapshot that holds others is refused.
+static void TestLinkShapesInRange(void)
+{
+    LinkScene scene = MakeLinkScene(0.05f);
+    m2World* world = scene.world;
+    uint64_t hash = m2World_Hash(world);
+    uint8_t* rests = LinkField(&scene, &world->particles.particleSpringRest);
+    float rest;
+    memcpy(&rest, rests, sizeof(rest));
+    float huge = 1.0e30f;
+    memcpy(rests, &huge, sizeof(huge));
+    CHECK(m2World_Restore(world, scene.bytes, scene.size) == m2_errorInvalid,
+          "a spring longer than a particle diameter is refused");
+    float zero = 0.0f;
+    memcpy(rests, &zero, sizeof(zero));
+    CHECK(m2World_Restore(world, scene.bytes, scene.size) == m2_errorInvalid,
+          "and so is one of no length");
+    memcpy(rests, &rest, sizeof(rest));
+    uint8_t* corners = LinkField(&scene, &world->particles.particleTriadPB);
+    float corner;
+    memcpy(&corner, corners + sizeof(float), sizeof(corner));
+    memcpy(corners + sizeof(float), &huge, sizeof(huge));
+    CHECK(m2World_Restore(world, scene.bytes, scene.size) == m2_errorInvalid,
+          "a triad corner past one stride is refused");
+    memcpy(corners + sizeof(float), &corner, sizeof(corner));
+    CHECK(m2World_Hash(world) == hash && m2World_GetCounters(world).misuse == 0,
+          "and the refusals change nothing, counting no misuse");
+    CHECK(Restore(world, scene.bytes, scene.size), "the snapshot as written restores");
+    free(scene.bytes);
+    m2DestroyWorld(world);
+}
+
+// The particle radius is part of a world's shape: a fill in a world of
+// radius 0.1 makes springs longer than a world of radius 0.05 can, and
+// its snapshots, an empty world's too, restore only into a world of
+// radius 0.1.
+static void TestRestoreKeepsTheParticleRadius(void)
+{
+    LinkScene scene = MakeLinkScene(0.1f);
+    m2WorldDef def = m2DefaultWorldDef();
+    def.particleCapacity = 32;
+    def.particleRadius = 0.05f;
+    m2World* narrower = NewWorld(&def);
+    uint64_t hash = m2World_Hash(narrower);
+    CHECK(m2World_Restore(narrower, scene.bytes, scene.size) == m2_errorInvalid,
+          "a snapshot from a world of another particle radius is refused");
+    def.particleRadius = 0.1f;
+    m2World* same = NewWorld(&def);
+    int32_t emptySize = m2World_SnapshotSize(same);
+    uint8_t* empty = (uint8_t*)malloc((size_t)emptySize);
+    CHECK(empty != NULL && Snapshot(same, empty, emptySize) == emptySize,
+          "an empty world snapshots");
+    CHECK(m2World_Restore(narrower, empty, emptySize) == m2_errorInvalid,
+          "and is refused there too, holding no particle");
+    free(empty);
+    CHECK(m2World_Hash(narrower) == hash && m2World_GetCounters(narrower).misuse == 0,
+          "changing nothing and counting no misuse");
+    CHECK(Restore(same, scene.bytes, scene.size) && m2World_Hash(same) == m2World_Hash(scene.world),
+          "and restores into a world of its own radius");
+    m2DestroyWorld(same);
+    m2DestroyWorld(narrower);
+    free(scene.bytes);
+    m2DestroyWorld(scene.world);
+}
+
 int main(void)
 {
     TestHostileStructures();
@@ -1708,6 +1836,9 @@ int main(void)
     TestResleptBodyRefreshesItsContacts();
     TestSpentSlotsRetire();
     TestJournalRecordRoom();
+    TestDistantLinkEndStaysFinite();
+    TestLinkShapesInRange();
+    TestRestoreKeepsTheParticleRadius();
     if (s_failures > 0)
     {
         printf("%d failure(s)\n", s_failures);
