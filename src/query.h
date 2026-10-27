@@ -29,16 +29,48 @@ static inline bool m2QueryShouldSee(const m2World* world, int32_t shapeIndex, m2
            (world->shapes.shapeCategory[shapeIndex] & filter.maskBits) != 0;
 }
 
+// A closest cast's answer inside the library: the hit, and whether there
+// is one. The public calls hand out the hit alone, through m2DeliverHit.
+typedef struct m2QueryHit
+{
+    m2ShapeId shapeId;
+    m2Pos2 point;
+    m2Vec2 normal;
+    float fraction;
+    bool hit;
+} m2QueryHit;
+
+// A closest cast with no place for its hit: one misuse, and no hit.
+static inline bool m2RefuseCast(const m2World* world)
+{
+    m2Refuse(world, m2_errorInvalid);
+    return false;
+}
+
+// Writes a closest cast's hit, when it has one; leaves hitOut as it was
+// otherwise.
+static inline bool m2DeliverHit(m2QueryHit result, m2CastHit* hitOut)
+{
+    if (result.hit)
+    {
+        hitOut->shapeId = result.shapeId;
+        hitOut->point = result.point;
+        hitOut->normal = result.normal;
+        hitOut->fraction = result.fraction;
+    }
+    return result.hit;
+}
+
 // A ray hit in one shape's frame (ray_cast.c).
-typedef struct m2CastHit
+typedef struct m2LocalHit
 {
     m2Vec2 point; // body-local
     m2Vec2 normal;
     float fraction; // of the local ray length parameter (0..maxFraction)
     bool hit;
-} m2CastHit;
-m2CastHit m2RayCastGeometry(const m2ShapeGeometry* geometry, m2Vec2 p1, m2Vec2 d,
-                            float maxFraction);
+} m2LocalHit;
+m2LocalHit m2RayCastGeometry(const m2ShapeGeometry* geometry, m2Vec2 p1, m2Vec2 d,
+                             float maxFraction);
 
 // Convex casts and overlaps (query_proxy.c): the cast geometry becomes a
 // distance proxy in its own frame, and per candidate both proxies meet in

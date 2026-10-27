@@ -853,10 +853,10 @@ static void TestSoftWeld(void)
     }
 
     // Compare the beam tips by looking the bodies up via queries.
-    m2RayCastResult rigid = m2World_CastRayClosest(world, (m2Pos2){1.7, 6.0}, (m2Vec2){0.0f, -6.0f},
-                                                   m2DefaultQueryFilter());
-    m2RayCastResult soft = m2World_CastRayClosest(world, (m2Pos2){11.7, 6.0}, (m2Vec2){0.0f, -6.0f},
-                                                  m2DefaultQueryFilter());
+    CastResult rigid =
+        RayClosest(world, (m2Pos2){1.7, 6.0}, (m2Vec2){0.0f, -6.0f}, m2DefaultQueryFilter());
+    CastResult soft =
+        RayClosest(world, (m2Pos2){11.7, 6.0}, (m2Vec2){0.0f, -6.0f}, m2DefaultQueryFilter());
     CHECK(rigid.hit, "rigid beam tip is where it was built");
     CHECK(rigid.point.y > 3.85, "the rigid weld holds its angle");
     CHECK(!soft.hit || soft.point.y < rigid.point.y - 0.05,
