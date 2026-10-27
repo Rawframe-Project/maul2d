@@ -482,6 +482,8 @@ static void TestSensorOverlapQuery(void)
     CHECK(inside[0].index1 == visitors[0].index1 && inside[1].index1 == visitors[1].index1,
           "canonical order");
     CHECK(m2Shape_GetSensorOverlaps(world, zoneId, inside, 1) == 2, "truthful beyond capacity");
+    CHECK(m2Shape_GetSensorOverlaps(world, zoneId, NULL, 4) == 2,
+          "a null array measures, whatever the capacity");
     CHECK(m2Shape_GetSensorOverlaps(world, visitors[0], inside, 4) == 0,
           "a non-sensor shape reports nothing");
 
