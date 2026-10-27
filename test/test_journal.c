@@ -159,12 +159,12 @@ static void RunSession(m2World* world, uint8_t* journal, int32_t capacity, int32
     }
     DestroyBody(world, victim);
     DestroyJoint(world, rod);
-    DestroyChain(world, chainId);                        // op 24
-    m2Body_ApplyForce(world, bob, (m2Vec2){3.0f, 1.0f}); // op 28
-    m2Body_ApplyTorque(world, bob, 0.8f);                // op 29
-    m2Body_SetLinearDamping(world, bob, 0.2f);           // op 25
-    m2Body_SetFixedRotation(world, bob, true);           // op 25
-    m2World_EnableSleeping(world, false);                // op 26
+    DestroyChain(world, chainId);                                           // op 24
+    m2Body_ApplyForce(world, bob, (m2Vec2){3.0f, 1.0f});                    // op 28
+    m2Body_ApplyTorque(world, bob, 0.8f);                                   // op 29
+    m2Body_SetLinearDamping(world, bob, 0.2f);                              // op 25
+    m2Body_SetMotionLocks(world, bob, (m2MotionLocks){false, false, true}); // op 25
+    m2World_EnableSleeping(world, false);                                   // op 26
     m2World_EnableSleeping(world, true);
     m2MotorJointDef chase = m2DefaultMotorJointDef(); // op 31
     chase.bodyIdA = anchor;
@@ -515,8 +515,7 @@ static void TestTapeBoolsAreZeroOrOne(void)
     CHECK(StartJournal(world, tape, capacity), "the journal starts again");
     m2BodyId body = NewBody(world, &bodyDef);
     int32_t bytes = StopJournal(world);
-    const size_t bodyBools[] = {offsetof(m2BodyDef, fixedRotation),
-                                offsetof(m2BodyDef, enableSleep), offsetof(m2BodyDef, isEnabled),
+    const size_t bodyBools[] = {offsetof(m2BodyDef, enableSleep), offsetof(m2BodyDef, isEnabled),
                                 offsetof(m2BodyDef, isBullet),
                                 offsetof(m2BodyDef, motionLocks.angularZ)};
     for (size_t i = 0; i < sizeof(bodyBools) / sizeof(bodyBools[0]); ++i)
@@ -540,9 +539,67 @@ static void TestTapeBoolsAreZeroOrOne(void)
     m2DestroyWorld(world);
 }
 
+// Records one create-body into a fresh world's tape from a def whose
+// bytes start as fill and then take the same field values.
+static uint8_t* TapeOfFilledBodyDef(uint8_t fill, int32_t* bytesOut)
+{
+    m2WorldDef worldDef = m2DefaultWorldDef();
+    worldDef.bodyCapacity = 4;
+    worldDef.shapeCapacity = 4;
+    worldDef.jointCapacity = 2;
+    m2World* world = NewWorld(&worldDef);
+    m2BodyDef values = m2DefaultBodyDef();
+    values.type = m2_dynamicBody;
+    values.position = (m2Pos2){1.0, 2.0};
+    values.motionLocks.angularZ = true;
+    values.dominance = -3;
+    values.userData = 77;
+    m2BodyDef def;
+    memset(&def, fill, sizeof(def));
+    def.type = values.type;
+    def.position = values.position;
+    def.rotation = values.rotation;
+    def.linearVelocity = values.linearVelocity;
+    def.angularVelocity = values.angularVelocity;
+    def.gravityScale = values.gravityScale;
+    def.linearDamping = values.linearDamping;
+    def.angularDamping = values.angularDamping;
+    def.motionLocks.linearX = values.motionLocks.linearX;
+    def.motionLocks.linearY = values.motionLocks.linearY;
+    def.motionLocks.angularZ = values.motionLocks.angularZ;
+    def.enableSleep = values.enableSleep;
+    def.isEnabled = values.isEnabled;
+    def.dominance = values.dominance;
+    def.isBullet = values.isBullet;
+    def.userData = values.userData;
+    def.internalValue = values.internalValue;
+    int32_t capacity = m2World_GetJournalBaseSize(world) + 4096;
+    uint8_t* tape = (uint8_t*)malloc((size_t)capacity);
+    CHECK(tape != NULL && StartJournal(world, tape, capacity), "the journal starts");
+    NewBody(world, &def);
+    *bytesOut = StopJournal(world);
+    m2DestroyWorld(world);
+    return tape;
+}
+
+// The bytes between a def's fields are not part of it: two defs with the
+// same field values record the same tape, whatever their padding holds.
+static void TestDefPaddingStaysOffTheTape(void)
+{
+    int32_t bytesA = 0;
+    int32_t bytesB = 0;
+    uint8_t* tapeA = TapeOfFilledBodyDef(0xA5, &bytesA);
+    uint8_t* tapeB = TapeOfFilledBodyDef(0x5A, &bytesB);
+    CHECK(bytesA > 0 && bytesA == bytesB && memcmp(tapeA, tapeB, (size_t)bytesA) == 0,
+          "a body def's padding never reaches the tape");
+    free(tapeA);
+    free(tapeB);
+}
+
 int main(void)
 {
     TestTapeBoolsAreZeroOrOne();
+    TestDefPaddingStaysOffTheTape();
     TestReplayIsAtomic();
     TestRestoreRefusesBadCounters();
     TestRollbackWhileRecording();

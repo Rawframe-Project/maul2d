@@ -22,7 +22,7 @@
 
 #define M2_TREE_COUNT 3 // one broadphase tree per body type
 
-// Per-body motion lock bits (the angular lock is fixedRotation).
+// Per-body motion lock bits; the angular lock is fixedRotations.
 #define M2_LOCK_LINEAR_X 1u
 #define M2_LOCK_LINEAR_Y 2u
 

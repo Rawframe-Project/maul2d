@@ -618,7 +618,9 @@ static void DoRandomOp(m2World* world)
         }
         else if (which == 7)
         {
-            m2Body_SetFixedRotation(world, body, Pick(2) == 0);
+            m2MotionLocks locks = m2Body_GetMotionLocks(world, body);
+            locks.angularZ = Pick(2) == 0;
+            m2Body_SetMotionLocks(world, body, locks);
         }
         else if (which == 8)
         {

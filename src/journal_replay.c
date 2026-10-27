@@ -482,7 +482,6 @@ static bool ApplyShatterBody(m2ReplayCursor* r, const m2OpPayload* p)
 static const uint16_t s_bodyBools[] = {M2_AT(m2OpCreateBody, def.motionLocks.linearX),
                                        M2_AT(m2OpCreateBody, def.motionLocks.linearY),
                                        M2_AT(m2OpCreateBody, def.motionLocks.angularZ),
-                                       M2_AT(m2OpCreateBody, def.fixedRotation),
                                        M2_AT(m2OpCreateBody, def.enableSleep),
                                        M2_AT(m2OpCreateBody, def.isEnabled),
                                        M2_AT(m2OpCreateBody, def.isBullet)};

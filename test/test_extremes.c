@@ -325,7 +325,7 @@ static void TestRatiosAndDrives(void)
     Scene s = {ExtremeWorld(false), {{0}}, 0, {{0}}, 0, 0.0f};
     m2BodyId giant = Giant(&s, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f});
     m2BodyId speck = Speck(&s, (m2Pos2){2000.0, 0.0}, (m2Vec2){0.0f, 0.0f});
-    m2Body_SetFixedRotation(s.world, giant, true);
+    m2Body_SetMotionLocks(s.world, giant, (m2MotionLocks){false, false, true});
 
     m2GearJointDef gear = m2DefaultGearJointDef();
     gear.bodyIdA = speck;
