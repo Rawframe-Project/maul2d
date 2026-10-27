@@ -11,7 +11,7 @@
 void m2EmitEnd(m2World* world, int32_t shapeA, int32_t shapeB);
 void m2EmitBegin(m2World* world, int32_t shapeA, int32_t shapeB, int32_t pairIndex);
 void m2EmitSensorEnd(m2World* world, int32_t shapeA, int32_t shapeB);
-void m2EmitSensorBegin(m2World* world, int32_t shapeA, int32_t shapeB, int32_t pairIndex);
+void m2EmitSensorBegin(m2World* world, int32_t shapeA, int32_t shapeB);
 void m2StashContacts(m2World* world);
 void m2UpdateContacts(m2World* world);
 

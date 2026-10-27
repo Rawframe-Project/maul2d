@@ -5,7 +5,7 @@ Nothing calls back into a program in the middle of a step. After a step, the pro
 ## Events
 
 - `m2World_GetContactEvents`: contacts that began and ended touching. A begin event carries what a game reacts to: the world normal, the contact points and the approach speed. An end event always follows a begin, even when the contact dies because a shape was destroyed or a filter or type changed.
-- `m2World_GetSensorEvents`: the same, for sensors.
+- `m2World_GetSensorEvents`: shapes that began and stopped overlapping a sensor, paired the same way. Each event names the sensor (`sensorShapeId`), the shape inside it (`visitorShapeId`) and the step; two sensors never detect each other.
 - `m2World_GetJointEvents`: joints that broke, with the force and torque that broke them.
 
 The arrays belong to the world and stay valid until the next step or restore. A restore clears them, and the steps simulated again after a rollback emit their events again; a program that must see each event once keys it by step and shape ids.

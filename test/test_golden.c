@@ -405,8 +405,16 @@ static void SceneContacts(void)
                                contacts.endEvents[e].shapeIdB);
         }
         m2SensorEvents sensors = m2World_GetSensorEvents(world);
-        hash =
-            Mix(hash, ((uint64_t)(uint32_t)sensors.beginCount << 32) | (uint32_t)sensors.endCount);
+        for (int32_t e = 0; e < sensors.beginCount; ++e)
+        {
+            hash = HashShapeId(HashShapeId(hash, sensors.beginEvents[e].sensorShapeId),
+                               sensors.beginEvents[e].visitorShapeId);
+        }
+        for (int32_t e = 0; e < sensors.endCount; ++e)
+        {
+            hash = HashShapeId(HashShapeId(hash, sensors.endEvents[e].sensorShapeId),
+                               sensors.endEvents[e].visitorShapeId);
+        }
     }
     hash = Mix(hash, m2World_Hash(world));
     m2DestroyWorld(world);

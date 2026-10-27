@@ -93,24 +93,19 @@ void m2EmitSensorEnd(m2World* world, int32_t shapeA, int32_t shapeB)
 {
     if (world->events.sensorEndCount < world->contacts.pairCapacity)
     {
-        m2ContactEndEvent* e = &world->events.sensorEndEvents[world->events.sensorEndCount++];
-        e->shapeIdA = m2MakeShapeId(world, shapeA);
-        e->shapeIdB = m2MakeShapeId(world, shapeB);
+        m2SensorEndEvent* e = &world->events.sensorEndEvents[world->events.sensorEndCount++];
+        m2SensorPairIds(world, shapeA, shapeB, &e->sensorShapeId, &e->visitorShapeId);
         e->step = world->stepCount;
     }
 }
 
-void m2EmitSensorBegin(m2World* world, int32_t shapeA, int32_t shapeB, int32_t pairIndex)
+void m2EmitSensorBegin(m2World* world, int32_t shapeA, int32_t shapeB)
 {
     if (world->events.sensorBeginCount < world->contacts.pairCapacity)
     {
-        m2ContactBeginEvent* e = &world->events.sensorBeginEvents[world->events.sensorBeginCount++];
-        memset(e, 0, sizeof(*e));
-        e->shapeIdA = m2MakeShapeId(world, shapeA);
-        e->shapeIdB = m2MakeShapeId(world, shapeB);
+        m2SensorBeginEvent* e = &world->events.sensorBeginEvents[world->events.sensorBeginCount++];
+        m2SensorPairIds(world, shapeA, shapeB, &e->sensorShapeId, &e->visitorShapeId);
         e->step = world->stepCount;
-        // The overlap manifold carries the hit point and normal.
-        FillBeginGeometry(world, e, pairIndex, shapeA, shapeB);
     }
 }
 

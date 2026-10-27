@@ -319,11 +319,11 @@ typedef struct m2Events
     int32_t endEventCount;
     m2ContactEndEvent* pendingEndEvents; // between-step destroys, flushed at Step
     int32_t pendingEndCount;
-    m2ContactBeginEvent* sensorBeginEvents;
+    m2SensorBeginEvent* sensorBeginEvents;
     int32_t sensorBeginCount;
-    m2ContactEndEvent* sensorEndEvents;
+    m2SensorEndEvent* sensorEndEvents;
     int32_t sensorEndCount;
-    m2ContactEndEvent* pendingSensorEnd;
+    m2SensorEndEvent* pendingSensorEnd;
     int32_t pendingSensorEndCount;
     m2JointBreakEvent* jointBreakEvents;
     int32_t jointBreakEventCount;
