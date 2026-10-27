@@ -63,8 +63,8 @@ int main(void)
         ride.bodyIdB = wheel;
         ride.localAnchorA = (m2Vec2){x, -0.45f};
         ride.localAxisA = (m2Vec2){0.0f, 1.0f};
-        ride.hertz = 4.0f;
-        ride.dampingRatio = 0.7f;
+        ride.springHertz = 4.0f;
+        ride.springDampingRatio = 0.7f;
         ride.enableLimit = true;
         ride.lowerTranslation = -0.2f;
         ride.upperTranslation = 0.2f;

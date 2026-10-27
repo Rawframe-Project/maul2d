@@ -105,69 +105,85 @@ float m2DistanceJoint_GetLength(const m2World* world, m2JointId jointId)
     return result;
 }
 
-static M2_NOINLINE float JointGetSpringHertzWorker(const m2World* world, m2JointId jointId)
+// Reads one stiffness value a public tuning names, from the pair it uses
+// on this kind.
+static M2_NOINLINE float JointGetTuningWorker(const m2World* world, m2JointId jointId,
+                                              m2JointTuning tuning, bool damping)
 {
-    int32_t index = JointSlotRefusing(world, jointId);
-    return index >= 0 ? world->joints.jointHertz[index] : 0.0f;
+    bool second = false;
+    int32_t index = m2JointTuningSlot(world, jointId, tuning, &second);
+    if (index < 0)
+    {
+        return 0.0f;
+    }
+    const m2Joints* j = &world->joints;
+    if (second)
+    {
+        return damping ? j->jointDamping2[index] : j->jointHertz2[index];
+    }
+    return damping ? j->jointDamping[index] : j->jointHertz[index];
+}
+
+float m2Joint_GetConstraintHertz(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = JointGetTuningWorker(world, jointId, m2_tuneConstraint, false);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+float m2Joint_GetConstraintDampingRatio(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = JointGetTuningWorker(world, jointId, m2_tuneConstraint, true);
+    m2FloatEnvLeave(env);
+    return result;
 }
 
 float m2Joint_GetSpringHertz(const m2World* world, m2JointId jointId)
 {
     uint64_t env = m2FloatEnvEnter();
-    float result = JointGetSpringHertzWorker(world, jointId);
+    float result = JointGetTuningWorker(world, jointId, m2_tuneSpring, false);
     m2FloatEnvLeave(env);
     return result;
-}
-
-static M2_NOINLINE float JointGetSpringDampingRatioWorker(const m2World* world, m2JointId jointId)
-{
-    int32_t index = JointSlotRefusing(world, jointId);
-    return index >= 0 ? world->joints.jointDamping[index] : 0.0f;
 }
 
 float m2Joint_GetSpringDampingRatio(const m2World* world, m2JointId jointId)
 {
     uint64_t env = m2FloatEnvEnter();
-    float result = JointGetSpringDampingRatioWorker(world, jointId);
+    float result = JointGetTuningWorker(world, jointId, m2_tuneSpring, true);
     m2FloatEnvLeave(env);
     return result;
 }
 
-static M2_NOINLINE float JointGetAngularSpringHertzWorker(const m2World* world, m2JointId jointId)
-{
-    int32_t index =
-        JointSlotOfKind(world, jointId, (1u << m2_weldJoint) | (1u << m2_revoluteJoint));
-    if (index < 0)
-    {
-        return 0.0f;
-    }
-    return world->joints.jointHertz2[index];
-}
-
-float m2Joint_GetAngularSpringHertz(const m2World* world, m2JointId jointId)
+float m2WeldJoint_GetLinearSpringHertz(const m2World* world, m2JointId jointId)
 {
     uint64_t env = m2FloatEnvEnter();
-    float result = JointGetAngularSpringHertzWorker(world, jointId);
+    float result = JointGetTuningWorker(world, jointId, m2_tuneWeldLinear, false);
     m2FloatEnvLeave(env);
     return result;
 }
 
-static M2_NOINLINE float JointGetAngularSpringDampingRatioWorker(const m2World* world,
-                                                                 m2JointId jointId)
-{
-    int32_t index =
-        JointSlotOfKind(world, jointId, (1u << m2_weldJoint) | (1u << m2_revoluteJoint));
-    if (index < 0)
-    {
-        return 0.0f;
-    }
-    return world->joints.jointDamping2[index];
-}
-
-float m2Joint_GetAngularSpringDampingRatio(const m2World* world, m2JointId jointId)
+float m2WeldJoint_GetLinearSpringDampingRatio(const m2World* world, m2JointId jointId)
 {
     uint64_t env = m2FloatEnvEnter();
-    float result = JointGetAngularSpringDampingRatioWorker(world, jointId);
+    float result = JointGetTuningWorker(world, jointId, m2_tuneWeldLinear, true);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+float m2WeldJoint_GetAngularSpringHertz(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = JointGetTuningWorker(world, jointId, m2_tuneWeldAngular, false);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+float m2WeldJoint_GetAngularSpringDampingRatio(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = JointGetTuningWorker(world, jointId, m2_tuneWeldAngular, true);
     m2FloatEnvLeave(env);
     return result;
 }

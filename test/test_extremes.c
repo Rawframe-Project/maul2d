@@ -266,7 +266,8 @@ static void TestLongLevers(void)
     hinge.bodyIdB = edge;
     hinge.localAnchorA = (m2Vec2){M2_HUGE, M2_HUGE};
     hinge.localAnchorB = (m2Vec2){-M2_HUGE, M2_HUGE};
-    hinge.hertz = M2_MAX_RATE;
+    hinge.constraintHertz = M2_MAX_RATE;
+    hinge.enableSpring = true;
     hinge.springHertz = M2_MAX_RATE;
     hinge.springDampingRatio = M2_MAX_COEFFICIENT;
     hinge.enableMotor = true;
@@ -294,15 +295,16 @@ static void TestLongLevers(void)
     rope.bodyIdA = giant;
     rope.bodyIdB = beyond;
     rope.length = 0.005f;
-    rope.hertz = M2_MAX_RATE;
-    rope.dampingRatio = M2_MAX_COEFFICIENT;
+    rope.enableSpring = true;
+    rope.springHertz = M2_MAX_RATE;
+    rope.springDampingRatio = M2_MAX_COEFFICIENT;
     (void)Keep(&s, NewDistanceJoint(s.world, &rope));
 
     m2WheelJointDef wheel = m2DefaultWheelJointDef();
     wheel.bodyIdA = beyond;
     wheel.bodyIdB = giant;
     wheel.localAnchorB = (m2Vec2){-M2_HUGE, -M2_HUGE};
-    wheel.hertz = M2_MAX_RATE;
+    wheel.springHertz = M2_MAX_RATE;
     wheel.enableMotor = true;
     wheel.motorSpeed = M2_MAX_SPEED;
     wheel.maxMotorTorque = M2_MAX_FORCE;
@@ -312,8 +314,8 @@ static void TestLongLevers(void)
     weld.bodyIdA = edge;
     weld.bodyIdB = giant;
     weld.localAnchorA = (m2Vec2){-M2_HUGE, -M2_HUGE};
-    weld.angularHertz = M2_MAX_RATE;
-    weld.linearHertz = M2_MAX_RATE;
+    weld.angularSpringHertz = M2_MAX_RATE;
+    weld.linearSpringHertz = M2_MAX_RATE;
     (void)Keep(&s, NewWeldJoint(s.world, &weld));
     ExpectFinite(&s, "long levers");
 }
@@ -362,8 +364,8 @@ static void TestRatiosAndDrives(void)
     mouse.bodyIdA = giant;
     mouse.bodyIdB = speck;
     mouse.target = (m2Pos2){2000.0, 0.0};
-    mouse.hertz = M2_MAX_RATE;
-    mouse.dampingRatio = M2_MAX_COEFFICIENT;
+    mouse.springHertz = M2_MAX_RATE;
+    mouse.springDampingRatio = M2_MAX_COEFFICIENT;
     mouse.maxForce = M2_MAX_FORCE;
     m2JointId drag = Keep(&s, NewMouseJoint(s.world, &mouse));
     m2MouseJoint_SetTarget(s.world, drag, (m2Pos2){-M2_JOINT_REACH * 8.0, M2_JOINT_REACH * 8.0});
@@ -444,8 +446,8 @@ static void TestSaturatedPairs(void)
         mouse.bodyIdB = pulled;
         mouse.target =
             (m2Pos2){5000.0 * (double)i + 1.0e6 * (double)direction.x, 1.0e6 * (double)direction.y};
-        mouse.hertz = M2_MAX_RATE;
-        mouse.dampingRatio = M2_MAX_COEFFICIENT;
+        mouse.springHertz = M2_MAX_RATE;
+        mouse.springDampingRatio = M2_MAX_COEFFICIENT;
         mouse.maxForce = M2_MAX_FORCE;
         (void)NewMouseJoint(world, &mouse);
         m2BodyId slid = Giant(&s, (m2Pos2){5000.0 * (double)i, 1.0e5}, (m2Vec2){0.0f, 0.0f});

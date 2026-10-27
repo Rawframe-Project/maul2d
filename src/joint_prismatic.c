@@ -33,8 +33,8 @@ m2PrismaticJointDef m2DefaultPrismaticJointDef(void)
 static bool DefValid(const m2PrismaticJointDef* def)
 {
     return m2LocalVec2(def->localAnchorA) && m2LocalVec2(def->localAnchorB) &&
-           m2LocalVec2(def->localAxisA) && m2ValidRate(def->hertz) &&
-           m2ValidCoefficient(def->dampingRatio) && m2ValidSpeed(def->motorSpeed) &&
+           m2LocalVec2(def->localAxisA) && m2ValidRate(def->constraintHertz) &&
+           m2ValidCoefficient(def->constraintDampingRatio) && m2ValidSpeed(def->motorSpeed) &&
            m2ValidMaxForce(def->maxMotorForce) && m2ValidReach(def->lowerTranslation) &&
            m2ValidReach(def->upperTranslation) && def->lowerTranslation <= def->upperTranslation;
 }
@@ -49,8 +49,8 @@ static void RecordPrismaticJointDef(m2PrismaticJointDef* out, const m2PrismaticJ
     out->localAnchorA = def->localAnchorA;
     out->localAnchorB = def->localAnchorB;
     out->localAxisA = def->localAxisA;
-    out->hertz = def->hertz;
-    out->dampingRatio = def->dampingRatio;
+    out->constraintHertz = def->constraintHertz;
+    out->constraintDampingRatio = def->constraintDampingRatio;
     out->enableMotor = def->enableMotor;
     out->motorSpeed = def->motorSpeed;
     out->maxMotorForce = def->maxMotorForce;
@@ -103,7 +103,7 @@ static M2_NOINLINE m2Result CreatePrismaticJointWorker(m2World* world,
     }
     m2JointId jointId =
         m2FinishJoint(world, index, (uint8_t)m2_prismaticJoint, bodyA, bodyB, def->localAnchorA,
-                      def->localAnchorB, 0.0f, def->hertz, def->dampingRatio);
+                      def->localAnchorB, 0.0f, def->constraintHertz, def->constraintDampingRatio);
     world->joints.jointUserData[index] = def->userData;
     world->joints.jointCollide[index] = def->enableConnectedCollision ? 1 : 0;
     if (def->enableConnectedCollision == false)

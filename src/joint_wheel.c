@@ -25,8 +25,8 @@ m2WheelJointDef m2DefaultWheelJointDef(void)
     memset(&def, 0, sizeof(def));
     def.localAxisA = (m2Vec2){0.0f, 1.0f};
     def.enableSpring = true;
-    def.hertz = 2.0f;
-    def.dampingRatio = 0.7f;
+    def.springHertz = 2.0f;
+    def.springDampingRatio = 0.7f;
     def.internalValue = M2_WHJOINT_COOKIE;
     return def;
 }
@@ -36,8 +36,8 @@ m2WheelJointDef m2DefaultWheelJointDef(void)
 static bool DefValid(const m2WheelJointDef* def)
 {
     return m2LocalVec2(def->localAnchorA) && m2LocalVec2(def->localAnchorB) &&
-           m2LocalVec2(def->localAxisA) && m2ValidRate(def->hertz) &&
-           m2ValidCoefficient(def->dampingRatio) && m2ValidSpeed(def->motorSpeed) &&
+           m2LocalVec2(def->localAxisA) && m2ValidRate(def->springHertz) &&
+           m2ValidCoefficient(def->springDampingRatio) && m2ValidSpeed(def->motorSpeed) &&
            m2ValidMaxForce(def->maxMotorTorque) && m2ValidReach(def->lowerTranslation) &&
            m2ValidReach(def->upperTranslation) && def->lowerTranslation <= def->upperTranslation;
 }
@@ -53,8 +53,8 @@ static void RecordWheelJointDef(m2WheelJointDef* out, const m2WheelJointDef* def
     out->localAnchorB = def->localAnchorB;
     out->localAxisA = def->localAxisA;
     out->enableSpring = def->enableSpring;
-    out->hertz = def->hertz;
-    out->dampingRatio = def->dampingRatio;
+    out->springHertz = def->springHertz;
+    out->springDampingRatio = def->springDampingRatio;
     out->enableMotor = def->enableMotor;
     out->motorSpeed = def->motorSpeed;
     out->maxMotorTorque = def->maxMotorTorque;
@@ -106,7 +106,7 @@ static M2_NOINLINE m2Result CreateWheelJointWorker(m2World* world, const m2Wheel
     }
     m2JointId jointId =
         m2FinishJoint(world, index, (uint8_t)m2_wheelJoint, bodyA, bodyB, def->localAnchorA,
-                      def->localAnchorB, 0.0f, def->hertz, def->dampingRatio);
+                      def->localAnchorB, 0.0f, def->springHertz, def->springDampingRatio);
     world->joints.jointUserData[index] = def->userData;
     world->joints.jointCollide[index] = def->enableConnectedCollision ? 1 : 0;
     if (def->enableConnectedCollision == false)
