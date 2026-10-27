@@ -1712,9 +1712,8 @@ static LinkScene MakeLinkScene(float radius)
     def.particleRadius = radius;
     scene.world = NewWorld(&def);
     m2Polygon drop = m2MakeBox(2.0f * radius, 2.0f * radius);
-    CHECK(m2World_FillPolygonWithParticles(scene.world, &drop, (m2Pos2){0.0, 1.0},
-                                           (m2Vec2){0.0f, 0.0f},
-                                           m2_springParticle | m2_elasticParticle) > 1,
+    CHECK(FillParticles(scene.world, &drop, (m2Pos2){0.0, 1.0}, (m2Vec2){0.0f, 0.0f},
+                        m2_springParticle | m2_elasticParticle) > 1,
           "the drop fills");
     CHECK(scene.world->particles.particleSpringCount > 0 &&
               scene.world->particles.particleTriadCount > 0,
