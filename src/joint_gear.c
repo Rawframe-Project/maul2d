@@ -34,9 +34,9 @@ m2GearJointDef m2DefaultGearJointDef(void)
 // accumulated phase itself rides jointRefAngle. All snapshot state.
 // The def contract: finite values, non-negative gains and budgets,
 // ordered ranges.
-static bool DefValid(const m2GearJointDef* def)
+static m2Result DefCheck(const m2GearJointDef* def)
 {
-    return m2ValidRatio(def->ratio);
+    return m2CheckRatio(def->ratio);
 }
 
 // The create record holds the def's fields and zero bytes between them:
@@ -65,9 +65,14 @@ static M2_NOINLINE m2Result CreateGearJointWorker(m2World* world, const m2GearJo
     {
         return writer;
     }
-    if (def == NULL || def->internalValue != M2_GJOINT_COOKIE || !DefValid(def))
+    if (def == NULL || def->internalValue != M2_GJOINT_COOKIE)
     {
         return m2Refuse(world, m2_errorInvalid);
+    }
+    m2Result checked = DefCheck(def);
+    if (checked != m2_success)
+    {
+        return m2Refuse(world, checked);
     }
     int32_t bodyA = m2BodySlot(world, def->bodyIdA);
     int32_t bodyB = m2BodySlot(world, def->bodyIdB);

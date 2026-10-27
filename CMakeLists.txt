@@ -78,6 +78,7 @@ add_library(maul2d ${MAUL_LIBRARY_KIND}
     src/contact_solver.c
     src/contact_kernel.c
     src/core.c
+    src/decompose.c
     src/destruction.c
     src/distance.c
     src/draw.c

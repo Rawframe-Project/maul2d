@@ -43,17 +43,17 @@ m2BodyMass m2BodyMassFromShapes(uint8_t type, bool fixedRotation, const m2MassSh
     float invMass = 1.0f / mass;
     center.x *= invMass;
     center.y *= invMass;
-    // The mass the body keeps is held to [M2_MIN_MASS, M2_MAX_MASS] and its
-    // inertia to [M2_MIN_INERTIA, M2_MAX_INERTIA], the ranges the solver is
+    // The mass the body keeps is held to [M2_MIN_MASS, M2_MASS_LIMIT] and its
+    // inertia to [M2_MIN_INERTIA, M2_INERTIA_LIMIT], the ranges the solver is
     // budgeted for; the center stays the mass-weighted mean of the shapes.
     // Within the ranges the clamps change no bit, and m2Body_GetMassData
     // reads back what the body kept.
-    float keptInvMass = 1.0f / m2ClampF(mass, M2_MIN_MASS, M2_MAX_MASS);
-    // Every shape lies within M2_HUGE, so the true center does too; the
+    float keptInvMass = 1.0f / m2ClampF(mass, M2_MIN_MASS, M2_MASS_LIMIT);
+    // Every shape lies within M2_LOCAL_LIMIT, so the true center does too; the
     // rounding of the weighted mean can still carry it an ulp past, and
     // the snapshot holds centers to the bound.
-    center.x = m2ClampF(center.x, -M2_HUGE, M2_HUGE);
-    center.y = m2ClampF(center.y, -M2_HUGE, M2_HUGE);
+    center.x = m2ClampF(center.x, -M2_LOCAL_LIMIT, M2_LOCAL_LIMIT);
+    center.y = m2ClampF(center.y, -M2_LOCAL_LIMIT, M2_LOCAL_LIMIT);
 
     // Second pass: accumulate inertia about the body COM. Each shape's
     // centroid inertia plus mass times the (small) offset from the COM,
@@ -68,7 +68,7 @@ m2BodyMass m2BodyMassFromShapes(uint8_t type, bool fixedRotation, const m2MassSh
     }
     result.invMass = keptInvMass;
     result.invInertia = !fixedRotation && inertiaCenter > 0.0f
-                            ? 1.0f / m2ClampF(inertiaCenter, M2_MIN_INERTIA, M2_MAX_INERTIA)
+                            ? 1.0f / m2ClampF(inertiaCenter, M2_MIN_INERTIA, M2_INERTIA_LIMIT)
                             : 0.0f;
     result.center = center;
     return result;
@@ -78,9 +78,9 @@ bool m2MassInversesValid(float invMass, float invInertia)
 {
     // Rounding to nearest is monotonic, so a mass within its range always
     // has an inverse within these bounds.
-    return m2WithinF(invMass, 1.0f / M2_MAX_MASS, 1.0f / M2_MIN_MASS) &&
+    return m2WithinF(invMass, 1.0f / M2_MASS_LIMIT, 1.0f / M2_MIN_MASS) &&
            (invInertia == 0.0f ||
-            m2WithinF(invInertia, 1.0f / M2_MAX_INERTIA, 1.0f / M2_MIN_INERTIA));
+            m2WithinF(invInertia, 1.0f / M2_INERTIA_LIMIT, 1.0f / M2_MIN_INERTIA));
 }
 
 static int32_t WorldNext(const void* context, int32_t shape)

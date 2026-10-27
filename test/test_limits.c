@@ -277,16 +277,16 @@ static void TestBodyAndWorldEdges(void)
         float edge;
         const char* what;
     } bodies[] = {
-        {SetLinearVelocity, GetLinearVelocity, M2_MAX_SPEED, "linear velocity"},
-        {SetLinearVelocity, GetLinearVelocity, -M2_MAX_SPEED, "linear velocity"},
-        {SetAngularVelocity, GetAngularVelocity, -M2_MAX_SPEED, "angular velocity"},
-        {SetGravityScale, GetGravityScale, M2_MAX_GRAVITY_SCALE, "gravity scale"},
-        {SetGravityScale, GetGravityScale, -M2_MAX_GRAVITY_SCALE, "gravity scale"},
-        {SetLinearDamping, GetLinearDamping, M2_MAX_RATE, "linear damping"},
-        {SetAngularDamping, GetAngularDamping, M2_MAX_RATE, "angular damping"},
-        {SetGravity, GetGravity, -M2_MAX_ACCELERATION, "gravity"},
-        {SetWindSpeed, GetWindSpeed, M2_MAX_SPEED, "wind speed"},
-        {SetWindDrag, GetWindDrag, M2_MAX_RATE, "wind drag"},
+        {SetLinearVelocity, GetLinearVelocity, M2_SPEED_LIMIT, "linear velocity"},
+        {SetLinearVelocity, GetLinearVelocity, -M2_SPEED_LIMIT, "linear velocity"},
+        {SetAngularVelocity, GetAngularVelocity, -M2_SPEED_LIMIT, "angular velocity"},
+        {SetGravityScale, GetGravityScale, M2_GRAVITY_SCALE_LIMIT, "gravity scale"},
+        {SetGravityScale, GetGravityScale, -M2_GRAVITY_SCALE_LIMIT, "gravity scale"},
+        {SetLinearDamping, GetLinearDamping, M2_RATE_LIMIT, "linear damping"},
+        {SetAngularDamping, GetAngularDamping, M2_RATE_LIMIT, "angular damping"},
+        {SetGravity, GetGravity, -M2_ACCEL_LIMIT, "gravity"},
+        {SetWindSpeed, GetWindSpeed, M2_SPEED_LIMIT, "wind speed"},
+        {SetWindDrag, GetWindDrag, M2_RATE_LIMIT, "wind drag"},
     };
     for (size_t i = 0; i < sizeof(bodies) / sizeof(bodies[0]); ++i)
     {
@@ -307,26 +307,26 @@ static void TestShapeEdges(void)
     Channel c = {world, NULL, NULL, body, shape, m2_nullJointId, m2_nullParticleId};
     c.set = SetFriction;
     c.get = GetFriction;
-    ExpectEdge(&c, M2_MAX_COEFFICIENT, "friction");
+    ExpectEdge(&c, M2_COEFFICIENT_LIMIT, "friction");
     c.set = SetDensity;
     c.get = GetDensity;
-    ExpectEdge(&c, M2_MAX_DENSITY, "density");
+    ExpectEdge(&c, M2_DENSITY_LIMIT, "density");
     c.set = SetTangentSpeed;
     c.get = GetTangentSpeed;
-    ExpectEdge(&c, -M2_MAX_SPEED, "tangent speed");
+    ExpectEdge(&c, -M2_SPEED_LIMIT, "tangent speed");
 
     // The def takes the same ranges as the setters.
     m2ShapeDef def = m2DefaultShapeDef();
     m2Circle circle = {{0.0f, 0.0f}, 0.25f};
     uint64_t misuse = Misuse(world);
-    def.density = Past(M2_MAX_DENSITY);
+    def.density = Past(M2_DENSITY_LIMIT);
     m2ShapeId refused = {7, 7};
-    CHECK(m2CreateCircleShape(world, body, &def, &circle, &refused) == m2_errorInvalid &&
+    CHECK(m2CreateCircleShape(world, body, &def, &circle, &refused) == m2_errorLimit &&
               refused.index1 == 0 && Misuse(world) == misuse + 1,
           "a shape def past the density bound is refused and counted");
-    def.density = M2_MAX_DENSITY;
-    def.friction = M2_MAX_COEFFICIENT;
-    def.tangentSpeed = M2_MAX_SPEED;
+    def.density = M2_DENSITY_LIMIT;
+    def.friction = M2_COEFFICIENT_LIMIT;
+    def.tangentSpeed = M2_SPEED_LIMIT;
     CHECK(NewCircleShape(world, body, &def, &circle).index1 != 0,
           "a shape def at its edges is accepted");
     ExpectRestores(world);
@@ -346,19 +346,19 @@ static void TestJointEdges(void)
     c.joint = NewRevoluteJoint(world, &revolute);
     c.set = SetMotorSpeed;
     c.get = GetMotorSpeed;
-    ExpectEdge(&c, -M2_MAX_SPEED, "motor speed");
+    ExpectEdge(&c, -M2_SPEED_LIMIT, "motor speed");
     c.set = SetMaxMotor;
     c.get = GetMaxMotor;
-    ExpectEdge(&c, M2_MAX_FORCE, "motor budget");
+    ExpectEdge(&c, M2_FORCE_LIMIT, "motor budget");
     c.set = SetSpringHertz;
     c.get = GetSpringHertz;
-    ExpectEdge(&c, M2_MAX_RATE, "spring hertz");
+    ExpectEdge(&c, M2_RATE_LIMIT, "spring hertz");
     c.set = SetSpringDampingRatio;
     c.get = GetSpringDampingRatio;
-    ExpectEdge(&c, M2_MAX_COEFFICIENT, "spring damping ratio");
+    ExpectEdge(&c, M2_COEFFICIENT_LIMIT, "spring damping ratio");
     c.set = SetUpperLimit;
     c.get = GetUpperLimit;
-    ExpectEdge(&c, M2_MAX_ANGLE, "revolute upper angle");
+    ExpectEdge(&c, M2_ANGLE_LIMIT, "revolute upper angle");
 
     m2PrismaticJointDef prismatic = m2DefaultPrismaticJointDef();
     prismatic.bodyIdA = a;
@@ -366,7 +366,7 @@ static void TestJointEdges(void)
     c.joint = NewPrismaticJoint(world, &prismatic);
     c.set = SetLowerLimit;
     c.get = GetLowerLimit;
-    ExpectEdge(&c, -(float)M2_JOINT_REACH, "prismatic lower translation");
+    ExpectEdge(&c, -(float)M2_REACH_LIMIT, "prismatic lower translation");
 
     m2DistanceJointDef distance = m2DefaultDistanceJointDef();
     distance.bodyIdA = a;
@@ -374,7 +374,7 @@ static void TestJointEdges(void)
     c.joint = NewDistanceJoint(world, &distance);
     c.set = SetLength;
     c.get = GetLength;
-    ExpectEdge(&c, (float)M2_JOINT_REACH, "distance length");
+    ExpectEdge(&c, (float)M2_REACH_LIMIT, "distance length");
 
     m2GearJointDef gear = m2DefaultGearJointDef();
     gear.bodyIdA = a;
@@ -382,8 +382,8 @@ static void TestJointEdges(void)
     c.joint = NewGearJoint(world, &gear);
     c.set = SetGearRatio;
     c.get = GetGearRatio;
-    ExpectEdge(&c, M2_MAX_RATIO, "gear ratio");
-    ExpectEdge(&c, -M2_MAX_RATIO, "gear ratio");
+    ExpectEdge(&c, M2_RATIO_LIMIT, "gear ratio");
+    ExpectEdge(&c, -M2_RATIO_LIMIT, "gear ratio");
     // Below the smallest ratio is one float toward zero.
     uint64_t misuse = Misuse(world);
     m2GearJoint_SetRatio(world, c.joint, M2_MIN_RATIO);
@@ -399,16 +399,16 @@ static void TestJointEdges(void)
     ratchet.ratchet = nextafterf(M2_MIN_RATCHET_TOOTH, 0.0f);
     misuse = Misuse(world);
     m2JointId refused = {7, 7};
-    CHECK(m2CreateRatchetJoint(world, &ratchet, &refused) == m2_errorInvalid &&
-              refused.index1 == 0 && Misuse(world) == misuse + 1,
+    CHECK(m2CreateRatchetJoint(world, &ratchet, &refused) == m2_errorLimit && refused.index1 == 0 &&
+              Misuse(world) == misuse + 1,
           "a ratchet tooth below the smallest is refused and counted");
 
     m2WeldJointDef weld = m2DefaultWeldJointDef();
     weld.bodyIdA = a;
     weld.bodyIdB = b;
-    weld.angularSpringHertz = Past(M2_MAX_RATE);
+    weld.angularSpringHertz = Past(M2_RATE_LIMIT);
     misuse = Misuse(world);
-    CHECK(m2CreateWeldJoint(world, &weld, &refused) == m2_errorInvalid && refused.index1 == 0 &&
+    CHECK(m2CreateWeldJoint(world, &weld, &refused) == m2_errorLimit && refused.index1 == 0 &&
               Misuse(world) == misuse + 1,
           "a weld def past the rate bound is refused and counted");
     ExpectRestores(world);
@@ -423,19 +423,19 @@ static void TestParticleAndVolumeEdges(void)
     c.particle = EmitParticle(world, (m2Pos2){0.0, 5.0}, (m2Vec2){0.0f, 0.0f}, 0);
     c.set = SetParticleVelocity;
     c.get = GetParticleVelocity;
-    ExpectEdge(&c, -M2_MAX_SPEED, "particle velocity");
+    ExpectEdge(&c, -M2_SPEED_LIMIT, "particle velocity");
 
     m2FluidVolumeDef volume = m2DefaultFluidVolumeDef();
     volume.regionLower = (m2Pos2){-10.0, -10.0};
     volume.regionUpper = (m2Pos2){10.0, 0.0};
-    volume.density = M2_MAX_DENSITY;
-    volume.linearDrag = M2_MAX_RATE;
-    volume.flow = (m2Vec2){M2_MAX_SPEED, -M2_MAX_SPEED};
+    volume.density = M2_DENSITY_LIMIT;
+    volume.linearDrag = M2_RATE_LIMIT;
+    volume.flow = (m2Vec2){M2_SPEED_LIMIT, -M2_SPEED_LIMIT};
     CHECK(NewFluidVolume(world, &volume).index1 != 0, "a fluid volume at its edges is accepted");
-    volume.flow.y = Past(-M2_MAX_SPEED);
+    volume.flow.y = Past(-M2_SPEED_LIMIT);
     uint64_t misuse = Misuse(world);
     m2FluidVolumeId refused = {7, 7};
-    CHECK(m2CreateFluidVolume(world, &volume, &refused) == m2_errorInvalid && refused.index1 == 0 &&
+    CHECK(m2CreateFluidVolume(world, &volume, &refused) == m2_errorLimit && refused.index1 == 0 &&
               Misuse(world) == misuse + 1,
           "a fluid volume past the speed bound is refused and counted");
 
@@ -445,7 +445,7 @@ static void TestParticleAndVolumeEdges(void)
     def.particleRadius = 0.02f;
     def.particleDensity = 1.0e-6f; // 9e-10 kg, below M2_MIN_MASS
     m2World* light = NULL;
-    CHECK(m2CreateWorld(&def, &light) == m2_errorInvalid && light == NULL,
+    CHECK(m2CreateWorld(&def, &light) == m2_errorLimit && light == NULL,
           "particles lighter than M2_MIN_MASS are refused");
     if (light != NULL)
     {
@@ -468,10 +468,13 @@ static void TestMassEdges(void)
         float inertia;
         bool accepted;
     } cases[] = {
-        {M2_MIN_MASS, M2_MIN_INERTIA, true}, {M2_MAX_MASS, M2_MAX_INERTIA, true},
-        {M2_MIN_MASS, 0.0f, true},           {nextafterf(M2_MIN_MASS, 0.0f), 1.0f, false},
-        {Past(M2_MAX_MASS), 1.0f, false},    {1.0f, nextafterf(M2_MIN_INERTIA, 0.0f), false},
-        {1.0f, Past(M2_MAX_INERTIA), false},
+        {M2_MIN_MASS, M2_MIN_INERTIA, true},
+        {M2_MASS_LIMIT, M2_INERTIA_LIMIT, true},
+        {M2_MIN_MASS, 0.0f, true},
+        {nextafterf(M2_MIN_MASS, 0.0f), 1.0f, false},
+        {Past(M2_MASS_LIMIT), 1.0f, false},
+        {1.0f, nextafterf(M2_MIN_INERTIA, 0.0f), false},
+        {1.0f, Past(M2_INERTIA_LIMIT), false},
     };
     for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
     {
@@ -504,14 +507,14 @@ static void TestMassEdges(void)
           "a speck's mass and inertia are clamped up to the smallest");
 
     m2ShapeDef lead = m2DefaultShapeDef();
-    lead.density = M2_MAX_DENSITY;
-    m2Circle slab = {{0.0f, 0.0f}, M2_HUGE};
+    lead.density = M2_DENSITY_LIMIT;
+    m2Circle slab = {{0.0f, 0.0f}, M2_LOCAL_LIMIT};
     bodyDef.position = (m2Pos2){1.0e7, 0.0};
     m2BodyId large = NewBody(world, &bodyDef);
     (void)NewCircleShape(world, large, &lead, &slab);
     kept = m2Body_GetMassData(world, large);
-    CHECK(kept.mass == 1.0f / (1.0f / M2_MAX_MASS) &&
-              kept.centralInertia == 1.0f / (1.0f / M2_MAX_INERTIA),
+    CHECK(kept.mass == 1.0f / (1.0f / M2_MASS_LIMIT) &&
+              kept.centralInertia == 1.0f / (1.0f / M2_INERTIA_LIMIT),
           "a giant's mass and inertia are clamped down to the largest");
     ExpectRestores(world);
     m2DestroyWorld(world);
@@ -527,8 +530,8 @@ static void TestLoadEdges(void)
     uint64_t misuse = Misuse(world);
     m2Body_ApplyLinearImpulse(world, body, (m2Vec2){Past(M2_IMPULSE_LIMIT), 0.0f});
     m2Body_ApplyAngularImpulse(world, body, Past(-M2_IMPULSE_LIMIT));
-    m2Body_ApplyForce(world, body, (m2Vec2){0.0f, Past(M2_MAX_FORCE)});
-    m2Body_ApplyTorque(world, body, Past(M2_MAX_FORCE));
+    m2Body_ApplyForce(world, body, (m2Vec2){0.0f, Past(M2_FORCE_LIMIT)});
+    m2Body_ApplyTorque(world, body, Past(M2_FORCE_LIMIT));
     CHECK(Misuse(world) == misuse + 4 && m2Body_GetLinearVelocity(world, body).x == 0.0f &&
               m2Body_GetAngularVelocity(world, body) == 0.0f,
           "loads one float past their bounds are refused and counted");
@@ -536,21 +539,21 @@ static void TestLoadEdges(void)
     m2Body_ApplyLinearImpulse(world, body, (m2Vec2){M2_IMPULSE_LIMIT, -M2_IMPULSE_LIMIT});
     m2Body_ApplyAngularImpulse(world, body, M2_IMPULSE_LIMIT);
     m2Vec2 v = m2Body_GetLinearVelocity(world, body);
-    CHECK(Misuse(world) == misuse + 4 && v.x == M2_MAX_SPEED && v.y == -M2_MAX_SPEED &&
-              m2Body_GetAngularVelocity(world, body) == M2_MAX_SPEED,
-          "the largest impulses land and the velocity saturates at M2_MAX_SPEED");
+    CHECK(Misuse(world) == misuse + 4 && v.x == M2_SPEED_LIMIT && v.y == -M2_SPEED_LIMIT &&
+              m2Body_GetAngularVelocity(world, body) == M2_SPEED_LIMIT,
+          "the largest impulses land and the velocity saturates at M2_SPEED_LIMIT");
 
     // Twice the largest force is the largest force: two twins step to the
     // same bits.
     m2BodyId twin = Box(world, m2_dynamicBody, 10.0f);
     m2Body_SetLinearVelocity(world, body, (m2Vec2){0.0f, 0.0f});
     m2Body_SetAngularVelocity(world, body, 0.0f);
-    m2Body_ApplyForce(world, body, (m2Vec2){M2_MAX_FORCE, 0.0f});
-    m2Body_ApplyForce(world, body, (m2Vec2){M2_MAX_FORCE, 0.0f});
-    m2Body_ApplyForce(world, twin, (m2Vec2){M2_MAX_FORCE, 0.0f});
+    m2Body_ApplyForce(world, body, (m2Vec2){M2_FORCE_LIMIT, 0.0f});
+    m2Body_ApplyForce(world, body, (m2Vec2){M2_FORCE_LIMIT, 0.0f});
+    m2Body_ApplyForce(world, twin, (m2Vec2){M2_FORCE_LIMIT, 0.0f});
     m2World_Step(world, 1.0f / 60.0f, 4);
     CHECK(m2Body_GetLinearVelocity(world, body).x == m2Body_GetLinearVelocity(world, twin).x,
-          "an accumulated force saturates at M2_MAX_FORCE");
+          "an accumulated force saturates at M2_FORCE_LIMIT");
     ExpectRestores(world);
     m2DestroyWorld(world);
 }
@@ -565,13 +568,13 @@ static void TestExplosionEdges(void)
     m2BodyId body = Box(world, m2_dynamicBody, 0.0f);
     m2ExplosionDef edge = m2DefaultExplosionDef();
     edge.position = (m2Pos2){0.0, 0.0};
-    edge.radius = M2_HUGE;
-    edge.falloff = M2_HUGE;
+    edge.radius = M2_LOCAL_LIMIT;
+    edge.falloff = M2_LOCAL_LIMIT;
     edge.impulse = -M2_IMPULSE_LIMIT;
     uint64_t misuse = Misuse(world);
     m2World_Explode(world, &edge);
     m2Vec2 v = m2Body_GetLinearVelocity(world, body);
-    CHECK(Misuse(world) == misuse && fabsf(v.y) == M2_MAX_SPEED,
+    CHECK(Misuse(world) == misuse && fabsf(v.y) == M2_SPEED_LIMIT,
           "a blast at its edges lands and saturates the body's velocity");
 
     m2Body_SetLinearVelocity(world, body, (m2Vec2){0.0f, 0.0f});
@@ -587,10 +590,10 @@ static void TestExplosionEdges(void)
             bad.impulse = NAN;
             break;
         case 2:
-            bad.radius = Past(M2_HUGE);
+            bad.radius = Past(M2_LOCAL_LIMIT);
             break;
         case 3:
-            bad.falloff = Past(M2_HUGE);
+            bad.falloff = Past(M2_LOCAL_LIMIT);
             break;
         case 4:
             bad.falloff = 0.0f;
@@ -612,7 +615,7 @@ static void TestExplosionEdges(void)
     m2DestroyWorld(world);
 }
 
-// A force or impulse at a world point farther than M2_JOINT_REACH acts
+// A force or impulse at a world point farther than M2_REACH_LIMIT acts
 // with its arm clamped to the reach: the same as at the reach, and
 // finite, where an unclamped 1e300 m arm would be infinite.
 static void TestFarPointsClampTheArm(void)
@@ -626,14 +629,14 @@ static void TestFarPointsClampTheArm(void)
     m2Vec2 tiny = {0.0f, 1.0e-12f};
     m2Body_ApplyLinearImpulseAtPoint(world, beyond, tiny, (m2Pos2){1.0e300, centerBeyond.y});
     m2Body_ApplyLinearImpulseAtPoint(world, reach, tiny,
-                                     (m2Pos2){centerReach.x + M2_JOINT_REACH, centerReach.y});
+                                     (m2Pos2){centerReach.x + M2_REACH_LIMIT, centerReach.y});
     float wBeyond = m2Body_GetAngularVelocity(world, beyond);
     CHECK(isfinite(wBeyond) && wBeyond > 0.0f && wBeyond == m2Body_GetAngularVelocity(world, reach),
           "an impulse at a far point turns the body as one at the reach does");
 
     m2Body_ApplyForceAtPoint(world, beyond, tiny, (m2Pos2){-1.0e300, centerBeyond.y});
     m2Body_ApplyForceAtPoint(world, reach, tiny,
-                             (m2Pos2){centerReach.x - M2_JOINT_REACH, centerReach.y});
+                             (m2Pos2){centerReach.x - M2_REACH_LIMIT, centerReach.y});
     m2World_Step(world, 1.0f / 60.0f, 4);
     wBeyond = m2Body_GetAngularVelocity(world, beyond);
     CHECK(isfinite(wBeyond) && wBeyond == m2Body_GetAngularVelocity(world, reach),
@@ -647,8 +650,8 @@ static void TestTimeStepEdges(void)
 {
     m2World* world = LimitsWorld();
     m2BodyId lift = Box(world, m2_kinematicBody, 0.0f);
-    float edges[] = {M2_MIN_TIME_STEP, M2_MAX_TIME_STEP};
-    float past[] = {nextafterf(M2_MIN_TIME_STEP, 0.0f), Past(M2_MAX_TIME_STEP)};
+    float edges[] = {M2_MIN_STEP, M2_STEP_LIMIT};
+    float past[] = {nextafterf(M2_MIN_STEP, 0.0f), Past(M2_STEP_LIMIT)};
     for (int32_t i = 0; i < 2; ++i)
     {
         uint64_t steps = m2World_GetStepCount(world);
@@ -662,19 +665,111 @@ static void TestTimeStepEdges(void)
         m2Body_SetTargetTransform(world, lift, (m2Pos2){0.0, 2.0}, m2MakeRot(0.0f), past[i]);
         CHECK(Misuse(world) == misuse + 2, "a target's time step past its edge is refused");
     }
-    // A target too far to reach within M2_MAX_SPEED in one step is refused
+    // A target too far to reach within M2_SPEED_LIMIT in one step is refused
     // whole: neither velocity changes.
     m2Body_SetAngularVelocity(world, lift, 1.0f);
     uint64_t misuse = Misuse(world);
     m2Body_SetTargetTransform(world, lift, (m2Pos2){1.0e6, 2.0}, m2MakeRot(1.0f), 1.0f);
     CHECK(Misuse(world) == misuse + 1 && m2Body_GetAngularVelocity(world, lift) == 1.0f,
-          "a target past M2_MAX_SPEED is refused before either velocity is set");
+          "a target past M2_SPEED_LIMIT is refused before either velocity is set");
     ExpectRestores(world);
+    m2DestroyWorld(world);
+}
+
+// A value past a published bound refuses with m2_errorLimit and counts one
+// misuse; a NaN beside it makes the call m2_errorInvalid, whatever order
+// the fields are checked in; a value outside a field's own domain stays
+// m2_errorInvalid.
+static void TestBoundsRefuseAsLimit(void)
+{
+    m2WorldDef worldDef = m2DefaultWorldDef();
+    worldDef.gravity.y = Past(-M2_ACCEL_LIMIT);
+    m2World* refusedWorld = NULL;
+    CHECK(m2CreateWorld(&worldDef, &refusedWorld) == m2_errorLimit && refusedWorld == NULL,
+          "a gravity past M2_ACCEL_LIMIT is m2_errorLimit");
+    worldDef.particleCapacity = 4;
+    worldDef.particleGravityScale = NAN;
+    CHECK(m2CreateWorld(&worldDef, &refusedWorld) == m2_errorInvalid,
+          "a NaN beside it makes the def m2_errorInvalid");
+    worldDef = m2DefaultWorldDef();
+    worldDef.particleCapacity = 4;
+    worldDef.particleRadius = nextafterf(M2_MIN_PARTICLE_RADIUS, 0.0f);
+    CHECK(m2CreateWorld(&worldDef, &refusedWorld) == m2_errorLimit,
+          "a particle radius below M2_MIN_PARTICLE_RADIUS is m2_errorLimit");
+    worldDef.particleRadius = -1.0f;
+    CHECK(m2CreateWorld(&worldDef, &refusedWorld) == m2_errorInvalid,
+          "a negative one is m2_errorInvalid");
+
+    m2World* world = LimitsWorld();
+    uint64_t misuse = Misuse(world);
+    m2BodyDef bodyDef = m2DefaultBodyDef();
+    bodyDef.type = m2_dynamicBody;
+    bodyDef.linearVelocity.x = Past(M2_SPEED_LIMIT);
+    m2BodyId body = {7, 7};
+    CHECK(m2CreateBody(world, &bodyDef, &body) == m2_errorLimit && body.index1 == 0 &&
+              Misuse(world) == misuse + 1,
+          "a body speed past M2_SPEED_LIMIT is m2_errorLimit, counted once");
+    bodyDef.angularDamping = NAN;
+    CHECK(m2CreateBody(world, &bodyDef, &body) == m2_errorInvalid && Misuse(world) == misuse + 2,
+          "a NaN damping beside it is m2_errorInvalid, counted once");
+
+    m2BodyId a = Box(world, m2_dynamicBody, 0.0f);
+    m2BodyId b = Box(world, m2_dynamicBody, 2.0f);
+    m2PulleyJointDef pulley = m2DefaultPulleyJointDef();
+    pulley.bodyIdA = a;
+    pulley.bodyIdB = b;
+    pulley.ratio = nextafterf(M2_MIN_RATIO, 0.0f);
+    m2JointId joint = {7, 7};
+    misuse = Misuse(world);
+    CHECK(m2CreatePulleyJoint(world, &pulley, &joint) == m2_errorLimit &&
+              Misuse(world) == misuse + 1,
+          "a ratio below M2_MIN_RATIO is m2_errorLimit");
+    pulley.ratio = -1.0f;
+    CHECK(m2CreatePulleyJoint(world, &pulley, &joint) == m2_errorInvalid,
+          "a pulley's negative ratio is outside its domain");
+
+    // The counts: polygon vertices, outline points, shatter pieces and
+    // fill columns.
+    m2Vec2 ring[M2_MAX_OUTLINE_POINTS + 1];
+    for (int32_t i = 0; i <= M2_MAX_OUTLINE_POINTS; ++i)
+    {
+        float angle = 2.0f * M2_PI * (float)i / (float)(M2_MAX_OUTLINE_POINTS + 1);
+        m2Rot turn = m2MakeRot(angle);
+        ring[i] = (m2Vec2){4.0f * turn.c, 4.0f * turn.s};
+    }
+    m2Polygon polygon = m2MakeBox(1.0f, 1.0f);
+    CHECK(m2MakePolygon(ring, M2_MAX_POLYGON_VERTICES + 1, 0.0f, &polygon) == m2_errorLimit,
+          "a polygon past M2_MAX_POLYGON_VERTICES is m2_errorLimit");
+    CHECK(m2MakePolygon(ring, 2, 0.0f, &polygon) == m2_errorInvalid,
+          "and one of two points m2_errorInvalid");
+    m2Polygon pieces[4];
+    int32_t count = 7;
+    CHECK(m2DecomposeOutline(ring, M2_MAX_OUTLINE_POINTS + 1, pieces, 4, &count) == m2_errorLimit &&
+              count == 7,
+          "an outline past M2_MAX_OUTLINE_POINTS is m2_errorLimit");
+    m2Polygon shards[M2_MAX_SHATTER_PIECES + 1];
+    for (int32_t i = 0; i <= M2_MAX_SHATTER_PIECES; ++i)
+    {
+        shards[i] = m2MakeBox(0.1f, 0.1f);
+    }
+    misuse = Misuse(world);
+    CHECK(m2World_ShatterBody(world, a, shards, M2_MAX_SHATTER_PIECES + 1, NULL, 0, &count) ==
+                  m2_errorLimit &&
+              Misuse(world) == misuse + 1,
+          "a shatter past M2_MAX_SHATTER_PIECES is m2_errorLimit");
+    m2ParticleDef particleDef = m2DefaultParticleDef();
+    // Wider than M2_MAX_FILL_COLUMNS rest strides of 0.075 m, the default
+    // radius's.
+    m2Polygon strip = m2MakeBox(0.04f * (float)M2_MAX_FILL_COLUMNS, 0.5f);
+    CHECK(m2CreateParticlesInPolygon(world, &particleDef, &strip, &count) == m2_errorLimit &&
+              count == 0 && Misuse(world) == misuse + 2,
+          "a fill past M2_MAX_FILL_COLUMNS is m2_errorLimit");
     m2DestroyWorld(world);
 }
 
 int main(void)
 {
+    TestBoundsRefuseAsLimit();
     TestBodyAndWorldEdges();
     TestShapeEdges();
     TestJointEdges();

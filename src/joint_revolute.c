@@ -29,14 +29,19 @@ m2RevoluteJointDef m2DefaultRevoluteJointDef(void)
 
 // The def contract: finite values, non-negative gains and budgets,
 // ordered ranges.
-static bool DefValid(const m2RevoluteJointDef* def)
+static m2Result DefCheck(const m2RevoluteJointDef* def)
 {
-    return m2LocalVec2(def->localAnchorA) && m2LocalVec2(def->localAnchorB) &&
-           m2ValidRate(def->constraintHertz) && m2ValidCoefficient(def->constraintDampingRatio) &&
-           m2ValidRate(def->springHertz) && m2ValidCoefficient(def->springDampingRatio) &&
-           m2ValidSpeed(def->motorSpeed) && m2ValidMaxForce(def->maxMotorTorque) &&
-           m2ValidAngle(def->lowerAngle) && m2ValidAngle(def->upperAngle) &&
-           def->lowerAngle <= def->upperAngle;
+    m2Result result =
+        m2BothChecks(m2CheckLocalVec2(def->localAnchorA), m2CheckLocalVec2(def->localAnchorB));
+    result = m2BothChecks(result, m2CheckRate(def->constraintHertz));
+    result = m2BothChecks(result, m2CheckCoefficient(def->constraintDampingRatio));
+    result = m2BothChecks(result, m2CheckRate(def->springHertz));
+    result = m2BothChecks(result, m2CheckCoefficient(def->springDampingRatio));
+    result = m2BothChecks(result, m2CheckSpeed(def->motorSpeed));
+    result = m2BothChecks(result, m2CheckMaxForce(def->maxMotorTorque));
+    result = m2BothChecks(result, m2CheckAngle(def->lowerAngle));
+    result = m2BothChecks(result, m2CheckAngle(def->upperAngle));
+    return m2BothChecks(result, m2CheckValid(!(def->lowerAngle > def->upperAngle)));
 }
 
 // The create record holds the def's fields and zero bytes between them:
@@ -77,9 +82,14 @@ static M2_NOINLINE m2Result CreateRevoluteJointWorker(m2World* world, const m2Re
     {
         return writer;
     }
-    if (def == NULL || def->internalValue != M2_RJOINT_COOKIE || !DefValid(def))
+    if (def == NULL || def->internalValue != M2_RJOINT_COOKIE)
     {
         return m2Refuse(world, m2_errorInvalid);
+    }
+    m2Result checked = DefCheck(def);
+    if (checked != m2_success)
+    {
+        return m2Refuse(world, checked);
     }
     int32_t bodyA = m2BodySlot(world, def->bodyIdA);
     int32_t bodyB = m2BodySlot(world, def->bodyIdB);

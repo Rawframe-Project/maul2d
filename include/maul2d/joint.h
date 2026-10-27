@@ -45,11 +45,11 @@ extern "C"
     } m2JointId;
 
     // Every joint def and setter takes its numbers within the ranges of
-    // base.h (docs/user/limits.md): hertz from 0 to M2_MAX_RATE, damping
-    // ratios from 0 to M2_MAX_COEFFICIENT, motor speeds within
-    // M2_MAX_SPEED, budgets from 0 to M2_MAX_FORCE, lengths and
-    // translations within M2_JOINT_REACH, angles within M2_MAX_ANGLE and
-    // ratios from M2_MIN_RATIO to M2_MAX_RATIO by magnitude. A def past
+    // base.h (docs/user/limits.md): hertz from 0 to M2_RATE_LIMIT, damping
+    // ratios from 0 to M2_COEFFICIENT_LIMIT, motor speeds within
+    // M2_SPEED_LIMIT, budgets from 0 to M2_FORCE_LIMIT, lengths and
+    // translations within M2_REACH_LIMIT, angles within M2_ANGLE_LIMIT and
+    // ratios from M2_MIN_RATIO to M2_RATIO_LIMIT by magnitude. A def past
     // them is refused.
 
     /// Keeps two local anchor points at a distance: a rod, or with
@@ -193,7 +193,7 @@ extern "C"
     /// A soft spring pulling a point of body B toward a world target: the
     /// way to drag a body. Body A only anchors the bookkeeping. The grabbed
     /// point is where the target lies at creation, in B's frame, so each
-    /// of its coordinates there starts within M2_HUGE. The spring has B's
+    /// of its coordinates there starts within M2_LOCAL_LIMIT. The spring has B's
     /// own mass: it pulls equally hard in every direction, with stiffness
     /// mass (2 pi springHertz)^2, held within maxForce.
     typedef struct m2MouseJointDef
@@ -217,7 +217,7 @@ extern "C"
     {
         m2BodyId bodyIdA;
         m2BodyId bodyIdB;
-        /// M2_MIN_RATIO to M2_MAX_RATIO by magnitude; meshed cogs take a
+        /// M2_MIN_RATIO to M2_RATIO_LIMIT by magnitude; meshed cogs take a
         /// positive ratio and spin opposite.
         float ratio;
         M2_ALIGN8 uint64_t userData;
@@ -237,7 +237,7 @@ extern "C"
         m2Pos2 groundAnchorB;
         m2Vec2 localAnchorA; // where the rope holds body A, in its frame
         m2Vec2 localAnchorB;
-        float ratio; // M2_MIN_RATIO to M2_MAX_RATIO
+        float ratio; // M2_MIN_RATIO to M2_RATIO_LIMIT
         M2_ALIGN8 uint64_t userData;
         bool enableConnectedCollision;
         int32_t internalValue; // the cookie m2DefaultPulleyJointDef sets
@@ -252,7 +252,7 @@ extern "C"
     {
         m2BodyId bodyIdA;
         m2BodyId bodyIdB;
-        /// The tooth angle, M2_MIN_RATCHET_TOOTH to M2_MAX_ANGLE by
+        /// The tooth angle, M2_MIN_RATCHET_TOOTH to M2_ANGLE_LIMIT by
         /// magnitude; its sign is the free direction.
         float ratchet;
         float phase; // offsets the teeth, radians
@@ -359,16 +359,16 @@ extern "C"
     /// Creates a distance joint. A joint joins its bodies' sleep island,
     /// so they sleep and wake together, and both wake now. Destroying
     /// either body destroys the joint. Journaled. Every joint def's local
-    /// anchors, axis and linear offset lie within M2_HUGE; a def past it
-    /// is bad.
+    /// anchors, axis and linear offset lie within M2_LOCAL_LIMIT.
     ///
     /// @param world     The world.
     /// @param def       The joint, from m2DefaultDistanceJointDef.
     /// @param jointOut  Receives the joint; the null id on failure.
     /// @return m2_success; m2_errorStale when either body is stale;
     ///         m2_errorInvalid for a bad def, the same body twice or a null
-    ///         argument; m2_errorCapacity when the joint pool is full;
-    ///         m2_errorState from host code the world is running.
+    ///         argument; m2_errorLimit for a value of the def past its
+    ///         published bound; m2_errorCapacity when the joint pool is
+    ///         full; m2_errorBusy from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2CreateDistanceJoint(m2World* world,
@@ -493,13 +493,13 @@ extern "C"
     /// @param world    The world.
     /// @param jointId  The joint.
     /// @return m2_success; m2_errorStale when it is already gone;
-    ///         m2_errorState from host code the world is running.
+    ///         m2_errorBusy from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2DestroyJoint(m2World* world, m2JointId jointId);
 
     /// Sets a motor's speed: rad/s on revolute and wheel joints, m/s on a
-    /// prismatic joint. A speed beyond M2_MAX_SPEED or another joint type
+    /// prismatic joint. A speed beyond M2_SPEED_LIMIT or another joint type
     /// counts one misuse.
     ///
     /// @param world    The world.
@@ -511,7 +511,7 @@ extern "C"
 
     /// Sets a motor's budget: a torque on revolute and wheel joints and on
     /// a motor joint, a force on a prismatic joint. A budget outside 0 to
-    /// M2_MAX_FORCE or another joint type counts one misuse.
+    /// M2_FORCE_LIMIT or another joint type counts one misuse.
     ///
     /// @param world             The world.
     /// @param jointId           A revolute, prismatic, wheel or motor joint.
@@ -540,8 +540,8 @@ extern "C"
 
     /// Sets the limits: angles in radians on a revolute joint, travel in
     /// meters on prismatic and wheel joints, both from the creation pose.
-    /// An inverted range, an angle beyond M2_MAX_ANGLE, a travel beyond
-    /// M2_JOINT_REACH or another joint type changes nothing, on either
+    /// An inverted range, an angle beyond M2_ANGLE_LIMIT, a travel beyond
+    /// M2_REACH_LIMIT or another joint type changes nothing, on either
     /// bound, and counts one misuse.
     ///
     /// @param world    The world.
@@ -660,7 +660,7 @@ extern "C"
 
     /// Sets a distance joint's rest length and drops its stored impulses.
     /// Another joint type, or a length that is not positive or is beyond
-    /// M2_JOINT_REACH, counts one misuse.
+    /// M2_REACH_LIMIT, counts one misuse.
     ///
     /// @param world    The world.
     /// @param jointId  A distance joint.
@@ -671,7 +671,7 @@ extern "C"
 
     /// Sets a distance joint's hard length range. Each bound is raised to
     /// the linear slop (0.005 m) and the two are put in order. Another
-    /// joint type or a bound beyond M2_JOINT_REACH counts one misuse. Read the range
+    /// joint type or a bound beyond M2_REACH_LIMIT counts one misuse. Read the range
     /// with m2DistanceJoint_GetLengthRange.
     ///
     /// @param world      The world.
@@ -1023,7 +1023,7 @@ extern "C"
 
     /// Measures how far a joint is now from what it holds: the anchor gap
     /// of point constraints, a distance joint's length error, a slider's
-    /// gap off its axis. Bodies more than M2_JOINT_REACH apart along an axis
+    /// gap off its axis. Bodies more than M2_REACH_LIMIT apart along an axis
     /// are taken as that far apart, as the solver takes them.
     ///
     /// @param world    The world.
@@ -1048,8 +1048,8 @@ extern "C"
 
     /// Moves a motor joint's target, as a moving platform does every frame.
     /// The torque budget is set with m2Joint_SetMaxMotor. Another joint
-    /// type, an angular offset beyond M2_MAX_ANGLE or a linear offset beyond
-    /// M2_HUGE counts one misuse.
+    /// type, an angular offset beyond M2_ANGLE_LIMIT or a linear offset beyond
+    /// M2_LOCAL_LIMIT counts one misuse.
     ///
     /// @param world          The world.
     /// @param jointId        A motor joint.
@@ -1101,7 +1101,7 @@ extern "C"
     M2_API float m2MotorJoint_GetCorrectionFactor(const m2World* world, m2JointId jointId);
 
     /// Sets a gear joint's ratio. Another joint type, or a ratio whose
-    /// magnitude is outside M2_MIN_RATIO to M2_MAX_RATIO, counts one misuse.
+    /// magnitude is outside M2_MIN_RATIO to M2_RATIO_LIMIT, counts one misuse.
     ///
     /// @param world    The world.
     /// @param jointId  A gear joint.
@@ -1123,7 +1123,7 @@ extern "C"
     /// Sets a pulley joint's ratio. The rope total is measured again from
     /// the current pose, so the machine does not snap, and the stored
     /// impulse is dropped. Another joint type, or a ratio outside
-    /// M2_MIN_RATIO to M2_MAX_RATIO, counts one misuse.
+    /// M2_MIN_RATIO to M2_RATIO_LIMIT, counts one misuse.
     ///
     /// @param world    The world.
     /// @param jointId  A pulley joint.

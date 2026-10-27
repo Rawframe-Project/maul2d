@@ -225,15 +225,17 @@ static M2_NOINLINE m2Result WorldShatterBodyWorker(m2World* world, m2BodyId body
     {
         return m2Refuse(world, m2_errorStale);
     }
-    bool valid = pieces != NULL && pieceCount >= 1 && pieceCount <= 64 &&
-                 world->bodies.types[parent] == (uint8_t)m2_dynamicBody;
-    for (int32_t i = 0; valid && i < pieceCount; ++i)
+    m2Result checked = m2CheckValid(pieces != NULL && pieceCount >= 1 &&
+                                    world->bodies.types[parent] == (uint8_t)m2_dynamicBody);
+    checked = m2BothChecks(checked, m2CheckCount(pieceCount, M2_MAX_SHATTER_PIECES));
+    bool readable = pieces != NULL && pieceCount <= M2_MAX_SHATTER_PIECES;
+    for (int32_t i = 0; readable && i < pieceCount; ++i)
     {
-        valid = m2ValidatePolygon(&pieces[i]);
+        checked = m2BothChecks(checked, m2CheckPolygon(&pieces[i]));
     }
-    if (!valid)
+    if (checked != m2_success)
     {
-        return m2Refuse(world, m2_errorInvalid);
+        return m2Refuse(world, checked);
     }
     if (world->bodies.freeCount < pieceCount || world->shapes.shapeFreeCount < pieceCount)
     {

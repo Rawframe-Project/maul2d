@@ -32,7 +32,9 @@ m2Result m2Refuse(const m2World* world, m2Result reason)
     // caller's code; host code the replay runs (a task hook, the allocator)
     // is the caller's and still counts.
     bool tapeDriven = world != NULL && world->replaying != 0 && HostCodeDepth(world) == 0;
-    bool misuse = world != NULL && reason != m2_errorCapacity && !tapeDriven;
+    // A full pool and bytes from outside are no misuse of the API.
+    bool misuse =
+        world != NULL && reason != m2_errorCapacity && reason != m2_errorFormat && !tapeDriven;
     if (misuse)
     {
         // Reader calls refuse too, possibly on several threads at once, so
@@ -100,7 +102,7 @@ m2Result m2CheckWriter(const m2World* world)
     }
     if (HostCodeDepth(world) != 0)
     {
-        return m2Refuse(world, m2_errorState);
+        return m2Refuse(world, m2_errorBusy);
     }
     return m2_success;
 }
@@ -120,13 +122,13 @@ m2Result m2CheckStatePrefix(const void* bytes, int32_t size, uint32_t magic, uin
 {
     if (size < (int32_t)sizeof(m2StatePrefix))
     {
-        return m2_errorInvalid;
+        return m2_errorFormat;
     }
     m2StatePrefix prefix;
     memcpy(&prefix, bytes, sizeof(prefix));
     if (prefix.magic != magic)
     {
-        return m2_errorInvalid; // not this format
+        return m2_errorFormat; // not this format
     }
     if (prefix.abiVersion != M2_ABI_VERSION || prefix.formatVersion != formatVersion)
     {
@@ -134,7 +136,7 @@ m2Result m2CheckStatePrefix(const void* bytes, int32_t size, uint32_t magic, uin
     }
     if (prefix.headerBytes != (uint32_t)headerBytes || size < headerBytes)
     {
-        return m2_errorInvalid;
+        return m2_errorFormat;
     }
     return m2_success;
 }

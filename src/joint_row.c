@@ -288,7 +288,7 @@ static bool WeldMass(m2Vec2 armA, m2Vec2 armB, const m2JointBodies* b, m2WeldMas
 // Pushes a weld's point impulse (x, y) and angle impulse a in one go. On a
 // long arm against a small inertia the angle impulse and the point
 // impulse's torque nearly cancel on B: pushed apart, B's spin would pass
-// M2_MAX_SPEED in between and be clipped, and in float their sum would
+// M2_SPEED_LIMIT in between and be clipped, and in float their sum would
 // lose the rounding times B's inverse inertia. So each spin changes once,
 // by the sum taken in double.
 static void PushWeldBlock(m2Vec2 armA, m2Vec2 armB, m2JointBodies* b, double x, double y, double a)

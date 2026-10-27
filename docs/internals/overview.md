@@ -20,6 +20,7 @@ Every public name follows these rules, so a new one is decided by them rather th
 - **Switches.** A def's bool fields come in two kinds. `isX` names what an object is or the state it starts in (`isSensor`, `isLoop`, `isBullet`, `isEnabled`); `enableX` names an optional behavior it runs (`enableSleep`, `enableSpring`, `enableMotor`, `enableLimit`, `enableConnectedCollision`). An `enableX` field gets `<Obj>_EnableX(obj, bool)` and `<Obj>_IsXEnabled(obj)`. An `isX` field that can change gets `<Obj>_SetX(obj, bool)` and `<Obj>_IsX(obj)`. A kind fixed at creation (`isSensor`, `isLoop`) gets only `<Obj>_IsX`.
 - **Joints.** A feature several joint kinds share is `m2Joint_X`, and its doc names the kinds; another kind counts one misuse. A feature one kind has uses that kind's prefix (`m2DistanceJoint_SetLength`).
 - **Stiffness.** A spring is `enableSpring` with `springHertz` and `springDampingRatio`, or only the two values where the joint is a spring by nature (motor, mouse); a joint with a linear and an angular spring prefixes both (`linearSpringHertz`). The softness of the rows that hold a joint together is `constraintHertz` and `constraintDampingRatio`.
+- **Bounds.** Every fixed bound a call refuses is a constant in a public header: `M2_MAX_*` for a count (`M2_MAX_POLYGON_VERTICES`), `M2_*_LIMIT` for a magnitude (`M2_SPEED_LIMIT`) and `M2_MIN_*` for a floor (`M2_MIN_MASS`), named as maul3d names the same bound. A value past one is `m2_errorLimit`; a NaN, or a value outside a range its parameter's documentation gives with no constant, is `m2_errorInvalid`, and invalid wins when one call finds both (`m2BothChecks` in `src/core.h`).
 
 ## Ids and misuse
 
@@ -27,11 +28,11 @@ A correct program never uses an id after destroying its object, so a stale id is
 
 Particles are the exception. A particle with a lifetime dies at the end of a step with no event, so a correct program can hold the id of a particle that is gone. A stale particle id counts nothing in any call: getters return zero, setters change nothing, and `m2DestroyParticle` returns `m2_errorStale`. `m2Particle_IsValid` tells the program.
 
-Untrusted bytes are not misuse either. A snapshot or tape that fails its checks, and a value a tape operation refuses while it replays, return `m2_errorInvalid`, or `m2_errorVersion` for bytes another release or build wrote, and count nothing; the world marks itself as replaying, and `m2Refuse` skips the count for refusals on the replay's own path. Host code the replay runs (a task hook, the allocator) is the program's, and what it gets wrong counts.
+Untrusted bytes are not misuse either. A snapshot or tape that fails its checks, and a value a tape operation refuses while it replays, return `m2_errorFormat`, or `m2_errorVersion` for bytes another release or build wrote, and count nothing; the world marks itself as replaying, and `m2Refuse` skips the count for refusals on the replay's own path. Host code the replay runs (a task hook, the allocator) is the program's, and what it gets wrong counts.
 
 ## Host code
 
-The world calls host code in three places: the task hooks during a step, the debug draw callbacks during `m2World_Draw`, and the allocator. While it runs, an atomic count on the world is raised, and every writer checks it first: every writer counts one misuse and changes nothing, and a writer with a status also returns `m2_errorState`. Readers stay open, so a draw callback can ask the world about what it draws. The count is atomic because several readers may draw on separate threads at once.
+The world calls host code in three places: the task hooks during a step, the debug draw callbacks during `m2World_Draw`, and the allocator. While it runs, an atomic count on the world is raised, and every writer checks it first: every writer counts one misuse and changes nothing, and a writer with a status also returns `m2_errorBusy`. Readers stay open, so a draw callback can ask the world about what it draws. The count is atomic because several readers may draw on separate threads at once.
 
 ## A step
 
@@ -51,7 +52,7 @@ When every dynamic body sleeps and nothing kinematic moves, the world hibernates
 
 - **World and state:** `world.c` (creation, the step, settings), `world_state.c` (the pools and the state table, which also drives the hash), `world_hash.c` (the id pools' share of the hash), `world_internal.c` (refusals, host code, the bracketed allocator), `allocator.c` (the one file that reaches `malloc`).
 - **Objects:** `body*.c`, `shape.c`, `chain.c`, `joint*.c` (one file per joint type), `particle*.c`, `buoyancy.c`, `destruction.c` (shatter and explosions), `object_ids.c`.
-- **Collision:** `dynamic_tree.c` and `broadphase.c`, `contact.c` (pairs and events), `manifold.c`, `distance.c`, `geometry.c` (shape math, hulls, decomposition, mass), `ccd.c`.
+- **Collision:** `dynamic_tree.c` and `broadphase.c`, `contact.c` (pairs and events), `manifold.c`, `distance.c`, `geometry.c` (shape math, hulls, mass), `decompose.c` (an outline into convex pieces), `ccd.c`.
 - **Solver:** `solver.c` (the substep order), `contact_solver.c`, `contact_kernel.c` (the SIMD lanes), `graph_color.c`, `joint_solver.c`, `joint_row.c`, `island.c`, `parallel.c` (the task hooks).
 - **Queries:** `query*.c`, `ray_cast.c`, `mover.c`.
 - **Recording:** `snapshot.c`, `snapshot_check.c` (how an incoming snapshot's arrays fit together), `journal.c`, `journal_replay.c`. See [snapshots-and-journal.md](snapshots-and-journal.md).

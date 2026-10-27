@@ -45,7 +45,7 @@ extern "C"
         int32_t internalValue;
         // M2_ABI_VERSION of the headers the program was built with.
         uint32_t version;
-        m2Vec2 gravity;       // m/s^2, within M2_MAX_ACCELERATION per axis
+        m2Vec2 gravity;       // m/s^2, within M2_ACCEL_LIMIT per axis
         int32_t bodyCapacity; // fixed pool sizes: a world never grows
         int32_t shapeCapacity;
         int32_t jointCapacity;
@@ -56,15 +56,15 @@ extern "C"
         /// are fixed here like every other physics setting.
         int32_t particleCapacity;    // 0: no fluids
         int32_t fluidVolumeCapacity; // 0: no buoyancy volumes
-        float particleRadius;        // meters, 0.02 to M2_HUGE
+        float particleRadius;        // meters, M2_MIN_PARTICLE_RADIUS to M2_LOCAL_LIMIT
         float particleDensity;       // kg/m^2; a particle weighs M2_MIN_MASS or more
-        float particleGravityScale;  // within M2_MAX_GRAVITY_SCALE
+        float particleGravityScale;  // within M2_GRAVITY_SCALE_LIMIT
         /// The particle model's strengths: the pressure above rest density,
         /// the damping of approach speed, shear viscosity for viscous
         /// particles, the spacing push of powder grains, the pull of
         /// spring nets and elastic triads, and for tensile particles the
         /// cohesion below rest density and the near pressure that keeps a
-        /// droplet from collapsing. Each is 0 to M2_MAX_COEFFICIENT.
+        /// droplet from collapsing. Each is 0 to M2_COEFFICIENT_LIMIT.
         float particlePressureStrength;
         float particleDampingStrength;
         float particleViscousStrength;
@@ -94,7 +94,7 @@ extern "C"
     /// setters, impulses, the step) need the world to themselves. Separate
     /// worlds share nothing. The host code a world runs (the task hooks,
     /// the debug draw callbacks, the allocator) must not change that world:
-    /// its writers refuse with m2_errorState, or count one misuse where
+    /// its writers refuse with m2_errorBusy, or count one misuse where
     /// they return void. Readers stay open to it.
     ///
     /// FLOATING POINT. A call that computes runs in the library's own
@@ -170,8 +170,11 @@ extern "C"
     ///         m2_errorInvalid for a bad cookie; m2_errorVersion for a def
     ///         built for another binary interface; m2_errorInvalid for the
     ///         rest of the def (a capacity below 1, an allocator with one
-    ///         function set, a gravity beyond M2_MAX_ACCELERATION, a
-    ///         particle parameter out of its range);
+    ///         function set, a NaN, a value outside its field's domain);
+    ///         m2_errorLimit for a value past a published bound (a gravity
+    ///         past M2_ACCEL_LIMIT, a particle radius below
+    ///         M2_MIN_PARTICLE_RADIUS, a particle parameter past its
+    ///         bound);
     ///         m2_errorCapacity, before anything is allocated, when the
     ///         world would snapshot to more than M2_MAX_SNAPSHOT_BYTES, and
     ///         when the allocator refuses or a size does not fit.
@@ -204,7 +207,7 @@ extern "C"
 
     /// Sets the gravity and wakes every sleeping dynamic body: a stack must
     /// not float in a world that turned upside down. A gravity beyond
-    /// M2_MAX_ACCELERATION on either axis counts one misuse. Journaled.
+    /// M2_ACCEL_LIMIT on either axis counts one misuse. Journaled.
     ///
     /// @param world    The world.
     /// @param gravity  The acceleration, m/s^2.
@@ -226,8 +229,8 @@ extern "C"
     /// gravity, so larger bodies catch more wind and everything drifts
     /// toward the wind's speed. Unlike gravity it wakes no sleeper, since
     /// wind is meant to gust. Regional wind is a fluid volume of density 0.
-    /// A velocity beyond M2_MAX_SPEED on either axis or a drag outside 0 to
-    /// M2_MAX_RATE counts one misuse. Journaled.
+    /// A velocity beyond M2_SPEED_LIMIT on either axis or a drag outside 0 to
+    /// M2_RATE_LIMIT counts one misuse. Journaled.
     ///
     /// @param world       The world.
     /// @param velocity    The air's velocity, m/s.
@@ -254,8 +257,8 @@ extern "C"
     typedef struct m2ExplosionDef
     {
         m2Pos2 position;
-        float radius;  // 0 to M2_HUGE
-        float falloff; // above 0, to M2_HUGE
+        float radius;  // 0 to M2_LOCAL_LIMIT
+        float falloff; // above 0, to M2_LOCAL_LIMIT
         float impulse; // N s at full strength, within M2_IMPULSE_LIMIT
         M2_ALIGN8 uint64_t maskBits;
         int32_t internalValue; // the cookie m2DefaultExplosionDef sets
@@ -269,7 +272,7 @@ extern "C"
     /// Safe from any thread.
     M2_API m2ExplosionDef m2DefaultExplosionDef(void);
 
-    /// Sets off an explosion. Each body's velocity saturates at M2_MAX_SPEED
+    /// Sets off an explosion. Each body's velocity saturates at M2_SPEED_LIMIT
     /// per axis. A bad def counts one misuse. Journaled as one
     /// operation.
     ///
@@ -398,13 +401,13 @@ extern "C"
     /// Advances the simulation. Identical worlds given identical calls
     /// reach identical bits on every supported platform. Feed the same dt
     /// every step: 1/60 with 4 substeps is the tuned default. A dt outside
-    /// M2_MIN_TIME_STEP to M2_MAX_TIME_STEP, or a substep count below 1 or
+    /// M2_MIN_STEP to M2_STEP_LIMIT, or a substep count below 1 or
     /// above M2_MAX_SUBSTEPS, changes nothing and counts one misuse.
     /// Journaled.
     ///
     /// @param world         The world.
-    /// @param dt            The step, seconds, from M2_MIN_TIME_STEP (1e-6)
-    ///                      to M2_MAX_TIME_STEP (10).
+    /// @param dt            The step, seconds, from M2_MIN_STEP (1e-6)
+    ///                      to M2_STEP_LIMIT (10).
     /// @param substepCount  The solver substeps, 1 to M2_MAX_SUBSTEPS.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
@@ -463,10 +466,10 @@ extern "C"
     /// @param buffer  The snapshot.
     /// @param size    Its length, in bytes.
     /// @return m2_success; m2_errorVersion for a snapshot another release
-    ///         or build wrote, and m2_errorInvalid for other bytes that fail
-    ///         the checks, neither of which counts misuse; m2_errorInvalid
-    ///         for a null buffer, which counts one; m2_errorState from host
-    ///         code the world is running.
+    ///         or build wrote, and m2_errorFormat for other bytes that fail
+    ///         the checks, a world of another shape included, neither of
+    ///         which counts misuse; m2_errorInvalid for a null buffer, which
+    ///         counts one; m2_errorBusy from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2World_Restore(m2World* world, const void* buffer, int32_t size);
@@ -557,10 +560,10 @@ extern "C"
         m2Pos2 regionLower; // the region, world space
         m2Pos2 regionUpper;
         M2_ALIGN8 double surface; // the waterline, world y
-        float density;            // buoyant force per submerged area; 0 to M2_MAX_DENSITY
-        float linearDrag;         // velocity damping per submerged area; 0 to M2_MAX_RATE
-        float angularDrag;        // spin damping; 0 to M2_MAX_RATE
-        m2Vec2 flow;              // the current, m/s, within M2_MAX_SPEED per axis
+        float density;            // buoyant force per submerged area; 0 to M2_DENSITY_LIMIT
+        float linearDrag;         // velocity damping per submerged area; 0 to M2_RATE_LIMIT
+        float angularDrag;        // spin damping; 0 to M2_RATE_LIMIT
+        m2Vec2 flow;              // the current, m/s, within M2_SPEED_LIMIT per axis
         M2_ALIGN8 uint64_t userData;
         int32_t internalValue; // the cookie m2DefaultFluidVolumeDef sets
     } m2FluidVolumeDef;
@@ -579,8 +582,9 @@ extern "C"
     /// @param def        The volume, from m2DefaultFluidVolumeDef.
     /// @param volumeOut  Receives the volume; the null id on failure.
     /// @return m2_success; m2_errorInvalid for a bad def, a null argument
-    ///         or a world without volumes; m2_errorCapacity when the
-    ///         volume pool is full; m2_errorState from host code the world
+    ///         or a world without volumes; m2_errorLimit for a value past
+    ///         its published bound; m2_errorCapacity when the
+    ///         volume pool is full; m2_errorBusy from host code the world
     ///         is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
@@ -592,7 +596,7 @@ extern "C"
     /// @param world     The world.
     /// @param volumeId  The volume.
     /// @return m2_success; m2_errorStale when it is already gone;
-    ///         m2_errorState from host code the world is running.
+    ///         m2_errorBusy from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2DestroyFluidVolume(m2World* world, m2FluidVolumeId volumeId);
@@ -658,8 +662,8 @@ extern "C"
     /// @return m2_success; m2_errorInvalid for a null buffer;
     ///         m2_errorCapacity when capacity is below
     ///         m2World_GetJournalBaseSize; m2_errorState when the world is
-    ///         already recording or the call comes from host code the
-    ///         world is running.
+    ///         already recording; m2_errorBusy from host code the world is
+    ///         running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2World_StartJournal(m2World* world, void* buffer,
@@ -672,8 +676,8 @@ extern "C"
     /// @param bytesOut  Receives the tape's size; 0 on failure.
     /// @return m2_success; m2_errorInvalid for a null bytesOut;
     ///         m2_errorCapacity when the operations overflowed the buffer;
-    ///         m2_errorState when the world was not recording or the call
-    ///         comes from host code the world is running.
+    ///         m2_errorState when the world was not recording; m2_errorBusy
+    ///         from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2World_StopJournal(m2World* world, int32_t* bytesOut);
@@ -690,12 +694,13 @@ extern "C"
     /// @param data   The tape.
     /// @param size   Its length, in bytes.
     /// @return m2_success; m2_errorVersion for a tape, or its embedded
-    ///         snapshot, another release or build wrote, and m2_errorInvalid
-    ///         for another tape that fails its checks, neither of which
-    ///         counts misuse; m2_errorInvalid for a null data pointer, which
-    ///         counts one; m2_errorState while the world is recording
-    ///         or from host code the world is running; m2_errorCapacity
-    ///         when the allocator cannot give the replay its scratch memory.
+    ///         snapshot, another release or build wrote, and m2_errorFormat
+    ///         for another tape that fails its checks (a record the world
+    ///         refuses included), neither of which counts misuse;
+    ///         m2_errorInvalid for a null data pointer, which counts one;
+    ///         m2_errorState while the world is recording; m2_errorBusy
+    ///         from host code the world is running; m2_errorCapacity when
+    ///         the allocator cannot give the replay its scratch memory.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2World_ReplayJournal(m2World* world, const void* data,

@@ -538,7 +538,7 @@ static void ExpectWordRefused(m2World* world, const uint8_t* bytes, int32_t size
 
 // Offers the first `keep` bytes of state bytes, in an allocation of
 // exactly that size, so AddressSanitizer catches a reader that looks past
-// the end. Each cut is refused as m2_errorInvalid.
+// the end. Each cut is refused as m2_errorFormat.
 static void ExpectCutRefused(m2World* world, const uint8_t* bytes, int32_t keep, bool tape,
                              const char* what)
 {
@@ -549,17 +549,17 @@ static void ExpectCutRefused(m2World* world, const uint8_t* bytes, int32_t keep,
         return;
     }
     memcpy(cut, bytes, (size_t)keep);
-    ExpectRefused(world, cut, keep, tape, m2_errorInvalid, what);
+    ExpectRefused(world, cut, keep, tape, m2_errorFormat, what);
     free(cut);
 }
 
 // Only the release that wrote a snapshot or a tape reads it: another ABI
 // version, format number or build hash is m2_errorVersion, while another
-// magic or header size is not this format at all and is m2_errorInvalid.
+// magic or header size is not this format at all and is m2_errorFormat.
 // The tape's embedded snapshot is checked the same way and its status
 // passes through. Each magic's bytes spell its name in order, and the
 // same name stored in the other byte order is another magic. Bytes cut
-// short behind a valid prefix are m2_errorInvalid.
+// short behind a valid prefix are m2_errorFormat.
 static void TestOtherReleasesAreRefused(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
@@ -605,22 +605,22 @@ static void TestOtherReleasesAreRefused(void)
     ExpectWordRefused(world, snap, size, false, SNAPSHOT_CONFIG_HASH,
                       ReadWord(snap, SNAPSHOT_CONFIG_HASH) ^ 1u, m2_errorVersion,
                       "a snapshot from another build is m2_errorVersion");
-    ExpectWordRefused(world, snap, size, false, 0, ReadWord(snap, 0) ^ 0xFFu, m2_errorInvalid,
-                      "bytes with another magic are m2_errorInvalid");
-    ExpectWordRefused(world, snap, size, false, 0, Reversed(ReadWord(snap, 0)), m2_errorInvalid,
-                      "a snapshot magic in the other byte order is m2_errorInvalid");
+    ExpectWordRefused(world, snap, size, false, 0, ReadWord(snap, 0) ^ 0xFFu, m2_errorFormat,
+                      "bytes with another magic are m2_errorFormat");
+    ExpectWordRefused(world, snap, size, false, 0, Reversed(ReadWord(snap, 0)), m2_errorFormat,
+                      "a snapshot magic in the other byte order is m2_errorFormat");
     ExpectWordRefused(world, snap, size, false, PREFIX_HEADER_BYTES, snapHeader + 8u,
-                      m2_errorInvalid, "a snapshot with another header size is m2_errorInvalid");
+                      m2_errorFormat, "a snapshot with another header size is m2_errorFormat");
 
-    ExpectWordRefused(world, tape, tapeBytes, true, 0, Reversed(ReadWord(tape, 0)), m2_errorInvalid,
-                      "a tape magic in the other byte order is m2_errorInvalid");
+    ExpectWordRefused(world, tape, tapeBytes, true, 0, Reversed(ReadWord(tape, 0)), m2_errorFormat,
+                      "a tape magic in the other byte order is m2_errorFormat");
     ExpectWordRefused(world, tape, tapeBytes, true, PREFIX_ABI, otherRelease, m2_errorVersion,
                       "a tape from another release is m2_errorVersion");
     ExpectWordRefused(world, tape, tapeBytes, true, PREFIX_FORMAT,
                       ReadWord(tape, PREFIX_FORMAT) + 1u, m2_errorVersion,
                       "a tape of another format number is m2_errorVersion");
     ExpectWordRefused(world, tape, tapeBytes, true, PREFIX_HEADER_BYTES, tapeHeader + 8u,
-                      m2_errorInvalid, "a tape with another header size is m2_errorInvalid");
+                      m2_errorFormat, "a tape with another header size is m2_errorFormat");
     ExpectWordRefused(world, tape, tapeBytes, true, embedded + PREFIX_ABI, otherRelease,
                       m2_errorVersion,
                       "a tape embedding another release's snapshot is m2_errorVersion");
@@ -629,18 +629,18 @@ static void TestOtherReleasesAreRefused(void)
     // header, inside the tape's embedded snapshot header and one byte
     // short of the end.
     int32_t snapHeaderBytes = (int32_t)snapHeader;
-    ExpectCutRefused(world, snap, 16, false, "a snapshot of its prefix alone is m2_errorInvalid");
+    ExpectCutRefused(world, snap, 16, false, "a snapshot of its prefix alone is m2_errorFormat");
     ExpectCutRefused(world, snap, snapHeaderBytes - 1, false,
-                     "a snapshot cut inside its header is m2_errorInvalid");
-    ExpectCutRefused(world, snap, size - 1, false, "a snapshot cut short is m2_errorInvalid");
-    ExpectCutRefused(world, tape, 16, true, "a tape of its prefix alone is m2_errorInvalid");
+                     "a snapshot cut inside its header is m2_errorFormat");
+    ExpectCutRefused(world, snap, size - 1, false, "a snapshot cut short is m2_errorFormat");
+    ExpectCutRefused(world, tape, 16, true, "a tape of its prefix alone is m2_errorFormat");
     ExpectCutRefused(world, tape, embedded - 1, true,
-                     "a tape cut inside its header is m2_errorInvalid");
+                     "a tape cut inside its header is m2_errorFormat");
     ExpectCutRefused(world, tape, embedded + 16, true,
-                     "a tape cut after its snapshot's prefix is m2_errorInvalid");
+                     "a tape cut after its snapshot's prefix is m2_errorFormat");
     ExpectCutRefused(world, tape, embedded + snapHeaderBytes - 1, true,
-                     "a tape cut inside its snapshot's header is m2_errorInvalid");
-    ExpectCutRefused(world, tape, tapeBytes - 1, true, "a tape cut short is m2_errorInvalid");
+                     "a tape cut inside its snapshot's header is m2_errorFormat");
+    ExpectCutRefused(world, tape, tapeBytes - 1, true, "a tape cut short is m2_errorFormat");
 
     // The bytes as written still load, so only the changed word was refused.
     CHECK(Restore(world, snap, size), "the snapshot as written restores");
@@ -706,8 +706,8 @@ static void TestParameterChannels(void)
     // channel byte sits at offset 12.
     CHECK(bytes > 17 && tape[bytes - 17] == 25, "the tape ends in a body-param record");
     tape[bytes - 4] = 200;
-    CHECK(m2World_ReplayJournal(world, tape, bytes) == m2_errorInvalid,
-          "an unknown body channel is rejected as invalid");
+    CHECK(m2World_ReplayJournal(world, tape, bytes) == m2_errorFormat,
+          "an unknown body channel is a malformed tape");
 
     StartJournal(world, tape, (int32_t)sizeof(tape));
     m2Shape_SetRestitution(world, shape, 0.5f);
@@ -719,8 +719,8 @@ static void TestParameterChannels(void)
     m2WorldDef other = def;
     other.bodyCapacity = 4;
     m2World* elsewhere = NewWorld(&other);
-    CHECK(m2World_ReplayJournal(elsewhere, tape, bytes) == m2_errorInvalid,
-          "a tape for another world shape is refused as invalid");
+    CHECK(m2World_ReplayJournal(elsewhere, tape, bytes) == m2_errorFormat,
+          "a tape for another world shape is a malformed tape");
     m2DestroyWorld(elsewhere);
 
     misuse = m2World_GetCounters(world).misuse;
@@ -758,9 +758,9 @@ static void TestHostileQueries(void)
           "and sweeps nothing");
     m2ParticleDef particleDef = m2DefaultParticleDef();
     int32_t count = -1;
-    CHECK(m2CreateParticlesInPolygon(world, &particleDef, &huge, &count) == m2_errorInvalid &&
+    CHECK(m2CreateParticlesInPolygon(world, &particleDef, &huge, &count) == m2_errorLimit &&
               count == 0,
-          "and fills nothing");
+          "and fills nothing, past M2_MAX_POLYGON_VERTICES");
     CHECK(!CircleClosest(world, NULL, pose, down, filter).hit, "a NULL circle casts nothing");
     m2Circle ball = {{0.0f, 0.0f}, 0.25f};
     m2Transform nanPose = {{(double)NAN, 3.0}, {1.0f, 0.0f}};
@@ -1765,8 +1765,8 @@ static void TestChainRefusals(void)
     world = NewWorld(&def);
     ground = NewBody(world, &gd);
     m2ShapeId shape = m2_nullShapeId;
-    CHECK(m2CreateCircleShape(world, ground, &sd, &ball, &shape) == m2_errorInvalid,
-          "infinite friction refuses as invalid input");
+    CHECK(m2CreateCircleShape(world, ground, &sd, &ball, &shape) == m2_errorLimit,
+          "infinite friction is past M2_COEFFICIENT_LIMIT");
     sd = m2DefaultShapeDef();
     sd.tangentSpeed = NAN;
     CHECK(m2CreateCircleShape(world, ground, &sd, &ball, &shape) == m2_errorInvalid,

@@ -14,6 +14,7 @@ contact_kernel: contact_constraint simd world_internal
 contact_solver: contact_constraint contact_kernel graph_color joint_solver parallel solver_base world_internal
 core:
 cpu:
+decompose: core fpenv geometry
 destruction: body distance fpenv geometry journal object_ids world_internal
 distance: world_internal
 draw: fpenv world_internal

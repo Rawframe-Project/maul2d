@@ -30,6 +30,12 @@ const char* m2ResultName(m2Result result)
         return "m2_errorState";
     case m2_errorVersion:
         return "m2_errorVersion";
+    case m2_errorFormat:
+        return "m2_errorFormat";
+    case m2_errorLimit:
+        return "m2_errorLimit";
+    case m2_errorBusy:
+        return "m2_errorBusy";
     default:
         return "unknown m2Result";
     }

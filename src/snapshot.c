@@ -189,7 +189,7 @@ static M2_NOINLINE m2Result WorldRestoreWorker(m2World* world, const void* buffe
     if (memcmp(header.capacities, capacities, sizeof(capacities)) != 0 ||
         !(header.particleRadius == (double)world->particles.particleRadius))
     {
-        return m2_errorInvalid; // another world shape
+        return m2_errorFormat; // another world shape
     }
     // Hostile bytes are checked before any of them land: every row the
     // table describes, cursors included, then how the rows fit together.
@@ -197,7 +197,7 @@ static M2_NOINLINE m2Result WorldRestoreWorker(m2World* world, const void* buffe
     if ((int64_t)size != SnapshotBytes(world) || !m2StateValidate(world, in + sizeof(header)) ||
         !m2SnapshotCheck(world, in + sizeof(header)))
     {
-        return m2_errorInvalid;
+        return m2_errorFormat;
     }
 
     size_t cursor = sizeof(header) + m2StateWalk(world, NULL, in + sizeof(header), 1);

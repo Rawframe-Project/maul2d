@@ -4,7 +4,7 @@
 // Scenes built from the edges of base.h's ranges: the lightest and
 // heaviest bodies, the longest levers, the stiffest springs, the fastest
 // speeds and the strongest loads the API accepts. Every step must keep
-// the world valid with every velocity within M2_MAX_SPEED, and the world
+// the world valid with every velocity within M2_SPEED_LIMIT, and the world
 // must restore its own snapshot after every step: what the step saturates
 // stays within the ranges a restore enforces, to the last float. Without the solver's
 // saturation these scenes reach infinity and NaN. On glibc, in builds
@@ -92,21 +92,21 @@ static bool RoundTrips(m2World* world)
 static m2World* ExtremeWorld(bool particles)
 {
     m2WorldDef def = m2DefaultWorldDef();
-    def.gravity = (m2Vec2){M2_MAX_ACCELERATION, -M2_MAX_ACCELERATION};
+    def.gravity = (m2Vec2){M2_ACCEL_LIMIT, -M2_ACCEL_LIMIT};
     def.fluidVolumeCapacity = 2;
     if (particles)
     {
         def.particleCapacity = 64;
-        def.particleDensity = M2_MAX_DENSITY;
-        def.particleGravityScale = M2_MAX_GRAVITY_SCALE;
-        def.particlePressureStrength = M2_MAX_COEFFICIENT;
-        def.particleDampingStrength = M2_MAX_COEFFICIENT;
-        def.particleViscousStrength = M2_MAX_COEFFICIENT;
-        def.particlePowderStrength = M2_MAX_COEFFICIENT;
-        def.particleSpringStrength = M2_MAX_COEFFICIENT;
-        def.particleElasticStrength = M2_MAX_COEFFICIENT;
-        def.particleCohesionStrength = M2_MAX_COEFFICIENT;
-        def.particleNearPressureStrength = M2_MAX_COEFFICIENT;
+        def.particleDensity = M2_DENSITY_LIMIT;
+        def.particleGravityScale = M2_GRAVITY_SCALE_LIMIT;
+        def.particlePressureStrength = M2_COEFFICIENT_LIMIT;
+        def.particleDampingStrength = M2_COEFFICIENT_LIMIT;
+        def.particleViscousStrength = M2_COEFFICIENT_LIMIT;
+        def.particlePowderStrength = M2_COEFFICIENT_LIMIT;
+        def.particleSpringStrength = M2_COEFFICIENT_LIMIT;
+        def.particleElasticStrength = M2_COEFFICIENT_LIMIT;
+        def.particleCohesionStrength = M2_COEFFICIENT_LIMIT;
+        def.particleNearPressureStrength = M2_COEFFICIENT_LIMIT;
     }
     return NewWorld(&def);
 }
@@ -120,7 +120,7 @@ static m2BodyId Add(Scene* s, m2BodyType type, m2Pos2 position, m2Vec2 velocity,
     {
         def.linearVelocity = velocity;
         def.angularVelocity = spin;
-        def.gravityScale = M2_MAX_GRAVITY_SCALE;
+        def.gravityScale = M2_GRAVITY_SCALE_LIMIT;
     }
     m2BodyId body = NewBody(s->world, &def);
     s->bodies[s->bodyCount++] = body;
@@ -131,26 +131,26 @@ static m2BodyId Add(Scene* s, m2BodyType type, m2Pos2 position, m2Vec2 velocity,
 // M2_MIN_INERTIA.
 static m2BodyId Speck(Scene* s, m2Pos2 position, m2Vec2 velocity)
 {
-    m2BodyId body = Add(s, m2_dynamicBody, position, velocity, -M2_MAX_SPEED);
+    m2BodyId body = Add(s, m2_dynamicBody, position, velocity, -M2_SPEED_LIMIT);
     m2ShapeDef shape = m2DefaultShapeDef();
     shape.density = 1.0e-9f;
-    shape.friction = M2_MAX_COEFFICIENT;
+    shape.friction = M2_COEFFICIENT_LIMIT;
     shape.restitution = 1.0f;
-    shape.tangentSpeed = M2_MAX_SPEED;
+    shape.tangentSpeed = M2_SPEED_LIMIT;
     m2Circle circle = {{0.0f, 0.0f}, 0.005f};
     (void)NewCircleShape(s->world, body, &shape, &circle);
     return body;
 }
 
 // The heaviest: a kilometer block at the largest density, clamped to
-// M2_MAX_MASS and M2_MAX_INERTIA.
+// M2_MASS_LIMIT and M2_INERTIA_LIMIT.
 static m2BodyId Giant(Scene* s, m2Pos2 position, m2Vec2 velocity)
 {
-    m2BodyId body = Add(s, m2_dynamicBody, position, velocity, M2_MAX_SPEED);
+    m2BodyId body = Add(s, m2_dynamicBody, position, velocity, M2_SPEED_LIMIT);
     m2ShapeDef shape = m2DefaultShapeDef();
-    shape.density = M2_MAX_DENSITY;
-    shape.friction = M2_MAX_COEFFICIENT;
-    shape.tangentSpeed = -M2_MAX_SPEED;
+    shape.density = M2_DENSITY_LIMIT;
+    shape.friction = M2_COEFFICIENT_LIMIT;
+    shape.tangentSpeed = -M2_SPEED_LIMIT;
     m2Polygon box = m2MakeBox(500.0f, 500.0f);
     (void)NewPolygonShape(s->world, body, &shape, &box);
     return body;
@@ -165,11 +165,12 @@ static void ExpectFinite(Scene* s, const char* what)
         {
             if (m2Body_GetType(s->world, s->bodies[i]) == m2_dynamicBody)
             {
-                m2Body_ApplyForce(s->world, s->bodies[i], (m2Vec2){M2_MAX_FORCE, -M2_MAX_FORCE});
-                m2Body_ApplyTorque(s->world, s->bodies[i], M2_MAX_FORCE);
+                m2Body_ApplyForce(s->world, s->bodies[i],
+                                  (m2Vec2){M2_FORCE_LIMIT, -M2_FORCE_LIMIT});
+                m2Body_ApplyTorque(s->world, s->bodies[i], M2_FORCE_LIMIT);
             }
         }
-        float dt = step % 2 == 0 ? M2_MIN_TIME_STEP : M2_MAX_TIME_STEP;
+        float dt = step % 2 == 0 ? M2_MIN_STEP : M2_STEP_LIMIT;
         int32_t substeps = step % 3 == 0 ? M2_MAX_SUBSTEPS : 1;
         if (s->steadyDt > 0.0f)
         {
@@ -187,15 +188,15 @@ static void ExpectFinite(Scene* s, const char* what)
         {
             m2Vec2 v = m2Body_GetLinearVelocity(s->world, s->bodies[i]);
             float w = m2Body_GetAngularVelocity(s->world, s->bodies[i]);
-            valid = fabsf(v.x) <= M2_MAX_SPEED && fabsf(v.y) <= M2_MAX_SPEED &&
-                    fabsf(w) <= M2_MAX_SPEED;
+            valid = fabsf(v.x) <= M2_SPEED_LIMIT && fabsf(v.y) <= M2_SPEED_LIMIT &&
+                    fabsf(w) <= M2_SPEED_LIMIT;
         }
         if (!valid)
         {
             printf("  %s: invalid after step %d\n", what, step);
         }
     }
-    CHECK(valid, "an extreme scene stays valid, within M2_MAX_SPEED, and restores its own "
+    CHECK(valid, "an extreme scene stays valid, within M2_SPEED_LIMIT, and restores its own "
                  "snapshot after every step");
     m2DestroyWorld(s->world);
 }
@@ -206,11 +207,11 @@ static void TestGiantOnSpecks(void)
     Scene s = {ExtremeWorld(false), {{0}}, 0, {{0}}, 0, 0.0f};
     m2BodyId ground = Add(&s, m2_staticBody, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f}, 0.0f);
     m2ShapeDef shape = m2DefaultShapeDef();
-    m2Polygon floor = m2MakeBox(M2_HUGE, 1.0f);
+    m2Polygon floor = m2MakeBox(M2_LOCAL_LIMIT, 1.0f);
     (void)NewPolygonShape(s.world, ground, &shape, &floor);
     (void)Speck(&s, (m2Pos2){0.0, 1.005}, (m2Vec2){0.0f, 0.0f});
-    (void)Speck(&s, (m2Pos2){0.3, 1.005}, (m2Vec2){M2_MAX_SPEED, 0.0f});
-    (void)Giant(&s, (m2Pos2){0.0, 502.0}, (m2Vec2){-M2_MAX_SPEED, -M2_MAX_SPEED});
+    (void)Speck(&s, (m2Pos2){0.3, 1.005}, (m2Vec2){M2_SPEED_LIMIT, 0.0f});
+    (void)Giant(&s, (m2Pos2){0.0, 502.0}, (m2Vec2){-M2_SPEED_LIMIT, -M2_SPEED_LIMIT});
     ExpectFinite(&s, "giant on specks");
 }
 
@@ -219,10 +220,10 @@ static void TestGiantOnSpecks(void)
 static void TestGiantResting(void)
 {
     Scene s = {ExtremeWorld(false), {{0}}, 0, {{0}}, 0, 1.0f / 60.0f};
-    m2World_SetGravity(s.world, (m2Vec2){0.0f, -M2_MAX_ACCELERATION});
+    m2World_SetGravity(s.world, (m2Vec2){0.0f, -M2_ACCEL_LIMIT});
     m2BodyId ground = Add(&s, m2_staticBody, (m2Pos2){0.0, -1000.0}, (m2Vec2){0.0f, 0.0f}, 0.0f);
     m2ShapeDef shape = m2DefaultShapeDef();
-    m2Polygon floor = m2MakeBox(M2_HUGE, 1000.0f);
+    m2Polygon floor = m2MakeBox(M2_LOCAL_LIMIT, 1000.0f);
     (void)NewPolygonShape(s.world, ground, &shape, &floor);
     m2BodyId giant = Giant(&s, (m2Pos2){0.0, 500.0}, (m2Vec2){0.0f, 0.0f});
     m2Body_SetAngularVelocity(s.world, giant, 0.0f);
@@ -236,7 +237,7 @@ static void TestHangingGiant(void)
 {
     Scene s = {ExtremeWorld(false), {{0}}, 0, {{0}}, 0, 0.0f};
     m2BodyId anchor = Add(&s, m2_staticBody, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f}, 0.0f);
-    m2BodyId giant = Giant(&s, (m2Pos2){0.0, -2000.0}, (m2Vec2){0.0f, -M2_MAX_SPEED});
+    m2BodyId giant = Giant(&s, (m2Pos2){0.0, -2000.0}, (m2Vec2){0.0f, -M2_SPEED_LIMIT});
     m2DistanceJointDef rope = m2DefaultDistanceJointDef();
     rope.bodyIdA = anchor;
     rope.bodyIdB = giant;
@@ -245,7 +246,7 @@ static void TestHangingGiant(void)
     m2DistanceJointDef strut = m2DefaultDistanceJointDef();
     strut.bodyIdA = anchor;
     strut.bodyIdB = giant;
-    strut.localAnchorB = (m2Vec2){M2_HUGE, M2_HUGE};
+    strut.localAnchorB = (m2Vec2){M2_LOCAL_LIMIT, M2_LOCAL_LIMIT};
     strut.enableSpring = true;
     strut.minLength = 10.0f;
     (void)Keep(&s, NewDistanceJoint(s.world, &strut));
@@ -257,38 +258,39 @@ static void TestHangingGiant(void)
 static void TestLongLevers(void)
 {
     Scene s = {ExtremeWorld(false), {{0}}, 0, {{0}}, 0, 0.0f};
-    m2BodyId giant = Giant(&s, (m2Pos2){0.0, 0.0}, (m2Vec2){M2_MAX_SPEED, 0.0f});
-    m2BodyId edge = Speck(&s, (m2Pos2){(double)M2_HUGE, 0.0}, (m2Vec2){0.0f, M2_MAX_SPEED});
-    m2BodyId beyond = Speck(&s, (m2Pos2){M2_JOINT_REACH * 4.0, 0.0}, (m2Vec2){0.0f, 0.0f});
+    m2BodyId giant = Giant(&s, (m2Pos2){0.0, 0.0}, (m2Vec2){M2_SPEED_LIMIT, 0.0f});
+    m2BodyId edge =
+        Speck(&s, (m2Pos2){(double)M2_LOCAL_LIMIT, 0.0}, (m2Vec2){0.0f, M2_SPEED_LIMIT});
+    m2BodyId beyond = Speck(&s, (m2Pos2){M2_REACH_LIMIT * 4.0, 0.0}, (m2Vec2){0.0f, 0.0f});
 
     m2RevoluteJointDef hinge = m2DefaultRevoluteJointDef();
     hinge.bodyIdA = giant;
     hinge.bodyIdB = edge;
-    hinge.localAnchorA = (m2Vec2){M2_HUGE, M2_HUGE};
-    hinge.localAnchorB = (m2Vec2){-M2_HUGE, M2_HUGE};
-    hinge.constraintHertz = M2_MAX_RATE;
+    hinge.localAnchorA = (m2Vec2){M2_LOCAL_LIMIT, M2_LOCAL_LIMIT};
+    hinge.localAnchorB = (m2Vec2){-M2_LOCAL_LIMIT, M2_LOCAL_LIMIT};
+    hinge.constraintHertz = M2_RATE_LIMIT;
     hinge.enableSpring = true;
-    hinge.springHertz = M2_MAX_RATE;
-    hinge.springDampingRatio = M2_MAX_COEFFICIENT;
+    hinge.springHertz = M2_RATE_LIMIT;
+    hinge.springDampingRatio = M2_COEFFICIENT_LIMIT;
     hinge.enableMotor = true;
-    hinge.motorSpeed = M2_MAX_SPEED;
-    hinge.maxMotorTorque = M2_MAX_FORCE;
+    hinge.motorSpeed = M2_SPEED_LIMIT;
+    hinge.maxMotorTorque = M2_FORCE_LIMIT;
     hinge.enableLimit = true;
-    hinge.lowerAngle = -M2_MAX_ANGLE;
-    hinge.upperAngle = -M2_MAX_ANGLE;
+    hinge.lowerAngle = -M2_ANGLE_LIMIT;
+    hinge.upperAngle = -M2_ANGLE_LIMIT;
     (void)Keep(&s, NewRevoluteJoint(s.world, &hinge));
 
     m2PrismaticJointDef slider = m2DefaultPrismaticJointDef();
     slider.bodyIdA = edge;
     slider.bodyIdB = beyond;
     slider.localAxisA = (m2Vec2){0.0f, 1.0f};
-    slider.localAnchorA = (m2Vec2){M2_HUGE, -M2_HUGE};
+    slider.localAnchorA = (m2Vec2){M2_LOCAL_LIMIT, -M2_LOCAL_LIMIT};
     slider.enableLimit = true;
-    slider.lowerTranslation = (float)M2_JOINT_REACH;
-    slider.upperTranslation = (float)M2_JOINT_REACH;
+    slider.lowerTranslation = (float)M2_REACH_LIMIT;
+    slider.upperTranslation = (float)M2_REACH_LIMIT;
     slider.enableMotor = true;
-    slider.motorSpeed = -M2_MAX_SPEED;
-    slider.maxMotorForce = M2_MAX_FORCE;
+    slider.motorSpeed = -M2_SPEED_LIMIT;
+    slider.maxMotorForce = M2_FORCE_LIMIT;
     (void)Keep(&s, NewPrismaticJoint(s.world, &slider));
 
     m2DistanceJointDef rope = m2DefaultDistanceJointDef();
@@ -296,26 +298,26 @@ static void TestLongLevers(void)
     rope.bodyIdB = beyond;
     rope.length = 0.005f;
     rope.enableSpring = true;
-    rope.springHertz = M2_MAX_RATE;
-    rope.springDampingRatio = M2_MAX_COEFFICIENT;
+    rope.springHertz = M2_RATE_LIMIT;
+    rope.springDampingRatio = M2_COEFFICIENT_LIMIT;
     (void)Keep(&s, NewDistanceJoint(s.world, &rope));
 
     m2WheelJointDef wheel = m2DefaultWheelJointDef();
     wheel.bodyIdA = beyond;
     wheel.bodyIdB = giant;
-    wheel.localAnchorB = (m2Vec2){-M2_HUGE, -M2_HUGE};
-    wheel.springHertz = M2_MAX_RATE;
+    wheel.localAnchorB = (m2Vec2){-M2_LOCAL_LIMIT, -M2_LOCAL_LIMIT};
+    wheel.springHertz = M2_RATE_LIMIT;
     wheel.enableMotor = true;
-    wheel.motorSpeed = M2_MAX_SPEED;
-    wheel.maxMotorTorque = M2_MAX_FORCE;
+    wheel.motorSpeed = M2_SPEED_LIMIT;
+    wheel.maxMotorTorque = M2_FORCE_LIMIT;
     (void)Keep(&s, NewWheelJoint(s.world, &wheel));
 
     m2WeldJointDef weld = m2DefaultWeldJointDef();
     weld.bodyIdA = edge;
     weld.bodyIdB = giant;
-    weld.localAnchorA = (m2Vec2){-M2_HUGE, -M2_HUGE};
-    weld.angularSpringHertz = M2_MAX_RATE;
-    weld.linearSpringHertz = M2_MAX_RATE;
+    weld.localAnchorA = (m2Vec2){-M2_LOCAL_LIMIT, -M2_LOCAL_LIMIT};
+    weld.angularSpringHertz = M2_RATE_LIMIT;
+    weld.linearSpringHertz = M2_RATE_LIMIT;
     (void)Keep(&s, NewWeldJoint(s.world, &weld));
     ExpectFinite(&s, "long levers");
 }
@@ -336,27 +338,27 @@ static void TestRatiosAndDrives(void)
     (void)Keep(&s, NewGearJoint(s.world, &gear));
     gear.bodyIdA = giant;
     gear.bodyIdB = speck;
-    gear.ratio = -M2_MAX_RATIO;
+    gear.ratio = -M2_RATIO_LIMIT;
     (void)Keep(&s, NewGearJoint(s.world, &gear));
 
     m2PulleyJointDef pulley = m2DefaultPulleyJointDef();
     pulley.bodyIdA = giant;
     pulley.bodyIdB = speck;
-    pulley.groundAnchorA = (m2Pos2){0.0, M2_JOINT_REACH};
-    pulley.groundAnchorB = (m2Pos2){2000.0, -M2_JOINT_REACH};
-    pulley.localAnchorA = (m2Vec2){M2_HUGE, 0.0f};
+    pulley.groundAnchorA = (m2Pos2){0.0, M2_REACH_LIMIT};
+    pulley.groundAnchorB = (m2Pos2){2000.0, -M2_REACH_LIMIT};
+    pulley.localAnchorA = (m2Vec2){M2_LOCAL_LIMIT, 0.0f};
     pulley.ratio = M2_MIN_RATIO;
     (void)Keep(&s, NewPulleyJoint(s.world, &pulley));
-    pulley.ratio = M2_MAX_RATIO;
+    pulley.ratio = M2_RATIO_LIMIT;
     (void)Keep(&s, NewPulleyJoint(s.world, &pulley));
 
     m2MotorJointDef motor = m2DefaultMotorJointDef();
     motor.bodyIdA = giant;
     motor.bodyIdB = speck;
-    motor.linearOffset = (m2Vec2){M2_HUGE, -M2_HUGE};
-    motor.angularOffset = M2_MAX_ANGLE;
-    motor.maxForce = M2_MAX_FORCE;
-    motor.maxTorque = M2_MAX_FORCE;
+    motor.linearOffset = (m2Vec2){M2_LOCAL_LIMIT, -M2_LOCAL_LIMIT};
+    motor.angularOffset = M2_ANGLE_LIMIT;
+    motor.maxForce = M2_FORCE_LIMIT;
+    motor.maxTorque = M2_FORCE_LIMIT;
     motor.correctionFactor = 1.0f;
     (void)Keep(&s, NewMotorJoint(s.world, &motor));
 
@@ -364,17 +366,17 @@ static void TestRatiosAndDrives(void)
     mouse.bodyIdA = giant;
     mouse.bodyIdB = speck;
     mouse.target = (m2Pos2){2000.0, 0.0};
-    mouse.springHertz = M2_MAX_RATE;
-    mouse.springDampingRatio = M2_MAX_COEFFICIENT;
-    mouse.maxForce = M2_MAX_FORCE;
+    mouse.springHertz = M2_RATE_LIMIT;
+    mouse.springDampingRatio = M2_COEFFICIENT_LIMIT;
+    mouse.maxForce = M2_FORCE_LIMIT;
     m2JointId drag = Keep(&s, NewMouseJoint(s.world, &mouse));
-    m2MouseJoint_SetTarget(s.world, drag, (m2Pos2){-M2_JOINT_REACH * 8.0, M2_JOINT_REACH * 8.0});
+    m2MouseJoint_SetTarget(s.world, drag, (m2Pos2){-M2_REACH_LIMIT * 8.0, M2_REACH_LIMIT * 8.0});
 
     m2RatchetJointDef ratchet = m2DefaultRatchetJointDef();
     ratchet.bodyIdA = speck;
     ratchet.bodyIdB = giant;
     ratchet.ratchet = M2_MIN_RATCHET_TOOTH;
-    ratchet.phase = M2_MAX_ANGLE;
+    ratchet.phase = M2_ANGLE_LIMIT;
     (void)Keep(&s, NewRatchetJoint(s.world, &ratchet));
     ExpectFinite(&s, "ratios and drives");
 }
@@ -384,25 +386,25 @@ static void TestRatiosAndDrives(void)
 // turns like a speck, half under the surface, and on a speck.
 static void TestWaterAndWind(void)
 {
-    Scene s = {ExtremeWorld(false), {{0}}, 0, {{0}}, 0, M2_MAX_TIME_STEP};
-    m2BodyId odd = Giant(&s, (m2Pos2){0.0, 0.0}, (m2Vec2){M2_MAX_SPEED, M2_MAX_SPEED});
-    m2Body_SetMassData(s.world, odd, (m2MassData){M2_MIN_MASS, {0.0f, 0.0f}, M2_MAX_INERTIA});
-    (void)Speck(&s, (m2Pos2){100.0, 0.0}, (m2Vec2){-M2_MAX_SPEED, M2_MAX_SPEED});
+    Scene s = {ExtremeWorld(false), {{0}}, 0, {{0}}, 0, M2_STEP_LIMIT};
+    m2BodyId odd = Giant(&s, (m2Pos2){0.0, 0.0}, (m2Vec2){M2_SPEED_LIMIT, M2_SPEED_LIMIT});
+    m2Body_SetMassData(s.world, odd, (m2MassData){M2_MIN_MASS, {0.0f, 0.0f}, M2_INERTIA_LIMIT});
+    (void)Speck(&s, (m2Pos2){100.0, 0.0}, (m2Vec2){-M2_SPEED_LIMIT, M2_SPEED_LIMIT});
     m2BodyId slab = Add(&s, m2_dynamicBody, (m2Pos2){0.0, 2.0e4}, (m2Vec2){0.0f, 0.0f}, 0.0f);
     m2ShapeDef shape = m2DefaultShapeDef();
-    m2Polygon box = m2MakeBox(M2_HUGE, M2_HUGE);
+    m2Polygon box = m2MakeBox(M2_LOCAL_LIMIT, M2_LOCAL_LIMIT);
     (void)NewPolygonShape(s.world, slab, &shape, &box);
     m2Body_SetMassData(s.world, slab, (m2MassData){M2_MIN_MASS, {0.0f, 0.0f}, M2_MIN_INERTIA});
     m2FluidVolumeDef water = m2DefaultFluidVolumeDef();
     water.regionLower = (m2Pos2){-1.0e6, -1.0e6};
     water.regionUpper = (m2Pos2){1.0e6, 1.0e6};
     water.surface = 2.0e4; // through the slab's middle
-    water.density = M2_MAX_DENSITY;
-    water.linearDrag = M2_MAX_RATE;
-    water.angularDrag = M2_MAX_RATE;
-    water.flow = (m2Vec2){-M2_MAX_SPEED, M2_MAX_SPEED};
+    water.density = M2_DENSITY_LIMIT;
+    water.linearDrag = M2_RATE_LIMIT;
+    water.angularDrag = M2_RATE_LIMIT;
+    water.flow = (m2Vec2){-M2_SPEED_LIMIT, M2_SPEED_LIMIT};
     (void)NewFluidVolume(s.world, &water);
-    m2World_SetWind(s.world, (m2Vec2){M2_MAX_SPEED, -M2_MAX_SPEED}, M2_MAX_RATE);
+    m2World_SetWind(s.world, (m2Vec2){M2_SPEED_LIMIT, -M2_SPEED_LIMIT}, M2_RATE_LIMIT);
     ExpectFinite(&s, "water and wind");
 }
 
@@ -411,12 +413,12 @@ static void TestParticles(void)
 {
     Scene s = {ExtremeWorld(true), {{0}}, 0, {{0}}, 0, 0.0f};
     (void)Speck(&s, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f});
-    (void)Giant(&s, (m2Pos2){0.0, -501.0}, (m2Vec2){0.0f, M2_MAX_SPEED});
+    (void)Giant(&s, (m2Pos2){0.0, -501.0}, (m2Vec2){0.0f, M2_SPEED_LIMIT});
     m2Polygon blob = m2MakeBox(0.2f, 0.2f);
     uint32_t flags =
         m2_springParticle | m2_elasticParticle | m2_viscousParticle | m2_tensileParticle;
-    (void)FillParticles(s.world, &blob, (m2Pos2){0.0, 0.3}, (m2Vec2){M2_MAX_SPEED, -M2_MAX_SPEED},
-                        flags);
+    (void)FillParticles(s.world, &blob, (m2Pos2){0.0, 0.3},
+                        (m2Vec2){M2_SPEED_LIMIT, -M2_SPEED_LIMIT}, flags);
     ExpectFinite(&s, "particles");
 }
 
@@ -446,9 +448,9 @@ static void TestSaturatedPairs(void)
         mouse.bodyIdB = pulled;
         mouse.target =
             (m2Pos2){5000.0 * (double)i + 1.0e6 * (double)direction.x, 1.0e6 * (double)direction.y};
-        mouse.springHertz = M2_MAX_RATE;
-        mouse.springDampingRatio = M2_MAX_COEFFICIENT;
-        mouse.maxForce = M2_MAX_FORCE;
+        mouse.springHertz = M2_RATE_LIMIT;
+        mouse.springDampingRatio = M2_COEFFICIENT_LIMIT;
+        mouse.maxForce = M2_FORCE_LIMIT;
         (void)NewMouseJoint(world, &mouse);
         m2BodyId slid = Giant(&s, (m2Pos2){5000.0 * (double)i, 1.0e5}, (m2Vec2){0.0f, 0.0f});
         m2PrismaticJointDef slider = m2DefaultPrismaticJointDef();
@@ -469,7 +471,7 @@ static void TestSaturatedPairs(void)
 }
 
 // Particles faster than the speed cap in every direction, at the shortest
-// step, where the cap is M2_MAX_SPEED: each velocity is scaled to the cap
+// step, where the cap is M2_SPEED_LIMIT: each velocity is scaled to the cap
 // and must stay within it, so the world restores its own snapshot.
 static void TestParticlesAtTheCap(void)
 {
@@ -483,13 +485,13 @@ static void TestParticlesAtTheCap(void)
         float c = cosf(angle);
         float sn = sinf(angle);
         float longest = fabsf(c) > fabsf(sn) ? fabsf(c) : fabsf(sn);
-        m2Vec2 velocity = {M2_MAX_SPEED * c / longest, M2_MAX_SPEED * sn / longest};
+        m2Vec2 velocity = {M2_SPEED_LIMIT * c / longest, M2_SPEED_LIMIT * sn / longest};
         EmitParticle(world, (m2Pos2){100.0 * (double)i, 0.0}, velocity, 0);
     }
     bool valid = true;
     for (int32_t step = 0; step < 4 && valid; ++step)
     {
-        m2World_Step(world, M2_MIN_TIME_STEP, 1);
+        m2World_Step(world, M2_MIN_STEP, 1);
         valid = m2World_Validate(world) && RoundTrips(world);
     }
     CHECK(valid, "particles at the speed cap restore their own snapshot every step");

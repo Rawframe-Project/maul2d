@@ -33,7 +33,7 @@ typedef enum m2Check
     m2_check_treeNode,    // tree node links and leaf payloads
     m2_check_finite32,    // every float of every element finite
     m2_check_finite64,    // every double of every element finite
-    m2_check_local,       // every float of every element within M2_HUGE
+    m2_check_local,       // every float of every element within M2_LOCAL_LIMIT
     m2_check_transform,   // a finite double position and a unit float rotation
     // The ranges of base.h: every float of every element passes the
     // validator the defs, the setters and replay use for its quantity.

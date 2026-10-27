@@ -163,7 +163,7 @@ static int32_t RoundedOutline(const m2Vec2* verts, const m2Vec2* normals, int32_
         float turn = m2Atan2Work(from.x * to.y - from.y * to.x, from.x * to.x + from.y * to.y);
         turn = turn < 0.0f ? turn + 2.0f * (float)M2_PI : turn; // a half turn may read as -pi
         // The world builds every normal from an edge at least
-        // M2_MIN_EDGE_LENGTH long within M2_HUGE, so the turn is finite and
+        // M2_MIN_EDGE_LENGTH long within M2_LOCAL_LIMIT, so the turn is finite and
         // the cast below sees at most 17.
         M2_ASSERT(turn >= 0.0f && turn <= 2.0f * (float)M2_PI);
         int32_t steps = (int32_t)ceilf(turn * (8.0f / (float)M2_PI));
@@ -261,11 +261,15 @@ static M2_NOINLINE m2Result CreateFluidVolumeWorker(m2World* world, const m2Flui
     {
         return m2Refuse(world, m2_errorInvalid);
     }
-    if (!m2ValidDensity(def->density) || !m2ValidRate(def->linearDrag) ||
-        !m2ValidRate(def->angularDrag) || !m2ValidVelocity(def->flow) || !m2FiniteD(def->surface) ||
-        !m2FinitePos2(def->regionLower) || !m2FinitePos2(def->regionUpper))
+    m2Result checked = m2CheckValid(m2FiniteD(def->surface) && m2FinitePos2(def->regionLower) &&
+                                    m2FinitePos2(def->regionUpper));
+    checked = m2BothChecks(checked, m2CheckDensity(def->density));
+    checked = m2BothChecks(checked, m2CheckRate(def->linearDrag));
+    checked = m2BothChecks(checked, m2CheckRate(def->angularDrag));
+    checked = m2BothChecks(checked, m2CheckVelocity(def->flow));
+    if (checked != m2_success)
     {
-        return m2Refuse(world, m2_errorInvalid);
+        return m2Refuse(world, checked);
     }
     if (world->volumes.fvFreeCount == 0)
     {
@@ -425,17 +429,17 @@ uint64_t m2FluidVolume_GetUserData(const m2World* world, m2FluidVolumeId volumeI
 }
 
 // The squared radius of gyration the angular drag takes, at most twice
-// M2_HUGE squared.
-#define M2_MAX_GYRATION2 (4.0f * M2_HUGE * M2_HUGE)
+// M2_LOCAL_LIMIT squared.
+#define M2_MAX_GYRATION2 (4.0f * M2_LOCAL_LIMIT * M2_LOCAL_LIMIT)
 
-// Holds a body's accumulated force and torque within M2_MAX_FORCE, as the
+// Holds a body's accumulated force and torque within M2_FORCE_LIMIT, as the
 // load writers do: the lift on a hundred-kilometer body reaches 1e22 N.
 static void SaturateLoad(m2World* world, int32_t b)
 {
     m2Vec2* f = &world->bodies.forces[b];
-    f->x = m2SaturateF(f->x, M2_MAX_FORCE);
-    f->y = m2SaturateF(f->y, M2_MAX_FORCE);
-    world->bodies.torques[b] = m2SaturateF(world->bodies.torques[b], M2_MAX_FORCE);
+    f->x = m2SaturateF(f->x, M2_FORCE_LIMIT);
+    f->y = m2SaturateF(f->y, M2_FORCE_LIMIT);
+    world->bodies.torques[b] = m2SaturateF(world->bodies.torques[b], M2_FORCE_LIMIT);
 }
 
 static bool InWater(const m2World* world, int32_t b, int32_t v)
@@ -486,7 +490,7 @@ static void Soak(m2World* world, int32_t b, int32_t vol)
     {
         // I / m is the squared radius of gyration. Mass data set by hand
         // can make it as large as the inertia and mass ranges allow; no
-        // body reaches past twice M2_HUGE, so it is held to that.
+        // body reaches past twice M2_LOCAL_LIMIT, so it is held to that.
         float gyration2 = m2MinF(invM / invI, M2_MAX_GYRATION2);
         world->bodies.torques[b] -= gyration2 * wet.area * w * world->volumes.fvAngularDrag[vol];
     }

@@ -156,7 +156,7 @@ static void ExpectRefused(const Scene* scene, Edit edit, const char* what)
     uint64_t hash = m2World_Hash(scene->world);
     uint64_t misuse = m2World_GetCounters(scene->world).misuse;
     m2Result result = m2World_Restore(scene->world, bytes, scene->size);
-    CHECK(result == m2_errorInvalid, what);
+    CHECK(result == m2_errorFormat, what);
     CHECK(m2World_Hash(scene->world) == hash && m2World_GetCounters(scene->world).misuse == misuse,
           "a refused snapshot changes nothing and counts nothing");
     free(bytes);
@@ -224,7 +224,7 @@ static void JointToADeadBody(const Scene* scene, uint8_t* block)
     PutI32(At(scene, block, &scene->world->joints.jointBodyB), 0, 7);
 }
 
-// A body's center of mass moves far past M2_HUGE.
+// A body's center of mass moves far past M2_LOCAL_LIMIT.
 static void BodyCenterTooFar(const Scene* scene, uint8_t* block)
 {
     m2Vec2 center = {1e30f, 0.0f};
@@ -269,10 +269,10 @@ static void OverrideNegativeMass(const Scene* scene, uint8_t* block)
     PutBodyFloat(scene, block, &scene->world->bodies.invMass, scene->boxA, -1.0f);
 }
 
-// The pin's anchor on its first body moves past M2_HUGE.
+// The pin's anchor on its first body moves past M2_LOCAL_LIMIT.
 static void JointAnchorTooFar(const Scene* scene, uint8_t* block)
 {
-    m2Vec2 anchor = {2.0f * M2_HUGE, 0.0f};
+    m2Vec2 anchor = {2.0f * M2_LOCAL_LIMIT, 0.0f};
     memcpy(At(scene, block, &scene->world->joints.jointLocalAnchorA), &anchor, sizeof(anchor));
 }
 
@@ -486,7 +486,7 @@ static void ExpectCheckRefuses(const Scene* scene, Edit edit, const char* what)
 //   crash-4c1b1e36: a joint's upper limit impulse, warm started.
 // Past the range a restore holds each value to, the snapshot is refused.
 // At the edge of the range the solver saturates what the values feed it,
-// so the world steps on with every speed within M2_MAX_SPEED.
+// so the world steps on with every speed within M2_SPEED_LIMIT.
 
 static void PutBodyVec(const Scene* scene, uint8_t* block, const void* field, m2BodyId body,
                        m2Vec2 value)
@@ -515,7 +515,7 @@ static void GravityPast(const Scene* scene, uint8_t* block)
 
 static void GravityAtTheEdge(const Scene* scene, uint8_t* block)
 {
-    Gravity(scene, block, -M2_MAX_GRAVITY_SCALE, M2_MAX_ACCELERATION);
+    Gravity(scene, block, -M2_GRAVITY_SCALE_LIMIT, M2_ACCEL_LIMIT);
 }
 
 static void WindDrag(const Scene* scene, uint8_t* block, float drag)
@@ -532,7 +532,7 @@ static void WindDragPast(const Scene* scene, uint8_t* block)
 
 static void WindDragAtTheEdge(const Scene* scene, uint8_t* block)
 {
-    WindDrag(scene, block, M2_MAX_RATE);
+    WindDrag(scene, block, M2_RATE_LIMIT);
 }
 
 // Every contact point of the scene carries the same impulse.
@@ -605,7 +605,8 @@ static bool SpeedsInRange(const m2World* world, m2BodyId body)
 {
     m2Vec2 v = m2Body_GetLinearVelocity(world, body);
     float w = m2Body_GetAngularVelocity(world, body);
-    return fabsf(v.x) <= M2_MAX_SPEED && fabsf(v.y) <= M2_MAX_SPEED && fabsf(w) <= M2_MAX_SPEED;
+    return fabsf(v.x) <= M2_SPEED_LIMIT && fabsf(v.y) <= M2_SPEED_LIMIT &&
+           fabsf(w) <= M2_SPEED_LIMIT;
 }
 
 static void ExpectSteps(const Scene* scene, Edit edit, const char* what)
@@ -702,7 +703,7 @@ static void ExpectBound(const Scene* scene, Bound bound, float outward)
 {
     float past = nextafterf(bound.edge, outward);
     bool edge = RestoreWithFloat(scene, bound.field, bound.at, bound.edge) == m2_success;
-    bool refused = RestoreWithFloat(scene, bound.field, bound.at, past) == m2_errorInvalid;
+    bool refused = RestoreWithFloat(scene, bound.field, bound.at, past) == m2_errorFormat;
     if (!edge || !refused)
     {
         printf("FAIL: %s: the edge %g %s, the next float %g %s\n", bound.name, (double)bound.edge,
@@ -726,21 +727,22 @@ static void TestWorldAndBodyBounds(const Scene* scene)
     const m2World* w = scene->world;
     size_t body = (size_t)(scene->boxA.index1 - 1) * sizeof(float);
     size_t bodyVec = (size_t)(scene->boxA.index1 - 1) * sizeof(m2Vec2);
-    float maxInvH = (float)M2_MAX_SUBSTEPS / M2_MIN_TIME_STEP;
-    ExpectUpper(scene, (Bound){"gravity", &w->gravity, 4, M2_MAX_ACCELERATION});
-    ExpectUpper(scene, (Bound){"wind velocity", &w->windVelocity, 0, M2_MAX_SPEED});
-    ExpectUpper(scene, (Bound){"wind drag", &w->windLinearDrag, 0, M2_MAX_RATE});
+    float maxInvH = (float)M2_MAX_SUBSTEPS / M2_MIN_STEP;
+    ExpectUpper(scene, (Bound){"gravity", &w->gravity, 4, M2_ACCEL_LIMIT});
+    ExpectUpper(scene, (Bound){"wind velocity", &w->windVelocity, 0, M2_SPEED_LIMIT});
+    ExpectUpper(scene, (Bound){"wind drag", &w->windLinearDrag, 0, M2_RATE_LIMIT});
     ExpectLower(scene, (Bound){"wind drag", &w->windLinearDrag, 0, 0.0f});
     ExpectUpper(scene, (Bound){"1 / substep", &w->lastInvH, 0, maxInvH});
-    ExpectLower(scene, (Bound){"1 / substep", &w->lastInvH, 0, 1.0f / M2_MAX_TIME_STEP});
-    ExpectUpper(scene, (Bound){"velocity", &w->bodies.linearVelocities, bodyVec + 4, M2_MAX_SPEED});
-    ExpectLower(scene, (Bound){"spin", &w->bodies.angularVelocities, body, -M2_MAX_SPEED});
+    ExpectLower(scene, (Bound){"1 / substep", &w->lastInvH, 0, 1.0f / M2_STEP_LIMIT});
+    ExpectUpper(scene,
+                (Bound){"velocity", &w->bodies.linearVelocities, bodyVec + 4, M2_SPEED_LIMIT});
+    ExpectLower(scene, (Bound){"spin", &w->bodies.angularVelocities, body, -M2_SPEED_LIMIT});
     ExpectLower(scene,
-                (Bound){"gravity scale", &w->bodies.gravityScales, body, -M2_MAX_GRAVITY_SCALE});
-    ExpectUpper(scene, (Bound){"linear damping", &w->bodies.linearDampings, body, M2_MAX_RATE});
+                (Bound){"gravity scale", &w->bodies.gravityScales, body, -M2_GRAVITY_SCALE_LIMIT});
+    ExpectUpper(scene, (Bound){"linear damping", &w->bodies.linearDampings, body, M2_RATE_LIMIT});
     ExpectLower(scene, (Bound){"angular damping", &w->bodies.angularDampings, body, 0.0f});
-    ExpectUpper(scene, (Bound){"force", &w->bodies.forces, bodyVec, M2_MAX_FORCE});
-    ExpectLower(scene, (Bound){"torque", &w->bodies.torques, body, -M2_MAX_FORCE});
+    ExpectUpper(scene, (Bound){"force", &w->bodies.forces, bodyVec, M2_FORCE_LIMIT});
+    ExpectLower(scene, (Bound){"torque", &w->bodies.torques, body, -M2_FORCE_LIMIT});
 }
 
 // Shape materials in a slot no shape uses, whose mass no body takes.
@@ -748,18 +750,19 @@ static void TestShapeAndParticleBounds(const Scene* scene)
 {
     const m2World* w = scene->world;
     size_t shape = (size_t)(w->shapes.shapeCapacity - 1) * sizeof(float);
-    ExpectUpper(scene, (Bound){"density", &w->shapes.shapeDensity, shape, M2_MAX_DENSITY});
+    ExpectUpper(scene, (Bound){"density", &w->shapes.shapeDensity, shape, M2_DENSITY_LIMIT});
     ExpectLower(scene, (Bound){"density", &w->shapes.shapeDensity, shape, 0.0f});
-    ExpectUpper(scene, (Bound){"friction", &w->shapes.shapeFriction, shape, M2_MAX_COEFFICIENT});
+    ExpectUpper(scene, (Bound){"friction", &w->shapes.shapeFriction, shape, M2_COEFFICIENT_LIMIT});
     ExpectUpper(scene, (Bound){"restitution", &w->shapes.shapeRestitution, shape, 1.0f});
     ExpectLower(scene, (Bound){"restitution", &w->shapes.shapeRestitution, shape, 0.0f});
-    ExpectUpper(scene, (Bound){"tangent speed", &w->shapes.shapeTangentSpeed, shape, M2_MAX_SPEED});
+    ExpectUpper(scene,
+                (Bound){"tangent speed", &w->shapes.shapeTangentSpeed, shape, M2_SPEED_LIMIT});
     ExpectLower(scene,
-                (Bound){"particle velocity", &w->particles.particleVelocities, 0, -M2_MAX_SPEED});
-    ExpectUpper(scene, (Bound){"volume density", &w->volumes.fvDensity, 0, M2_MAX_DENSITY});
-    ExpectUpper(scene, (Bound){"volume drag", &w->volumes.fvLinearDrag, 0, M2_MAX_RATE});
+                (Bound){"particle velocity", &w->particles.particleVelocities, 0, -M2_SPEED_LIMIT});
+    ExpectUpper(scene, (Bound){"volume density", &w->volumes.fvDensity, 0, M2_DENSITY_LIMIT});
+    ExpectUpper(scene, (Bound){"volume drag", &w->volumes.fvLinearDrag, 0, M2_RATE_LIMIT});
     ExpectLower(scene, (Bound){"volume spin drag", &w->volumes.fvAngularDrag, 0, 0.0f});
-    ExpectUpper(scene, (Bound){"volume flow", &w->volumes.fvFlow, 4, M2_MAX_SPEED});
+    ExpectUpper(scene, (Bound){"volume flow", &w->volumes.fvFlow, 4, M2_SPEED_LIMIT});
 }
 
 // The joint channels every kind keeps the same way, on the pin in slot 0,
@@ -767,13 +770,13 @@ static void TestShapeAndParticleBounds(const Scene* scene)
 static void TestImpulseAndChannelBounds(const Scene* scene)
 {
     const m2World* w = scene->world;
-    ExpectUpper(scene, (Bound){"hertz", &w->joints.jointHertz, 0, M2_MAX_RATE});
+    ExpectUpper(scene, (Bound){"hertz", &w->joints.jointHertz, 0, M2_RATE_LIMIT});
     ExpectLower(scene, (Bound){"hertz", &w->joints.jointHertz, 0, 0.0f});
-    ExpectUpper(scene, (Bound){"damping ratio", &w->joints.jointDamping, 0, M2_MAX_COEFFICIENT});
-    ExpectUpper(scene, (Bound){"spring hertz", &w->joints.jointHertz2, 0, M2_MAX_RATE});
+    ExpectUpper(scene, (Bound){"damping ratio", &w->joints.jointDamping, 0, M2_COEFFICIENT_LIMIT});
+    ExpectUpper(scene, (Bound){"spring hertz", &w->joints.jointHertz2, 0, M2_RATE_LIMIT});
     ExpectLower(scene, (Bound){"spring damping", &w->joints.jointDamping2, 0, 0.0f});
-    ExpectLower(scene, (Bound){"motor speed", &w->joints.jointMotorSpeed, 0, -M2_MAX_SPEED});
-    ExpectUpper(scene, (Bound){"max motor", &w->joints.jointMaxMotor, 0, M2_MAX_FORCE});
+    ExpectLower(scene, (Bound){"motor speed", &w->joints.jointMotorSpeed, 0, -M2_SPEED_LIMIT});
+    ExpectUpper(scene, (Bound){"max motor", &w->joints.jointMaxMotor, 0, M2_FORCE_LIMIT});
     ExpectLower(scene, (Bound){"max motor", &w->joints.jointMaxMotor, 0, 0.0f});
     ExpectUpper(scene, (Bound){"joint impulse", &w->joints.jointImpulse, 4, M2_IMPULSE_LIMIT});
     ExpectLower(scene,
@@ -947,7 +950,7 @@ static void TestJointKindBounds(void)
 {
     Scene scene = MakeJointScene();
     const m2Joints* j = &scene.world->joints;
-    float reach = (float)M2_JOINT_REACH;
+    float reach = (float)M2_REACH_LIMIT;
     size_t at = Slot(&scene, m2_distanceJoint);
     ExpectUpper(&scene, (Bound){"distance length", &j->jointLength, at, 2.0f * reach});
     ExpectLower(&scene, (Bound){"distance length", &j->jointLength, at, 0.0f});
@@ -956,40 +959,40 @@ static void TestJointKindBounds(void)
     CHECK(RestoreWithFloat(&scene, &j->jointUpper, at, M2_OPEN_LENGTH) == m2_success,
           "a distance joint without a maximum restores");
     at = Slot(&scene, m2_revoluteJoint);
-    ExpectLower(&scene, (Bound){"revolute lower", &j->jointLower, at, -M2_MAX_ANGLE});
-    ExpectUpper(&scene, (Bound){"revolute upper", &j->jointUpper, at, M2_MAX_ANGLE});
-    ExpectUpper(&scene, (Bound){"revolute reference", &j->jointRefAngle, at, M2_MAX_ANGLE});
+    ExpectLower(&scene, (Bound){"revolute lower", &j->jointLower, at, -M2_ANGLE_LIMIT});
+    ExpectUpper(&scene, (Bound){"revolute upper", &j->jointUpper, at, M2_ANGLE_LIMIT});
+    ExpectUpper(&scene, (Bound){"revolute reference", &j->jointRefAngle, at, M2_ANGLE_LIMIT});
     at = Slot(&scene, m2_prismaticJoint);
     ExpectLower(&scene, (Bound){"prismatic lower", &j->jointLower, at, -reach});
-    ExpectLower(&scene, (Bound){"prismatic reference", &j->jointRefAngle, at, -M2_MAX_ANGLE});
+    ExpectLower(&scene, (Bound){"prismatic reference", &j->jointRefAngle, at, -M2_ANGLE_LIMIT});
     at = Slot(&scene, m2_wheelJoint);
     ExpectUpper(&scene, (Bound){"wheel upper", &j->jointUpper, at, reach});
     at = Slot(&scene, m2_weldJoint);
-    ExpectUpper(&scene, (Bound){"weld reference", &j->jointRefAngle, at, M2_MAX_ANGLE});
+    ExpectUpper(&scene, (Bound){"weld reference", &j->jointRefAngle, at, M2_ANGLE_LIMIT});
     at = Slot(&scene, m2_motorJoint);
-    ExpectUpper(&scene, (Bound){"motor force", &j->jointLength, at, M2_MAX_FORCE});
+    ExpectUpper(&scene, (Bound){"motor force", &j->jointLength, at, M2_FORCE_LIMIT});
     ExpectLower(&scene, (Bound){"motor force", &j->jointLength, at, 0.0f});
-    ExpectLower(&scene, (Bound){"motor offset", &j->jointRefAngle, at, -M2_MAX_ANGLE});
+    ExpectLower(&scene, (Bound){"motor offset", &j->jointRefAngle, at, -M2_ANGLE_LIMIT});
     ExpectUpper(&scene, (Bound){"motor correction", &j->jointDamping, at, 1.0f});
     at = Slot(&scene, m2_mouseJoint);
-    ExpectUpper(&scene, (Bound){"mouse force", &j->jointLength, at, M2_MAX_FORCE});
+    ExpectUpper(&scene, (Bound){"mouse force", &j->jointLength, at, M2_FORCE_LIMIT});
     at = Slot(&scene, m2_gearJoint);
-    ExpectUpper(&scene, (Bound){"gear ratio", &j->jointLength, at, M2_MAX_RATIO});
+    ExpectUpper(&scene, (Bound){"gear ratio", &j->jointLength, at, M2_RATIO_LIMIT});
     ExpectUpper(&scene, (Bound){"gear ratio", &j->jointLength, at, -M2_MIN_RATIO});
     ExpectLower(&scene, (Bound){"gear ratio", &j->jointLength, at, M2_MIN_RATIO});
     CHECK(RestoreWithFloat(&scene, &j->jointRefAngle, at, 1.0e30f) == m2_success,
           "a gear's phase, which the step accumulates, restores at any finite value");
     at = Slot(&scene, m2_pulleyJoint);
     float ratio = j->jointLength[at / sizeof(float)];
-    ExpectUpper(&scene, (Bound){"pulley ratio", &j->jointLength, at, M2_MAX_RATIO});
+    ExpectUpper(&scene, (Bound){"pulley ratio", &j->jointLength, at, M2_RATIO_LIMIT});
     ExpectLower(&scene, (Bound){"pulley ratio", &j->jointLength, at, M2_MIN_RATIO});
     ExpectUpper(&scene,
                 (Bound){"pulley rope", &j->jointRefAngle, at, (1.0f + ratio) * 2.0f * reach});
     ExpectLower(&scene, (Bound){"pulley rope", &j->jointRefAngle, at, 0.0f});
     at = Slot(&scene, m2_ratchetJoint);
-    ExpectUpper(&scene, (Bound){"ratchet tooth", &j->jointLength, at, M2_MAX_ANGLE});
+    ExpectUpper(&scene, (Bound){"ratchet tooth", &j->jointLength, at, M2_ANGLE_LIMIT});
     ExpectLower(&scene, (Bound){"ratchet tooth", &j->jointLength, at, M2_MIN_RATCHET_TOOTH});
-    ExpectUpper(&scene, (Bound){"ratchet phase", &j->jointRefAngle, at, M2_MAX_ANGLE});
+    ExpectUpper(&scene, (Bound){"ratchet phase", &j->jointRefAngle, at, M2_ANGLE_LIMIT});
     CHECK(RestoreWithFloat(&scene, &j->jointUpper, at, 1.0e30f) == m2_success &&
               RestoreWithFloat(&scene, &j->jointLower, at, -1.0e30f) == m2_success,
           "a ratchet's angle and tooth, which the step accumulates, restore at any finite value");
@@ -1013,7 +1016,7 @@ static void TestStoredImpulsesStayInRange(void)
     m2JointBodies heavy = {zero, 0.0f, zero, 0.0f, 0.0f, 0.0f, 1.0f / mass, 0.0f};
     m2Vec2 pair = zero;
     m2SolvePointPair(zero, zero, &heavy, (m2Vec2){-21.0f * 64.0f, 0.0f}, still, &pair,
-                     M2_MAX_FORCE);
+                     M2_FORCE_LIMIT);
     CHECK(m2ValidImpulseVec(pair) && pair.x == M2_IMPULSE_LIMIT,
           "a point pair scaled to the limit stores the limit");
     // Two rows whose first impulse turns from just inside -1e15 to past
@@ -1114,7 +1117,7 @@ static void TestRestingBoxes(void)
     // the box margin, and it falls asleep at the step's end.
     m2BodyId box;
     m2World* world = CrawlWorld((m2Vec2){0.04f, 0.0f}, &box);
-    m2World_Step(world, M2_MAX_TIME_STEP, 1);
+    m2World_Step(world, M2_STEP_LIMIT, 1);
     CHECK(!m2Body_IsAwake(world, box), "the crawling box falls asleep in one long step");
     Scene sleeping = {world, NULL, m2World_SnapshotSize(world), 0, {0}, box, {0}, {0}};
     sleeping.valid = (uint8_t*)malloc((size_t)sleeping.size);
@@ -1131,13 +1134,13 @@ static void TestRestingBoxes(void)
     // leaves its sleep streak as it was: one 10 s step carries it 0.4 m
     // and puts it back to sleep, and its boxes must follow.
     world = CrawlWorld((m2Vec2){0.0f, 0.0f}, &box);
-    m2World_Step(world, M2_MAX_TIME_STEP, 1);
+    m2World_Step(world, M2_STEP_LIMIT, 1);
     m2World_Step(world, 1.0f / 60.0f, 4);
     m2World_Step(world, 1.0f / 60.0f, 4);
     CHECK(!m2Body_IsAwake(world, box) && world->bodies.sleepStreak[box.index1 - 1] == 2,
           "the box has been asleep for two step ends");
     m2Body_SetLinearVelocity(world, box, (m2Vec2){0.04f, 0.0f});
-    m2World_Step(world, M2_MAX_TIME_STEP, 1);
+    m2World_Step(world, M2_STEP_LIMIT, 1);
     CHECK(!m2Body_IsAwake(world, box), "the woken box falls asleep again in one long step");
     CHECK(RoundTripsAlone(world),
           "a box woken and put back to sleep within one step restores its own snapshot");
@@ -1187,7 +1190,7 @@ static void TestResleptBodyRefreshesItsContacts(void)
     m2BodyId box = NewBody(world, &boxDef);
     m2Polygon square = m2MakeBox(0.5f, 0.5f);
     NewPolygonShape(world, box, &shapeDef, &square);
-    m2World_Step(world, M2_MAX_TIME_STEP, 1);
+    m2World_Step(world, M2_STEP_LIMIT, 1);
     m2World_Step(world, 1.0f / 60.0f, 4);
     m2World_Step(world, 1.0f / 60.0f, 4);
     CHECK(!m2Body_IsAwake(world, box) && world->bodies.sleepStreak[box.index1 - 1] == 2,
@@ -1195,7 +1198,7 @@ static void TestResleptBodyRefreshesItsContacts(void)
 
     // Woken, it slides 0.4 m in one 10 s step and falls asleep again.
     m2Body_SetLinearVelocity(world, box, (m2Vec2){0.04f, 0.0f});
-    m2World_Step(world, M2_MAX_TIME_STEP, 1);
+    m2World_Step(world, M2_STEP_LIMIT, 1);
     CHECK(!m2Body_IsAwake(world, box), "the box is asleep again after sliding");
     m2World_Step(world, 1.0f / 60.0f, 4);
     double x = m2Body_GetPosition(world, box).x;
@@ -1326,8 +1329,8 @@ static void TestHostileStructures(void)
     ExpectRefused(&scene, ShapeNamesAnotherBody, "a shape on another body's list is refused");
     ExpectRefused(&scene, ChainOnADeadBody, "a chain on a dead body is refused");
     ExpectRefused(&scene, JointToADeadBody, "a joint to a dead body is refused");
-    ExpectRefused(&scene, JointAnchorTooFar, "a joint anchor beyond M2_HUGE is refused");
-    ExpectRefused(&scene, BodyCenterTooFar, "a center of mass beyond M2_HUGE is refused");
+    ExpectRefused(&scene, JointAnchorTooFar, "a joint anchor beyond M2_LOCAL_LIMIT is refused");
+    ExpectRefused(&scene, BodyCenterTooFar, "a center of mass beyond M2_LOCAL_LIMIT is refused");
     ExpectRefused(&scene, DerivedMassLies, "mass data its shapes do not give is refused");
     ExpectRefused(&scene, DerivedCenterMoves, "a center its shapes do not give is refused");
     ExpectRefused(&scene, StaticOverride, "an override on a static body is refused");
@@ -1565,7 +1568,7 @@ static void RestoreSpentPool(const SpentPool* pool, const void* freeQueue, const
     memcpy(edited, bytes, (size_t)size);
     PutI32((uint8_t*)(uintptr_t)m2StateIncoming(pool->world, block, pool->retired), 0,
            pool->capacity - 1);
-    CHECK(m2World_Restore(pool->world, edited, size) == m2_errorInvalid,
+    CHECK(m2World_Restore(pool->world, edited, size) == m2_errorFormat,
           "a snapshot that hides a retired slot is refused");
 
     memcpy(edited, bytes, (size_t)size);
@@ -1574,7 +1577,7 @@ static void RestoreSpentPool(const SpentPool* pool, const void* freeQueue, const
     PutI32((uint8_t*)(uintptr_t)m2StateIncoming(pool->world, block, freeCount), 0, 1);
     PutI32((uint8_t*)(uintptr_t)m2StateIncoming(pool->world, block, pool->retired), 0,
            pool->capacity - 1);
-    CHECK(m2World_Restore(pool->world, edited, size) == m2_errorInvalid,
+    CHECK(m2World_Restore(pool->world, edited, size) == m2_errorFormat,
           "a snapshot whose ring hands out a retired slot is refused");
     CHECK(m2World_Hash(pool->world) == hash, "and neither changes the world");
     free(bytes);
@@ -1733,7 +1736,7 @@ static uint8_t* LinkField(const LinkScene* scene, const void* field)
 }
 
 // A restored particle 1e98 m from its spring and triad partners: the
-// links take their ends as M2_JOINT_REACH apart along each axis, so the
+// links take their ends as M2_REACH_LIMIT apart along each axis, so the
 // world steps on finite.
 static void TestDistantLinkEndStaysFinite(void)
 {
@@ -1767,18 +1770,18 @@ static void TestLinkShapesInRange(void)
     memcpy(&rest, rests, sizeof(rest));
     float huge = 1.0e30f;
     memcpy(rests, &huge, sizeof(huge));
-    CHECK(m2World_Restore(world, scene.bytes, scene.size) == m2_errorInvalid,
+    CHECK(m2World_Restore(world, scene.bytes, scene.size) == m2_errorFormat,
           "a spring longer than a particle diameter is refused");
     float zero = 0.0f;
     memcpy(rests, &zero, sizeof(zero));
-    CHECK(m2World_Restore(world, scene.bytes, scene.size) == m2_errorInvalid,
+    CHECK(m2World_Restore(world, scene.bytes, scene.size) == m2_errorFormat,
           "and so is one of no length");
     memcpy(rests, &rest, sizeof(rest));
     uint8_t* corners = LinkField(&scene, &world->particles.particleTriadPB);
     float corner;
     memcpy(&corner, corners + sizeof(float), sizeof(corner));
     memcpy(corners + sizeof(float), &huge, sizeof(huge));
-    CHECK(m2World_Restore(world, scene.bytes, scene.size) == m2_errorInvalid,
+    CHECK(m2World_Restore(world, scene.bytes, scene.size) == m2_errorFormat,
           "a triad corner past one stride is refused");
     memcpy(corners + sizeof(float), &corner, sizeof(corner));
     CHECK(m2World_Hash(world) == hash && m2World_GetCounters(world).misuse == 0,
@@ -1800,7 +1803,7 @@ static void TestRestoreKeepsTheParticleRadius(void)
     def.particleRadius = 0.05f;
     m2World* narrower = NewWorld(&def);
     uint64_t hash = m2World_Hash(narrower);
-    CHECK(m2World_Restore(narrower, scene.bytes, scene.size) == m2_errorInvalid,
+    CHECK(m2World_Restore(narrower, scene.bytes, scene.size) == m2_errorFormat,
           "a snapshot from a world of another particle radius is refused");
     def.particleRadius = 0.1f;
     m2World* same = NewWorld(&def);
@@ -1808,7 +1811,7 @@ static void TestRestoreKeepsTheParticleRadius(void)
     uint8_t* empty = (uint8_t*)malloc((size_t)emptySize);
     CHECK(empty != NULL && Snapshot(same, empty, emptySize) == emptySize,
           "an empty world snapshots");
-    CHECK(m2World_Restore(narrower, empty, emptySize) == m2_errorInvalid,
+    CHECK(m2World_Restore(narrower, empty, emptySize) == m2_errorFormat,
           "and is refused there too, holding no particle");
     free(empty);
     CHECK(m2World_Hash(narrower) == hash && m2World_GetCounters(narrower).misuse == 0,

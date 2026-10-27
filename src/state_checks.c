@@ -189,8 +189,7 @@ static bool AccelerationAxisValid(float x)
 // bound.
 static bool InverseStepValid(float x)
 {
-    return x == 0.0f ||
-           m2WithinF(x, 1.0f / M2_MAX_TIME_STEP, (float)M2_MAX_SUBSTEPS / M2_MIN_TIME_STEP);
+    return x == 0.0f || m2WithinF(x, 1.0f / M2_STEP_LIMIT, (float)M2_MAX_SUBSTEPS / M2_MIN_STEP);
 }
 
 static bool CheckRange(const uint8_t* data, size_t bytes, m2Check check)
@@ -232,7 +231,7 @@ static bool CheckLocal(const uint8_t* data, size_t bytes)
     {
         float f;
         memcpy(&f, data + at, sizeof(f));
-        if (!(f >= -M2_HUGE && f <= M2_HUGE))
+        if (!(f >= -M2_LOCAL_LIMIT && f <= M2_LOCAL_LIMIT))
         {
             return false;
         }

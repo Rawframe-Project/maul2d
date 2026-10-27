@@ -495,7 +495,7 @@ static void ExpectByteRefused(m2World* world, const uint8_t* tape, int32_t bytes
     edited[recordStart + 1 + (int32_t)payloadOffset] = 29;
     uint64_t hash = m2World_Hash(world);
     uint64_t misuse = m2World_GetCounters(world).misuse;
-    CHECK(m2World_ReplayJournal(world, edited, bytes) == m2_errorInvalid, what);
+    CHECK(m2World_ReplayJournal(world, edited, bytes) == m2_errorFormat, what);
     CHECK(m2World_Hash(world) == hash && m2World_GetCounters(world).misuse == misuse,
           "a refused tape changes nothing and counts nothing");
     free(edited);

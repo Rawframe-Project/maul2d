@@ -19,17 +19,18 @@
 #include <string.h>
 
 // Adds a load to a body's accumulated force and torque, each held within
-// M2_MAX_FORCE however many calls add up.
+// M2_FORCE_LIMIT however many calls add up.
 static void AddLoad(m2World* world, int32_t index, m2Vec2 force, float torque)
 {
     m2Vec2* f = &world->bodies.forces[index];
-    f->x = m2SaturateF(f->x + force.x, M2_MAX_FORCE);
-    f->y = m2SaturateF(f->y + force.y, M2_MAX_FORCE);
-    world->bodies.torques[index] = m2SaturateF(world->bodies.torques[index] + torque, M2_MAX_FORCE);
+    f->x = m2SaturateF(f->x + force.x, M2_FORCE_LIMIT);
+    f->y = m2SaturateF(f->y + force.y, M2_FORCE_LIMIT);
+    world->bodies.torques[index] =
+        m2SaturateF(world->bodies.torques[index] + torque, M2_FORCE_LIMIT);
 }
 
 // The arm from a body's center of mass to a world point, each axis
-// clamped to M2_JOINT_REACH.
+// clamped to M2_REACH_LIMIT.
 static m2Vec2 ArmToPoint(const m2World* world, int32_t index, m2Pos2 worldPoint)
 {
     m2Transform xf = world->bodies.transforms[index];
@@ -403,7 +404,7 @@ static M2_NOINLINE void BodySetTargetTransformWorker(m2World* world, m2BodyId bo
     }
     // Velocities that land the pose in one step; applied through the
     // journaled setters, so replays get this for free. A pose too far to
-    // reach within M2_MAX_SPEED is refused before either is set.
+    // reach within M2_SPEED_LIMIT is refused before either is set.
     float invDt = 1.0f / dt;
     m2Transform xf = world->bodies.transforms[index];
     m2Vec2 v = {m2WorldOffset(position.x - xf.p.x) * invDt,
