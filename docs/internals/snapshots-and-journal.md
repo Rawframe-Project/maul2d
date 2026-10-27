@@ -32,11 +32,12 @@ The golden lines that pin a format's bytes hash them from offset 8, with each em
 
 ## Snapshot format
 
-A snapshot is a 48-byte header followed by the arrays in table order, raw and little-endian, floats as their IEEE bits:
+A snapshot is a 56-byte header followed by the arrays in table order, raw and little-endian, floats as their IEEE bits:
 
 - the prefix, with `magic` `M2SN` and the snapshot format number `M2_SNAPSHOT_VERSION`;
 - `configHash` at offset 16: the format number and the settings that change what the bytes mean (float and position widths, the floating-point policy). The SIMD backend and the worker count are not in it, because the bytes are the same under all of them;
-- the six capacities of the world that wrote it, at offset 24.
+- the six capacities of the world that wrote it, at offset 24;
+- its particle radius, widened to a double, at offset 48. A fill sets spring rest lengths and triad spawn corners from the radius, and the restore check bounds them by it, so a world with another radius is another world shape.
 
 Any change to the bytes bumps the format number.
 

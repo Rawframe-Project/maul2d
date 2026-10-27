@@ -446,7 +446,8 @@ extern "C"
     M2_NODISCARD M2_API m2Result m2World_Snapshot(const m2World* world, void* buffer,
                                                   int32_t capacity, int32_t* bytesOut);
 
-    /// Restores a snapshot of a world with the same def shape. Everything,
+    /// Restores a snapshot of a world with the same shape: the same
+    /// capacities and the same particle radius in its def. Everything,
     /// bodies, id pools and the step count included, returns to the
     /// snapshot's instant, bit for bit, and the event streams clear. Only
     /// the release that wrote a snapshot reads it (M2_ABI_VERSION). The
