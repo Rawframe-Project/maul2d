@@ -851,9 +851,9 @@ m2ChainId m2Shape_GetParentChain(const m2World* world, m2ShapeId shapeId)
     return result;
 }
 
-static M2_NOINLINE m2AabbResult ShapeGetAabbWorker(const m2World* world, m2ShapeId shapeId)
+static M2_NOINLINE m2WorldAabb ShapeGetAabbWorker(const m2World* world, m2ShapeId shapeId)
 {
-    m2AabbResult result = {{0.0, 0.0}, {0.0, 0.0}};
+    m2WorldAabb result = {{0.0, 0.0}, {0.0, 0.0}};
     int32_t index = world != NULL ? m2ShapeSlot(world, shapeId) : -1;
     if (index < 0)
     {
@@ -867,10 +867,10 @@ static M2_NOINLINE m2AabbResult ShapeGetAabbWorker(const m2World* world, m2Shape
     return result;
 }
 
-m2AabbResult m2Shape_GetAabb(const m2World* world, m2ShapeId shapeId)
+m2WorldAabb m2Shape_GetAabb(const m2World* world, m2ShapeId shapeId)
 {
     uint64_t env = m2FloatEnvEnter();
-    m2AabbResult result = ShapeGetAabbWorker(world, shapeId);
+    m2WorldAabb result = ShapeGetAabbWorker(world, shapeId);
     m2FloatEnvLeave(env);
     return result;
 }
