@@ -30,9 +30,25 @@ static int32_t ParticleSlot(const m2World* world, m2ParticleId id)
     return index;
 }
 
-static M2_NOINLINE m2Result WorldEmitParticleWorker(m2World* world, m2Pos2 position,
-                                                    m2Vec2 velocity, uint32_t flags,
-                                                    m2ParticleId* particleOut)
+m2ParticleDef m2DefaultParticleDef(void)
+{
+    m2ParticleDef def;
+    memset(&def, 0, sizeof(def));
+    def.internalValue = M2_PARTICLE_COOKIE;
+    return def;
+}
+
+// A particle def a create or a fill accepts, in a world with a particle
+// system.
+static bool ValidParticleDef(const m2World* world, const m2ParticleDef* def)
+{
+    return def != NULL && def->internalValue == M2_PARTICLE_COOKIE &&
+           world->particles.particleCapacity > 0 && m2FinitePos2(def->position) &&
+           m2ValidVelocity(def->velocity);
+}
+
+static M2_NOINLINE m2Result CreateParticleWorker(m2World* world, const m2ParticleDef* def,
+                                                 m2ParticleId* particleOut)
 {
     if (particleOut == NULL)
     {
@@ -44,13 +60,9 @@ static M2_NOINLINE m2Result WorldEmitParticleWorker(m2World* world, m2Pos2 posit
     {
         return writer;
     }
-    if (world->particles.particleCapacity == 0)
+    if (!ValidParticleDef(world, def))
     {
-        return m2Refuse(world, m2_errorInvalid); // no particle system in this world: misuse
-    }
-    if (!m2FinitePos2(position) || !m2ValidVelocity(velocity))
-    {
-        return m2Refuse(world, m2_errorInvalid); // NaN screen, the def-validation law
+        return m2Refuse(world, m2_errorInvalid);
     }
     if (world->particles.particleFreeCount == 0)
     {
@@ -67,9 +79,9 @@ static M2_NOINLINE m2Result WorldEmitParticleWorker(m2World* world, m2Pos2 posit
     {
         world->particles.maxParticleIndex = index + 1;
     }
-    world->particles.particlePositions[index] = position;
-    world->particles.particleVelocities[index] = velocity;
-    world->particles.particleFlags[index] = flags;
+    world->particles.particlePositions[index] = def->position;
+    world->particles.particleVelocities[index] = def->velocity;
+    world->particles.particleFlags[index] = def->flags;
     world->particles.particleLifetime[index] = 0.0f;
     world->particles.particleUserData[index] = 0;
     world->particles.particleAlive[index] = 1;
@@ -77,23 +89,22 @@ static M2_NOINLINE m2Result WorldEmitParticleWorker(m2World* world, m2Pos2 posit
     m2ParticleId id = {(uint32_t)(index + 1), world->particles.particleGenerations[index]};
     if (world->recorder.journalActive != 0)
     {
-        m2OpEmitParticle record;
+        m2OpCreateParticle record;
         memset(&record, 0, sizeof(record));
-        record.position = position;
-        record.velocity = velocity;
-        record.flags = flags;
+        record.position = def->position;
+        record.velocity = def->velocity;
+        record.flags = def->flags;
         record.expected = id;
-        m2JournalRecord(world, m2_opEmitParticle, &record, (int32_t)sizeof(record));
+        m2JournalRecord(world, m2_opCreateParticle, &record, (int32_t)sizeof(record));
     }
     *particleOut = id;
     return m2_success;
 }
 
-m2Result m2World_EmitParticle(m2World* world, m2Pos2 position, m2Vec2 velocity, uint32_t flags,
-                              m2ParticleId* particleOut)
+m2Result m2CreateParticle(m2World* world, const m2ParticleDef* def, m2ParticleId* particleOut)
 {
     uint64_t env = m2FloatEnvEnter();
-    m2Result result = WorldEmitParticleWorker(world, position, velocity, flags, particleOut);
+    m2Result result = CreateParticleWorker(world, def, particleOut);
     m2FloatEnvLeave(env);
     return result;
 }
@@ -376,15 +387,6 @@ typedef struct FillBatch
     int32_t currRow[M2_FILL_COLUMNS];
 } FillBatch;
 
-// A fill's arguments; the polygon is checked as a shape's is, through
-// m2CanonicalPolygon.
-static bool ValidFill(const m2World* world, const m2Polygon* polygon, m2Pos2 position,
-                      m2Vec2 velocity)
-{
-    return world != NULL && polygon != NULL && world->particles.particleCapacity > 0 &&
-           m2FinitePos2(position) && m2ValidVelocity(velocity);
-}
-
 static bool InsidePolygon(const m2Polygon* polygon, float x, float y)
 {
     for (int32_t i = 0; i < polygon->count; ++i)
@@ -478,9 +480,12 @@ static bool FillRow(m2World* world, FillBatch* batch, const m2Polygon* polygon, 
         {
             continue;
         }
-        m2Pos2 at = {op->position.x + (double)atX, op->position.y + (double)y};
+        m2ParticleDef one = m2DefaultParticleDef();
+        one.position = (m2Pos2){op->position.x + (double)atX, op->position.y + (double)y};
+        one.velocity = op->velocity;
+        one.flags = op->flags;
         m2ParticleId id = m2_nullParticleId;
-        if (m2World_EmitParticle(world, at, op->velocity, op->flags, &id) != m2_success)
+        if (CreateParticleWorker(world, &one, &id) != m2_success)
         {
             return false; // pool full: a quiet runtime fact
         }
@@ -496,55 +501,64 @@ static bool FillRow(m2World* world, FillBatch* batch, const m2Polygon* polygon, 
     return true;
 }
 
+// The lower and upper corners of a polygon's vertices.
+static void PolygonBounds(const m2Polygon* polygon, m2Vec2* lower, m2Vec2* upper)
+{
+    *lower = polygon->vertices[0];
+    *upper = polygon->vertices[0];
+    for (int32_t i = 1; i < polygon->count; ++i)
+    {
+        lower->x = m2MinF(lower->x, polygon->vertices[i].x);
+        lower->y = m2MinF(lower->y, polygon->vertices[i].y);
+        upper->x = m2MaxF(upper->x, polygon->vertices[i].x);
+        upper->y = m2MaxF(upper->y, polygon->vertices[i].y);
+    }
+}
+
 // Fill a convex polygon with particles at 0.75 diameters, row-major from
 // the bottom-left of its bounds: a pool in one call.
-static M2_NOINLINE int32_t WorldFillPolygonWithParticlesWorker(m2World* world,
-                                                               const m2Polygon* polygon,
-                                                               m2Pos2 position, m2Vec2 velocity,
-                                                               uint32_t flags)
+static M2_NOINLINE m2Result CreateParticlesInPolygonWorker(m2World* world, const m2ParticleDef* def,
+                                                           const m2Polygon* polygon,
+                                                           int32_t* countOut)
 {
-    if (m2CheckWriter(world) != m2_success)
+    if (countOut == NULL)
     {
-        return 0;
+        return m2Refuse(world, m2_errorInvalid);
+    }
+    *countOut = 0;
+    m2Result writer = m2CheckWriter(world);
+    if (writer != m2_success)
+    {
+        return writer;
     }
     // The region is the polygon a shape would take: within M2_HUGE,
     // convex, not a sliver, with its normals recomputed from its vertices.
     m2Polygon region = {0};
-    if (ValidFill(world, polygon, position, velocity))
+    if (ValidParticleDef(world, def) && polygon != NULL)
     {
         region = m2CanonicalPolygon(polygon);
     }
     if (region.count == 0)
     {
-        m2Refuse(world, m2_errorInvalid);
-        return 0;
+        return m2Refuse(world, m2_errorInvalid);
     }
-    float minX = region.vertices[0].x;
-    float minY = region.vertices[0].y;
-    float maxX = minX;
-    float maxY = minY;
-    for (int32_t i = 1; i < region.count; ++i)
-    {
-        minX = m2MinF(minX, region.vertices[i].x);
-        minY = m2MinF(minY, region.vertices[i].y);
-        maxX = m2MaxF(maxX, region.vertices[i].x);
-        maxY = m2MaxF(maxY, region.vertices[i].y);
-    }
+    m2Vec2 lower;
+    m2Vec2 upper;
+    PolygonBounds(&region, &lower, &upper);
     FillBatch batch;
     batch.stride = 0.75f * 2.0f * world->particles.particleRadius;
-    if ((maxX - minX) / batch.stride >= (float)M2_FILL_COLUMNS)
+    if ((upper.x - lower.x) / batch.stride >= (float)M2_FILL_COLUMNS)
     {
-        m2Refuse(world, m2_errorInvalid); // wider than the fill lattice allows
-        return 0;
+        return m2Refuse(world, m2_errorInvalid); // wider than the fill lattice allows
     }
     m2OpFillParticles op;
     memset(&op, 0, sizeof(op));
     op.polygon = *polygon;
-    op.position = position;
-    op.velocity = velocity;
-    op.flags = flags;
+    op.position = def->position;
+    op.velocity = def->velocity;
+    op.flags = def->flags;
 
-    // The whole fill is one journal op with the inner emits suppressed:
+    // The whole fill is one journal op with the inner creates suppressed:
     // replay rebuilds the springs and triads from the op.
     uint8_t journalWas = world->recorder.journalActive;
     world->recorder.journalActive = 0;
@@ -557,29 +571,30 @@ static M2_NOINLINE int32_t WorldFillPolygonWithParticlesWorker(m2World* world,
     // The row coordinate accumulates stride by stride, since the sum is
     // part of the result. The fill ends where a row no longer moves it.
     bool open = true;
-    float y = minY + 0.5f * batch.stride;
-    while (y < maxY && open)
+    float y = lower.y + 0.5f * batch.stride;
+    while (y < upper.y && open)
     {
-        open = FillRow(world, &batch, &region, minX, maxX, y, &op);
+        open = FillRow(world, &batch, &region, lower.x, upper.x, y, &op);
         float next = y + batch.stride;
         open = open && next > y;
         y = next;
     }
-    if ((flags & m2_springParticle) != 0)
+    if ((def->flags & m2_springParticle) != 0)
     {
         AddFillSprings(world, &batch);
     }
     world->recorder.journalActive = journalWas;
     op.expected = batch.count;
     m2JournalRecord(world, m2_opFillParticles, &op, (int32_t)sizeof(op));
-    return batch.count;
+    *countOut = batch.count;
+    return m2_success;
 }
 
-int32_t m2World_FillPolygonWithParticles(m2World* world, const m2Polygon* polygon, m2Pos2 position,
-                                         m2Vec2 velocity, uint32_t flags)
+m2Result m2CreateParticlesInPolygon(m2World* world, const m2ParticleDef* def,
+                                    const m2Polygon* polygon, int32_t* countOut)
 {
     uint64_t env = m2FloatEnvEnter();
-    int32_t result = WorldFillPolygonWithParticlesWorker(world, polygon, position, velocity, flags);
+    m2Result result = CreateParticlesInPolygonWorker(world, def, polygon, countOut);
     m2FloatEnvLeave(env);
     return result;
 }

@@ -6,13 +6,16 @@ Maul2D has two kinds of water. A particle pool simulates liquid, sand and jelly 
 
 A world has particles only if its def asks for them: `particleCapacity` above 0 builds the pool for the world's whole life, with its physics settings (radius, density, gravity scale, and the pressure, damping, viscous, powder, spring, elastic, cohesion and near-pressure strengths) fixed in the def. A fixed pool keeps every snapshot the same size, so a rollback can land anywhere in history.
 
-`m2World_EmitParticle` emits one particle. A full pool refuses with `m2_errorCapacity` and counts in `m2Counters.particlePoolFull`; pace emitters off `m2World_GetParticleCount`. `m2World_FillPolygonWithParticles` pours a whole convex region in one call, row by row on the rest stride, and stops quietly when the pool fills. `m2World_GetParticles` and `m2World_OverlapParticlesAabb` read particles back in slot order with true totals; a circular region is one distance check away.
+A particle is created from a def, like every other object: `m2CreateParticle` creates one from an `m2ParticleDef` (position, velocity and flags, from `m2DefaultParticleDef`). A full pool refuses with `m2_errorCapacity` and counts in `m2Counters.particlePoolFull`; pace emitters off `m2World_GetParticleCount`. `m2CreateParticlesInPolygon` pours a whole convex region in one call, row by row on the rest stride, with every particle taking the def's velocity and flags and the polygon placed at its position. A full pool ends the fill early and is no failure: the count it reports is how many fit. `m2World_GetParticles` and `m2World_OverlapParticlesAabb` read particles back in slot order with true totals; a circular region is one distance check away.
 
 ```c
+m2ParticleDef dropDef = m2DefaultParticleDef();
+dropDef.position = (m2Pos2){0.0, 2.0};
+dropDef.velocity = (m2Vec2){0.0f, -1.0f};
+dropDef.flags = m2_tensileParticle;
 m2ParticleId drop = m2_nullParticleId;
-m2Result emitted = m2World_EmitParticle(world, (m2Pos2){0.0, 2.0}, (m2Vec2){0.0f, -1.0f},
-                                        m2_tensileParticle, &drop);
-if (emitted == m2_success)
+m2Result created = m2CreateParticle(world, &dropDef, &drop);
+if (created == m2_success)
 {
     m2Particle_SetLifetime(world, drop, 0.5f); // gone half a second from now
 }
@@ -25,7 +28,7 @@ bool stillThere = m2Particle_IsValid(world, drop); // false: it expired
 
 ## Behavior
 
-Flags set at emit choose the behavior. Plain water has none. Tensile particles pull their neighbors together below rest density and hold them apart with a near pressure, so spray beads into droplets. Viscous particles drag their neighbors, like honey. Powder grains repel when packed tighter than the rest stride and never cohere, like sand.
+Flags set at creation choose the behavior. Plain water has none. Tensile particles pull their neighbors together below rest density and hold them apart with a near pressure, so spray beads into droplets. Viscous particles drag their neighbors, like honey. Powder grains repel when packed tighter than the rest stride and never cohere, like sand.
 
 The spring and elastic flags turn a fill into a body. Springs remember their lengths at the fill and elastic triads their shapes; the whole batch is one journal operation, rides every snapshot, and its nets die with their particles. A pool's particle pass runs once per step, so a small firm blob wants higher strengths and a large soft mass wants the defaults.
 

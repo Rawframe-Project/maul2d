@@ -43,8 +43,12 @@ static void NewRevoluteJoint(m2World* world, const m2RevoluteJointDef* def)
 
 static void EmitParticle(m2World* world, m2Pos2 position, m2Vec2 velocity, uint32_t flags)
 {
+    m2ParticleDef def = m2DefaultParticleDef();
+    def.position = position;
+    def.velocity = velocity;
+    def.flags = flags;
     m2ParticleId particle = m2_nullParticleId;
-    m2Result result = m2World_EmitParticle(world, position, velocity, flags, &particle);
+    m2Result result = m2CreateParticle(world, &def, &particle);
     (void)result;
 }
 

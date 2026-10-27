@@ -346,21 +346,31 @@ static bool ApplyMouseTarget(m2ReplayCursor* r, const m2OpPayload* p)
 
 // Particles and fluid volumes.
 
-static bool ApplyEmitParticle(m2ReplayCursor* r, const m2OpPayload* p)
+// The particle def a create or fill record describes.
+static m2ParticleDef RecordedParticleDef(m2Pos2 position, m2Vec2 velocity, uint32_t flags)
 {
-    const m2OpEmitParticle* op = &p->emitParticle;
+    m2ParticleDef def = m2DefaultParticleDef();
+    def.position = position;
+    def.velocity = velocity;
+    def.flags = flags;
+    return def;
+}
+
+static bool ApplyCreateParticle(m2ReplayCursor* r, const m2OpPayload* p)
+{
+    const m2OpCreateParticle* op = &p->createParticle;
+    m2ParticleDef def = RecordedParticleDef(op->position, op->velocity, op->flags);
     m2ParticleId id = m2_nullParticleId;
-    return m2World_EmitParticle(r->world, op->position, op->velocity, op->flags, &id) ==
-               m2_success &&
-           id.index1 == op->expected.index1;
+    return m2CreateParticle(r->world, &def, &id) == m2_success && id.index1 == op->expected.index1;
 }
 
 static bool ApplyFillParticles(m2ReplayCursor* r, const m2OpPayload* p)
 {
     const m2OpFillParticles* op = &p->fillParticles;
-    int32_t made = m2World_FillPolygonWithParticles(r->world, &op->polygon, op->position,
-                                                    op->velocity, op->flags);
-    return made == op->expected;
+    m2ParticleDef def = RecordedParticleDef(op->position, op->velocity, op->flags);
+    int32_t made = 0;
+    return m2CreateParticlesInPolygon(r->world, &def, &op->polygon, &made) == m2_success &&
+           made == op->expected;
 }
 
 static bool ApplyDestroyParticle(m2ReplayCursor* r, const m2OpPayload* p)
@@ -566,7 +576,7 @@ static const m2JournalCommand s_commands[m2_opCount] = {
     M2_COMMAND_BOOLS(m2_opCreateGearJoint, m2OpCreateGearJoint, ApplyCreateGearJoint, s_gearBools),
     M2_COMMAND_BOOLS(m2_opCreatePulleyJoint, m2OpCreatePulleyJoint, ApplyCreatePulleyJoint,
                      s_pulleyBools),
-    M2_COMMAND(m2_opEmitParticle, m2OpEmitParticle, ApplyEmitParticle),
+    M2_COMMAND(m2_opCreateParticle, m2OpCreateParticle, ApplyCreateParticle),
     M2_COMMAND(m2_opDestroyParticle, m2ParticleId, ApplyDestroyParticle),
     M2_COMMAND(m2_opSetParticleVelocity, m2OpParticleVec, ApplySetParticleVelocity),
     M2_COMMAND_BOOLS(m2_opCreateRatchetJoint, m2OpCreateRatchetJoint, ApplyCreateRatchetJoint,

@@ -206,8 +206,7 @@ static void DoRandomOp(m2World* world)
                              : kind == 5 ? (m2_springParticle | m2_elasticParticle)
                                          : 0;
             m2Polygon tub = m2MakeBox(half, half);
-            m2World_FillPolygonWithParticles(world, &tub, (m2Pos2){fx, fy}, (m2Vec2){0.0f, 0.0f},
-                                             flags);
+            FillParticles(world, &tub, (m2Pos2){fx, fy}, (m2Vec2){0.0f, 0.0f}, flags);
             return;
         }
         if (which == 0)

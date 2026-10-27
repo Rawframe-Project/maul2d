@@ -76,7 +76,7 @@ enum
     m2_opSetDominance = 50,
     m2_opCreateGearJoint = 51,
     m2_opCreatePulleyJoint = 52,
-    m2_opEmitParticle = 53,
+    m2_opCreateParticle = 53,
     m2_opDestroyParticle = 54,
     m2_opSetParticleVelocity = 55,
     m2_opCreateRatchetJoint = 56,
@@ -317,13 +317,13 @@ typedef struct m2OpMouseTarget
     m2Pos2 target;
 } m2OpMouseTarget;
 
-typedef struct m2OpEmitParticle
+typedef struct m2OpCreateParticle
 {
     m2Pos2 position;
     m2Vec2 velocity;
     uint32_t flags;
     m2ParticleId expected;
-} m2OpEmitParticle;
+} m2OpCreateParticle;
 
 typedef struct m2OpFillParticles
 {
@@ -424,7 +424,7 @@ typedef union m2OpPayload
     m2OpJointUserData jointUserData;
     m2OpMotorOffsets motorOffsets;
     m2OpMouseTarget mouseTarget;
-    m2OpEmitParticle emitParticle;
+    m2OpCreateParticle createParticle;
     m2OpFillParticles fillParticles;
     m2OpParticleVec particleVec;
     m2OpParticleFloat particleFloat;

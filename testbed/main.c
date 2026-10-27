@@ -1073,14 +1073,12 @@ static void SceneGoo(m2World* world)
     NewPolygonShape(world, NewBody(world, &rightDef), &sd, &wallBox);
 
     m2Polygon jellyBox = m2MakeBox(0.45f, 0.45f);
-    m2World_FillPolygonWithParticles(world, &jellyBox, (m2Pos2){-3.0, 1.8}, (m2Vec2){0.0f, 0.0f},
-                                     m2_springParticle | m2_elasticParticle);
+    FillParticles(world, &jellyBox, (m2Pos2){-3.0, 1.8}, (m2Vec2){0.0f, 0.0f},
+                  m2_springParticle | m2_elasticParticle);
     m2Polygon heap = m2MakeBox(0.7f, 0.5f);
-    m2World_FillPolygonWithParticles(world, &heap, (m2Pos2){0.5, 1.2}, (m2Vec2){0.0f, 0.0f},
-                                     m2_powderParticle);
+    FillParticles(world, &heap, (m2Pos2){0.5, 1.2}, (m2Vec2){0.0f, 0.0f}, m2_powderParticle);
     m2Polygon spray = m2MakeBox(0.5f, 0.2f);
-    m2World_FillPolygonWithParticles(world, &spray, (m2Pos2){3.5, 3.2}, (m2Vec2){0.0f, 0.0f},
-                                     m2_tensileParticle);
+    FillParticles(world, &spray, (m2Pos2){3.5, 3.2}, (m2Vec2){0.0f, 0.0f}, m2_tensileParticle);
 
     m2BodyDef crateDef = m2DefaultBodyDef();
     crateDef.type = m2_dynamicBody;

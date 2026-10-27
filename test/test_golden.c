@@ -432,8 +432,8 @@ static void BuildFluid(m2World* world)
         EmitParticle(world, p, (m2Vec2){0.0f, 0.0f}, m2_tensileParticle);
     }
     m2Polygon block = m2MakeBox(0.6f, 0.6f);
-    m2World_FillPolygonWithParticles(world, &block, (m2Pos2){-3.0, 4.5}, (m2Vec2){0.0f, 0.0f},
-                                     m2_springParticle | m2_elasticParticle);
+    FillParticles(world, &block, (m2Pos2){-3.0, 4.5}, (m2Vec2){0.0f, 0.0f},
+                  m2_springParticle | m2_elasticParticle);
 
     AddStatic(world, 12.0, -0.5, 4.0f, 0.5f);
     m2FluidVolumeDef pool = m2DefaultFluidVolumeDef();

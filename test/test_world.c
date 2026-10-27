@@ -1648,9 +1648,9 @@ static void TestInfiniteInputIsRefused(void)
     m2World* world = NewWorld(&def);
     float inf = INFINITY;
     m2ParticleId p = m2_nullParticleId;
-    CHECK(m2World_EmitParticle(world, (m2Pos2){0.0, (double)inf}, (m2Vec2){0.0f, 0.0f}, 0, &p) ==
-                  m2_errorInvalid &&
-              p.index1 == 0,
+    m2ParticleDef particleDef = m2DefaultParticleDef();
+    particleDef.position = (m2Pos2){0.0, (double)inf};
+    CHECK(m2CreateParticle(world, &particleDef, &p) == m2_errorInvalid && p.index1 == 0,
           "an infinite position is refused");
     m2World_SetWind(world, (m2Vec2){inf, 0.0f}, 0.1f);
     m2Vec2 wind = {1.0f, 1.0f};

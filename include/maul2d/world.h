@@ -362,7 +362,7 @@ extern "C"
         int32_t pairOverflow;                // body pairs dropped last step (pair table full)
         int32_t particlePairOverflow;        // particle pairs dropped last step (budget)
         int32_t particleBodyOverflow;        // particle body contacts dropped last step
-        M2_ALIGN8 uint64_t particlePoolFull; // emits refused by a full pool, cumulative
+        M2_ALIGN8 uint64_t particlePoolFull; // creates refused by a full pool, cumulative
         M2_ALIGN8 uint64_t misuse;           // calls refused as misuse, cumulative
     } m2Counters;
 

@@ -161,8 +161,8 @@ static void TestJournalReplay(void)
     DestroyParticle(world, ids[9]);
     EmitParticle(world, (m2Pos2){0.5, 8.0}, (m2Vec2){0.0f, -1.0f}, 0);
     m2Polygon jellyTub = m2MakeBox(0.2f, 0.15f);
-    m2World_FillPolygonWithParticles(world, &jellyTub, (m2Pos2){2.0, 6.0}, (m2Vec2){0.0f, 0.0f},
-                                     m2_springParticle | m2_elasticParticle); // op 57
+    FillParticles(world, &jellyTub, (m2Pos2){2.0, 6.0}, (m2Vec2){0.0f, 0.0f},
+                  m2_springParticle | m2_elasticParticle); // op 57
     for (int32_t i = 0; i < 20; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
@@ -549,8 +549,7 @@ static void TestParticleFill(void)
     def.gravity = (m2Vec2){0.0f, 0.0f};
     m2World* world = NewWorld(&def);
     m2Polygon tub = m2MakeBox(0.5f, 0.25f);
-    int32_t made =
-        m2World_FillPolygonWithParticles(world, &tub, (m2Pos2){5.0, 5.0}, (m2Vec2){0.0f, 0.0f}, 0);
+    int32_t made = FillParticles(world, &tub, (m2Pos2){5.0, 5.0}, (m2Vec2){0.0f, 0.0f}, 0);
     CHECK(made > 70 && made < 110, "the fill lands near area over stride squared");
     CHECK(made == m2World_GetParticleCount(world), "every fill emit is a live particle");
     m2ParticleId ids[128];
@@ -562,8 +561,7 @@ static void TestParticleFill(void)
               "every drop lands inside the polygon bounds");
     }
     m2World* twin = NewWorld(&def);
-    int32_t madeTwin =
-        m2World_FillPolygonWithParticles(twin, &tub, (m2Pos2){5.0, 5.0}, (m2Vec2){0.0f, 0.0f}, 0);
+    int32_t madeTwin = FillParticles(twin, &tub, (m2Pos2){5.0, 5.0}, (m2Vec2){0.0f, 0.0f}, 0);
     CHECK(madeTwin == made, "twin fills agree exactly");
     CHECK(m2World_Hash(twin) == m2World_Hash(world), "twin fills agree to the bit");
     m2DestroyWorld(twin);
@@ -572,8 +570,7 @@ static void TestParticleFill(void)
     // A small pool fills to capacity and stops quietly.
     m2WorldDef tiny = FluidWorldDef(16);
     m2World* small = NewWorld(&tiny);
-    int32_t granted =
-        m2World_FillPolygonWithParticles(small, &tub, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f}, 0);
+    int32_t granted = FillParticles(small, &tub, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f}, 0);
     CHECK(granted == 16, "a full pool grants exactly its capacity");
     m2DestroyWorld(small);
 }
@@ -600,8 +597,10 @@ static void TestFillChecksItsPolygon(void)
     m2World* world = NewWorld(&def);
     m2Polygon distant = FarTriangle();
     uint64_t misuse = m2World_GetCounters(world).misuse;
-    CHECK(m2World_FillPolygonWithParticles(world, &distant, (m2Pos2){0.0, 0.0},
-                                           (m2Vec2){0.0f, 0.0f}, 0) == 0,
+    m2ParticleDef particleDef = m2DefaultParticleDef();
+    int32_t count = -1;
+    CHECK(m2CreateParticlesInPolygon(world, &particleDef, &distant, &count) == m2_errorInvalid &&
+              count == 0,
           "a polygon past M2_HUGE fills nothing");
     CHECK(m2World_GetCounters(world).misuse == misuse + 1 && m2World_GetParticleCount(world) == 0,
           "and is refused as a misuse");
@@ -615,10 +614,8 @@ static void TestFillChecksItsPolygon(void)
         turned.normals[i] = (m2Vec2){-box.normals[i].x, -box.normals[i].y};
     }
     m2World* twin = NewWorld(&def);
-    int32_t made =
-        m2World_FillPolygonWithParticles(world, &box, (m2Pos2){1.0, 1.0}, (m2Vec2){0.0f, 0.0f}, 0);
-    int32_t madeTurned = m2World_FillPolygonWithParticles(twin, &turned, (m2Pos2){1.0, 1.0},
-                                                          (m2Vec2){0.0f, 0.0f}, 0);
+    int32_t made = FillParticles(world, &box, (m2Pos2){1.0, 1.0}, (m2Vec2){0.0f, 0.0f}, 0);
+    int32_t madeTurned = FillParticles(twin, &turned, (m2Pos2){1.0, 1.0}, (m2Vec2){0.0f, 0.0f}, 0);
     CHECK(made > 0 && madeTurned == made && m2World_Hash(twin) == m2World_Hash(world),
           "a box with turned normals fills like the box");
     m2DestroyWorld(twin);
@@ -629,7 +626,7 @@ static void TestFillChecksItsPolygon(void)
     int32_t capacity = m2World_GetJournalBaseSize(recorder) + 4096;
     uint8_t* tape = (uint8_t*)malloc((size_t)capacity);
     CHECK(tape != NULL && StartJournal(recorder, tape, capacity), "the journal starts");
-    m2World_FillPolygonWithParticles(recorder, &box, (m2Pos2){1.0, 1.0}, (m2Vec2){0.0f, 0.0f}, 0);
+    FillParticles(recorder, &box, (m2Pos2){1.0, 1.0}, (m2Vec2){0.0f, 0.0f}, 0);
     int32_t bytes = StopJournal(recorder);
     int32_t at = -1;
     for (int32_t i = 0; at < 0 && i + (int32_t)sizeof(box) <= bytes; ++i)
@@ -661,8 +658,8 @@ static void TestJelly(void)
     def.gravity = (m2Vec2){0.0f, 0.0f};
     m2World* world = NewWorld(&def);
     m2Polygon blob = m2MakeBox(0.3f, 0.3f);
-    int32_t made = m2World_FillPolygonWithParticles(world, &blob, (m2Pos2){0.0, 0.0},
-                                                    (m2Vec2){0.0f, 0.0f}, m2_springParticle);
+    int32_t made =
+        FillParticles(world, &blob, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f}, m2_springParticle);
     CHECK(made == 64, "the lattice fills its 8 by 8");
     m2ParticleId ids[128];
     int32_t n = m2World_GetParticles(world, ids, 128);
@@ -694,9 +691,9 @@ static void TestJelly(void)
     fd.position = (m2Pos2){0.0, -0.2};
     m2Polygon slab = m2MakeBox(10.0f, 0.2f);
     NewPolygonShape(gw, NewBody(gw, &fd), &sd, &slab);
-    m2World_FillPolygonWithParticles(gw, &blob, (m2Pos2){-2.0, 0.42}, (m2Vec2){0.0f, 0.0f},
-                                     m2_springParticle | m2_elasticParticle);
-    m2World_FillPolygonWithParticles(gw, &blob, (m2Pos2){2.0, 0.42}, (m2Vec2){0.0f, 0.0f}, 0);
+    FillParticles(gw, &blob, (m2Pos2){-2.0, 0.42}, (m2Vec2){0.0f, 0.0f},
+                  m2_springParticle | m2_elasticParticle);
+    FillParticles(gw, &blob, (m2Pos2){2.0, 0.42}, (m2Vec2){0.0f, 0.0f}, 0);
     for (int32_t s = 0; s < 600; ++s)
     {
         m2World_Step(gw, 1.0f / 60.0f, 4);
@@ -805,8 +802,7 @@ static void TestFluidThreadingParity(void)
         rd.position = (m2Pos2){6.0, 3.8};
         NewPolygonShape(world, NewBody(world, &rd), &sd, &wall);
         m2Polygon pool = m2MakeBox(5.6f, 2.0f);
-        int32_t made = m2World_FillPolygonWithParticles(world, &pool, (m2Pos2){0.0, 2.2},
-                                                        (m2Vec2){0.0f, 0.0f}, 0);
+        int32_t made = FillParticles(world, &pool, (m2Pos2){0.0, 2.2}, (m2Vec2){0.0f, 0.0f}, 0);
         CHECK(made >= 4096, "the pool clears the threading threshold");
         for (int32_t i = 0; i < 90; ++i)
         {
@@ -1088,11 +1084,57 @@ static void TestDeadIdsStayDead(void)
     m2DestroyWorld(world);
 }
 
+// A particle is created from a def like every other object: a create
+// or fill without a def from m2DefaultParticleDef, or without its out
+// argument, is refused as a misuse; a full pool refuses a create with
+// m2_errorCapacity and ends a fill early, neither counting misuse.
+static void TestParticleDefs(void)
+{
+    m2WorldDef def = FluidWorldDef(4);
+    m2World* world = NewWorld(&def);
+    m2Polygon tub = m2MakeBox(0.5f, 0.5f);
+    m2ParticleDef particleDef = m2DefaultParticleDef();
+    m2ParticleDef unset;
+    memset(&unset, 0, sizeof(unset));
+    m2ParticleId id = {1, 1};
+    int32_t count = -1;
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    CHECK(m2CreateParticle(world, NULL, &id) == m2_errorInvalid && id.index1 == 0,
+          "a create without a def is refused");
+    CHECK(m2CreateParticle(world, &unset, &id) == m2_errorInvalid && id.index1 == 0,
+          "and one whose def skipped m2DefaultParticleDef");
+    CHECK(m2CreateParticle(world, &particleDef, NULL) == m2_errorInvalid,
+          "and one without particleOut");
+    CHECK(m2CreateParticlesInPolygon(world, NULL, &tub, &count) == m2_errorInvalid && count == 0,
+          "a fill without a def is refused");
+    count = -1;
+    CHECK(m2CreateParticlesInPolygon(world, &unset, &tub, &count) == m2_errorInvalid && count == 0,
+          "and one whose def skipped m2DefaultParticleDef");
+    count = -1;
+    CHECK(m2CreateParticlesInPolygon(world, &particleDef, NULL, &count) == m2_errorInvalid &&
+              count == 0,
+          "and one without a polygon");
+    CHECK(m2CreateParticlesInPolygon(world, &particleDef, &tub, NULL) == m2_errorInvalid,
+          "and one without countOut");
+    CHECK(m2World_GetCounters(world).misuse == misuse + 7 && m2World_GetParticleCount(world) == 0,
+          "each counting one misuse and creating nothing");
+
+    CHECK(m2CreateParticlesInPolygon(world, &particleDef, &tub, &count) == m2_success && count == 4,
+          "a fill larger than the pool succeeds with the particles that fit");
+    CHECK(m2CreateParticlesInPolygon(world, &particleDef, &tub, &count) == m2_success && count == 0,
+          "and one into a full pool creates none");
+    CHECK(m2CreateParticle(world, &particleDef, &id) == m2_errorCapacity && id.index1 == 0,
+          "a create into a full pool is refused");
+    CHECK(m2World_GetCounters(world).misuse == misuse + 7, "neither counting misuse");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
     TestCrowdedCrossingStops();
     TestCappedCandidatesIgnoreTreeHistory();
     TestLifecycle();
+    TestParticleDefs();
     TestFarParticlesStep();
     TestOverflowIsQuiet();
     TestPairOverflow();

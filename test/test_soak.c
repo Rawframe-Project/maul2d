@@ -98,10 +98,10 @@ int main(int argc, char** argv)
 
     // Water in the left corner, a jelly blob dropped on the pile.
     m2Polygon pool = m2MakeBox(1.6f, 0.4f);
-    m2World_FillPolygonWithParticles(world, &pool, (m2Pos2){-20.0, 0.5}, (m2Vec2){0.0f, 0.0f}, 0);
+    FillParticles(world, &pool, (m2Pos2){-20.0, 0.5}, (m2Vec2){0.0f, 0.0f}, 0);
     m2Polygon blob = m2MakeBox(0.25f, 0.25f);
-    m2World_FillPolygonWithParticles(world, &blob, (m2Pos2){-8.0, 6.0}, (m2Vec2){0.0f, 0.0f},
-                                     m2_springParticle | m2_elasticParticle);
+    FillParticles(world, &blob, (m2Pos2){-8.0, 6.0}, (m2Vec2){0.0f, 0.0f},
+                  m2_springParticle | m2_elasticParticle);
 
     int32_t half = steps / 2;
     for (int32_t i = 0; i < half; ++i)

@@ -16,6 +16,7 @@ defs filled with constants:
     m2DefaultGearJointDef
     m2DefaultMotorJointDef
     m2DefaultMouseJointDef
+    m2DefaultParticleDef
     m2DefaultPrismaticJointDef
     m2DefaultPulleyJointDef
     m2DefaultQueryFilter
