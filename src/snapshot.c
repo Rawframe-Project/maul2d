@@ -66,8 +66,10 @@ static uint64_t ConfigHash(void)
 }
 
 // The snapshot's bytes, its header and the state table's block, from the
-// world's capacities; INT64_MAX when they do not fit a size_t. A world
-// m2CreateWorld accepted keeps them within M2_MAX_SNAPSHOT_BYTES.
+// world's capacities; INT64_MAX when they do not fit a size_t. The block
+// is the walk's own size: m2StateSnapshotBytes sums the per-array sizes
+// m2StateWalk copies. A world m2CreateWorld accepted keeps them within
+// M2_MAX_SNAPSHOT_BYTES.
 static int64_t SnapshotBytes(const m2World* world)
 {
     size_t block = 0;
