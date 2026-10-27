@@ -34,17 +34,56 @@
 // therefore does no arithmetic of its own between entering and leaving:
 // it calls a worker marked M2_NOINLINE, whose body cannot move out of
 // the call.
+//
+// WebAssembly has one environment, the library's, and nothing to switch:
+// there the entries and the host pairs are empty inline functions that
+// keep no depth, and M2_NOINLINE is nothing, so a wrapper and its worker
+// compile to the worker alone.
 
 #ifndef MAUL2D_SRC_FPENV_H
 #define MAUL2D_SRC_FPENV_H
 
 #include <stdint.h>
 
-#if defined(_MSC_VER) && !defined(__clang__)
+#if defined(__wasm__)
+#define M2_NOINLINE
+#elif defined(_MSC_VER) && !defined(__clang__)
 #define M2_NOINLINE __declspec(noinline)
 #else
 #define M2_NOINLINE __attribute__((noinline))
 #endif
+
+// The thread's state outside a call into host code: the register the
+// outermost entry saved and the depth.
+typedef struct m2FloatHost
+{
+    uint64_t saved;
+    uint32_t depth;
+} m2FloatHost;
+
+#if defined(__wasm__)
+
+static inline uint64_t m2FloatEnvEnter(void)
+{
+    return 0;
+}
+
+static inline void m2FloatEnvLeave(uint64_t token)
+{
+    (void)token;
+}
+
+static inline m2FloatHost m2FloatHostEnter(void)
+{
+    return (m2FloatHost){0, 0};
+}
+
+static inline void m2FloatHostLeave(m2FloatHost host)
+{
+    (void)host;
+}
+
+#else
 
 // Enters the library's environment: the outermost entry on a thread (or
 // the first inside host code) saves the host's control register and sets
@@ -60,19 +99,6 @@ uint64_t m2FloatEnvEnter(void);
 // host's control register, writing it only when it differs.
 void m2FloatEnvLeave(uint64_t token);
 
-// Runs body(context) inside an entry: a task body the library hands the
-// host's task hooks, which may run it on a thread in any mode. body is a
-// worker that does the arithmetic, so none moves out of the entry.
-void m2FloatEnvRun(void (*body)(void* context), void* context);
-
-// The thread's state outside a call into host code: the register the
-// outermost entry saved and the depth.
-typedef struct m2FloatHost
-{
-    uint64_t saved;
-    uint32_t depth;
-} m2FloatHost;
-
 // Before host code: inside an entry, writes the host's saved register
 // back and leaves no entry open; outside any, does nothing. Returns what
 // m2FloatHostLeave takes. Each call site puts the pair around the one
@@ -84,6 +110,13 @@ m2FloatHost m2FloatHostEnter(void);
 // inside an entry, the library's environment again, from the host's saved
 // register, whatever host code set.
 void m2FloatHostLeave(m2FloatHost host);
+
+#endif
+
+// Runs body(context) inside an entry: a task body the library hands the
+// host's task hooks, which may run it on a thread in any mode. body is a
+// worker that does the arithmetic, so none moves out of the entry.
+void m2FloatEnvRun(void (*body)(void* context), void* context);
 
 // The thread's control register as it is: MXCSR on x86 (with the x87
 // control word in bits 32 to 47 on 32-bit x86), FPCR on AArch64, 0 on
