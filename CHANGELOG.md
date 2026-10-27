@@ -6,6 +6,19 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.5.0](https://github.com/Rawframe-Project/maul2d/compare/v0.4.0...v0.5.0) (2026-10-27)
+
+### Changed
+
+- **Breaking:** `m2CreateWorld` refuses with `m2_errorCapacity` a definition whose world would snapshot to more than `M2_MAX_SNAPSHOT_BYTES` (1,073,741,801 bytes, about 840,000 shape slots), before it allocates anything. Every world within that size snapshots, restores and records a journal ([#92](https://github.com/Rawframe-Project/maul2d/pull/92)).
+
+- No simulation result changes. The snapshot (version 6) and journal tape (version 7) formats are unchanged; as before 1.0.0, 0.5.0 reads only its own snapshots and tapes and refuses 0.4.0's with `m2_errorVersion`.
+
+### Fixed
+
+- A world's snapshot, restore and journal sizes are computed in 64 bits, and a snapshot is measured with the same per-array sizes the snapshot walk writes and the restore reads, so very large worlds no longer get a wrong size ([#92](https://github.com/Rawframe-Project/maul2d/pull/92)).
+- `m2Shape_GetSensorOverlaps` and `m2World_GetContactData` measure with a null array at any capacity, as documented; a null array with a capacity above 0 used to crash ([#95](https://github.com/Rawframe-Project/maul2d/pull/95)).
+
 ## [0.4.0](https://github.com/Rawframe-Project/maul2d/compare/v0.3.0...v0.4.0) (2026-10-26)
 
 ### Changed
