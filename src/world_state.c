@@ -612,17 +612,22 @@ bool m2StateValidate(const m2World* world, const uint8_t* in)
     for (size_t i = 0; i < sizeof(s_state) / sizeof(s_state[0]); ++i)
     {
         const m2StateArray* array = &s_state[i];
-        if ((array->flags & M2_STATE_SNAPSHOT) == 0 || !Present(world, array->flags))
+        if (!InSnapshot(world, array))
         {
             continue;
         }
+        size_t bytes = 0;
+        bool sized = SnapshotArrayBytes(world, array, &bytes);
+        M2_ASSERT(sized); // m2CreateWorld measured every array
+        (void)sized;
         bool pointer = (array->flags & M2_STATE_POINTER) != 0;
         size_t count = pointer ? ExtentCount(world, array->extent) : 1;
+        M2_ASSERT(count * array->elementSize == bytes);
         if (!CheckBlock(world, array, in + cursor, count))
         {
             return false;
         }
-        cursor += pointer ? count * array->elementSize : array->elementSize;
+        cursor += bytes;
     }
     return true;
 }
@@ -632,8 +637,8 @@ bool m2StateBodyValid(const m2World* world, int32_t index)
     for (size_t i = 0; i < sizeof(s_state) / sizeof(s_state[0]); ++i)
     {
         const m2StateArray* array = &s_state[i];
-        if ((array->flags & M2_STATE_SNAPSHOT) == 0 || (array->flags & M2_STATE_POINTER) == 0 ||
-            array->extent != m2_extent_body || !Present(world, array->flags))
+        if (!InSnapshot(world, array) || (array->flags & M2_STATE_POINTER) == 0 ||
+            array->extent != m2_extent_body)
         {
             continue;
         }
@@ -653,7 +658,7 @@ const uint8_t* m2StateIncoming(const m2World* world, const uint8_t* in, const vo
     for (size_t i = 0; i < sizeof(s_state) / sizeof(s_state[0]); ++i)
     {
         const m2StateArray* array = &s_state[i];
-        if ((array->flags & M2_STATE_SNAPSHOT) == 0 || !Present(world, array->flags))
+        if (!InSnapshot(world, array))
         {
             continue;
         }
@@ -661,9 +666,11 @@ const uint8_t* m2StateIncoming(const m2World* world, const uint8_t* in, const vo
         {
             return in + cursor;
         }
-        bool pointer = (array->flags & M2_STATE_POINTER) != 0;
-        cursor +=
-            pointer ? ExtentCount(world, array->extent) * array->elementSize : array->elementSize;
+        size_t bytes = 0;
+        bool sized = SnapshotArrayBytes(world, array, &bytes);
+        M2_ASSERT(sized); // m2CreateWorld measured every array
+        (void)sized;
+        cursor += bytes;
     }
     return NULL;
 }
