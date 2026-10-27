@@ -260,12 +260,20 @@ jobs:
           exit "$status"
       # The corpus is merged into a fresh directory and swapped in only when
       # the merge finished without a finding, so a failed merge leaves the
-      # old corpus. tools/fuzz_target.sh keeps the merge's log on the runner.
+      # old corpus. tools/fuzz_target.sh keeps the merge's log on the runner;
+      # a finding's kind and sanitizer report are printed as Run prints them.
       - name: Minimize the corpus
         if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
         run: |
           mkdir -p "out/merged/$TARGET"
-          tools/fuzz_target.sh --merge "out/fuzz/$TARGET" "out/merged/$TARGET" "out/corpus/$TARGET"
+          rm -rf out/fuzz-reports
+          status=0
+          tools/fuzz_target.sh --merge "out/fuzz/$TARGET" "out/merged/$TARGET" "out/corpus/$TARGET" ||
+            status=$?
+          if [ "$status" -ne 0 ]; then
+            cat "out/fuzz-reports/$TARGET.txt" 2>/dev/null || true
+            exit "$status"
+          fi
           rm -rf "out/corpus/$TARGET" && mv "out/merged/$TARGET" "out/corpus/$TARGET"
           echo "$TARGET: $(find "out/corpus/$TARGET" -type f | wc -l) inputs, $(du -sm "out/corpus/$TARGET" | cut -f1) MB"
       - name: Save the corpus
