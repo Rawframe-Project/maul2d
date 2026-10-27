@@ -160,12 +160,13 @@ static m2BodyId CreatePiece(m2World* world, int32_t parent, const m2ShapeDef* sh
     // The caller checked both pools, and the trees hold two nodes per
     // shape slot, so neither create can fail.
     m2BodyId piece = m2_nullBodyId;
-    m2Result made = m2CreateBody(world, &bd, &piece);
-    M2_ASSERT(made == m2_success);
+    m2Result bodyMade = m2CreateBody(world, &bd, &piece);
+    M2_ASSERT(bodyMade == m2_success);
     m2ShapeId shape = m2_nullShapeId;
-    made = m2CreatePolygonShape(world, piece, shapeDef, polygon, &shape);
-    M2_ASSERT(made == m2_success);
-    (void)made;
+    m2Result shapeMade = m2CreatePolygonShape(world, piece, shapeDef, polygon, &shape);
+    M2_ASSERT(shapeMade == m2_success);
+    (void)bodyMade;
+    (void)shapeMade;
     int32_t index = (int32_t)piece.index1 - 1;
     m2Vec2 lc = world->bodies.localCenters[index];
     m2Vec2 arm = {xf.q.c * lc.x - xf.q.s * lc.y, xf.q.s * lc.x + xf.q.c * lc.y};
