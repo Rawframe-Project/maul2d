@@ -13,7 +13,8 @@
 #                            preset's tests must carry a label. Under two
 #                            minutes; run it before every push.
 #   tools/check.sh pr        what the pull request check runs on this
-#                            machine: every check, clang-tidy, the
+#                            machine: every check, clang-tidy with the
+#                            assertions compiled out and live, the
 #                            documentation site, and the linux-clang-20-asan,
 #                            linux-gcc-14 and linux-shared presets.
 #   tools/check.sh full      also the other Linux presets (ThreadSanitizer,
@@ -135,11 +136,16 @@ source_checks
 step "clang-format on every file"
 all_c_files | xargs clang-format --dry-run -Werror
 
-step "clang-tidy"
-cmake -B out/check-tidy -G Ninja -DCMAKE_C_COMPILER=clang-20 -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
-    -DMAUL2D_BUILD_TESTS=OFF -DMAUL2D_BUILD_BENCH=OFF -DMAUL2D_BUILD_SAMPLES=OFF >/dev/null
-git ls-files 'src/*.c' | xargs -P "$jobs" -n 1 clang-tidy-20 -p out/check-tidy --quiet \
-    --warnings-as-errors='*'
+# As CI's checks job: on the Release preset, where the assertions compile
+# out, and with them live. Each hides findings the other shows.
+for build in Release Debug; do
+    step "clang-tidy, $build"
+    cmake --preset linux-clang-20 -B "out/check-tidy-$build" -DCMAKE_BUILD_TYPE=$build \
+        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DMAUL2D_BUILD_TESTS=OFF -DMAUL2D_BUILD_BENCH=OFF \
+        -DMAUL2D_BUILD_SAMPLES=OFF >/dev/null
+    git ls-files 'src/*.c' | xargs -P "$jobs" -n 1 clang-tidy-20 -p "out/check-tidy-$build" --quiet \
+        --warnings-as-errors='*'
+done
 
 step "the documentation site builds"
 python3 tools/build_docs.py
