@@ -473,6 +473,12 @@ typedef struct m2ReplayCursor
 
 typedef bool m2ReplayApplyFn(m2ReplayCursor* cursor, const m2OpPayload* payload);
 
+// Whether a record's tail of count elements of elementBytes each lies
+// within the tape after the cursor; the tail's size, reckoned in 64 bits
+// so no count can wrap it, goes to bytesOut.
+bool m2ReplayTailFits(const m2ReplayCursor* r, int32_t count, int32_t elementBytes,
+                      int64_t* bytesOut);
+
 typedef struct m2JournalCommand
 {
     int32_t payloadSize; // fixed part; 0 marks an unknown op

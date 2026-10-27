@@ -1692,6 +1692,18 @@ static void TestJournalRecordRoom(void)
               !m2JournalRecordFits(24 + snapshot, 24 + 2 * snapshot + 8, snapshot + 8),
           "the restore of a snapshot past INT32_MAX bytes fits a tape with room for it");
     CHECK(!m2JournalRecordFits(0, 10, -1), "a negative payload takes no room");
+
+    // A replayed record's tail is measured the same way: a count whose
+    // bytes pass what an int32_t holds is measured whole, never wrapped.
+    m2ReplayCursor cursor = {NULL, NULL, 4 * snapshot, 0};
+    int64_t tail = 0;
+    CHECK(m2ReplayTailFits(&cursor, 0x20000001, 8, &tail) && tail == (int64_t)0x20000001 * 8,
+          "a tail past INT32_MAX bytes is measured whole");
+    cursor.size = 64;
+    CHECK(!m2ReplayTailFits(&cursor, 0x20000001, 8, &tail), "and does not fit a short tape");
+    CHECK(m2ReplayTailFits(&cursor, 8, 8, &tail) && !m2ReplayTailFits(&cursor, 9, 8, &tail),
+          "a tail fits up to the tape's end");
+    CHECK(!m2ReplayTailFits(&cursor, -1, 8, &tail), "a negative count never fits");
 }
 
 // A snapshot of a world with the given particle radius holding one spring

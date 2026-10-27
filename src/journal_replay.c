@@ -237,16 +237,24 @@ static bool ApplyShapeUserData(m2ReplayCursor* r, const m2OpPayload* p)
     return true;
 }
 
+bool m2ReplayTailFits(const m2ReplayCursor* r, int32_t count, int32_t elementBytes,
+                      int64_t* bytesOut)
+{
+    int64_t bytes = (int64_t)count * (int64_t)elementBytes; // an int32_t times a small size
+    *bytesOut = bytes;
+    return count >= 0 && bytes <= r->size - r->offset;
+}
+
 // Chains.
 
 static bool ApplyCreateChain(m2ReplayCursor* r, const m2OpPayload* p)
 {
     const m2OpChainHeader* op = &p->chainHeader;
-    if (op->count < 3 || op->count > (r->size - r->offset) / (int32_t)sizeof(m2Vec2))
+    int64_t pointBytes = 0;
+    if (op->count < 3 || !m2ReplayTailFits(r, op->count, (int32_t)sizeof(m2Vec2), &pointBytes))
     {
         return false;
     }
-    int32_t pointBytes = op->count * (int32_t)sizeof(m2Vec2);
     // The stream is unaligned; the points are copied out before use.
     m2Vec2* points = m2WorldAlloc(r->world, (size_t)pointBytes);
     if (points == NULL)
@@ -459,11 +467,12 @@ static bool ApplyRestore(m2ReplayCursor* r, const m2OpPayload* p)
 static bool ApplyShatterBody(m2ReplayCursor* r, const m2OpPayload* p)
 {
     const m2OpShatterHeader* op = &p->shatterHeader;
-    if (op->pieceCount < 1 || op->pieceCount > (r->size - r->offset) / (int32_t)sizeof(m2Polygon))
+    int64_t pieceBytes = 0;
+    if (op->pieceCount < 1 ||
+        !m2ReplayTailFits(r, op->pieceCount, (int32_t)sizeof(m2Polygon), &pieceBytes))
     {
         return false;
     }
-    int32_t pieceBytes = op->pieceCount * (int32_t)sizeof(m2Polygon);
     // The stream is unaligned; the pieces are copied out before use.
     m2Polygon* pieces = m2WorldAlloc(r->world, (size_t)pieceBytes);
     if (pieces == NULL)
