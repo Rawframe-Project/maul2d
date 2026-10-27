@@ -817,7 +817,24 @@ static m2World* NewDefWorld(void)
     worldDef.shapeCapacity = 16;
     worldDef.jointCapacity = 16;
     worldDef.fluidVolumeCapacity = 2;
+    worldDef.particleCapacity = 64;
     return NewWorld(&worldDef);
+}
+
+// A polygon with from's vertices, count and radius over bytes that all
+// start as fill: its normals and unused slots, which the library computes
+// and zeroes itself, keep the fill.
+static m2Polygon FilledPolygon(const m2Polygon* from, uint8_t fill)
+{
+    m2Polygon to;
+    memset(&to, fill, sizeof(to));
+    for (int32_t i = 0; i < from->count; ++i)
+    {
+        to.vertices[i] = from->vertices[i];
+    }
+    to.count = from->count;
+    to.radius = from->radius;
+    return to;
 }
 
 // Records a create from every def the journal records into a fresh
@@ -882,6 +899,30 @@ static uint8_t* TapeOfFilledDefs(uint8_t fill, int32_t* bytesOut, uint64_t* hash
     FILLED_JOINT(Pulley, bodies[0], bodies[1]);
     FILLED_JOINT(Ratchet, bodies[0], bodies[1]);
 
+    // A fill and a shatter, from polygons whose normals and unused slots
+    // hold the fill.
+    m2Polygon box = m2MakeBox(0.2f, 0.2f);
+    m2Polygon region = FilledPolygon(&box, fill);
+    m2ParticleDef particleDef = m2DefaultParticleDef();
+    particleDef.position = (m2Pos2){0.0, 4.0};
+    int32_t made = 0;
+    CHECK(m2CreateParticlesInPolygon(world, &particleDef, &region, &made) == m2_success && made > 0,
+          "a fill records");
+    m2BodyDef crateDef = m2DefaultBodyDef();
+    crateDef.type = m2_dynamicBody;
+    crateDef.position = (m2Pos2){4.0, 2.0};
+    m2BodyId crate = NewBody(world, &crateDef);
+    m2ShapeDef crateShape = m2DefaultShapeDef();
+    NewPolygonShape(world, crate, &crateShape, &box);
+    m2Vec2 halves[2][3] = {{{-0.2f, -0.2f}, {0.2f, -0.2f}, {0.2f, 0.2f}},
+                           {{-0.2f, -0.2f}, {0.2f, 0.2f}, {-0.2f, 0.2f}}};
+    m2Polygon pieces[2];
+    for (int32_t i = 0; i < 2; ++i)
+    {
+        m2Polygon half = MakePolygon(halves[i], 3, 0.0f);
+        pieces[i] = FilledPolygon(&half, fill);
+    }
+    CHECK(ShatterBody(world, crate, pieces, 2, NULL, 0) == 2, "a shatter records");
     CHECK(m2World_GetCounters(world).misuse == 0,
           "every call passes its checks, the explosion too");
     *bytesOut = StopJournal(world);
@@ -890,9 +931,10 @@ static uint8_t* TapeOfFilledDefs(uint8_t fill, int32_t* bytesOut, uint64_t* hash
     return tape;
 }
 
-// The bytes between a def's fields are not part of it: two runs of the
-// same calls record the same tape whatever every recorded def's padding
-// holds, and the tape replays onto the world that recorded it.
+// The bytes between a def's fields are not part of it, nor are a
+// polygon's normals and unused slots: two runs of the same calls record
+// the same tape whatever those bytes hold, and the tape replays onto the
+// world that recorded it.
 static void TestDefPaddingStaysOffTheTape(void)
 {
     int32_t bytesA = 0;
@@ -902,7 +944,7 @@ static void TestDefPaddingStaysOffTheTape(void)
     uint8_t* tapeA = TapeOfFilledDefs(0xA5, &bytesA, &hashA);
     uint8_t* tapeB = TapeOfFilledDefs(0x5A, &bytesB, &hashB);
     CHECK(bytesA > 0 && bytesA == bytesB && memcmp(tapeA, tapeB, (size_t)bytesA) == 0,
-          "no def's padding reaches the tape");
+          "no padding or unused polygon slot reaches the tape");
     m2World* replayed = NewDefWorld();
     CHECK(ReplayJournal(replayed, tapeA, bytesA) && m2World_Hash(replayed) == hashA &&
               hashA == hashB,

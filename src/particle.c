@@ -553,7 +553,9 @@ static M2_NOINLINE m2Result CreateParticlesInPolygonWorker(m2World* world, const
     }
     m2OpFillParticles op;
     memset(&op, 0, sizeof(op));
-    op.polygon = *polygon;
+    // The canonical region, so no unused slot of the caller's polygon
+    // reaches the tape.
+    op.polygon = region;
     op.position = def->position;
     op.velocity = def->velocity;
     op.flags = def->flags;
