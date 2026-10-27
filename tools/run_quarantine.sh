@@ -7,6 +7,11 @@
 #
 #   tools/run_quarantine.sh BUILD_DIR [CTEST ARGUMENT...]
 #
+# ctest runs by build directory, not by preset, so a preset's options do
+# not apply: pass the ones the run needs after BUILD_DIR. Each test gets
+# 300 seconds unless its TIMEOUT property or a later --timeout says
+# otherwise, so a hung flake is reported instead of outlasting the job.
+#
 # Every test labeled quarantine runs. A quarantined test is one that
 # fails now and then without a fault in the code, with an issue that
 # tracks it, so its failure is reported, not fatal: each failed test gets
@@ -30,7 +35,7 @@ log=$(mktemp)
 trap 'rm -f "$log"' EXIT
 
 status=0
-ctest --test-dir "$dir" -L '^quarantine$' --output-on-failure --no-tests=ignore "$@" |
+ctest --test-dir "$dir" -L '^quarantine$' --output-on-failure --no-tests=ignore --timeout 300 "$@" |
   tee "$log" || status=$?
 
 if grep -E '\*\*\*(Skipped|Not Run)' "$log"; then

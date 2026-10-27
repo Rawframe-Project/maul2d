@@ -34,7 +34,7 @@ env:
 jobs:
   # Whether anything beyond documentation changed; the builds skip when not.
   changes:
-    uses: Rawframe-Project/.github/.github/workflows/changes.yml@bf59dbcd696369b51a9831145fb3b60f3bc71280 # v0.0.26
+    uses: Rawframe-Project/.github/.github/workflows/changes.yml@1efdbb0583ec13da9e4a5b8000a84dca0708244f # v0.0.27
     permissions:
       pull-requests: read
 
@@ -49,10 +49,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: Rawframe-Project/.github/.github/actions/docs-check@bf59dbcd696369b51a9831145fb3b60f3bc71280 # v0.0.26
+      - uses: Rawframe-Project/.github/.github/actions/docs-check@1efdbb0583ec13da9e4a5b8000a84dca0708244f # v0.0.27
 
   zizmor:
-    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@bf59dbcd696369b51a9831145fb3b60f3bc71280 # v0.0.26
+    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@1efdbb0583ec13da9e4a5b8000a84dca0708244f # v0.0.27
     permissions:
       contents: read
 
@@ -145,7 +145,7 @@ jobs:
           - { preset: macos-clang, runner: macos-15 }
           - { preset: windows-clang-cl, runner: windows-2025 }
           - { preset: windows-arm64-clang-cl, runner: windows-11-arm }
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@bf59dbcd696369b51a9831145fb3b60f3bc71280 # v0.0.26
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@1efdbb0583ec13da9e4a5b8000a84dca0708244f # v0.0.27
     permissions:
       contents: read
     with:
@@ -158,7 +158,7 @@ jobs:
   testbed:
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@bf59dbcd696369b51a9831145fb3b60f3bc71280 # v0.0.26
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@1efdbb0583ec13da9e4a5b8000a84dca0708244f # v0.0.27
     permissions:
       contents: read
     with:
@@ -317,11 +317,11 @@ jobs:
           cmake --preset linux-clang-20 >/dev/null
           cmake --build --preset linux-clang-20
       # The tests the required runs leave out: a failed one is a known
-      # flake and a warning, anything else fails the step. ctest runs
-      # without a preset here, so the base preset's timeout is given again:
-      # a hung test is reported instead of cancelling the job.
+      # flake and a warning, anything else fails the step. The runner gives
+      # each test the presets' 300 seconds, so a hung test is reported
+      # instead of cancelling the job.
       - name: Quarantined tests
-        run: tools/run_quarantine.sh out/linux-clang-20 --timeout 300
+        run: tools/run_quarantine.sh out/linux-clang-20
       - name: Long soak
         run: ./out/linux-clang-20/test_soak 300000
       - name: Deep API walk
