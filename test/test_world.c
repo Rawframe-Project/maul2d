@@ -722,7 +722,7 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.bodyIdB = b;
             jd.ratchet = m2RatchetJoint_GetRatchet(source, id);
             jd.phase = m2RatchetJoint_GetPhase(source, id);
-            jd.collideConnected = m2Joint_GetCollideConnected(source, id);
+            jd.enableConnectedCollision = m2Joint_IsConnectedCollisionEnabled(source, id);
             made = NewRatchetJoint(mirror, &jd);
         }
         else if (type == m2_pulleyJoint)
@@ -735,7 +735,7 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.localAnchorA = m2Joint_GetLocalAnchorA(source, id);
             jd.localAnchorB = m2Joint_GetLocalAnchorB(source, id);
             jd.ratio = m2PulleyJoint_GetRatio(source, id);
-            jd.collideConnected = m2Joint_GetCollideConnected(source, id);
+            jd.enableConnectedCollision = m2Joint_IsConnectedCollisionEnabled(source, id);
             made = NewPulleyJoint(mirror, &jd);
         }
         else if (type == m2_gearJoint)
@@ -744,7 +744,7 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.bodyIdA = a;
             jd.bodyIdB = b;
             jd.ratio = m2GearJoint_GetRatio(source, id);
-            jd.collideConnected = m2Joint_GetCollideConnected(source, id);
+            jd.enableConnectedCollision = m2Joint_IsConnectedCollisionEnabled(source, id);
             made = NewGearJoint(mirror, &jd);
         }
         else if (type == m2_motorJoint)
@@ -757,7 +757,7 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.maxForce = m2MotorJoint_GetMaxForce(source, id);
             jd.maxTorque = m2Joint_GetMaxMotor(source, id);
             jd.correctionFactor = m2MotorJoint_GetCorrectionFactor(source, id);
-            jd.collideConnected = m2Joint_GetCollideConnected(source, id);
+            jd.enableConnectedCollision = m2Joint_IsConnectedCollisionEnabled(source, id);
             made = NewMotorJoint(mirror, &jd);
         }
         else if (type == m2_mouseJoint)
@@ -769,7 +769,7 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.hertz = m2Joint_GetSpringHertz(source, id);
             jd.dampingRatio = m2Joint_GetSpringDampingRatio(source, id);
             jd.maxForce = m2MouseJoint_GetMaxForce(source, id);
-            jd.collideConnected = m2Joint_GetCollideConnected(source, id);
+            jd.enableConnectedCollision = m2Joint_IsConnectedCollisionEnabled(source, id);
             made = NewMouseJoint(mirror, &jd);
         }
         else if (type == m2_distanceJoint)
@@ -781,10 +781,10 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.localAnchorB = m2Joint_GetLocalAnchorB(source, id);
             jd.length = m2DistanceJoint_GetLength(source, id);
             m2DistanceJoint_GetLengthRange(source, id, &jd.minLength, &jd.maxLength);
-            jd.collideConnected = m2Joint_GetCollideConnected(source, id);
+            jd.enableConnectedCollision = m2Joint_IsConnectedCollisionEnabled(source, id);
             jd.hertz = m2Joint_GetSpringHertz(source, id);
             jd.dampingRatio = m2Joint_GetSpringDampingRatio(source, id);
-            jd.enableSpring = m2DistanceJoint_IsSpringEnabled(source, id);
+            jd.enableSpring = m2Joint_IsSpringEnabled(source, id);
             made = NewDistanceJoint(mirror, &jd);
         }
         else if (type == m2_revoluteJoint)
@@ -803,7 +803,7 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.maxMotorTorque = m2Joint_GetMaxMotor(source, id);
             jd.enableLimit = m2Joint_IsLimitEnabled(source, id);
             m2Joint_GetLimits(source, id, &jd.lowerAngle, &jd.upperAngle);
-            jd.collideConnected = m2Joint_GetCollideConnected(source, id);
+            jd.enableConnectedCollision = m2Joint_IsConnectedCollisionEnabled(source, id);
             made = NewRevoluteJoint(mirror, &jd);
         }
         else if (type == m2_prismaticJoint)
@@ -821,7 +821,7 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.maxMotorForce = m2Joint_GetMaxMotor(source, id);
             jd.enableLimit = m2Joint_IsLimitEnabled(source, id);
             m2Joint_GetLimits(source, id, &jd.lowerTranslation, &jd.upperTranslation);
-            jd.collideConnected = m2Joint_GetCollideConnected(source, id);
+            jd.enableConnectedCollision = m2Joint_IsConnectedCollisionEnabled(source, id);
             made = NewPrismaticJoint(mirror, &jd);
         }
         else if (type == m2_weldJoint)
@@ -835,7 +835,7 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.linearDampingRatio = m2Joint_GetSpringDampingRatio(source, id);
             jd.angularHertz = m2Joint_GetAngularSpringHertz(source, id);
             jd.angularDampingRatio = m2Joint_GetAngularSpringDampingRatio(source, id);
-            jd.collideConnected = m2Joint_GetCollideConnected(source, id);
+            jd.enableConnectedCollision = m2Joint_IsConnectedCollisionEnabled(source, id);
             made = NewWeldJoint(mirror, &jd);
         }
         else
@@ -854,7 +854,7 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.maxMotorTorque = m2Joint_GetMaxMotor(source, id);
             jd.enableLimit = m2Joint_IsLimitEnabled(source, id);
             m2Joint_GetLimits(source, id, &jd.lowerTranslation, &jd.upperTranslation);
-            jd.collideConnected = m2Joint_GetCollideConnected(source, id);
+            jd.enableConnectedCollision = m2Joint_IsConnectedCollisionEnabled(source, id);
             made = NewWheelJoint(mirror, &jd);
         }
         float breakForce = 0.0f;
@@ -1018,7 +1018,7 @@ static void TestMirrorRebuild(void)
     grip.hertz = 5.0f;
     grip.dampingRatio = 0.8f;
     grip.maxForce = 44.0f;
-    grip.collideConnected = true;
+    grip.enableConnectedCollision = true;
     NewMouseJoint(world, &grip);
     m2FilterJointDef pact = m2DefaultFilterJointDef();
     pact.bodyIdA = boxA;
@@ -1037,7 +1037,7 @@ static void TestMirrorRebuild(void)
     whj.enableLimit = true;
     whj.lowerTranslation = -0.3f;
     whj.upperTranslation = 0.3f;
-    whj.collideConnected = true;
+    whj.enableConnectedCollision = true;
     NewWheelJoint(world, &whj);
 
     m2World* mirror = MirrorWorld(world, &def);
@@ -1156,14 +1156,14 @@ static void TestBodyDynamicsPack(void)
     CHECK(m2Body_IsAwake(nap, insomniac), "the flagged twin never does");
     CHECK(!m2Body_IsSleepEnabled(nap, insomniac), "and reads back");
 
-    m2World_EnableSleeping(nap, false);
+    m2World_EnableSleep(nap, false);
     CHECK(m2Body_IsAwake(nap, sleeper), "killing the master switch wakes the sleeper");
     for (int32_t i = 0; i < 240; ++i)
     {
         m2World_Step(nap, 1.0f / 60.0f, 4);
     }
     CHECK(m2Body_IsAwake(nap, sleeper), "and nobody sleeps while it is off");
-    m2World_EnableSleeping(nap, true);
+    m2World_EnableSleep(nap, true);
     for (int32_t i = 0; i < 240; ++i)
     {
         m2World_Step(nap, 1.0f / 60.0f, 4);
@@ -1173,7 +1173,7 @@ static void TestBodyDynamicsPack(void)
 
     // The same master switch, given at creation.
     m2WorldDef awakeDef = def;
-    awakeDef.enableSleeping = false;
+    awakeDef.enableSleep = false;
     m2World* wakeful = NewWorld(&awakeDef);
     NewPolygonShape(wakeful, NewBody(wakeful, &gd), &fs, &slab);
     m2BodyId restless = NewBody(wakeful, &nd);
@@ -1221,7 +1221,7 @@ static void TestDormancyMassAndExplosions(void)
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(!m2Body_IsAwake(world, rider), "the rider sleeps on the pedestal");
-    m2Body_Disable(world, pedestal);
+    m2Body_SetEnabled(world, pedestal, false);
     CHECK(!m2Body_IsEnabled(world, pedestal), "dormancy reads back");
     for (int32_t i = 0; i < 90; ++i)
     {
@@ -1231,7 +1231,7 @@ static void TestDormancyMassAndExplosions(void)
     m2RayCastResult probe = m2World_CastRayClosest(world, (m2Pos2){0.0, 5.0}, (m2Vec2){0.0f, -4.0f},
                                                    m2DefaultQueryFilter());
     CHECK(!probe.hit, "a dormant body is invisible to queries");
-    m2Body_Enable(world, pedestal);
+    m2Body_SetEnabled(world, pedestal, true);
     probe = m2World_CastRayClosest(world, (m2Pos2){0.0, 5.0}, (m2Vec2){0.0f, -4.5f},
                                    m2DefaultQueryFilter());
     CHECK(probe.hit, "and reappears where it stood");
@@ -2370,8 +2370,8 @@ static void TestStaleIdsCountInEveryCall(void)
 
     uint64_t misuse = m2World_GetCounters(world).misuse;
     m2Body_SetAwake(world, body, true);
-    m2Body_Disable(world, body);
-    m2Body_Enable(world, body);
+    m2Body_SetEnabled(world, body, false);
+    m2Body_SetEnabled(world, body, true);
     CHECK(!m2Body_IsEnabled(world, body), "a stale body is not enabled");
     CHECK(m2Body_GetLinearDamping(world, body) == 0.0f, "nor damped");
     CHECK(m2Body_GetAngularDamping(world, body) == 0.0f, "in either way");
@@ -3269,7 +3269,7 @@ static HashScene MakeHashScene(int32_t variant)
     revolute.bodyIdB = scene.b;
     revolute.localAnchorA = (m2Vec2){1.0f, 0.0f};
     revolute.localAnchorB = (m2Vec2){-1.0f, 0.0f};
-    revolute.collideConnected = variant == HASH_SCENE_COLLIDE;
+    revolute.enableConnectedCollision = variant == HASH_SCENE_COLLIDE;
     scene.revolute = NewRevoluteJoint(scene.world, &revolute);
     m2DistanceJointDef distance = m2DefaultDistanceJointDef();
     distance.bodyIdA = scene.a;
@@ -3346,7 +3346,7 @@ static void ChangeWind(const HashScene* s)
 }
 static void ChangeSleeping(const HashScene* s)
 {
-    m2World_EnableSleeping(s->world, false);
+    m2World_EnableSleep(s->world, false);
 }
 static void ChangeGravityScale(const HashScene* s)
 {

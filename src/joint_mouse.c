@@ -87,8 +87,8 @@ static M2_NOINLINE m2Result CreateMouseJointWorker(m2World* world, const m2Mouse
     world->joints.jointLength[index] = def->maxForce;
     world->joints.jointTargets[index] = def->target;
     world->joints.jointUserData[index] = def->userData;
-    world->joints.jointCollide[index] = def->collideConnected ? 1 : 0;
-    if (def->collideConnected == false)
+    world->joints.jointCollide[index] = def->enableConnectedCollision ? 1 : 0;
+    if (def->enableConnectedCollision == false)
     {
         m2RefilterJointedBodies(world, bodyA, bodyB);
     }

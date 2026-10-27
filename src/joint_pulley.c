@@ -98,8 +98,8 @@ static M2_NOINLINE m2Result CreatePulleyJointWorker(m2World* world, const m2Pull
     float lengthB = m2PulleyLiveLength(world, index, 1);
     world->joints.jointRefAngle[index] = lengthA + def->ratio * lengthB;
     world->joints.jointUserData[index] = def->userData;
-    world->joints.jointCollide[index] = def->collideConnected ? 1 : 0;
-    if (def->collideConnected == false)
+    world->joints.jointCollide[index] = def->enableConnectedCollision ? 1 : 0;
+    if (def->enableConnectedCollision == false)
     {
         m2RefilterJointedBodies(world, bodyA, bodyB);
     }

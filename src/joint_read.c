@@ -214,8 +214,14 @@ bool m2Joint_IsLimitEnabled(const m2World* world, m2JointId jointId)
 
 bool m2Joint_IsSpringEnabled(const m2World* world, m2JointId jointId)
 {
-    int32_t index = JointSlotRefusing(world, jointId);
-    return index >= 0 && (world->joints.jointFlags[index] & M2_JOINT_SPRING) != 0;
+    int32_t index = JointSlotOfKind(world, jointId, M2_SPRING_KINDS);
+    if (index < 0)
+    {
+        return false;
+    }
+    uint32_t bit = world->joints.jointType[index] == (uint8_t)m2_distanceJoint ? M2_JOINT_ROPE
+                                                                               : M2_JOINT_SPRING;
+    return (world->joints.jointFlags[index] & bit) != 0;
 }
 
 static M2_NOINLINE void JointGetLimitsWorker(const m2World* world, m2JointId jointId,

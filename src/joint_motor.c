@@ -92,8 +92,8 @@ static M2_NOINLINE m2Result CreateMotorJointWorker(m2World* world, const m2Motor
     world->joints.jointHertz2[index] = def->hertz;
     world->joints.jointDamping2[index] = def->dampingRatio;
     world->joints.jointUserData[index] = def->userData;
-    world->joints.jointCollide[index] = def->collideConnected ? 1 : 0;
-    if (def->collideConnected == false)
+    world->joints.jointCollide[index] = def->enableConnectedCollision ? 1 : 0;
+    if (def->enableConnectedCollision == false)
     {
         m2RefilterJointedBodies(world, bodyA, bodyB);
     }

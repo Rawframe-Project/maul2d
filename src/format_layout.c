@@ -199,7 +199,7 @@ M2_PIN_AT(m2DistanceJointDef, hertz, 44);
 M2_PIN_AT(m2DistanceJointDef, dampingRatio, 48);
 M2_PIN_AT(m2DistanceJointDef, enableSpring, 52);
 M2_PIN_AT(m2DistanceJointDef, userData, 56);
-M2_PIN_AT(m2DistanceJointDef, collideConnected, 64);
+M2_PIN_AT(m2DistanceJointDef, enableConnectedCollision, 64);
 M2_PIN_AT(m2DistanceJointDef, internalValue, 68);
 
 M2_PIN_SIZE(m2RevoluteJointDef, 88);
@@ -218,7 +218,7 @@ M2_PIN_AT(m2RevoluteJointDef, enableLimit, 60);
 M2_PIN_AT(m2RevoluteJointDef, lowerAngle, 64);
 M2_PIN_AT(m2RevoluteJointDef, upperAngle, 68);
 M2_PIN_AT(m2RevoluteJointDef, userData, 72);
-M2_PIN_AT(m2RevoluteJointDef, collideConnected, 80);
+M2_PIN_AT(m2RevoluteJointDef, enableConnectedCollision, 80);
 M2_PIN_AT(m2RevoluteJointDef, internalValue, 84);
 
 M2_PIN_SIZE(m2PrismaticJointDef, 88);
@@ -236,7 +236,7 @@ M2_PIN_AT(m2PrismaticJointDef, enableLimit, 60);
 M2_PIN_AT(m2PrismaticJointDef, lowerTranslation, 64);
 M2_PIN_AT(m2PrismaticJointDef, upperTranslation, 68);
 M2_PIN_AT(m2PrismaticJointDef, userData, 72);
-M2_PIN_AT(m2PrismaticJointDef, collideConnected, 80);
+M2_PIN_AT(m2PrismaticJointDef, enableConnectedCollision, 80);
 M2_PIN_AT(m2PrismaticJointDef, internalValue, 84);
 
 M2_PIN_SIZE(m2WeldJointDef, 64);
@@ -249,7 +249,7 @@ M2_PIN_AT(m2WeldJointDef, linearDampingRatio, 36);
 M2_PIN_AT(m2WeldJointDef, angularHertz, 40);
 M2_PIN_AT(m2WeldJointDef, angularDampingRatio, 44);
 M2_PIN_AT(m2WeldJointDef, userData, 48);
-M2_PIN_AT(m2WeldJointDef, collideConnected, 56);
+M2_PIN_AT(m2WeldJointDef, enableConnectedCollision, 56);
 M2_PIN_AT(m2WeldJointDef, internalValue, 60);
 
 M2_PIN_SIZE(m2WheelJointDef, 96);
@@ -268,7 +268,7 @@ M2_PIN_AT(m2WheelJointDef, enableLimit, 64);
 M2_PIN_AT(m2WheelJointDef, lowerTranslation, 68);
 M2_PIN_AT(m2WheelJointDef, upperTranslation, 72);
 M2_PIN_AT(m2WheelJointDef, userData, 80);
-M2_PIN_AT(m2WheelJointDef, collideConnected, 88);
+M2_PIN_AT(m2WheelJointDef, enableConnectedCollision, 88);
 M2_PIN_AT(m2WheelJointDef, internalValue, 92);
 
 M2_PIN_SIZE(m2FilterJointDef, 32);
@@ -288,7 +288,7 @@ M2_PIN_AT(m2MotorJointDef, correctionFactor, 36);
 M2_PIN_AT(m2MotorJointDef, hertz, 40);
 M2_PIN_AT(m2MotorJointDef, dampingRatio, 44);
 M2_PIN_AT(m2MotorJointDef, userData, 48);
-M2_PIN_AT(m2MotorJointDef, collideConnected, 56);
+M2_PIN_AT(m2MotorJointDef, enableConnectedCollision, 56);
 M2_PIN_AT(m2MotorJointDef, internalValue, 60);
 
 M2_PIN_SIZE(m2MouseJointDef, 64);
@@ -299,7 +299,7 @@ M2_PIN_AT(m2MouseJointDef, hertz, 32);
 M2_PIN_AT(m2MouseJointDef, dampingRatio, 36);
 M2_PIN_AT(m2MouseJointDef, maxForce, 40);
 M2_PIN_AT(m2MouseJointDef, userData, 48);
-M2_PIN_AT(m2MouseJointDef, collideConnected, 56);
+M2_PIN_AT(m2MouseJointDef, enableConnectedCollision, 56);
 M2_PIN_AT(m2MouseJointDef, internalValue, 60);
 
 M2_PIN_SIZE(m2GearJointDef, 40);
@@ -307,7 +307,7 @@ M2_PIN_AT(m2GearJointDef, bodyIdA, 0);
 M2_PIN_AT(m2GearJointDef, bodyIdB, 8);
 M2_PIN_AT(m2GearJointDef, ratio, 16);
 M2_PIN_AT(m2GearJointDef, userData, 24);
-M2_PIN_AT(m2GearJointDef, collideConnected, 32);
+M2_PIN_AT(m2GearJointDef, enableConnectedCollision, 32);
 M2_PIN_AT(m2GearJointDef, internalValue, 36);
 
 M2_PIN_SIZE(m2PulleyJointDef, 88);
@@ -319,7 +319,7 @@ M2_PIN_AT(m2PulleyJointDef, localAnchorA, 48);
 M2_PIN_AT(m2PulleyJointDef, localAnchorB, 56);
 M2_PIN_AT(m2PulleyJointDef, ratio, 64);
 M2_PIN_AT(m2PulleyJointDef, userData, 72);
-M2_PIN_AT(m2PulleyJointDef, collideConnected, 80);
+M2_PIN_AT(m2PulleyJointDef, enableConnectedCollision, 80);
 M2_PIN_AT(m2PulleyJointDef, internalValue, 84);
 
 M2_PIN_SIZE(m2RatchetJointDef, 40);
@@ -328,7 +328,7 @@ M2_PIN_AT(m2RatchetJointDef, bodyIdB, 8);
 M2_PIN_AT(m2RatchetJointDef, ratchet, 16);
 M2_PIN_AT(m2RatchetJointDef, phase, 20);
 M2_PIN_AT(m2RatchetJointDef, userData, 24);
-M2_PIN_AT(m2RatchetJointDef, collideConnected, 32);
+M2_PIN_AT(m2RatchetJointDef, enableConnectedCollision, 32);
 M2_PIN_AT(m2RatchetJointDef, internalValue, 36);
 
 // The journal's records, in journal.h's order.

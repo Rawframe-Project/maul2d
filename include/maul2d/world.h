@@ -49,7 +49,7 @@ extern "C"
         int32_t bodyCapacity; // fixed pool sizes: a world never grows
         int32_t shapeCapacity;
         int32_t jointCapacity;
-        bool enableSleeping; // islands may sleep
+        bool enableSleep; // islands may sleep
         /// particleCapacity above 0 builds the particle system into the
         /// world for its whole life, so every snapshot has the same shape
         /// and rollback stays safe at any point in history. Its parameters
@@ -286,7 +286,7 @@ extern "C"
     /// @param flag   True to allow sleep.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
-    M2_API void m2World_EnableSleeping(m2World* world, bool flag);
+    M2_API void m2World_EnableSleep(m2World* world, bool flag);
 
     /// Tells whether the world allows sleep.
     ///
@@ -295,7 +295,7 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API bool m2World_IsSleepingEnabled(const m2World* world);
+    M2_API bool m2World_IsSleepEnabled(const m2World* world);
 
     /// Debug drawing: the world walks its state and calls back, and the
     /// host renders. Polygon vertices arrive body-local with the body's

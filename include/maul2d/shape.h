@@ -187,6 +187,16 @@ extern "C"
     /// several readers at once.
     M2_API int32_t m2Chain_GetSegmentCount(const m2World* world, m2ChainId chainId);
 
+    /// Tells whether a chain is a closed loop, as its def's isLoop said.
+    ///
+    /// @param world    The world.
+    /// @param chainId  The chain; a stale id counts one misuse.
+    /// @return True for a loop; false for an open chain or a stale id.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M2_API bool m2Chain_IsLoop(const m2World* world, m2ChainId chainId);
+
     static const m2ChainId m2_nullChainId = {0, 0};
 
     /// Returns a shape def: density 1, friction 0.6, no bounce, category

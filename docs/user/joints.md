@@ -1,6 +1,6 @@
 # Joints
 
-A joint connects two bodies. It joins their sleep island, wakes both when it is created or tuned, and goes when either body is destroyed. Its two bodies do not collide with each other unless the def's `collideConnected` is set, which is what ragdolls expect.
+A joint connects two bodies. It joins their sleep island, wakes both when it is created or tuned, and goes when either body is destroyed. Its two bodies do not collide with each other unless the def's `enableConnectedCollision` is set, which is what ragdolls expect.
 
 ## The core joints
 
@@ -23,7 +23,7 @@ Motors and limits belong to the revolute, prismatic and wheel joints. `m2Joint_S
 
 ## Tuning and reading back
 
-Every parameter of a def can be read back and most can be set at run time; each change is journaled. `m2Joint_SetSpringHertz` and `m2Joint_SetSpringDampingRatio` soften a joint's main rows (the distance spring, the wheel suspension, the weld's linear row, the mouse spring); the angular variants tune the revolute spring and the weld's angular row. A call made for one type, such as `m2DistanceJoint_SetLength` on a weld, changes nothing and counts one misuse.
+Every parameter of a def can be read back and most can be set at run time; each change is journaled. `m2Joint_SetSpringHertz` and `m2Joint_SetSpringDampingRatio` soften a joint's main rows (the distance spring, the wheel suspension, the weld's linear row, the mouse spring); the angular variants tune the revolute spring and the weld's angular row. `m2Joint_EnableSpring` turns the distance spring or the wheel suspension on and off, and `m2Joint_EnableConnectedCollision` lets a joint's bodies collide or keeps them apart. A call made for one type, such as `m2DistanceJoint_SetLength` on a weld, changes nothing and counts one misuse.
 
 `m2Joint_GetLinearSeparation` and `m2Joint_GetAngularSeparation` say how far a joint is from what it holds right now, which shows a rig being pulled apart. A joint takes bodies more than `M2_JOINT_REACH` (1e9 m) apart along an axis as that far apart: world positions are 64-bit and unbounded, but the solver works in 32-bit floats, and the clamp keeps it finite when a teleport sends one body to the far end of the world.
 

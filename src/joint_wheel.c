@@ -84,8 +84,8 @@ static M2_NOINLINE m2Result CreateWheelJointWorker(m2World* world, const m2Wheel
         m2FinishJoint(world, index, (uint8_t)m2_wheelJoint, bodyA, bodyB, def->localAnchorA,
                       def->localAnchorB, 0.0f, def->hertz, def->dampingRatio);
     world->joints.jointUserData[index] = def->userData;
-    world->joints.jointCollide[index] = def->collideConnected ? 1 : 0;
-    if (def->collideConnected == false)
+    world->joints.jointCollide[index] = def->enableConnectedCollision ? 1 : 0;
+    if (def->enableConnectedCollision == false)
     {
         m2RefilterJointedBodies(world, bodyA, bodyB);
     }

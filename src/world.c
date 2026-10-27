@@ -34,7 +34,7 @@ m2WorldDef m2DefaultWorldDefValues(void)
     m2WorldDef def;
     memset(&def, 0, sizeof(def));
     def.gravity = (m2Vec2){0.0f, -10.0f};
-    def.enableSleeping = true;
+    def.enableSleep = true;
     def.bodyCapacity = 1024;
     def.shapeCapacity = 2048;
     def.jointCapacity = 256;
@@ -232,7 +232,7 @@ static M2_NOINLINE m2Result CreateWorldWorker(const m2WorldDef* def, m2World** w
     }
     SeedFreeLists(world);
 
-    world->sleepEnabled = def->enableSleeping ? 1 : 0;
+    world->sleepEnabled = def->enableSleep ? 1 : 0;
     *worldOut = world;
     return m2_success;
 }
@@ -552,7 +552,7 @@ m2MemoryUsage m2World_GetMemoryUsage(const m2World* world)
     return usage;
 }
 
-static M2_NOINLINE void WorldEnableSleepingWorker(m2World* world, bool flag)
+static M2_NOINLINE void WorldEnableSleepWorker(m2World* world, bool flag)
 {
     if (m2CheckWriter(world) != m2_success)
     {
@@ -571,7 +571,7 @@ static M2_NOINLINE void WorldEnableSleepingWorker(m2World* world, bool flag)
     {
         m2OpFlag record;
         record.flag = next;
-        m2JournalRecord(world, m2_opEnableSleeping, &record, (int32_t)sizeof(record));
+        m2JournalRecord(world, m2_opEnableSleep, &record, (int32_t)sizeof(record));
     }
     world->sleepEnabled = next;
     if (next == 0)
@@ -589,14 +589,14 @@ static M2_NOINLINE void WorldEnableSleepingWorker(m2World* world, bool flag)
     }
 }
 
-void m2World_EnableSleeping(m2World* world, bool flag)
+void m2World_EnableSleep(m2World* world, bool flag)
 {
     uint64_t env = m2FloatEnvEnter();
-    WorldEnableSleepingWorker(world, flag);
+    WorldEnableSleepWorker(world, flag);
     m2FloatEnvLeave(env);
 }
 
-bool m2World_IsSleepingEnabled(const m2World* world)
+bool m2World_IsSleepEnabled(const m2World* world)
 {
     return world != NULL && world->sleepEnabled != 0;
 }

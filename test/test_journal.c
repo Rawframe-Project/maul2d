@@ -164,8 +164,8 @@ static void RunSession(m2World* world, uint8_t* journal, int32_t capacity, int32
     m2Body_ApplyTorque(world, bob, 0.8f);                                   // op 29
     m2Body_SetLinearDamping(world, bob, 0.2f);                              // op 25
     m2Body_SetMotionLocks(world, bob, (m2MotionLocks){false, false, true}); // op 25
-    m2World_EnableSleeping(world, false);                                   // op 26
-    m2World_EnableSleeping(world, true);
+    m2World_EnableSleep(world, false);                                      // op 26
+    m2World_EnableSleep(world, true);
     m2MotorJointDef chase = m2DefaultMotorJointDef(); // op 31
     chase.bodyIdA = anchor;
     chase.bodyIdB = bob;
@@ -179,8 +179,8 @@ static void RunSession(m2World* world, uint8_t* journal, int32_t capacity, int32
     grip.target = (m2Pos2){2.0, 1.0};
     m2JointId gripper = NewMouseJoint(world, &grip);
     m2MouseJoint_SetTarget(world, gripper, (m2Pos2){3.0, 2.0}); // op 34
-    m2Body_Disable(world, ram);                                 // op 35
-    m2Body_Enable(world, ram);                                  // op 36
+    m2Body_SetEnabled(world, ram, false);                       // op 35
+    m2Body_SetEnabled(world, ram, true);                        // op 36
     m2MassData heavier = m2Body_GetMassData(world, bob);
     heavier.mass *= 2.0f;
     heavier.centralInertia *= 2.0f;
@@ -272,6 +272,8 @@ static void RunSession(m2World* world, uint8_t* journal, int32_t capacity, int32
     m2DistanceJoint_SetLengthRange(world, leash, 0.4f, 2.2f); // params 13+14
     m2Joint_SetSpringHertz(world, leash, 6.0f);               // param 8
     m2Joint_SetSpringDampingRatio(world, leash, 0.5f);        // param 9
+    m2Joint_EnableSpring(world, leash, true);                 // param 17
+    m2Joint_EnableConnectedCollision(world, leash, true);     // param 18
     for (int32_t i = 0; i < 30; ++i)
     {
         m2World_Step(world, 1.0f / 120.0f, 2); // second dt flavor

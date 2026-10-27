@@ -335,7 +335,7 @@ static void DoRandomOp(m2World* world)
             m2RatchetJointDef jd = m2DefaultRatchetJointDef();
             jd.bodyIdA = a;
             jd.bodyIdB = b;
-            jd.collideConnected = collide;
+            jd.enableConnectedCollision = collide;
             float tooth = 0.2f + (float)Pick(5) * 0.1f;
             jd.ratchet = Pick(2) == 0 ? tooth : -tooth;
             NewRatchetJoint(world, &jd);
@@ -346,7 +346,7 @@ static void DoRandomOp(m2World* world)
             m2PulleyJointDef jd = m2DefaultPulleyJointDef();
             jd.bodyIdA = a;
             jd.bodyIdB = b;
-            jd.collideConnected = collide;
+            jd.enableConnectedCollision = collide;
             m2Pos2 pa = m2Body_GetPosition(world, a);
             m2Pos2 pb = m2Body_GetPosition(world, b);
             float sideA = (float)Pick(5) - 2.0f;
@@ -364,7 +364,7 @@ static void DoRandomOp(m2World* world)
             m2GearJointDef jd = m2DefaultGearJointDef();
             jd.bodyIdA = a;
             jd.bodyIdB = b;
-            jd.collideConnected = collide;
+            jd.enableConnectedCollision = collide;
             float ratio = 0.5f + (float)Pick(4) * 0.5f;
             jd.ratio = Pick(2) == 0 ? ratio : -ratio;
             NewGearJoint(world, &jd);
@@ -375,7 +375,7 @@ static void DoRandomOp(m2World* world)
             m2MotorJointDef jd = m2DefaultMotorJointDef();
             jd.bodyIdA = a;
             jd.bodyIdB = b;
-            jd.collideConnected = collide;
+            jd.enableConnectedCollision = collide;
             float ox = (float)((int32_t)Pick(7) - 3) * 0.5f;
             float oy = (float)((int32_t)Pick(7) - 3) * 0.5f;
             jd.linearOffset = (m2Vec2){ox, oy};
@@ -390,7 +390,7 @@ static void DoRandomOp(m2World* world)
             m2MouseJointDef jd = m2DefaultMouseJointDef();
             jd.bodyIdA = a;
             jd.bodyIdB = b;
-            jd.collideConnected = collide;
+            jd.enableConnectedCollision = collide;
             m2Pos2 bp = m2Body_GetPosition(world, b);
             double tx = (double)((int32_t)Pick(9) - 4) * 0.5;
             double ty = (double)((int32_t)Pick(9) - 4) * 0.5;
@@ -410,7 +410,7 @@ static void DoRandomOp(m2World* world)
         if (type == 0)
         {
             m2DistanceJointDef jd = m2DefaultDistanceJointDef();
-            jd.collideConnected = collide;
+            jd.enableConnectedCollision = collide;
             jd.bodyIdA = a;
             jd.bodyIdB = b;
             jd.localAnchorA = anchorA;
@@ -422,7 +422,7 @@ static void DoRandomOp(m2World* world)
         else if (type == 1)
         {
             m2RevoluteJointDef jd = m2DefaultRevoluteJointDef();
-            jd.collideConnected = collide;
+            jd.enableConnectedCollision = collide;
             jd.bodyIdA = a;
             jd.bodyIdB = b;
             jd.localAnchorA = anchorA;
@@ -441,7 +441,7 @@ static void DoRandomOp(m2World* world)
         else if (type == 2)
         {
             m2PrismaticJointDef jd = m2DefaultPrismaticJointDef();
-            jd.collideConnected = collide;
+            jd.enableConnectedCollision = collide;
             jd.bodyIdA = a;
             jd.bodyIdB = b;
             jd.localAnchorA = anchorA;
@@ -455,7 +455,7 @@ static void DoRandomOp(m2World* world)
         else if (type == 3)
         {
             m2WeldJointDef jd = m2DefaultWeldJointDef();
-            jd.collideConnected = collide;
+            jd.enableConnectedCollision = collide;
             jd.bodyIdA = a;
             jd.bodyIdB = b;
             jd.localAnchorA = anchorA;
@@ -469,7 +469,7 @@ static void DoRandomOp(m2World* world)
         else
         {
             m2WheelJointDef jd = m2DefaultWheelJointDef();
-            jd.collideConnected = collide;
+            jd.enableConnectedCollision = collide;
             jd.bodyIdA = a;
             jd.bodyIdB = b;
             jd.localAnchorA = anchorA;
@@ -654,11 +654,11 @@ static void DoRandomOp(m2World* world)
         {
             if (Pick(2) == 0)
             {
-                m2Body_Disable(world, body);
+                m2Body_SetEnabled(world, body, false);
             }
             else
             {
-                m2Body_Enable(world, body);
+                m2Body_SetEnabled(world, body, true);
             }
         }
         return;

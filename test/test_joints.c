@@ -290,9 +290,9 @@ static void TestRevoluteChain(void)
         jd.bodyIdB = links[i];
         jd.localAnchorA = i == 0 ? (m2Vec2){0.5f, 0.0f} : (m2Vec2){0.5f, 0.0f};
         jd.localAnchorB = (m2Vec2){-0.5f, 0.0f};
-        // This scene predates collideConnected and its gap band assumes
+        // This scene predates enableConnectedCollision and its gap band assumes
         // adjacent links bounce off each other; opt into that explicitly.
-        jd.collideConnected = true;
+        jd.enableConnectedCollision = true;
         CHECK(m2Joint_IsValid(world, NewRevoluteJoint(world, &jd)), "link joint created");
         previous = links[i];
     }
@@ -947,10 +947,10 @@ static void TestReactionGetters(void)
     m2DestroyWorld(world);
 }
 
-// collideConnected: the default is that
+// enableConnectedCollision: the default is that
 // jointed bodies pass through each other; the flag restores contact,
 // and the filter joint is nothing but this switch with a lifetime.
-static void TestCollideConnectedAndFilterJoint(void)
+static void TestConnectedCollisionAndFilterJoint(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 16;
@@ -989,7 +989,7 @@ static void TestCollideConnectedAndFilterJoint(void)
     fj.bodyIdB = crate;
     m2JointId ghostPact = NewFilterJoint(world, &fj);
     CHECK(m2Joint_GetType(world, ghostPact) == m2_filterJoint, "the pact reads as a filter joint");
-    CHECK(!m2Joint_GetCollideConnected(world, ghostPact), "and never collides");
+    CHECK(!m2Joint_IsConnectedCollisionEnabled(world, ghostPact), "and never collides");
     for (int32_t i = 0; i < 90; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
@@ -1029,7 +1029,7 @@ static void TestCollideConnectedAndFilterJoint(void)
         dj.length = 0.1f; // a short soft rod pulling them together
         dj.hertz = 5.0f;
         dj.dampingRatio = 0.7f;
-        dj.collideConnected = pass == 1;
+        dj.enableConnectedCollision = pass == 1;
         NewDistanceJoint(world, &dj);
         for (int32_t i = 0; i < 120; ++i)
         {
@@ -1169,14 +1169,14 @@ static void TestDistanceSpringToggleReadsBack(void)
     rope.maxLength = 3.0f;
     m2JointId original;
     m2World* world = RopeWorld(&rope, &original);
-    CHECK(m2DistanceJoint_IsSpringEnabled(world, original), "the rope's toggle reads back");
+    CHECK(m2Joint_IsSpringEnabled(world, original), "the rope's toggle reads back");
 
     m2DistanceJointDef copy = m2DefaultDistanceJointDef();
     copy.length = m2DistanceJoint_GetLength(world, original);
     m2DistanceJoint_GetLengthRange(world, original, &copy.minLength, &copy.maxLength);
     copy.hertz = m2Joint_GetSpringHertz(world, original);
     copy.dampingRatio = m2Joint_GetSpringDampingRatio(world, original);
-    copy.enableSpring = m2DistanceJoint_IsSpringEnabled(world, original);
+    copy.enableSpring = m2Joint_IsSpringEnabled(world, original);
     m2JointId rebuilt;
     m2World* twin = RopeWorld(&copy, &rebuilt);
     for (int32_t i = 0; i < 90; ++i)
@@ -1189,13 +1189,13 @@ static void TestDistanceSpringToggleReadsBack(void)
     m2DistanceJointDef rod = m2DefaultDistanceJointDef();
     m2JointId plain;
     m2World* rodWorld = RopeWorld(&rod, &plain);
-    CHECK(!m2DistanceJoint_IsSpringEnabled(rodWorld, plain), "a plain rod reads off");
+    CHECK(!m2Joint_IsSpringEnabled(rodWorld, plain), "a plain rod reads off");
     m2RevoluteJointDef pin = m2DefaultRevoluteJointDef();
     pin.bodyIdA = m2Joint_GetBodyA(rodWorld, plain);
     pin.bodyIdB = m2Joint_GetBodyB(rodWorld, plain);
     m2JointId hinge = NewRevoluteJoint(rodWorld, &pin);
     uint64_t misuse = m2World_GetCounters(rodWorld).misuse;
-    CHECK(!m2DistanceJoint_IsSpringEnabled(rodWorld, hinge), "a hinge has no rope toggle");
+    CHECK(!m2Joint_IsSpringEnabled(rodWorld, hinge), "a hinge has no rope toggle");
     CHECK(m2World_GetCounters(rodWorld).misuse == misuse + 1, "and asking counts one misuse");
     m2DestroyWorld(rodWorld);
     m2DestroyWorld(twin);
@@ -2665,6 +2665,85 @@ static void TestVanishingSpringsStayFinite(void)
     }
 }
 
+// The switches a def sets can change on a live joint: connected
+// collision on any kind but the filter joint, and the spring on distance
+// and wheel joints. Each reads back, and another kind counts a misuse.
+static void TestJointSwitches(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 8;
+    def.shapeCapacity = 8;
+    def.jointCapacity = 4;
+    m2World* world = NewWorld(&def);
+    m2BodyDef pd = m2DefaultBodyDef();
+    pd.position = (m2Pos2){0.0, 0.5};
+    m2BodyId pedestal = NewBody(world, &pd);
+    m2ShapeDef fs = m2DefaultShapeDef();
+    m2Polygon top = m2MakeBox(1.0f, 0.5f);
+    NewPolygonShape(world, pedestal, &fs, &top);
+    m2Polygon floorBox = m2MakeBox(12.0f, 0.5f);
+    pd.position = (m2Pos2){0.0, -1.5};
+    NewPolygonShape(world, NewBody(world, &pd), &fs, &floorBox);
+    m2BodyDef cd = m2DefaultBodyDef();
+    cd.type = m2_dynamicBody;
+    cd.position = (m2Pos2){0.0, 1.45};
+    m2BodyId crate = NewBody(world, &cd);
+    m2Polygon unit = m2MakeBox(0.4f, 0.4f);
+    NewPolygonShape(world, crate, &fs, &unit);
+
+    // A slack rope (spring on, hertz 0, no range) that lets its bodies
+    // touch: the crate rests on the pedestal.
+    m2DistanceJointDef rope = m2DefaultDistanceJointDef();
+    rope.bodyIdA = pedestal;
+    rope.bodyIdB = crate;
+    rope.enableSpring = true;
+    rope.enableConnectedCollision = true;
+    m2JointId tie = NewDistanceJoint(world, &rope);
+    for (int32_t i = 0; i < 60; ++i)
+    {
+        m2World_Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(m2Joint_IsConnectedCollisionEnabled(world, tie) &&
+              m2Body_GetPosition(world, crate).y > 1.2,
+          "a rope that lets its bodies collide keeps the crate on the pedestal");
+    m2Joint_EnableConnectedCollision(world, tie, false);
+    for (int32_t i = 0; i < 90; ++i)
+    {
+        m2World_Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(!m2Joint_IsConnectedCollisionEnabled(world, tie) &&
+              m2Body_GetPosition(world, crate).y < 0.0,
+          "turned off, the crate falls through the pedestal");
+    m2Joint_EnableConnectedCollision(world, tie, true);
+    m2Body_SetTransform(world, crate, (m2Pos2){0.0, 2.0}, (m2Rot){1.0f, 0.0f});
+    m2Body_SetLinearVelocity(world, crate, (m2Vec2){0.0f, 0.0f});
+    for (int32_t i = 0; i < 90; ++i)
+    {
+        m2World_Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(m2Joint_IsConnectedCollisionEnabled(world, tie) &&
+              m2Body_GetPosition(world, crate).y > 1.2,
+          "turned back on, a dropped crate rests on the pedestal again");
+
+    CHECK(m2Joint_IsSpringEnabled(world, tie), "the rope's spring reads on");
+    m2Joint_EnableSpring(world, tie, false);
+    CHECK(!m2Joint_IsSpringEnabled(world, tie), "and off once turned off");
+
+    m2FilterJointDef fj = m2DefaultFilterJointDef();
+    fj.bodyIdA = pedestal;
+    fj.bodyIdB = crate;
+    m2JointId pact = NewFilterJoint(world, &fj);
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    m2Joint_EnableConnectedCollision(world, pact, true);
+    m2Joint_EnableSpring(world, pact, true);
+    CHECK(!m2Joint_IsConnectedCollisionEnabled(world, pact) &&
+              !m2Joint_IsSpringEnabled(world, pact) &&
+              m2World_GetCounters(world).misuse == misuse + 3,
+          "a filter joint refuses both switches and has no spring, each a misuse");
+    CHECK(m2World_Validate(world), "the world stays valid");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
     TestFarApartJointsStayFinite();
@@ -2690,7 +2769,8 @@ int main(void)
     TestJointRuntimeTuning();
     TestSoftWeld();
     TestReactionGetters();
-    TestCollideConnectedAndFilterJoint();
+    TestConnectedCollisionAndFilterJoint();
+    TestJointSwitches();
     TestMotorAndMouseJoints();
     TestMotorSpring();
     TestDistanceRange();

@@ -254,9 +254,48 @@ static bool JointParamValid(uint8_t type, uint8_t param, float value)
         return type == (uint8_t)m2_gearJoint && m2ValidRatio(value);
     case m2_jointParamPulleyRatio:
         return type == (uint8_t)m2_pulleyJoint && m2ValidRatio(value) && value > 0.0f;
+    case m2_jointParamEnableSpring:
+        return (M2_SPRING_KINDS & (1u << type)) != 0 && (value == 0.0f || value == 1.0f);
+    case m2_jointParamConnectedCollision:
+        // The filter joint exists to keep its bodies apart.
+        return type != (uint8_t)m2_filterJoint && (value == 0.0f || value == 1.0f);
     default:
         return false;
     }
+}
+
+// Writes a validated switch: a spring toggle drops the spring row's
+// impulse (a distance joint's rest row, a wheel's suspension row), and a
+// change of connected collision has the broadphase look at the two
+// bodies' pairs again, as the create does.
+static void ApplyJointSwitch(m2World* world, int32_t index, uint8_t param, bool on)
+{
+    m2Joints* j = &world->joints;
+    if (param == m2_jointParamConnectedCollision)
+    {
+        j->jointCollide[index] = on ? 1 : 0;
+        m2RefilterJointedBodies(world, j->jointBodyA[index], j->jointBodyB[index]);
+        return;
+    }
+    bool distance = j->jointType[index] == (uint8_t)m2_distanceJoint;
+    uint32_t bit = distance ? M2_JOINT_ROPE : M2_JOINT_SPRING;
+    j->jointFlags[index] = on ? (j->jointFlags[index] | bit) : (j->jointFlags[index] & ~bit);
+    if (distance)
+    {
+        j->jointImpulse[index].x = 0.0f;
+    }
+    else
+    {
+        j->jointImpulse[index].y = 0.0f;
+    }
+}
+
+// A distance retarget drops the joint's accumulated impulses.
+static void DropDistanceImpulses(m2Joints* j, int32_t index)
+{
+    j->jointImpulse[index] = (m2Vec2){0.0f, 0.0f};
+    j->jointLowerImpulse[index] = 0.0f;
+    j->jointUpperImpulse[index] = 0.0f;
 }
 
 // Writes one validated parameter; distance and pulley retargets drop
@@ -307,21 +346,15 @@ static void ApplyJointParam(m2World* world, int32_t index, uint8_t param, float 
         break;
     case m2_jointParamLength:
         j->jointLength[index] = value;
-        j->jointImpulse[index] = (m2Vec2){0.0f, 0.0f};
-        j->jointLowerImpulse[index] = 0.0f;
-        j->jointUpperImpulse[index] = 0.0f;
+        DropDistanceImpulses(j, index);
         break;
     case m2_jointParamMinLength:
         j->jointLower[index] = value;
-        j->jointImpulse[index] = (m2Vec2){0.0f, 0.0f};
-        j->jointLowerImpulse[index] = 0.0f;
-        j->jointUpperImpulse[index] = 0.0f;
+        DropDistanceImpulses(j, index);
         break;
     case m2_jointParamMaxLength:
         j->jointUpper[index] = value;
-        j->jointImpulse[index] = (m2Vec2){0.0f, 0.0f};
-        j->jointLowerImpulse[index] = 0.0f;
-        j->jointUpperImpulse[index] = 0.0f;
+        DropDistanceImpulses(j, index);
         break;
     case m2_jointParamGearRatio:
         j->jointLength[index] = value; // phase carries over on purpose
@@ -336,6 +369,10 @@ static void ApplyJointParam(m2World* world, int32_t index, uint8_t param, float 
         break;
     case m2_jointParamUpper:
         j->jointUpper[index] = value;
+        break;
+    case m2_jointParamEnableSpring:
+    case m2_jointParamConnectedCollision:
+        ApplyJointSwitch(world, index, param, value != 0.0f);
         break;
     default:
         M2_ASSERT(false); // JointParamValid admits no other channel
@@ -433,6 +470,39 @@ void m2Joint_EnableLimit(m2World* world, m2JointId jointId, bool enable)
 {
     uint64_t env = m2FloatEnvEnter();
     JointEnableLimitWorker(world, jointId, enable);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void JointEnableSpringWorker(m2World* world, m2JointId jointId, bool enable)
+{
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
+    m2SetJointParamInternal(world, jointId, m2_jointParamEnableSpring, enable ? 1.0f : 0.0f);
+}
+
+void m2Joint_EnableSpring(m2World* world, m2JointId jointId, bool enable)
+{
+    uint64_t env = m2FloatEnvEnter();
+    JointEnableSpringWorker(world, jointId, enable);
+    m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE void JointEnableConnectedCollisionWorker(m2World* world, m2JointId jointId,
+                                                            bool enable)
+{
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
+    m2SetJointParamInternal(world, jointId, m2_jointParamConnectedCollision, enable ? 1.0f : 0.0f);
+}
+
+void m2Joint_EnableConnectedCollision(m2World* world, m2JointId jointId, bool enable)
+{
+    uint64_t env = m2FloatEnvEnter();
+    JointEnableConnectedCollisionWorker(world, jointId, enable);
     m2FloatEnvLeave(env);
 }
 
@@ -623,7 +693,8 @@ int32_t m2TypedJointSlot(const m2World* world, m2JointId jointId, uint8_t type)
     return index;
 }
 
-static M2_NOINLINE bool JointGetCollideConnectedWorker(const m2World* world, m2JointId jointId)
+static M2_NOINLINE bool JointIsConnectedCollisionEnabledWorker(const m2World* world,
+                                                               m2JointId jointId)
 {
     int32_t index = (int32_t)jointId.index1 - 1;
     if (world == NULL || index < 0 || index >= world->joints.jointCapacity ||
@@ -636,10 +707,10 @@ static M2_NOINLINE bool JointGetCollideConnectedWorker(const m2World* world, m2J
     return world->joints.jointCollide[index] != 0;
 }
 
-bool m2Joint_GetCollideConnected(const m2World* world, m2JointId jointId)
+bool m2Joint_IsConnectedCollisionEnabled(const m2World* world, m2JointId jointId)
 {
     uint64_t env = m2FloatEnvEnter();
-    bool result = JointGetCollideConnectedWorker(world, jointId);
+    bool result = JointIsConnectedCollisionEnabledWorker(world, jointId);
     m2FloatEnvLeave(env);
     return result;
 }

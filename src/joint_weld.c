@@ -72,8 +72,8 @@ static M2_NOINLINE m2Result CreateWeldJointWorker(m2World* world, const m2WeldJo
         m2FinishJoint(world, index, (uint8_t)m2_weldJoint, bodyA, bodyB, def->localAnchorA,
                       def->localAnchorB, 0.0f, def->linearHertz, def->linearDampingRatio);
     world->joints.jointUserData[index] = def->userData;
-    world->joints.jointCollide[index] = def->collideConnected ? 1 : 0;
-    if (def->collideConnected == false)
+    world->joints.jointCollide[index] = def->enableConnectedCollision ? 1 : 0;
+    if (def->enableConnectedCollision == false)
     {
         m2RefilterJointedBodies(world, bodyA, bodyB);
     }

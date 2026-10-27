@@ -73,9 +73,9 @@ extern "C"
         /// rope (free until taut); with a minLength, a strut (free until
         /// squeezed). With hertz above 0 it behaves as off.
         bool enableSpring;
-        M2_ALIGN8 uint64_t userData; // opaque, kept through snapshots and journals
-        bool collideConnected;       // false: the two bodies pass through each other
-        int32_t internalValue;       // the cookie m2DefaultDistanceJointDef sets
+        M2_ALIGN8 uint64_t userData;   // opaque, kept through snapshots and journals
+        bool enableConnectedCollision; // false: the two bodies pass through each other
+        int32_t internalValue;         // the cookie m2DefaultDistanceJointDef sets
     } m2DistanceJointDef;
 
     /// Pins two local anchor points together: a hinge. Limit angles, the
@@ -98,7 +98,7 @@ extern "C"
         float lowerAngle; // radians from the creation angle
         float upperAngle;
         M2_ALIGN8 uint64_t userData;
-        bool collideConnected;
+        bool enableConnectedCollision;
         int32_t internalValue; // the cookie m2DefaultRevoluteJointDef sets
     } m2RevoluteJointDef;
 
@@ -122,7 +122,7 @@ extern "C"
         float lowerTranslation; // meters from the separation at creation
         float upperTranslation;
         M2_ALIGN8 uint64_t userData;
-        bool collideConnected;
+        bool enableConnectedCollision;
         int32_t internalValue; // the cookie m2DefaultPrismaticJointDef sets
     } m2PrismaticJointDef;
 
@@ -140,7 +140,7 @@ extern "C"
         float angularHertz; // 0: rigid
         float angularDampingRatio;
         M2_ALIGN8 uint64_t userData;
-        bool collideConnected;
+        bool enableConnectedCollision;
         int32_t internalValue; // the cookie m2DefaultWeldJointDef sets
     } m2WeldJointDef;
 
@@ -163,7 +163,7 @@ extern "C"
         float lowerTranslation; // meters from the separation at creation
         float upperTranslation;
         M2_ALIGN8 uint64_t userData;
-        bool collideConnected;
+        bool enableConnectedCollision;
         int32_t internalValue; // the cookie m2DefaultWheelJointDef sets
     } m2WheelJointDef;
 
@@ -185,7 +185,7 @@ extern "C"
         float hertz;
         float dampingRatio;
         M2_ALIGN8 uint64_t userData;
-        bool collideConnected;
+        bool enableConnectedCollision;
         int32_t internalValue; // the cookie m2DefaultMotorJointDef sets
     } m2MotorJointDef;
 
@@ -204,7 +204,7 @@ extern "C"
         float dampingRatio;
         float maxForce; // N
         M2_ALIGN8 uint64_t userData;
-        bool collideConnected;
+        bool enableConnectedCollision;
         int32_t internalValue; // the cookie m2DefaultMouseJointDef sets
     } m2MouseJointDef;
 
@@ -220,7 +220,7 @@ extern "C"
         /// positive ratio and spin opposite.
         float ratio;
         M2_ALIGN8 uint64_t userData;
-        bool collideConnected;
+        bool enableConnectedCollision;
         int32_t internalValue; // the cookie m2DefaultGearJointDef sets
     } m2GearJointDef;
 
@@ -238,7 +238,7 @@ extern "C"
         m2Vec2 localAnchorB;
         float ratio; // M2_MIN_RATIO to M2_MAX_RATIO
         M2_ALIGN8 uint64_t userData;
-        bool collideConnected;
+        bool enableConnectedCollision;
         int32_t internalValue; // the cookie m2DefaultPulleyJointDef sets
     } m2PulleyJointDef;
 
@@ -256,7 +256,7 @@ extern "C"
         float ratchet;
         float phase; // offsets the teeth, radians
         M2_ALIGN8 uint64_t userData;
-        bool collideConnected;
+        bool enableConnectedCollision;
         int32_t internalValue; // the cookie m2DefaultRatchetJointDef sets
     } m2RatchetJointDef;
 
@@ -636,18 +636,6 @@ extern "C"
     M2_API void m2DistanceJoint_SetLengthRange(m2World* world, m2JointId jointId, float minLength,
                                                float maxLength);
 
-    /// Tells whether a distance joint was created with enableSpring, which
-    /// makes it a slack rope or a strut while its hertz is 0.
-    ///
-    /// @param world    The world.
-    /// @param jointId  A distance joint.
-    /// @return True when its spring toggle is on; false for another joint
-    ///         type or a stale id, which count one misuse.
-    /// @par Thread safety
-    /// Safe from any thread; a world is used by one thread at a time, or by
-    /// several readers at once.
-    M2_API bool m2DistanceJoint_IsSpringEnabled(const m2World* world, m2JointId jointId);
-
     /// Reads a distance joint's rest length.
     ///
     /// @param world    The world.
@@ -826,13 +814,24 @@ extern "C"
     /// several readers at once.
     M2_API bool m2Joint_IsLimitEnabled(const m2World* world, m2JointId jointId);
 
-    /// Tells whether a wheel joint's suspension spring is on. A distance
-    /// joint's toggle reads through m2DistanceJoint_IsSpringEnabled.
+    /// Turns a joint's spring on or off: a distance joint's, which makes it
+    /// a slack rope or a strut while its hertz is 0, or a wheel's
+    /// suspension. The spring row's accumulated impulse is dropped. Another
+    /// joint type counts one misuse. Journaled.
     ///
     /// @param world    The world.
-    /// @param jointId  The joint.
-    /// @return True for a wheel with its spring on; false for any other
-    ///         joint and for a stale id.
+    /// @param jointId  A distance or wheel joint.
+    /// @param enable   True to turn the spring on.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
+    M2_API void m2Joint_EnableSpring(m2World* world, m2JointId jointId, bool enable);
+
+    /// Tells whether a distance or wheel joint's spring is on.
+    ///
+    /// @param world    The world.
+    /// @param jointId  A distance or wheel joint.
+    /// @return True when its spring is on; false for another joint type or
+    ///         a stale id, which count one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
@@ -883,6 +882,19 @@ extern "C"
     /// several readers at once.
     M2_API m2BodyId m2Joint_GetBodyB(const m2World* world, m2JointId jointId);
 
+    /// Lets a joint's two bodies collide with each other, or keeps them
+    /// apart, as the def's enableConnectedCollision does at creation. Both
+    /// bodies wake and their pairs are found again on the next step. A
+    /// filter joint, which exists to keep its bodies apart, or a stale id
+    /// counts one misuse. Journaled.
+    ///
+    /// @param world    The world.
+    /// @param jointId  The joint.
+    /// @param enable   True to let the bodies collide.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
+    M2_API void m2Joint_EnableConnectedCollision(m2World* world, m2JointId jointId, bool enable);
+
     /// Tells whether a joint's two bodies collide with each other.
     ///
     /// @param world    The world.
@@ -891,7 +903,7 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API bool m2Joint_GetCollideConnected(const m2World* world, m2JointId jointId);
+    M2_API bool m2Joint_IsConnectedCollisionEnabled(const m2World* world, m2JointId jointId);
 
     /// Reads a joint's game data.
     ///

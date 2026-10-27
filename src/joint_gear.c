@@ -81,8 +81,8 @@ static M2_NOINLINE m2Result CreateGearJointWorker(m2World* world, const m2GearJo
     world->joints.jointLocalAnchorB[index] = (m2Vec2){qB.c, qB.s};
     world->joints.jointRefAngle[index] = 0.0f; // in phase by definition at birth
     world->joints.jointUserData[index] = def->userData;
-    world->joints.jointCollide[index] = def->collideConnected ? 1 : 0;
-    if (def->collideConnected == false)
+    world->joints.jointCollide[index] = def->enableConnectedCollision ? 1 : 0;
+    if (def->enableConnectedCollision == false)
     {
         m2RefilterJointedBodies(world, bodyA, bodyB);
     }
