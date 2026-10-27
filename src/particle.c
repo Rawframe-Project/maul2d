@@ -7,6 +7,7 @@
 #include "particle.h"
 
 #include "fpenv.h"
+#include "geometry.h"
 #include "journal.h"
 #include "world_internal.h"
 
@@ -375,18 +376,13 @@ typedef struct FillBatch
     int32_t currRow[M2_FILL_COLUMNS];
 } FillBatch;
 
+// A fill's arguments; the polygon is checked as a shape's is, through
+// m2CanonicalPolygon.
 static bool ValidFill(const m2World* world, const m2Polygon* polygon, m2Pos2 position,
                       m2Vec2 velocity)
 {
-    bool valid = world != NULL && polygon != NULL && polygon->count >= 3 &&
-                 polygon->count <= M2_MAX_POLYGON_VERTICES &&
-                 world->particles.particleCapacity > 0 && m2FinitePos2(position) &&
-                 m2ValidVelocity(velocity);
-    for (int32_t i = 0; valid && i < polygon->count; ++i)
-    {
-        valid = m2FiniteVec2(polygon->vertices[i]) && m2FiniteVec2(polygon->normals[i]);
-    }
-    return valid;
+    return world != NULL && polygon != NULL && world->particles.particleCapacity > 0 &&
+           m2FinitePos2(position) && m2ValidVelocity(velocity);
 }
 
 static bool InsidePolygon(const m2Polygon* polygon, float x, float y)
@@ -511,21 +507,28 @@ static M2_NOINLINE int32_t WorldFillPolygonWithParticlesWorker(m2World* world,
     {
         return 0;
     }
-    if (!ValidFill(world, polygon, position, velocity))
+    // The region is the polygon a shape would take: within M2_HUGE,
+    // convex, not a sliver, with its normals recomputed from its vertices.
+    m2Polygon region = {0};
+    if (ValidFill(world, polygon, position, velocity))
+    {
+        region = m2CanonicalPolygon(polygon);
+    }
+    if (region.count == 0)
     {
         m2Refuse(world, m2_errorInvalid);
         return 0;
     }
-    float minX = polygon->vertices[0].x;
-    float minY = polygon->vertices[0].y;
+    float minX = region.vertices[0].x;
+    float minY = region.vertices[0].y;
     float maxX = minX;
     float maxY = minY;
-    for (int32_t i = 1; i < polygon->count; ++i)
+    for (int32_t i = 1; i < region.count; ++i)
     {
-        minX = m2MinF(minX, polygon->vertices[i].x);
-        minY = m2MinF(minY, polygon->vertices[i].y);
-        maxX = m2MaxF(maxX, polygon->vertices[i].x);
-        maxY = m2MaxF(maxY, polygon->vertices[i].y);
+        minX = m2MinF(minX, region.vertices[i].x);
+        minY = m2MinF(minY, region.vertices[i].y);
+        maxX = m2MaxF(maxX, region.vertices[i].x);
+        maxY = m2MaxF(maxY, region.vertices[i].y);
     }
     FillBatch batch;
     batch.stride = 0.75f * 2.0f * world->particles.particleRadius;
@@ -551,11 +554,16 @@ static M2_NOINLINE int32_t WorldFillPolygonWithParticlesWorker(m2World* world,
     {
         batch.prevRow[i] = -1;
     }
+    // The row coordinate accumulates stride by stride, since the sum is
+    // part of the result. The fill ends where a row no longer moves it.
     bool open = true;
-    // NOLINTNEXTLINE(bugprone-float-loop-counter): the accumulated rows are part of the result
-    for (float y = minY + 0.5f * batch.stride; y < maxY && open; y += batch.stride)
+    float y = minY + 0.5f * batch.stride;
+    while (y < maxY && open)
     {
-        open = FillRow(world, &batch, polygon, minX, maxX, y, &op);
+        open = FillRow(world, &batch, &region, minX, maxX, y, &op);
+        float next = y + batch.stride;
+        open = open && next > y;
+        y = next;
     }
     if ((flags & m2_springParticle) != 0)
     {

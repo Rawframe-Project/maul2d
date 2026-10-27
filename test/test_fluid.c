@@ -578,6 +578,77 @@ static void TestParticleFill(void)
     m2DestroyWorld(small);
 }
 
+// A triangle 2e30 m tall with its apex at the bottom: past M2_HUGE, so a
+// fill refuses it as a shape would.
+static m2Polygon FarTriangle(void)
+{
+    m2Polygon distant;
+    memset(&distant, 0, sizeof(distant));
+    distant.count = 3;
+    distant.vertices[0] = (m2Vec2){0.0f, -1.0e30f};
+    distant.vertices[1] = (m2Vec2){0.29f, 1.0e30f};
+    distant.vertices[2] = (m2Vec2){-0.29f, 1.0e30f};
+    distant.normals[0] = (m2Vec2){1.0f, 0.0f};
+    distant.normals[1] = (m2Vec2){0.0f, 1.0f};
+    distant.normals[2] = (m2Vec2){-1.0f, 0.0f};
+    return distant;
+}
+
+static void TestFillChecksItsPolygon(void)
+{
+    m2WorldDef def = FluidWorldDef(64);
+    m2World* world = NewWorld(&def);
+    m2Polygon distant = FarTriangle();
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    CHECK(m2World_FillPolygonWithParticles(world, &distant, (m2Pos2){0.0, 0.0},
+                                           (m2Vec2){0.0f, 0.0f}, 0) == 0,
+          "a polygon past M2_HUGE fills nothing");
+    CHECK(m2World_GetCounters(world).misuse == misuse + 1 && m2World_GetParticleCount(world) == 0,
+          "and is refused as a misuse");
+
+    // The normals are recomputed from the vertices: a box with its normals
+    // turned around fills like the box.
+    m2Polygon box = m2MakeBox(0.3f, 0.2f);
+    m2Polygon turned = box;
+    for (int32_t i = 0; i < turned.count; ++i)
+    {
+        turned.normals[i] = (m2Vec2){-box.normals[i].x, -box.normals[i].y};
+    }
+    m2World* twin = NewWorld(&def);
+    int32_t made =
+        m2World_FillPolygonWithParticles(world, &box, (m2Pos2){1.0, 1.0}, (m2Vec2){0.0f, 0.0f}, 0);
+    int32_t madeTurned = m2World_FillPolygonWithParticles(twin, &turned, (m2Pos2){1.0, 1.0},
+                                                          (m2Vec2){0.0f, 0.0f}, 0);
+    CHECK(made > 0 && madeTurned == made && m2World_Hash(twin) == m2World_Hash(world),
+          "a box with turned normals fills like the box");
+    m2DestroyWorld(twin);
+    m2DestroyWorld(world);
+
+    // A tape whose fill record carries the distant triangle is refused whole.
+    m2World* recorder = NewWorld(&def);
+    int32_t capacity = m2World_GetJournalBaseSize(recorder) + 4096;
+    uint8_t* tape = (uint8_t*)malloc((size_t)capacity);
+    CHECK(tape != NULL && StartJournal(recorder, tape, capacity), "the journal starts");
+    m2World_FillPolygonWithParticles(recorder, &box, (m2Pos2){1.0, 1.0}, (m2Vec2){0.0f, 0.0f}, 0);
+    int32_t bytes = StopJournal(recorder);
+    int32_t at = -1;
+    for (int32_t i = 0; at < 0 && i + (int32_t)sizeof(box) <= bytes; ++i)
+    {
+        at = memcmp(tape + i, &box, sizeof(box)) == 0 ? i : -1;
+    }
+    CHECK(at > 0, "the fill record carries the box");
+    memcpy(tape + at, &distant, sizeof(distant));
+    m2World* fresh = NewWorld(&def);
+    uint64_t before = m2World_Hash(fresh);
+    CHECK(m2World_ReplayJournal(fresh, tape, bytes) == m2_errorInvalid,
+          "replay refuses the distant triangle's fill");
+    CHECK(m2World_Hash(fresh) == before && m2World_GetCounters(fresh).misuse == 0,
+          "and changes nothing, counting no misuse");
+    m2DestroyWorld(fresh);
+    m2DestroyWorld(recorder);
+    free(tape);
+}
+
 // Jelly: spring nets remember their spawn lengths, elastic triads
 // their spawn shape; the state persists, journals, and dies with
 // its particles.
@@ -1031,6 +1102,7 @@ int main(void)
     TestBuoyancy();
     TestSurfaceTension();
     TestParticleFill();
+    TestFillChecksItsPolygon();
     TestJelly();
     TestOverlapParticles();
     TestFluidThreadingParity();

@@ -191,15 +191,18 @@ extern "C"
     /// their spawn shape. Journaled as one operation.
     ///
     /// @param world     The world.
-    /// @param polygon   The region, in a frame placed at position.
+    /// @param polygon   The region, in a frame placed at position: a polygon
+    ///                  a shape would take, within M2_HUGE, convex and not a
+    ///                  sliver. Its normals are recomputed from its vertices.
     /// @param position  Where the polygon's frame sits, in world space.
     /// @param velocity  The velocity of every particle, m/s, within
     ///                  M2_MAX_SPEED per axis.
     /// @param flags     m2ParticleFlags values, ored together.
     /// @return The number of particles emitted; 0 and one misuse counted
     ///         when the world has no particle system, an argument is not
-    ///         finite or the polygon is wider than 256 strides; 0 from host
-    ///         code the world is running.
+    ///         finite, the polygon is one m2MakePolygon would refuse or it
+    ///         is wider than 256 strides; 0 from host code the world is
+    ///         running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_API int32_t m2World_FillPolygonWithParticles(m2World* world, const m2Polygon* polygon,

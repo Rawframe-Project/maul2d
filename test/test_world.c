@@ -766,8 +766,8 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.bodyIdA = a;
             jd.bodyIdB = b;
             jd.target = m2MouseJoint_GetTarget(source, id);
-            jd.hertz = m2Joint_GetHertz(source, id);
-            jd.dampingRatio = m2Joint_GetDampingRatio(source, id);
+            jd.hertz = m2Joint_GetSpringHertz(source, id);
+            jd.dampingRatio = m2Joint_GetSpringDampingRatio(source, id);
             jd.maxForce = m2MouseJoint_GetMaxForce(source, id);
             jd.collideConnected = m2Joint_GetCollideConnected(source, id);
             made = NewMouseJoint(mirror, &jd);
@@ -779,11 +779,11 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.bodyIdB = b;
             jd.localAnchorA = m2Joint_GetLocalAnchorA(source, id);
             jd.localAnchorB = m2Joint_GetLocalAnchorB(source, id);
-            jd.length = m2Joint_GetLength(source, id);
-            m2Joint_GetLimits(source, id, &jd.minLength, &jd.maxLength);
+            jd.length = m2DistanceJoint_GetLength(source, id);
+            m2DistanceJoint_GetLengthRange(source, id, &jd.minLength, &jd.maxLength);
             jd.collideConnected = m2Joint_GetCollideConnected(source, id);
-            jd.hertz = m2Joint_GetHertz(source, id);
-            jd.dampingRatio = m2Joint_GetDampingRatio(source, id);
+            jd.hertz = m2Joint_GetSpringHertz(source, id);
+            jd.dampingRatio = m2Joint_GetSpringDampingRatio(source, id);
             jd.enableSpring = m2DistanceJoint_IsSpringEnabled(source, id);
             made = NewDistanceJoint(mirror, &jd);
         }
@@ -794,10 +794,10 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.bodyIdB = b;
             jd.localAnchorA = m2Joint_GetLocalAnchorA(source, id);
             jd.localAnchorB = m2Joint_GetLocalAnchorB(source, id);
-            jd.hertz = m2Joint_GetHertz(source, id);
-            jd.dampingRatio = m2Joint_GetDampingRatio(source, id);
-            jd.springHertz = m2Joint_GetAngularHertz(source, id);
-            jd.springDampingRatio = m2Joint_GetAngularDampingRatio(source, id);
+            jd.hertz = m2Joint_GetSpringHertz(source, id);
+            jd.dampingRatio = m2Joint_GetSpringDampingRatio(source, id);
+            jd.springHertz = m2Joint_GetAngularSpringHertz(source, id);
+            jd.springDampingRatio = m2Joint_GetAngularSpringDampingRatio(source, id);
             jd.enableMotor = m2Joint_IsMotorEnabled(source, id);
             jd.motorSpeed = m2Joint_GetMotorSpeed(source, id);
             jd.maxMotorTorque = m2Joint_GetMaxMotor(source, id);
@@ -814,8 +814,8 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.localAnchorA = m2Joint_GetLocalAnchorA(source, id);
             jd.localAnchorB = m2Joint_GetLocalAnchorB(source, id);
             jd.localAxisA = m2Joint_GetLocalAxisA(source, id);
-            jd.hertz = m2Joint_GetHertz(source, id);
-            jd.dampingRatio = m2Joint_GetDampingRatio(source, id);
+            jd.hertz = m2Joint_GetSpringHertz(source, id);
+            jd.dampingRatio = m2Joint_GetSpringDampingRatio(source, id);
             jd.enableMotor = m2Joint_IsMotorEnabled(source, id);
             jd.motorSpeed = m2Joint_GetMotorSpeed(source, id);
             jd.maxMotorForce = m2Joint_GetMaxMotor(source, id);
@@ -831,10 +831,10 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.bodyIdB = b;
             jd.localAnchorA = m2Joint_GetLocalAnchorA(source, id);
             jd.localAnchorB = m2Joint_GetLocalAnchorB(source, id);
-            jd.linearHertz = m2Joint_GetHertz(source, id);
-            jd.linearDampingRatio = m2Joint_GetDampingRatio(source, id);
-            jd.angularHertz = m2Joint_GetAngularHertz(source, id);
-            jd.angularDampingRatio = m2Joint_GetAngularDampingRatio(source, id);
+            jd.linearHertz = m2Joint_GetSpringHertz(source, id);
+            jd.linearDampingRatio = m2Joint_GetSpringDampingRatio(source, id);
+            jd.angularHertz = m2Joint_GetAngularSpringHertz(source, id);
+            jd.angularDampingRatio = m2Joint_GetAngularSpringDampingRatio(source, id);
             jd.collideConnected = m2Joint_GetCollideConnected(source, id);
             made = NewWeldJoint(mirror, &jd);
         }
@@ -847,8 +847,8 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.localAnchorB = m2Joint_GetLocalAnchorB(source, id);
             jd.localAxisA = m2Joint_GetLocalAxisA(source, id);
             jd.enableSpring = m2Joint_IsSpringEnabled(source, id);
-            jd.hertz = m2Joint_GetHertz(source, id);
-            jd.dampingRatio = m2Joint_GetDampingRatio(source, id);
+            jd.hertz = m2Joint_GetSpringHertz(source, id);
+            jd.dampingRatio = m2Joint_GetSpringDampingRatio(source, id);
             jd.enableMotor = m2Joint_IsMotorEnabled(source, id);
             jd.motorSpeed = m2Joint_GetMotorSpeed(source, id);
             jd.maxMotorTorque = m2Joint_GetMaxMotor(source, id);
@@ -1112,18 +1112,18 @@ static void TestBodyDynamicsPack(void)
     float spin = m2Body_GetAngularVelocity(world, pushed);
     CHECK(spin < 0.05f, "angular damping stills the spin");
 
-    // Fixed rotation: an off-center impulse must not rotate it.
+    // The angular lock: an off-center impulse must not rotate it.
     m2BodyDef fdd = m2DefaultBodyDef();
     fdd.type = m2_dynamicBody;
     fdd.position = (m2Pos2){5.0, 10.0};
-    fdd.fixedRotation = true;
+    fdd.motionLocks.angularZ = true;
     m2BodyId upright = NewBody(world, &fdd);
     NewPolygonShape(world, upright, &sd, &unit);
     m2Body_ApplyLinearImpulseAtPoint(world, upright, (m2Vec2){0.0f, 2.0f}, (m2Pos2){5.4, 10.0});
     m2World_Step(world, 1.0f / 60.0f, 4);
-    CHECK(m2Body_GetAngularVelocity(world, upright) == 0.0f, "fixed rotation never spins");
-    CHECK(m2Body_IsFixedRotation(world, upright), "and reads back");
-    m2Body_SetFixedRotation(world, upright, false);
+    CHECK(m2Body_GetAngularVelocity(world, upright) == 0.0f, "an angular lock never spins");
+    CHECK(m2Body_GetMotionLocks(world, upright).angularZ, "and reads back");
+    m2Body_SetMotionLocks(world, upright, (m2MotionLocks){false, false, false});
     m2Body_ApplyLinearImpulseAtPoint(world, upright, (m2Vec2){0.0f, 2.0f}, (m2Pos2){5.4, 10.0});
     m2World_Step(world, 1.0f / 60.0f, 4);
     CHECK(m2Body_GetAngularVelocity(world, upright) != 0.0f, "released, it spins again");
@@ -1444,7 +1444,7 @@ static void TestLeftoverBasket(void)
     m2Pos2 com = m2Body_GetWorldCenterOfMass(world, box);
     CHECK(com.x > -0.01 && com.x < 0.01 && com.y > 4.99 && com.y < 5.01,
           "world center of mass sits on the centered box");
-    CHECK(m2Body_GetRotationalInertia(world, box) > 0.0f, "inertia reads positive");
+    CHECK(m2Body_GetCentralInertia(world, box) > 0.0f, "inertia reads positive");
     m2AabbResult ab = m2Body_ComputeAabb(world, box);
     CHECK(ab.lowerBound.x < -0.39 && ab.upperBound.x > 0.39 && ab.upperBound.y > 5.39,
           "the body AABB hugs the shape");
@@ -2375,7 +2375,6 @@ static void TestStaleIdsCountInEveryCall(void)
     CHECK(!m2Body_IsEnabled(world, body), "a stale body is not enabled");
     CHECK(m2Body_GetLinearDamping(world, body) == 0.0f, "nor damped");
     CHECK(m2Body_GetAngularDamping(world, body) == 0.0f, "in either way");
-    CHECK(!m2Body_IsFixedRotation(world, body), "nor fixed");
     CHECK(!m2Body_GetMotionLocks(world, body).linearX, "nor locked");
     CHECK(!m2Body_IsSleepEnabled(world, body), "nor sleepy");
     CHECK(m2Shape_GetSensorOverlaps(world, sensor, NULL, 0) == 0, "a stale sensor lists nothing");
@@ -2387,7 +2386,7 @@ static void TestStaleIdsCountInEveryCall(void)
     CHECK(m2FluidVolume_GetSurface(world, volume) == 0.0, "a stale volume has no surface");
     CHECK(m2FluidVolume_GetUserData(world, volume) == 0, "nor data");
     CHECK(m2Chain_GetShapes(world, chain, NULL, 0) == 0, "a stale chain has no links");
-    CHECK(m2World_GetCounters(world).misuse == misuse + 18, "each of the 18 calls counts once");
+    CHECK(m2World_GetCounters(world).misuse == misuse + 17, "each of the 17 calls counts once");
     m2DestroyWorld(world);
 }
 
@@ -2428,7 +2427,7 @@ static void TestEveryRefusalHasAReason(void)
     m2World_Step(world, 1.0f / 60.0f, 0);
     CHECK(m2World_GetStepCount(world) == stepsBefore, "a zero dt and zero substeps are refused");
     m2JointId staleJoint = {1, 1};
-    CHECK(m2Joint_GetLength(world, staleJoint) == 0.0f, "a stale joint read returns zero");
+    CHECK(m2DistanceJoint_GetLength(world, staleJoint) == 0.0f, "a stale joint read returns zero");
     CHECK(m2World_GetCounters(world).misuse == misuseBefore + 3, "and each refusal counts once");
     m2DestroyWorld(world);
 }
@@ -2531,7 +2530,7 @@ static void TestFloatingDraft(void)
     sd.density = 1.0f;
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
-    bd.fixedRotation = true;
+    bd.motionLocks.angularZ = true;
     bd.position = (m2Pos2){-4.0, 0.3};
     m2BodyId ball = NewBody(world, &bd);
     m2Circle circle = {{0.0f, 0.0f}, 0.4f};
@@ -2922,10 +2921,10 @@ static void TestMotionLocks(void)
     CHECK(got.linearX && !got.linearY && !got.angularZ, "the locks read back as set");
     m2DestroyWorld(world);
 
-    // angularZ is the fixed-rotation lock: it aliases m2Body_IsFixedRotation.
+    // angularZ holds the rotation still.
     world = NewWorld(&def);
     m2BodyId aLock = LockedBody(world, (m2MotionLocks){false, false, true});
-    CHECK(m2Body_IsFixedRotation(world, aLock), "angularZ lock reads as fixed rotation");
+    CHECK(m2Body_GetMotionLocks(world, aLock).angularZ, "the angular lock reads back");
     for (int32_t i = 0; i < 30; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
@@ -3109,12 +3108,12 @@ static void TestSetMassDataChecksEveryField(void)
         }
     }
 
-    // A fixed-rotation body reads back a central inertia of 0, and a far
-    // center keeps its own: both set again.
-    m2Body_SetFixedRotation(world, body, true);
+    // A body with its angular lock reads back a central inertia of 0, and a
+    // far center keeps its own: both set again.
+    m2Body_SetMotionLocks(world, body, (m2MotionLocks){false, false, true});
     m2MassData fixed = m2Body_GetMassData(world, body);
     m2Body_SetMassData(world, body, fixed);
-    m2Body_SetFixedRotation(world, body, false);
+    m2Body_SetMotionLocks(world, body, (m2MotionLocks){false, false, false});
     m2MassData distant = {1.0f, {M2_HUGE, 0.0f}, 1.0f};
     m2Body_SetMassData(world, body, distant);
     m2MassData back = m2Body_GetMassData(world, body);
@@ -3174,7 +3173,7 @@ static void TestSmallCentralInertiaIsKept(void)
     float kept = 1.0f / (1.0f / data.centralInertia);
     CHECK(back.mass == data.mass && back.center.x == data.center.x &&
               back.center.y == data.center.y && back.centralInertia == kept &&
-              m2Body_GetRotationalInertia(world, body) == kept,
+              m2Body_GetCentralInertia(world, body) == kept,
           "and reads back as given");
     m2Body_ApplyAngularImpulse(world, body, 1.0e-10f);
     float spin = m2Body_GetAngularVelocity(world, body);

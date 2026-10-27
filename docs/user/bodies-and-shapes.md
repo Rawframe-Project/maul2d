@@ -6,7 +6,7 @@ A body has a pose and a velocity; its shapes give it collision and mass. Bodies 
 
 Impulses change the velocity at once (`m2Body_ApplyLinearImpulse`, `m2Body_ApplyLinearImpulseAtPoint`, `m2Body_ApplyAngularImpulse`). Forces (`m2Body_ApplyForce`, `m2Body_ApplyForceAtPoint`, `m2Body_ApplyTorque`) add up across calls, act during the next step and clear when it ends. Forces and impulses apply to dynamic bodies only, and velocities to kinematic and dynamic ones: a static body never moves, so a call that would move it changes nothing and counts one misuse, and a static body def with a velocity is refused.
 
-Linear and angular damping decay velocity as v / (1 + h d) per substep. Gravity scales per body. `m2Body_SetMotionLocks` holds a body still along world x, world y or in rotation, whatever pushes it; the rotation lock is the same as `m2Body_SetFixedRotation`, which also makes the inertia infinite.
+Linear and angular damping decay velocity as v / (1 + h d) per substep. Gravity scales per body. `m2Body_SetMotionLocks` holds a body still along world x, world y or in rotation, whatever pushes it; the rotation lock also makes the inertia infinite.
 
 `m2Body_SetTransform` teleports a body: it snaps, keeps its velocity, and wakes whatever it touched. A teleport is not a sweep, so nothing stops it from passing through a wall. To move a kinematic body smoothly, `m2Body_SetTargetTransform` sets the velocities that reach a pose in one step. `m2Body_SetType` changes a body's type in place, ending the contacts that no longer apply.
 
