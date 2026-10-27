@@ -87,8 +87,8 @@ static bool BuildFuzzScene(m2World* world)
     // A small spring fill, so a tape of the scene carries a fill record
     // and its polygon.
     m2Polygon drop = m2MakeBox(0.1f, 0.1f);
-    built = built && m2World_FillPolygonWithParticles(world, &drop, (m2Pos2){3.0, 1.0},
-                                                      (m2Vec2){0.0f, 0.0f}, m2_springParticle) > 0;
+    built = built && FillParticles(world, &drop, (m2Pos2){3.0, 1.0}, (m2Vec2){0.0f, 0.0f},
+                                   m2_springParticle) > 0;
     m2FluidVolumeDef pool = m2DefaultFluidVolumeDef();
     pool.regionLower = (m2Pos2){-4.0, -0.5};
     pool.regionUpper = (m2Pos2){4.0, 0.5};

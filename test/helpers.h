@@ -102,13 +102,34 @@ static inline m2FluidVolumeId NewFluidVolume(m2World* world, const m2FluidVolume
     return id;
 }
 
+static inline m2ParticleDef ParticleDef(m2Pos2 position, m2Vec2 velocity, uint32_t flags)
+{
+    m2ParticleDef def = m2DefaultParticleDef();
+    def.position = position;
+    def.velocity = velocity;
+    def.flags = flags;
+    return def;
+}
+
 static inline m2ParticleId EmitParticle(m2World* world, m2Pos2 position, m2Vec2 velocity,
                                         uint32_t flags)
 {
+    m2ParticleDef def = ParticleDef(position, velocity, flags);
     m2ParticleId id = m2_nullParticleId;
-    m2Result result = m2World_EmitParticle(world, position, velocity, flags, &id);
+    m2Result result = m2CreateParticle(world, &def, &id);
     (void)result;
     return id;
+}
+
+// Fills a polygon placed at position; the number of particles created.
+static inline int32_t FillParticles(m2World* world, const m2Polygon* polygon, m2Pos2 position,
+                                    m2Vec2 velocity, uint32_t flags)
+{
+    m2ParticleDef def = ParticleDef(position, velocity, flags);
+    int32_t count = 0;
+    m2Result result = m2CreateParticlesInPolygon(world, &def, polygon, &count);
+    (void)result;
+    return count;
 }
 
 // The destroys return their status for the tests that compare it; the

@@ -203,10 +203,13 @@ static void TestExpiringDrop(void)
     CHECK(world != NULL, "the world builds");
     uint64_t misuse = m2World_GetCounters(world).misuse;
 
+    m2ParticleDef dropDef = m2DefaultParticleDef();
+    dropDef.position = (m2Pos2){0.0, 2.0};
+    dropDef.velocity = (m2Vec2){0.0f, -1.0f};
+    dropDef.flags = m2_tensileParticle;
     m2ParticleId drop = m2_nullParticleId;
-    m2Result emitted = m2World_EmitParticle(world, (m2Pos2){0.0, 2.0}, (m2Vec2){0.0f, -1.0f},
-                                            m2_tensileParticle, &drop);
-    if (emitted == m2_success)
+    m2Result created = m2CreateParticle(world, &dropDef, &drop);
+    if (created == m2_success)
     {
         m2Particle_SetLifetime(world, drop, 0.5f); // gone half a second from now
     }
@@ -216,7 +219,7 @@ static void TestExpiringDrop(void)
     }
     bool stillThere = m2Particle_IsValid(world, drop); // false: it expired
 
-    CHECK(emitted == m2_success, "the drop is emitted");
+    CHECK(created == m2_success, "the drop is created");
     CHECK(!stillThere, "and expires on its own");
     CHECK(m2Particle_GetPosition(world, drop).x == 0.0, "its id reads as zero");
     CHECK(m2World_GetCounters(world).misuse == misuse, "without counting misuse");

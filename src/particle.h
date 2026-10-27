@@ -9,6 +9,10 @@
 
 #include "world_internal.h"
 
+#include "maul2d/particle.h"
+
+#define M2_PARTICLE_COOKIE (M2_COOKIE ^ ((int32_t)sizeof(m2ParticleDef) << 8) ^ 18)
+
 // The particle step: neighbor pairs and body contacts from positions,
 // then the solve.
 void m2UpdateParticlePairs(m2World* world);

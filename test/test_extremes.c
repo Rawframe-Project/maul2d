@@ -413,8 +413,8 @@ static void TestParticles(void)
     m2Polygon blob = m2MakeBox(0.2f, 0.2f);
     uint32_t flags =
         m2_springParticle | m2_elasticParticle | m2_viscousParticle | m2_tensileParticle;
-    (void)m2World_FillPolygonWithParticles(s.world, &blob, (m2Pos2){0.0, 0.3},
-                                           (m2Vec2){M2_MAX_SPEED, -M2_MAX_SPEED}, flags);
+    (void)FillParticles(s.world, &blob, (m2Pos2){0.0, 0.3}, (m2Vec2){M2_MAX_SPEED, -M2_MAX_SPEED},
+                        flags);
     ExpectFinite(&s, "particles");
 }
 

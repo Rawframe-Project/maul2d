@@ -1237,8 +1237,8 @@ static Scene MakeJellyScene(void)
     m2Polygon slab = m2MakeBox(4.0f, 0.2f);
     NewPolygonShape(w, scene.ground, &sd, &slab);
     m2Polygon blob = m2MakeBox(0.25f, 0.25f);
-    m2World_FillPolygonWithParticles(w, &blob, (m2Pos2){0.0, 0.6}, (m2Vec2){0.0f, 0.0f},
-                                     m2_springParticle | m2_elasticParticle);
+    FillParticles(w, &blob, (m2Pos2){0.0, 0.6}, (m2Vec2){0.0f, 0.0f},
+                  m2_springParticle | m2_elasticParticle);
     m2ParticleId first;
     CHECK(m2World_GetParticles(w, &first, 1) > 1 && m2DestroyParticle(w, first) == m2_success,
           "the jelly's first particle dies");
@@ -1457,8 +1457,8 @@ static bool JointValid(const m2World* world, uint32_t index1, uint32_t generatio
 static m2Result CreateParticleIn(m2World* world, uint32_t* index1, uint32_t* generation)
 {
     m2ParticleId id = {0, 0};
-    m2Result result =
-        m2World_EmitParticle(world, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f}, 0u, &id);
+    m2ParticleDef def = m2DefaultParticleDef();
+    m2Result result = m2CreateParticle(world, &def, &id);
     *index1 = id.index1;
     *generation = id.generation;
     return result;
@@ -1712,9 +1712,8 @@ static LinkScene MakeLinkScene(float radius)
     def.particleRadius = radius;
     scene.world = NewWorld(&def);
     m2Polygon drop = m2MakeBox(2.0f * radius, 2.0f * radius);
-    CHECK(m2World_FillPolygonWithParticles(scene.world, &drop, (m2Pos2){0.0, 1.0},
-                                           (m2Vec2){0.0f, 0.0f},
-                                           m2_springParticle | m2_elasticParticle) > 1,
+    CHECK(FillParticles(scene.world, &drop, (m2Pos2){0.0, 1.0}, (m2Vec2){0.0f, 0.0f},
+                        m2_springParticle | m2_elasticParticle) > 1,
           "the drop fills");
     CHECK(scene.world->particles.particleSpringCount > 0 &&
               scene.world->particles.particleTriadCount > 0,

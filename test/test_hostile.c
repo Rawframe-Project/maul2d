@@ -88,8 +88,8 @@ static void TestJellyRollbackStorm(void)
     m2Polygon slab = m2MakeBox(6.0f, 0.2f);
     NewPolygonShape(world, NewBody(world, &fd), &sd, &slab);
     m2Polygon blob = m2MakeBox(0.25f, 0.25f);
-    m2World_FillPolygonWithParticles(world, &blob, (m2Pos2){0.0, 0.8}, (m2Vec2){0.0f, 0.0f},
-                                     m2_springParticle | m2_elasticParticle);
+    FillParticles(world, &blob, (m2Pos2){0.0, 0.8}, (m2Vec2){0.0f, 0.0f},
+                  m2_springParticle | m2_elasticParticle);
     for (int32_t i = 0; i < 30; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
@@ -146,8 +146,7 @@ static void TestJellyJournalStorm(void)
     void* tape = malloc((size_t)cap);
     CHECK(StartJournal(world, tape, cap), "the storm tape starts");
     m2Polygon blob = m2MakeBox(0.2f, 0.2f);
-    m2World_FillPolygonWithParticles(world, &blob, (m2Pos2){0.0, 1.0}, (m2Vec2){0.0f, 0.0f},
-                                     m2_springParticle);
+    FillParticles(world, &blob, (m2Pos2){0.0, 1.0}, (m2Vec2){0.0f, 0.0f}, m2_springParticle);
     for (int32_t i = 0; i < 20; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
@@ -158,8 +157,7 @@ static void TestJellyJournalStorm(void)
     {
         DestroyParticle(world, ids[i]);
     }
-    m2World_FillPolygonWithParticles(world, &blob, (m2Pos2){1.0, 1.0}, (m2Vec2){0.0f, -1.0f},
-                                     m2_elasticParticle);
+    FillParticles(world, &blob, (m2Pos2){1.0, 1.0}, (m2Vec2){0.0f, -1.0f}, m2_elasticParticle);
     for (int32_t i = 0; i < 20; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
@@ -189,15 +187,14 @@ static void TestHostileFills(void)
 
     // Smaller than one stride: zero particles, zero nets, no crash.
     m2Polygon speck = m2MakeBox(0.02f, 0.02f);
-    int32_t speckMade = m2World_FillPolygonWithParticles(world, &speck, (m2Pos2){0.0, 0.0},
-                                                         (m2Vec2){0.0f, 0.0f}, m2_springParticle);
+    int32_t speckMade =
+        FillParticles(world, &speck, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f}, m2_springParticle);
     CHECK(speckMade <= 1, "a speck holds at most one droplet");
 
     // A pool that fills mid-lattice: nets only reference what exists.
     m2Polygon big = m2MakeBox(0.5f, 0.5f);
-    int32_t made =
-        m2World_FillPolygonWithParticles(world, &big, (m2Pos2){5.0, 0.0}, (m2Vec2){0.0f, 0.0f},
-                                         m2_springParticle | m2_elasticParticle);
+    int32_t made = FillParticles(world, &big, (m2Pos2){5.0, 0.0}, (m2Vec2){0.0f, 0.0f},
+                                 m2_springParticle | m2_elasticParticle);
     CHECK(made == 32 - speckMade, "the pool grants exactly its remaining capacity");
     CHECK(m2World_GetParticleCount(world) == 32, "the pool is exactly full");
     // m2World_Validate checks that every spring end and triad corner is
@@ -759,8 +756,10 @@ static void TestHostileQueries(void)
     CHECK(m2World_OverlapPolygon(world, &huge, pose, ids, 4, filter) == 0, "and overlaps nothing");
     CHECK(m2World_CastPolygonAll(world, &huge, pose, down, hits, 4, filter) == 0,
           "and sweeps nothing");
-    CHECK(m2World_FillPolygonWithParticles(world, &huge, (m2Pos2){0.0, 5.0}, (m2Vec2){0.0f, 0.0f},
-                                           0) == 0,
+    m2ParticleDef particleDef = m2DefaultParticleDef();
+    int32_t count = -1;
+    CHECK(m2CreateParticlesInPolygon(world, &particleDef, &huge, &count) == m2_errorInvalid &&
+              count == 0,
           "and fills nothing");
     CHECK(!m2World_CastCircleClosest(world, NULL, pose, down, filter).hit,
           "a NULL circle casts nothing");

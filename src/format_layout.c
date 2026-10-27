@@ -438,11 +438,11 @@ M2_PIN_SIZE(m2OpMouseTarget, 24);
 M2_PIN_AT(m2OpMouseTarget, joint, 0);
 M2_PIN_AT(m2OpMouseTarget, target, 8);
 
-M2_PIN_SIZE(m2OpEmitParticle, 40);
-M2_PIN_AT(m2OpEmitParticle, position, 0);
-M2_PIN_AT(m2OpEmitParticle, velocity, 16);
-M2_PIN_AT(m2OpEmitParticle, flags, 24);
-M2_PIN_AT(m2OpEmitParticle, expected, 28);
+M2_PIN_SIZE(m2OpCreateParticle, 40);
+M2_PIN_AT(m2OpCreateParticle, position, 0);
+M2_PIN_AT(m2OpCreateParticle, velocity, 16);
+M2_PIN_AT(m2OpCreateParticle, flags, 24);
+M2_PIN_AT(m2OpCreateParticle, expected, 28);
 
 M2_PIN_SIZE(m2OpFillParticles, 168);
 M2_PIN_AT(m2OpFillParticles, polygon, 0);

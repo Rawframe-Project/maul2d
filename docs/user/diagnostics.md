@@ -5,7 +5,7 @@
 `m2World_GetCounters` reports the world's state (live objects, awake bodies, pairs, solver constraints, graph colors) and the quiet facts a release build cannot assert about. Poll it once per frame and alarm on growth:
 
 - `misuse`: calls the library refused as bugs of the calling code (an argument a correct program never passes, a destroyed object's id, a change made from code the world is running).
-- `particlePoolFull`: emits refused by a full particle pool.
+- `particlePoolFull`: particle creates refused by a full particle pool.
 - `pairOverflow`, `particlePairOverflow`, `particleBodyOverflow`: pairs and contacts dropped last step because a fixed budget was full.
 
 ```c
