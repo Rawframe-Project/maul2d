@@ -14,6 +14,13 @@ extern "C"
 {
 #endif
 
+// The most vertices a convex polygon holds, fixed at 8 for all of 1.x.
+// Every shape slot holds a geometry union sized by the polygon (140
+// bytes), so a larger limit would grow every shape's memory and its
+// snapshot and journal bytes, polygon or not, and a polygon pair's test
+// costs more with every vertex of either. An outline with more corners
+// becomes several convex pieces through m2DecomposeOutline, and a long
+// boundary becomes a chain.
 #define M2_MAX_POLYGON_VERTICES 8
 
     /// A shape of a world: a 1-based slot and a generation.
