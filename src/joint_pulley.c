@@ -58,6 +58,23 @@ static bool DefValid(const m2PulleyJointDef* def)
            m2ValidRatio(def->ratio) && def->ratio > 0.0f;
 }
 
+// The create record holds the def's fields and zero bytes between them:
+// copied field by field into the zeroed record, so no padding of the
+// caller's struct reaches the tape.
+static void RecordPulleyJointDef(m2PulleyJointDef* out, const m2PulleyJointDef* def)
+{
+    out->bodyIdA = def->bodyIdA;
+    out->bodyIdB = def->bodyIdB;
+    out->groundAnchorA = def->groundAnchorA;
+    out->groundAnchorB = def->groundAnchorB;
+    out->localAnchorA = def->localAnchorA;
+    out->localAnchorB = def->localAnchorB;
+    out->ratio = def->ratio;
+    out->userData = def->userData;
+    out->collideConnected = def->collideConnected;
+    out->internalValue = def->internalValue;
+}
+
 static M2_NOINLINE m2Result CreatePulleyJointWorker(m2World* world, const m2PulleyJointDef* def,
                                                     m2JointId* jointOut)
 {
@@ -107,7 +124,7 @@ static M2_NOINLINE m2Result CreatePulleyJointWorker(m2World* world, const m2Pull
     {
         m2OpCreatePulleyJoint record;
         memset(&record, 0, sizeof(record));
-        record.def = *def;
+        RecordPulleyJointDef(&record.def, def);
         record.expected = jointId;
         m2JournalRecord(world, m2_opCreatePulleyJoint, &record, (int32_t)sizeof(record));
     }

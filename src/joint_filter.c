@@ -27,6 +27,17 @@ m2FilterJointDef m2DefaultFilterJointDef(void)
     return def;
 }
 
+// The create record holds the def's fields and zero bytes between them:
+// copied field by field into the zeroed record, so no padding of the
+// caller's struct reaches the tape.
+static void RecordFilterJointDef(m2FilterJointDef* out, const m2FilterJointDef* def)
+{
+    out->bodyIdA = def->bodyIdA;
+    out->bodyIdB = def->bodyIdB;
+    out->userData = def->userData;
+    out->internalValue = def->internalValue;
+}
+
 static M2_NOINLINE m2Result CreateFilterJointWorker(m2World* world, const m2FilterJointDef* def,
                                                     m2JointId* jointOut)
 {
@@ -69,7 +80,7 @@ static M2_NOINLINE m2Result CreateFilterJointWorker(m2World* world, const m2Filt
     {
         m2OpCreateFilterJoint record;
         memset(&record, 0, sizeof(record));
-        record.def = *def;
+        RecordFilterJointDef(&record.def, def);
         record.expected = jointId;
         m2JournalRecord(world, m2_opCreateFilterJoint, &record, (int32_t)sizeof(record));
     }

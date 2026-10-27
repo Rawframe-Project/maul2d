@@ -39,6 +39,22 @@ static bool DefValid(const m2MouseJointDef* def)
            m2ValidCoefficient(def->dampingRatio) && m2ValidMaxForce(def->maxForce);
 }
 
+// The create record holds the def's fields and zero bytes between them:
+// copied field by field into the zeroed record, so no padding of the
+// caller's struct reaches the tape.
+static void RecordMouseJointDef(m2MouseJointDef* out, const m2MouseJointDef* def)
+{
+    out->bodyIdA = def->bodyIdA;
+    out->bodyIdB = def->bodyIdB;
+    out->target = def->target;
+    out->hertz = def->hertz;
+    out->dampingRatio = def->dampingRatio;
+    out->maxForce = def->maxForce;
+    out->userData = def->userData;
+    out->collideConnected = def->collideConnected;
+    out->internalValue = def->internalValue;
+}
+
 static M2_NOINLINE m2Result CreateMouseJointWorker(m2World* world, const m2MouseJointDef* def,
                                                    m2JointId* jointOut)
 {
@@ -96,7 +112,7 @@ static M2_NOINLINE m2Result CreateMouseJointWorker(m2World* world, const m2Mouse
     {
         m2OpCreateMouseJoint record;
         memset(&record, 0, sizeof(record));
-        record.def = *def;
+        RecordMouseJointDef(&record.def, def);
         record.expected = jointId;
         m2JournalRecord(world, m2_opCreateMouseJoint, &record, (int32_t)sizeof(record));
     }
