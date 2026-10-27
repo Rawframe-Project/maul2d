@@ -117,7 +117,7 @@ static int32_t CreateSegments(m2World* world, m2BodyId bodyId, const m2ChainDef*
         m2ShapeId shape = m2_nullShapeId;
         if (m2CreateShape(world, bodyId, &shapeDef, &geometry, &shape) != m2_success)
         {
-            break; // capacity: partial chain, loud via the segment count
+            break; // the pool ran out: the create reports a shorter chain
         }
         world->shapes.shapeChain[(int32_t)shape.index1 - 1] = chainIndex;
         created += 1;
@@ -181,7 +181,9 @@ static M2_NOINLINE m2Result CreateChainWorker(m2World* world, m2BodyId bodyId,
     m2JournalRecordChain(world, bodyId, def, created);
     m2ChainId id = {(uint32_t)(chainIndex + 1), world->chains.chainGenerations[chainIndex]};
     *chainOut = id;
-    return m2_success;
+    // A chain the shape pool cut short keeps its segments and says so; a
+    // full pool is a runtime fact, not misuse.
+    return created < ChainSegmentCount(def) ? m2_errorCapacity : m2_success;
 }
 
 m2Result m2CreateChain(m2World* world, m2BodyId bodyId, const m2ChainDef* def, m2ChainId* chainOut)

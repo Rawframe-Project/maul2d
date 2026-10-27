@@ -453,12 +453,51 @@ static void TestFilterRollback(void)
     m2DestroyWorld(world);
 }
 
+// A chain the shape pool cuts short keeps the segments that fit and its
+// id, returns m2_errorCapacity and is recorded: its replay cuts short the
+// same way and reaches the same world.
+static void TestChainCutShort(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    m2World* world = NewWorld(&def);
+    m2World* replayed = NewWorld(&def);
+    m2BodyDef gd = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(world, &gd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Circle ball = {{0.0f, 5.0f}, 0.5f};
+    NewCircleShape(world, ground, &sd, &ball);
+    int32_t capacity = m2World_GetJournalBaseSize(world) + 4096;
+    uint8_t* tape = (uint8_t*)malloc((size_t)capacity);
+    CHECK(tape != NULL && StartJournal(world, tape, capacity), "the journal starts");
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    m2Vec2 pts[7] = {{6.0f, 0.0f},  {4.0f, 0.0f},  {2.0f, 0.0f}, {0.0f, 0.0f},
+                     {-2.0f, 0.0f}, {-4.0f, 0.0f}, {-6.0f, 0.0f}};
+    m2ChainDef chain = m2DefaultChainDef();
+    chain.points = pts;
+    chain.count = 7; // four segments asked for, three shape slots left
+    m2ChainId made = m2_nullChainId;
+    CHECK(m2CreateChain(world, ground, &chain, &made) == m2_errorCapacity &&
+              m2Chain_IsValid(world, made) && m2Chain_GetSegmentCount(world, made) == 3,
+          "a chain the pool cuts short keeps its three segments and says so");
+    CHECK(m2World_GetCounters(world).misuse == misuse, "counting no misuse");
+    int32_t bytes = StopJournal(world);
+    CHECK(bytes > 0 && ReplayJournal(replayed, tape, bytes) &&
+              m2World_Hash(replayed) == m2World_Hash(world),
+          "and its replay reaches the same world");
+    free(tape);
+    m2DestroyWorld(replayed);
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
     TestCollisionFilters();
     TestGroupIndex();
     TestChainGround();
     TestChainDestroy();
+    TestChainCutShort();
     TestRuntimeMaterials();
     TestRuntimeFilter();
     TestFilterRollback();

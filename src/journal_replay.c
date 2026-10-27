@@ -268,7 +268,8 @@ static bool ApplyCreateChain(m2ReplayCursor* r, const m2OpPayload* p)
     m2ChainId chain = m2_nullChainId;
     m2Result made = m2CreateChain(r->world, op->body, &def, &chain);
     m2WorldFree(r->world, points, (size_t)pointBytes);
-    return made == m2_success && m2Chain_GetSegmentCount(r->world, chain) == op->createdCount;
+    return (made == m2_success || made == m2_errorCapacity) &&
+           m2Chain_GetSegmentCount(r->world, chain) == op->createdCount;
 }
 
 static bool ApplyDestroyChain(m2ReplayCursor* r, const m2OpPayload* p)
