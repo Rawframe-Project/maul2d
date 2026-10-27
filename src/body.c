@@ -64,6 +64,32 @@ static bool StaticDefIsStill(const m2BodyDef* def)
             def->angularVelocity == 0.0f);
 }
 
+// The create-body record holds the def's fields and zero bytes between
+// them: copied field by field into the zeroed record, so no padding of
+// the caller's struct reaches the tape.
+_Static_assert(sizeof(m2OpCreateBody) == 88, "the create-body record is 88 bytes");
+
+static void RecordBodyDef(m2BodyDef* out, const m2BodyDef* def)
+{
+    out->type = def->type;
+    out->position = def->position;
+    out->rotation = def->rotation;
+    out->linearVelocity = def->linearVelocity;
+    out->angularVelocity = def->angularVelocity;
+    out->gravityScale = def->gravityScale;
+    out->linearDamping = def->linearDamping;
+    out->angularDamping = def->angularDamping;
+    out->motionLocks.linearX = def->motionLocks.linearX;
+    out->motionLocks.linearY = def->motionLocks.linearY;
+    out->motionLocks.angularZ = def->motionLocks.angularZ;
+    out->enableSleep = def->enableSleep;
+    out->isEnabled = def->isEnabled;
+    out->dominance = def->dominance;
+    out->isBullet = def->isBullet;
+    out->userData = def->userData;
+    out->internalValue = def->internalValue;
+}
+
 static M2_NOINLINE m2Result CreateBodyWorker(m2World* world, const m2BodyDef* def,
                                              m2BodyId* bodyOut)
 {
@@ -135,7 +161,7 @@ static M2_NOINLINE m2Result CreateBodyWorker(m2World* world, const m2BodyDef* de
     {
         m2OpCreateBody record;
         memset(&record, 0, sizeof(record));
-        record.def = *def;
+        RecordBodyDef(&record.def, def);
         record.expected = id;
         m2JournalRecord(world, m2_opCreateBody, &record, (int32_t)sizeof(record));
     }
