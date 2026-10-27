@@ -201,6 +201,23 @@ static bool InsertShapeProxy(m2World* world, int32_t index, int32_t oldMaxShapeI
     return false;
 }
 
+// The create record holds the def's fields and zero bytes between them:
+// copied field by field into the zeroed record, so no padding of the
+// caller's struct reaches the tape.
+static void RecordShapeDef(m2ShapeDef* out, const m2ShapeDef* def)
+{
+    out->density = def->density;
+    out->friction = def->friction;
+    out->tangentSpeed = def->tangentSpeed;
+    out->restitution = def->restitution;
+    out->categoryBits = def->categoryBits;
+    out->maskBits = def->maskBits;
+    out->groupIndex = def->groupIndex;
+    out->isSensor = def->isSensor;
+    out->userData = def->userData;
+    out->internalValue = def->internalValue;
+}
+
 m2Result m2CreateShape(m2World* world, m2BodyId bodyId, const m2ShapeDef* def,
                        const m2ShapeGeometry* geometry, m2ShapeId* shapeOut)
 {
@@ -238,7 +255,7 @@ m2Result m2CreateShape(m2World* world, m2BodyId bodyId, const m2ShapeDef* def,
         m2OpCreateShape record;
         memset(&record, 0, sizeof(record));
         record.body = bodyId;
-        record.def = *def;
+        RecordShapeDef(&record.def, def);
         record.geometry = *geometry;
         record.expected = id;
         m2JournalRecord(world, m2_opCreateShape, &record, (int32_t)sizeof(record));

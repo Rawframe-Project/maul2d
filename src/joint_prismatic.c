@@ -39,6 +39,29 @@ static bool DefValid(const m2PrismaticJointDef* def)
            m2ValidReach(def->upperTranslation) && def->lowerTranslation <= def->upperTranslation;
 }
 
+// The create record holds the def's fields and zero bytes between them:
+// copied field by field into the zeroed record, so no padding of the
+// caller's struct reaches the tape.
+static void RecordPrismaticJointDef(m2PrismaticJointDef* out, const m2PrismaticJointDef* def)
+{
+    out->bodyIdA = def->bodyIdA;
+    out->bodyIdB = def->bodyIdB;
+    out->localAnchorA = def->localAnchorA;
+    out->localAnchorB = def->localAnchorB;
+    out->localAxisA = def->localAxisA;
+    out->hertz = def->hertz;
+    out->dampingRatio = def->dampingRatio;
+    out->enableMotor = def->enableMotor;
+    out->motorSpeed = def->motorSpeed;
+    out->maxMotorForce = def->maxMotorForce;
+    out->enableLimit = def->enableLimit;
+    out->lowerTranslation = def->lowerTranslation;
+    out->upperTranslation = def->upperTranslation;
+    out->userData = def->userData;
+    out->collideConnected = def->collideConnected;
+    out->internalValue = def->internalValue;
+}
+
 static M2_NOINLINE m2Result CreatePrismaticJointWorker(m2World* world,
                                                        const m2PrismaticJointDef* def,
                                                        m2JointId* jointOut)
@@ -101,7 +124,7 @@ static M2_NOINLINE m2Result CreatePrismaticJointWorker(m2World* world,
     {
         m2OpCreatePrismaticJoint record;
         memset(&record, 0, sizeof(record));
-        record.def = *def;
+        RecordPrismaticJointDef(&record.def, def);
         record.expected = jointId;
         m2JournalRecord(world, m2_opCreatePrismaticJoint, &record, (int32_t)sizeof(record));
     }

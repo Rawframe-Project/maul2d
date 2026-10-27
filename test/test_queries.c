@@ -138,8 +138,8 @@ static void TestShapeCastsAndOverlaps(void)
 
     // A far probe touches nothing; a capsule probe agrees with the
     // circle; the polygon probe sees only the box when small.
-    m2Transform far = {{50.0, 50.0}, {1.0f, 0.0f}};
-    CHECK(m2World_OverlapCircle(world, &area, far, NULL, 0, all) == 0, "far probe is empty");
+    m2Transform distant = {{50.0, 50.0}, {1.0f, 0.0f}};
+    CHECK(m2World_OverlapCircle(world, &area, distant, NULL, 0, all) == 0, "far probe is empty");
     m2Transform tight = {{0.0, 0.45}, {1.0f, 0.0f}};
     m2Polygon smallProbe = m2MakeBox(0.1f, 0.1f);
     CHECK(m2World_OverlapPolygon(world, &smallProbe, tight, NULL, 0, all) == 1,

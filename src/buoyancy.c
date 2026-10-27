@@ -228,6 +228,22 @@ m2FluidVolumeDef m2DefaultFluidVolumeDef(void)
     return def;
 }
 
+// The create record holds the def's fields and zero bytes between them:
+// copied field by field into the zeroed record, so no padding of the
+// caller's struct reaches the tape.
+static void RecordFluidVolumeDef(m2FluidVolumeDef* out, const m2FluidVolumeDef* def)
+{
+    out->regionLower = def->regionLower;
+    out->regionUpper = def->regionUpper;
+    out->surface = def->surface;
+    out->density = def->density;
+    out->linearDrag = def->linearDrag;
+    out->angularDrag = def->angularDrag;
+    out->flow = def->flow;
+    out->userData = def->userData;
+    out->internalValue = def->internalValue;
+}
+
 static M2_NOINLINE m2Result CreateFluidVolumeWorker(m2World* world, const m2FluidVolumeDef* def,
                                                     m2FluidVolumeId* volumeOut)
 {
@@ -276,7 +292,7 @@ static M2_NOINLINE m2Result CreateFluidVolumeWorker(m2World* world, const m2Flui
     {
         m2OpCreateFluidVolume record;
         memset(&record, 0, sizeof(record));
-        record.def = *def;
+        RecordFluidVolumeDef(&record.def, def);
         record.expected = id;
         m2JournalRecord(world, m2_opCreateFluidVolume, &record, (int32_t)sizeof(record));
     }

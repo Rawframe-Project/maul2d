@@ -38,6 +38,26 @@ static bool DefValid(const m2DistanceJointDef* def)
            m2ValidCoefficient(def->dampingRatio);
 }
 
+// The create record holds the def's fields and zero bytes between them:
+// copied field by field into the zeroed record, so no padding of the
+// caller's struct reaches the tape.
+static void RecordDistanceJointDef(m2DistanceJointDef* out, const m2DistanceJointDef* def)
+{
+    out->bodyIdA = def->bodyIdA;
+    out->bodyIdB = def->bodyIdB;
+    out->localAnchorA = def->localAnchorA;
+    out->localAnchorB = def->localAnchorB;
+    out->length = def->length;
+    out->minLength = def->minLength;
+    out->maxLength = def->maxLength;
+    out->hertz = def->hertz;
+    out->dampingRatio = def->dampingRatio;
+    out->enableSpring = def->enableSpring;
+    out->userData = def->userData;
+    out->collideConnected = def->collideConnected;
+    out->internalValue = def->internalValue;
+}
+
 static M2_NOINLINE m2Result CreateDistanceJointWorker(m2World* world, const m2DistanceJointDef* def,
                                                       m2JointId* jointOut)
 {
@@ -105,7 +125,7 @@ static M2_NOINLINE m2Result CreateDistanceJointWorker(m2World* world, const m2Di
     {
         m2OpCreateDistanceJoint record;
         memset(&record, 0, sizeof(record));
-        record.def = *def;
+        RecordDistanceJointDef(&record.def, def);
         record.expected = jointId;
         m2JournalRecord(world, m2_opCreateDistanceJoint, &record, (int32_t)sizeof(record));
     }

@@ -176,18 +176,18 @@ static void Pressures(m2Particles* p, const Fluid* f)
         uint32_t flags = p->particleFlags[i];
         float excess = p->particleWeights[i] - M2_FLUID_REST_DENSITY;
         float pressure = excess > 0.0f ? p->particlePressureStrength * excess * f->critical : 0.0f;
-        float near = 0.0f;
+        float nearPressure = 0.0f;
         if ((flags & m2_tensileParticle) != 0)
         {
             pressure = excess > 0.0f ? pressure : p->particleCohesion * excess * f->critical;
-            near = p->particleNearPressure * p->particleAccumulation2[i].x * f->critical;
+            nearPressure = p->particleNearPressure * p->particleAccumulation2[i].x * f->critical;
         }
         if ((flags & m2_powderParticle) != 0)
         {
             pressure = 0.0f;
         }
         p->particleAccumulation[i] = m2MinF(pressure, cap);
-        p->particleAccumulation2[i].y = near;
+        p->particleAccumulation2[i].y = nearPressure;
     }
 }
 

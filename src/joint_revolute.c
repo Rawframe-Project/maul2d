@@ -39,6 +39,30 @@ static bool DefValid(const m2RevoluteJointDef* def)
            def->lowerAngle <= def->upperAngle;
 }
 
+// The create record holds the def's fields and zero bytes between them:
+// copied field by field into the zeroed record, so no padding of the
+// caller's struct reaches the tape.
+static void RecordRevoluteJointDef(m2RevoluteJointDef* out, const m2RevoluteJointDef* def)
+{
+    out->bodyIdA = def->bodyIdA;
+    out->bodyIdB = def->bodyIdB;
+    out->localAnchorA = def->localAnchorA;
+    out->localAnchorB = def->localAnchorB;
+    out->hertz = def->hertz;
+    out->dampingRatio = def->dampingRatio;
+    out->springHertz = def->springHertz;
+    out->springDampingRatio = def->springDampingRatio;
+    out->enableMotor = def->enableMotor;
+    out->motorSpeed = def->motorSpeed;
+    out->maxMotorTorque = def->maxMotorTorque;
+    out->enableLimit = def->enableLimit;
+    out->lowerAngle = def->lowerAngle;
+    out->upperAngle = def->upperAngle;
+    out->userData = def->userData;
+    out->collideConnected = def->collideConnected;
+    out->internalValue = def->internalValue;
+}
+
 static M2_NOINLINE m2Result CreateRevoluteJointWorker(m2World* world, const m2RevoluteJointDef* def,
                                                       m2JointId* jointOut)
 {
@@ -94,7 +118,7 @@ static M2_NOINLINE m2Result CreateRevoluteJointWorker(m2World* world, const m2Re
     {
         m2OpCreateRevoluteJoint record;
         memset(&record, 0, sizeof(record));
-        record.def = *def;
+        RecordRevoluteJointDef(&record.def, def);
         record.expected = jointId;
         m2JournalRecord(world, m2_opCreateRevoluteJoint, &record, (int32_t)sizeof(record));
     }
