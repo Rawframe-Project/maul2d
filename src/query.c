@@ -281,10 +281,12 @@ static int32_t FinishSelection(ShapeSelection* sel)
     return sel->total;
 }
 
-static M2_NOINLINE int32_t WorldOverlapAabbWorker(const m2World* world, m2Pos2 lower, m2Pos2 upper,
+static M2_NOINLINE int32_t WorldOverlapAabbWorker(const m2World* world, m2WorldAabb box,
                                                   m2ShapeId* results, int32_t capacity,
                                                   m2QueryFilter filter)
 {
+    m2Pos2 lower = box.lowerBound;
+    m2Pos2 upper = box.upperBound;
     if (world == NULL || !m2FinitePos2(lower) || !m2FinitePos2(upper) || upper.x < lower.x ||
         upper.y < lower.y)
     {
@@ -321,11 +323,11 @@ static M2_NOINLINE int32_t WorldOverlapAabbWorker(const m2World* world, m2Pos2 l
     return FinishSelection(&sel);
 }
 
-int32_t m2World_OverlapAabb(const m2World* world, m2Pos2 lower, m2Pos2 upper, m2ShapeId* results,
+int32_t m2World_OverlapAabb(const m2World* world, m2WorldAabb box, m2ShapeId* results,
                             int32_t capacity, m2QueryFilter filter)
 {
     uint64_t env = m2FloatEnvEnter();
-    int32_t result = WorldOverlapAabbWorker(world, lower, upper, results, capacity, filter);
+    int32_t result = WorldOverlapAabbWorker(world, box, results, capacity, filter);
     m2FloatEnvLeave(env);
     return result;
 }

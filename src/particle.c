@@ -608,10 +608,11 @@ m2Result m2CreateParticlesInPolygon(m2World* world, const m2ParticleDef* def,
 // Region query over the pool: a plain ascending scan. Particles
 // carry no tree (their grid is step-transient); a linear
 // walk over a fixed-capacity pool is deterministic and cheap.
-static M2_NOINLINE int32_t WorldOverlapParticlesAabbWorker(const m2World* world, m2Pos2 lower,
-                                                           m2Pos2 upper, m2ParticleId* ids,
-                                                           int32_t capacity)
+static M2_NOINLINE int32_t WorldOverlapParticlesAabbWorker(const m2World* world, m2WorldAabb box,
+                                                           m2ParticleId* ids, int32_t capacity)
 {
+    m2Pos2 lower = box.lowerBound;
+    m2Pos2 upper = box.upperBound;
     if (world == NULL || !m2FinitePos2(lower) || !m2FinitePos2(upper))
     {
         m2Refuse(world, m2_errorInvalid);
@@ -638,11 +639,11 @@ static M2_NOINLINE int32_t WorldOverlapParticlesAabbWorker(const m2World* world,
     return total;
 }
 
-int32_t m2World_OverlapParticlesAabb(const m2World* world, m2Pos2 lower, m2Pos2 upper,
-                                     m2ParticleId* ids, int32_t capacity)
+int32_t m2World_OverlapParticlesAabb(const m2World* world, m2WorldAabb box, m2ParticleId* ids,
+                                     int32_t capacity)
 {
     uint64_t env = m2FloatEnvEnter();
-    int32_t result = WorldOverlapParticlesAabbWorker(world, lower, upper, ids, capacity);
+    int32_t result = WorldOverlapParticlesAabbWorker(world, box, ids, capacity);
     m2FloatEnvLeave(env);
     return result;
 }

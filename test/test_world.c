@@ -1444,10 +1444,10 @@ static void TestLeftoverBasket(void)
     CHECK(com.x > -0.01 && com.x < 0.01 && com.y > 4.99 && com.y < 5.01,
           "world center of mass sits on the centered box");
     CHECK(m2Body_GetCentralInertia(world, box) > 0.0f, "inertia reads positive");
-    m2AabbResult ab = m2Body_ComputeAabb(world, box);
+    m2WorldAabb ab = m2Body_ComputeAabb(world, box);
     CHECK(ab.lowerBound.x < -0.39 && ab.upperBound.x > 0.39 && ab.upperBound.y > 5.39,
           "the body AABB hugs the shape");
-    m2AabbResult sab = m2Shape_GetAabb(world, boxShape);
+    m2WorldAabb sab = m2Shape_GetAabb(world, boxShape);
     CHECK(sab.lowerBound.y < 4.61 && sab.upperBound.y > 5.39, "the shape AABB agrees");
 
     // One-shape queries.

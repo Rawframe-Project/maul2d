@@ -716,7 +716,7 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API m2AabbResult m2Shape_GetAabb(const m2World* world, m2ShapeId shapeId);
+    M2_API m2WorldAabb m2Shape_GetAabb(const m2World* world, m2ShapeId shapeId);
 
     /// Tells whether a world point is inside a shape. A point within the
     /// engine's slop skin of the surface counts as inside, as overlaps do.
@@ -1099,8 +1099,7 @@ extern "C"
     /// ascending slot order.
     ///
     /// @param world     The world.
-    /// @param lower     The box's lower corner.
-    /// @param upper     The box's upper corner.
+    /// @param box       The box, in world space.
     /// @param results   Receives up to capacity shapes; may be null to
     ///                  measure.
     /// @param capacity  The length of results.
@@ -1110,8 +1109,8 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API int32_t m2World_OverlapAabb(const m2World* world, m2Pos2 lower, m2Pos2 upper,
-                                       m2ShapeId* results, int32_t capacity, m2QueryFilter filter);
+    M2_API int32_t m2World_OverlapAabb(const m2World* world, m2WorldAabb box, m2ShapeId* results,
+                                       int32_t capacity, m2QueryFilter filter);
 
 #ifdef __cplusplus
 }
