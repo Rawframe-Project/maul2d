@@ -16,6 +16,14 @@
 #include <stdint.h>
 #include <string.h>
 
+// The depth an entry reports: on WebAssembly the entries are free and
+// keep none (fpenv.h), so every depth there is 0.
+#if defined(__wasm__)
+#define DEPTH(n) 0u
+#else
+#define DEPTH(n) (n)
+#endif
+
 // Inputs the compiler cannot fold.
 static volatile double s_tiny = 0x1p-1022;
 static volatile double s_eighth = 0x1p-3;
@@ -63,7 +71,7 @@ static void TestEnterAndLeave(TestFloatSetting host)
     Bits bits = Compute();
     uint32_t depth = m2FloatEnvDepth();
     m2FloatEnvLeave(token);
-    CHECK(LibraryBits(bits) && depth == 1, "an entry computes the library's bits");
+    CHECK(LibraryBits(bits) && depth == DEPTH(1), "an entry computes the library's bits");
     CHECK(IsHost(host), "and its leave gives the host its setting back");
 }
 
@@ -77,7 +85,7 @@ static void TestNesting(TestFloatSetting host)
     Bits between = Compute();
     uint32_t after = m2FloatEnvDepth();
     m2FloatEnvLeave(outer);
-    CHECK(depth == 2 && after == 1 && LibraryBits(between),
+    CHECK(depth == DEPTH(2) && after == DEPTH(1) && LibraryBits(between),
           "an inner leave leaves the outer entry's environment");
     CHECK(IsHost(host), "the outer leave gives the host its setting");
 }
@@ -131,9 +139,10 @@ static void TestHostCode(TestFloatSetting host, TestFloatSetting other)
     m2FloatEnvLeave(token);
     CHECK(TestFloatSame(callback.seen, host) && callback.depth == 0,
           "host code runs in the host's own setting");
-    CHECK(LibraryBits(callback.again) && callback.againDepth == 1 && callback.hostAfter,
+    CHECK(LibraryBits(callback.again) && callback.againDepth == DEPTH(1) && callback.hostAfter,
           "a call back in computes the library's bits and gives the host code its setting");
-    CHECK(LibraryBits(after) && depth == 1, "after host code, the library's environment again");
+    CHECK(LibraryBits(after) && depth == DEPTH(1),
+          "after host code, the library's environment again");
     CHECK(IsHost(host), "and the host's setting at the end");
     // Host code that changes its setting: the outermost leave restores the
     // host's from its entry all the same.
@@ -180,13 +189,13 @@ static void TestRun(TestFloatSetting host)
     TestFloatSet(host);
     Task task = {{0.0, 0.0, 0.0, 0.0}, 0};
     m2FloatEnvRun(TaskBody, &task);
-    CHECK(LibraryBits(task.bits) && task.depth == 1 && IsHost(host),
+    CHECK(LibraryBits(task.bits) && task.depth == DEPTH(1) && IsHost(host),
           "a task body on a host thread computes the library's bits");
     Task inlined = {{0.0, 0.0, 0.0, 0.0}, 0};
     uint64_t token = m2FloatEnvEnter();
     InHost(InlineTask, &inlined);
     m2FloatEnvLeave(token);
-    CHECK(LibraryBits(inlined.bits) && inlined.depth == 1 && IsHost(host),
+    CHECK(LibraryBits(inlined.bits) && inlined.depth == DEPTH(1) && IsHost(host),
           "and one the host runs inline in its task hook");
 }
 
@@ -213,7 +222,7 @@ static void TestEveryPath(TestFloatSetting host)
     uint32_t depth = m2FloatEnvDepth();
     int done = Call(false);
     m2FloatEnvLeave(token);
-    CHECK(refused == -1 && done == 0 && depth == 1 && IsHost(host),
+    CHECK(refused == -1 && done == 0 && depth == DEPTH(1) && IsHost(host),
           "a refusal's early leave keeps the depth and the host's setting");
 }
 
@@ -307,7 +316,7 @@ static void TestTokens(void)
     {
         m2FloatEnvLeave(tokens[i]);
     }
-    CHECK(deepest == s_deep && m2FloatEnvDepth() == 0, "64 entries deep and back");
+    CHECK(deepest == DEPTH(s_deep) && m2FloatEnvDepth() == 0, "64 entries deep and back");
 }
 
 int main(void)
