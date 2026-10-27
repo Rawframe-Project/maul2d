@@ -48,7 +48,7 @@ math_functions: core fpenv rotation
 mover: core fpenv query
 object_ids: world_internal
 parallel: fpenv world_internal
-particle: fpenv journal world_internal
+particle: fpenv geometry journal world_internal
 particle_contacts: body distance dynamic_tree island parallel particle world_internal
 particle_pairs: particle world_internal
 particle_solver: body dynamic_tree particle query world_internal
