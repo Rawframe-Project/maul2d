@@ -1172,8 +1172,8 @@ static void TestDistanceSpringToggleReadsBack(void)
     CHECK(m2DistanceJoint_IsSpringEnabled(world, original), "the rope's toggle reads back");
 
     m2DistanceJointDef copy = m2DefaultDistanceJointDef();
-    copy.length = m2Joint_GetLength(world, original);
-    m2Joint_GetLimits(world, original, &copy.minLength, &copy.maxLength);
+    copy.length = m2DistanceJoint_GetLength(world, original);
+    m2DistanceJoint_GetLengthRange(world, original, &copy.minLength, &copy.maxLength);
     copy.hertz = m2Joint_GetSpringHertz(world, original);
     copy.dampingRatio = m2Joint_GetSpringDampingRatio(world, original);
     copy.enableSpring = m2DistanceJoint_IsSpringEnabled(world, original);
@@ -1252,8 +1252,12 @@ static void TestDistanceRange(void)
     CHECK(hangClamped < 1.7, "the ranged rope is held at max length instead");
     float lo = 0.0f;
     float hi = 0.0f;
+    m2DistanceJoint_GetLengthRange(world, ropes[1], &lo, &hi);
+    CHECK(lo == 0.5f && hi == 1.5f, "the range reads back");
+    uint64_t misuse = m2World_GetCounters(world).misuse;
     m2Joint_GetLimits(world, ropes[1], &lo, &hi);
-    CHECK(lo == 0.5f && hi == 1.5f, "the range reads back through GetLimits");
+    CHECK(lo == 0.0f && hi == 0.0f && m2World_GetCounters(world).misuse == misuse + 1,
+          "a distance joint has no limits to read, only its range");
 
     // Runtime: reel the free one in the same way.
     m2DistanceJoint_SetLengthRange(world, ropes[0], 0.5f, 1.5f);
@@ -1354,7 +1358,7 @@ static void TestRevoluteSpring(void)
         }
         pins[i] = NewRevoluteJoint(world, &rj);
     }
-    CHECK(m2Joint_GetAngularHertz(world, pins[1]) == 12.0f, "the spring hertz reads back");
+    CHECK(m2Joint_GetAngularSpringHertz(world, pins[1]) == 12.0f, "the spring hertz reads back");
     CHECK(m2Joint_GetAngularSpringHertz(world, pins[1]) == 12.0f &&
               m2Joint_GetAngularSpringDampingRatio(world, pins[1]) == 1.0f,
           "the spring-named aliases agree with the short names");
@@ -1371,7 +1375,7 @@ static void TestRevoluteSpring(void)
 
     // Kill the spring at runtime: the held bar falls like its twin.
     m2Joint_SetAngularSpringHertz(world, pins[1], 0.0f);
-    CHECK(m2Joint_GetAngularHertz(world, pins[1]) == 0.0f, "the disabled spring reads back");
+    CHECK(m2Joint_GetAngularSpringHertz(world, pins[1]) == 0.0f, "the disabled spring reads back");
     for (int32_t i = 0; i < 300; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
@@ -1617,7 +1621,11 @@ static void TestMotorAndLimitCallsNeedTheirJoint(void)
     m2Joint_GetLimits(world, ratchet, &lower, &upper);
     CHECK(lower == 0.0f && upper == 0.0f, "a ratchet has no limits to read");
     CHECK(m2Joint_GetMotorSpeed(world, ratchet) == 0.0f, "nor a motor");
-    CHECK(m2World_GetCounters(world).misuse == misuse + 7, "and the reads count too");
+    lower = 1.0f;
+    upper = 1.0f;
+    m2DistanceJoint_GetLengthRange(world, ratchet, &lower, &upper);
+    CHECK(lower == 0.0f && upper == 0.0f, "nor a length range");
+    CHECK(m2World_GetCounters(world).misuse == misuse + 8, "and the reads count too");
 
     for (int32_t i = 0; i < 120; ++i)
     {

@@ -207,7 +207,7 @@ static void SetLength(const Channel* c, float v)
 }
 static float GetLength(const Channel* c)
 {
-    return m2Joint_GetLength(c->world, c->joint);
+    return m2DistanceJoint_GetLength(c->world, c->joint);
 }
 static void SetGearRatio(const Channel* c, float v)
 {
