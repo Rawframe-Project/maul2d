@@ -36,6 +36,24 @@ static bool DefValid(const m2WeldJointDef* def)
            m2ValidRate(def->angularHertz) && m2ValidCoefficient(def->angularDampingRatio);
 }
 
+// The create record holds the def's fields and zero bytes between them:
+// copied field by field into the zeroed record, so no padding of the
+// caller's struct reaches the tape.
+static void RecordWeldJointDef(m2WeldJointDef* out, const m2WeldJointDef* def)
+{
+    out->bodyIdA = def->bodyIdA;
+    out->bodyIdB = def->bodyIdB;
+    out->localAnchorA = def->localAnchorA;
+    out->localAnchorB = def->localAnchorB;
+    out->linearHertz = def->linearHertz;
+    out->linearDampingRatio = def->linearDampingRatio;
+    out->angularHertz = def->angularHertz;
+    out->angularDampingRatio = def->angularDampingRatio;
+    out->userData = def->userData;
+    out->collideConnected = def->collideConnected;
+    out->internalValue = def->internalValue;
+}
+
 static M2_NOINLINE m2Result CreateWeldJointWorker(m2World* world, const m2WeldJointDef* def,
                                                   m2JointId* jointOut)
 {
@@ -85,7 +103,7 @@ static M2_NOINLINE m2Result CreateWeldJointWorker(m2World* world, const m2WeldJo
     {
         m2OpCreateWeldJoint record;
         memset(&record, 0, sizeof(record));
-        record.def = *def;
+        RecordWeldJointDef(&record.def, def);
         record.expected = jointId;
         m2JournalRecord(world, m2_opCreateWeldJoint, &record, (int32_t)sizeof(record));
     }

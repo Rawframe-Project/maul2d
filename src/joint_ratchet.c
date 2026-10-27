@@ -40,6 +40,20 @@ static bool DefValid(const m2RatchetJointDef* def)
     return m2ValidRatchetTooth(def->ratchet) && m2ValidAngle(def->phase);
 }
 
+// The create record holds the def's fields and zero bytes between them:
+// copied field by field into the zeroed record, so no padding of the
+// caller's struct reaches the tape.
+static void RecordRatchetJointDef(m2RatchetJointDef* out, const m2RatchetJointDef* def)
+{
+    out->bodyIdA = def->bodyIdA;
+    out->bodyIdB = def->bodyIdB;
+    out->ratchet = def->ratchet;
+    out->phase = def->phase;
+    out->userData = def->userData;
+    out->collideConnected = def->collideConnected;
+    out->internalValue = def->internalValue;
+}
+
 static M2_NOINLINE m2Result CreateRatchetJointWorker(m2World* world, const m2RatchetJointDef* def,
                                                      m2JointId* jointOut)
 {
@@ -95,7 +109,7 @@ static M2_NOINLINE m2Result CreateRatchetJointWorker(m2World* world, const m2Rat
     {
         m2OpCreateRatchetJoint record;
         memset(&record, 0, sizeof(record));
-        record.def = *def;
+        RecordRatchetJointDef(&record.def, def);
         record.expected = jointId;
         m2JournalRecord(world, m2_opCreateRatchetJoint, &record, (int32_t)sizeof(record));
     }

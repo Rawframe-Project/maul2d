@@ -619,24 +619,24 @@ static void TestFarPointsClampTheArm(void)
 {
     m2World* world = LimitsWorld();
     m2World_SetGravity(world, (m2Vec2){0.0f, 0.0f});
-    m2BodyId far = Box(world, m2_dynamicBody, 0.0f);
+    m2BodyId beyond = Box(world, m2_dynamicBody, 0.0f);
     m2BodyId reach = Box(world, m2_dynamicBody, 10.0f);
-    m2Pos2 centerFar = m2Body_GetWorldCenterOfMass(world, far);
+    m2Pos2 centerBeyond = m2Body_GetWorldCenterOfMass(world, beyond);
     m2Pos2 centerReach = m2Body_GetWorldCenterOfMass(world, reach);
     m2Vec2 tiny = {0.0f, 1.0e-12f};
-    m2Body_ApplyLinearImpulseAtPoint(world, far, tiny, (m2Pos2){1.0e300, centerFar.y});
+    m2Body_ApplyLinearImpulseAtPoint(world, beyond, tiny, (m2Pos2){1.0e300, centerBeyond.y});
     m2Body_ApplyLinearImpulseAtPoint(world, reach, tiny,
                                      (m2Pos2){centerReach.x + M2_JOINT_REACH, centerReach.y});
-    float wFar = m2Body_GetAngularVelocity(world, far);
-    CHECK(isfinite(wFar) && wFar > 0.0f && wFar == m2Body_GetAngularVelocity(world, reach),
+    float wBeyond = m2Body_GetAngularVelocity(world, beyond);
+    CHECK(isfinite(wBeyond) && wBeyond > 0.0f && wBeyond == m2Body_GetAngularVelocity(world, reach),
           "an impulse at a far point turns the body as one at the reach does");
 
-    m2Body_ApplyForceAtPoint(world, far, tiny, (m2Pos2){-1.0e300, centerFar.y});
+    m2Body_ApplyForceAtPoint(world, beyond, tiny, (m2Pos2){-1.0e300, centerBeyond.y});
     m2Body_ApplyForceAtPoint(world, reach, tiny,
                              (m2Pos2){centerReach.x - M2_JOINT_REACH, centerReach.y});
     m2World_Step(world, 1.0f / 60.0f, 4);
-    wFar = m2Body_GetAngularVelocity(world, far);
-    CHECK(isfinite(wFar) && wFar == m2Body_GetAngularVelocity(world, reach),
+    wBeyond = m2Body_GetAngularVelocity(world, beyond);
+    CHECK(isfinite(wBeyond) && wBeyond == m2Body_GetAngularVelocity(world, reach),
           "a force at a far point turns the body as one at the reach does");
     ExpectRestores(world);
     m2DestroyWorld(world);

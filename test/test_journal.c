@@ -541,59 +541,375 @@ static void TestTapeBoolsAreZeroOrOne(void)
     m2DestroyWorld(world);
 }
 
-// Records one create-body into a fresh world's tape from a def whose
-// bytes start as fill and then take the same field values.
-static uint8_t* TapeOfFilledBodyDef(uint8_t fill, int32_t* bytesOut)
+// Each Filled*Def sets a def's fields to from's over bytes that all start
+// as fill, so only the bytes between the fields keep the fill.
+static void FilledBodyDef(m2BodyDef* to, const m2BodyDef* from, uint8_t fill)
+{
+    memset(to, fill, sizeof(*to));
+    to->type = from->type;
+    to->position = from->position;
+    to->rotation = from->rotation;
+    to->linearVelocity = from->linearVelocity;
+    to->angularVelocity = from->angularVelocity;
+    to->gravityScale = from->gravityScale;
+    to->linearDamping = from->linearDamping;
+    to->angularDamping = from->angularDamping;
+    to->motionLocks = from->motionLocks;
+    to->enableSleep = from->enableSleep;
+    to->isEnabled = from->isEnabled;
+    to->dominance = from->dominance;
+    to->isBullet = from->isBullet;
+    to->userData = from->userData;
+    to->internalValue = from->internalValue;
+}
+
+static void FilledShapeDef(m2ShapeDef* to, const m2ShapeDef* from, uint8_t fill)
+{
+    memset(to, fill, sizeof(*to));
+    to->density = from->density;
+    to->friction = from->friction;
+    to->tangentSpeed = from->tangentSpeed;
+    to->restitution = from->restitution;
+    to->categoryBits = from->categoryBits;
+    to->maskBits = from->maskBits;
+    to->groupIndex = from->groupIndex;
+    to->isSensor = from->isSensor;
+    to->userData = from->userData;
+    to->internalValue = from->internalValue;
+}
+
+static void FilledChainDef(m2ChainDef* to, const m2ChainDef* from, uint8_t fill)
+{
+    memset(to, fill, sizeof(*to));
+    to->points = from->points;
+    to->count = from->count;
+    to->isLoop = from->isLoop;
+    to->friction = from->friction;
+    to->restitution = from->restitution;
+    to->categoryBits = from->categoryBits;
+    to->maskBits = from->maskBits;
+    to->groupIndex = from->groupIndex;
+    to->userData = from->userData;
+    to->internalValue = from->internalValue;
+}
+
+static void FilledFluidVolumeDef(m2FluidVolumeDef* to, const m2FluidVolumeDef* from, uint8_t fill)
+{
+    memset(to, fill, sizeof(*to));
+    to->regionLower = from->regionLower;
+    to->regionUpper = from->regionUpper;
+    to->surface = from->surface;
+    to->density = from->density;
+    to->linearDrag = from->linearDrag;
+    to->angularDrag = from->angularDrag;
+    to->flow = from->flow;
+    to->userData = from->userData;
+    to->internalValue = from->internalValue;
+}
+
+static void FilledExplosionDef(m2ExplosionDef* to, const m2ExplosionDef* from, uint8_t fill)
+{
+    memset(to, fill, sizeof(*to));
+    to->position = from->position;
+    to->radius = from->radius;
+    to->falloff = from->falloff;
+    to->impulse = from->impulse;
+    to->maskBits = from->maskBits;
+    to->internalValue = from->internalValue;
+}
+
+static void FilledDistanceJointDef(m2DistanceJointDef* to, const m2DistanceJointDef* from,
+                                   uint8_t fill)
+{
+    memset(to, fill, sizeof(*to));
+    to->bodyIdA = from->bodyIdA;
+    to->bodyIdB = from->bodyIdB;
+    to->localAnchorA = from->localAnchorA;
+    to->localAnchorB = from->localAnchorB;
+    to->length = from->length;
+    to->minLength = from->minLength;
+    to->maxLength = from->maxLength;
+    to->hertz = from->hertz;
+    to->dampingRatio = from->dampingRatio;
+    to->enableSpring = from->enableSpring;
+    to->userData = from->userData;
+    to->collideConnected = from->collideConnected;
+    to->internalValue = from->internalValue;
+}
+
+static void FilledRevoluteJointDef(m2RevoluteJointDef* to, const m2RevoluteJointDef* from,
+                                   uint8_t fill)
+{
+    memset(to, fill, sizeof(*to));
+    to->bodyIdA = from->bodyIdA;
+    to->bodyIdB = from->bodyIdB;
+    to->localAnchorA = from->localAnchorA;
+    to->localAnchorB = from->localAnchorB;
+    to->hertz = from->hertz;
+    to->dampingRatio = from->dampingRatio;
+    to->springHertz = from->springHertz;
+    to->springDampingRatio = from->springDampingRatio;
+    to->enableMotor = from->enableMotor;
+    to->motorSpeed = from->motorSpeed;
+    to->maxMotorTorque = from->maxMotorTorque;
+    to->enableLimit = from->enableLimit;
+    to->lowerAngle = from->lowerAngle;
+    to->upperAngle = from->upperAngle;
+    to->userData = from->userData;
+    to->collideConnected = from->collideConnected;
+    to->internalValue = from->internalValue;
+}
+
+static void FilledPrismaticJointDef(m2PrismaticJointDef* to, const m2PrismaticJointDef* from,
+                                    uint8_t fill)
+{
+    memset(to, fill, sizeof(*to));
+    to->bodyIdA = from->bodyIdA;
+    to->bodyIdB = from->bodyIdB;
+    to->localAnchorA = from->localAnchorA;
+    to->localAnchorB = from->localAnchorB;
+    to->localAxisA = from->localAxisA;
+    to->hertz = from->hertz;
+    to->dampingRatio = from->dampingRatio;
+    to->enableMotor = from->enableMotor;
+    to->motorSpeed = from->motorSpeed;
+    to->maxMotorForce = from->maxMotorForce;
+    to->enableLimit = from->enableLimit;
+    to->lowerTranslation = from->lowerTranslation;
+    to->upperTranslation = from->upperTranslation;
+    to->userData = from->userData;
+    to->collideConnected = from->collideConnected;
+    to->internalValue = from->internalValue;
+}
+
+static void FilledWeldJointDef(m2WeldJointDef* to, const m2WeldJointDef* from, uint8_t fill)
+{
+    memset(to, fill, sizeof(*to));
+    to->bodyIdA = from->bodyIdA;
+    to->bodyIdB = from->bodyIdB;
+    to->localAnchorA = from->localAnchorA;
+    to->localAnchorB = from->localAnchorB;
+    to->linearHertz = from->linearHertz;
+    to->linearDampingRatio = from->linearDampingRatio;
+    to->angularHertz = from->angularHertz;
+    to->angularDampingRatio = from->angularDampingRatio;
+    to->userData = from->userData;
+    to->collideConnected = from->collideConnected;
+    to->internalValue = from->internalValue;
+}
+
+static void FilledWheelJointDef(m2WheelJointDef* to, const m2WheelJointDef* from, uint8_t fill)
+{
+    memset(to, fill, sizeof(*to));
+    to->bodyIdA = from->bodyIdA;
+    to->bodyIdB = from->bodyIdB;
+    to->localAnchorA = from->localAnchorA;
+    to->localAnchorB = from->localAnchorB;
+    to->localAxisA = from->localAxisA;
+    to->enableSpring = from->enableSpring;
+    to->hertz = from->hertz;
+    to->dampingRatio = from->dampingRatio;
+    to->enableMotor = from->enableMotor;
+    to->motorSpeed = from->motorSpeed;
+    to->maxMotorTorque = from->maxMotorTorque;
+    to->enableLimit = from->enableLimit;
+    to->lowerTranslation = from->lowerTranslation;
+    to->upperTranslation = from->upperTranslation;
+    to->userData = from->userData;
+    to->collideConnected = from->collideConnected;
+    to->internalValue = from->internalValue;
+}
+
+static void FilledFilterJointDef(m2FilterJointDef* to, const m2FilterJointDef* from, uint8_t fill)
+{
+    memset(to, fill, sizeof(*to));
+    to->bodyIdA = from->bodyIdA;
+    to->bodyIdB = from->bodyIdB;
+    to->userData = from->userData;
+    to->internalValue = from->internalValue;
+}
+
+static void FilledMotorJointDef(m2MotorJointDef* to, const m2MotorJointDef* from, uint8_t fill)
+{
+    memset(to, fill, sizeof(*to));
+    to->bodyIdA = from->bodyIdA;
+    to->bodyIdB = from->bodyIdB;
+    to->linearOffset = from->linearOffset;
+    to->angularOffset = from->angularOffset;
+    to->maxForce = from->maxForce;
+    to->maxTorque = from->maxTorque;
+    to->correctionFactor = from->correctionFactor;
+    to->hertz = from->hertz;
+    to->dampingRatio = from->dampingRatio;
+    to->userData = from->userData;
+    to->collideConnected = from->collideConnected;
+    to->internalValue = from->internalValue;
+}
+
+static void FilledMouseJointDef(m2MouseJointDef* to, const m2MouseJointDef* from, uint8_t fill)
+{
+    memset(to, fill, sizeof(*to));
+    to->bodyIdA = from->bodyIdA;
+    to->bodyIdB = from->bodyIdB;
+    to->target = from->target;
+    to->hertz = from->hertz;
+    to->dampingRatio = from->dampingRatio;
+    to->maxForce = from->maxForce;
+    to->userData = from->userData;
+    to->collideConnected = from->collideConnected;
+    to->internalValue = from->internalValue;
+}
+
+static void FilledGearJointDef(m2GearJointDef* to, const m2GearJointDef* from, uint8_t fill)
+{
+    memset(to, fill, sizeof(*to));
+    to->bodyIdA = from->bodyIdA;
+    to->bodyIdB = from->bodyIdB;
+    to->ratio = from->ratio;
+    to->userData = from->userData;
+    to->collideConnected = from->collideConnected;
+    to->internalValue = from->internalValue;
+}
+
+static void FilledPulleyJointDef(m2PulleyJointDef* to, const m2PulleyJointDef* from, uint8_t fill)
+{
+    memset(to, fill, sizeof(*to));
+    to->bodyIdA = from->bodyIdA;
+    to->bodyIdB = from->bodyIdB;
+    to->groundAnchorA = from->groundAnchorA;
+    to->groundAnchorB = from->groundAnchorB;
+    to->localAnchorA = from->localAnchorA;
+    to->localAnchorB = from->localAnchorB;
+    to->ratio = from->ratio;
+    to->userData = from->userData;
+    to->collideConnected = from->collideConnected;
+    to->internalValue = from->internalValue;
+}
+
+static void FilledRatchetJointDef(m2RatchetJointDef* to, const m2RatchetJointDef* from,
+                                  uint8_t fill)
+{
+    memset(to, fill, sizeof(*to));
+    to->bodyIdA = from->bodyIdA;
+    to->bodyIdB = from->bodyIdB;
+    to->ratchet = from->ratchet;
+    to->phase = from->phase;
+    to->userData = from->userData;
+    to->collideConnected = from->collideConnected;
+    to->internalValue = from->internalValue;
+}
+
+// Creates a joint of kind between bodies a and b from its default def,
+// with the def's bytes starting as fill.
+#define FILLED_JOINT(kind, a, b)                                                                   \
+    do                                                                                             \
+    {                                                                                              \
+        m2##kind##JointDef values = m2Default##kind##JointDef();                                   \
+        values.bodyIdA = (a);                                                                      \
+        values.bodyIdB = (b);                                                                      \
+        m2##kind##JointDef def;                                                                    \
+        Filled##kind##JointDef(&def, &values, fill);                                               \
+        CHECK(m2Joint_IsValid(world, New##kind##Joint(world, &def)), #kind " joint creates");      \
+    } while (0)
+
+static m2World* NewDefWorld(void)
 {
     m2WorldDef worldDef = m2DefaultWorldDef();
-    worldDef.bodyCapacity = 4;
-    worldDef.shapeCapacity = 4;
-    worldDef.jointCapacity = 2;
-    m2World* world = NewWorld(&worldDef);
-    m2BodyDef values = m2DefaultBodyDef();
-    values.type = m2_dynamicBody;
-    values.position = (m2Pos2){1.0, 2.0};
-    values.motionLocks.angularZ = true;
-    values.dominance = -3;
-    values.userData = 77;
-    m2BodyDef def;
-    memset(&def, fill, sizeof(def));
-    def.type = values.type;
-    def.position = values.position;
-    def.rotation = values.rotation;
-    def.linearVelocity = values.linearVelocity;
-    def.angularVelocity = values.angularVelocity;
-    def.gravityScale = values.gravityScale;
-    def.linearDamping = values.linearDamping;
-    def.angularDamping = values.angularDamping;
-    def.motionLocks.linearX = values.motionLocks.linearX;
-    def.motionLocks.linearY = values.motionLocks.linearY;
-    def.motionLocks.angularZ = values.motionLocks.angularZ;
-    def.enableSleep = values.enableSleep;
-    def.isEnabled = values.isEnabled;
-    def.dominance = values.dominance;
-    def.isBullet = values.isBullet;
-    def.userData = values.userData;
-    def.internalValue = values.internalValue;
-    int32_t capacity = m2World_GetJournalBaseSize(world) + 4096;
+    worldDef.bodyCapacity = 8;
+    worldDef.shapeCapacity = 16;
+    worldDef.jointCapacity = 16;
+    worldDef.fluidVolumeCapacity = 2;
+    return NewWorld(&worldDef);
+}
+
+// Records a create from every def the journal records into a fresh
+// world's tape, each def's bytes starting as fill, and gives the world's
+// hash at the end.
+static uint8_t* TapeOfFilledDefs(uint8_t fill, int32_t* bytesOut, uint64_t* hashOut)
+{
+    m2World* world = NewDefWorld();
+    m2BodyDef groundValues = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(world, &groundValues);
+    int32_t capacity = m2World_GetJournalBaseSize(world) + 16384;
     uint8_t* tape = (uint8_t*)malloc((size_t)capacity);
     CHECK(tape != NULL && StartJournal(world, tape, capacity), "the journal starts");
-    NewBody(world, &def);
+
+    m2BodyDef bodyValues = m2DefaultBodyDef();
+    bodyValues.type = m2_dynamicBody;
+    bodyValues.motionLocks.angularZ = true;
+    bodyValues.dominance = -3;
+    bodyValues.userData = 77;
+    m2BodyDef bodyDef;
+    m2BodyId bodies[2];
+    for (int32_t i = 0; i < 2; ++i)
+    {
+        bodyValues.position = (m2Pos2){(double)i, 2.0};
+        FilledBodyDef(&bodyDef, &bodyValues, fill);
+        bodies[i] = NewBody(world, &bodyDef);
+        CHECK(m2Body_IsValid(world, bodies[i]), "a body creates");
+    }
+    m2ShapeDef shapeValues = m2DefaultShapeDef();
+    shapeValues.isSensor = true;
+    m2ShapeDef shapeDef;
+    FilledShapeDef(&shapeDef, &shapeValues, fill);
+    m2Circle circle = {{0.0f, 0.0f}, 0.25f};
+    CHECK(m2Shape_IsValid(world, NewCircleShape(world, bodies[0], &shapeDef, &circle)),
+          "a shape creates");
+    m2Vec2 points[4] = {{-3.0f, 0.0f}, {-1.0f, 0.0f}, {1.0f, 0.0f}, {3.0f, 0.0f}};
+    m2ChainDef chainValues = m2DefaultChainDef();
+    chainValues.points = points;
+    chainValues.count = 4;
+    m2ChainDef chainDef;
+    FilledChainDef(&chainDef, &chainValues, fill);
+    CHECK(m2Chain_IsValid(world, NewChain(world, ground, &chainDef)), "a chain creates");
+    m2FluidVolumeDef volumeValues = m2DefaultFluidVolumeDef();
+    m2FluidVolumeDef volumeDef;
+    FilledFluidVolumeDef(&volumeDef, &volumeValues, fill);
+    CHECK(m2FluidVolume_IsValid(world, NewFluidVolume(world, &volumeDef)),
+          "a fluid volume creates");
+    m2ExplosionDef explosionValues = m2DefaultExplosionDef();
+    m2ExplosionDef explosionDef;
+    FilledExplosionDef(&explosionDef, &explosionValues, fill);
+    m2World_Explode(world, &explosionDef);
+
+    FILLED_JOINT(Distance, bodies[0], bodies[1]);
+    FILLED_JOINT(Revolute, bodies[0], bodies[1]);
+    FILLED_JOINT(Prismatic, bodies[0], bodies[1]);
+    FILLED_JOINT(Weld, bodies[0], bodies[1]);
+    FILLED_JOINT(Wheel, bodies[0], bodies[1]);
+    FILLED_JOINT(Filter, bodies[0], bodies[1]);
+    FILLED_JOINT(Motor, bodies[0], bodies[1]);
+    FILLED_JOINT(Mouse, ground, bodies[1]);
+    FILLED_JOINT(Gear, bodies[0], bodies[1]);
+    FILLED_JOINT(Pulley, bodies[0], bodies[1]);
+    FILLED_JOINT(Ratchet, bodies[0], bodies[1]);
+
+    CHECK(m2World_GetCounters(world).misuse == 0,
+          "every call passes its checks, the explosion too");
     *bytesOut = StopJournal(world);
+    *hashOut = m2World_Hash(world);
     m2DestroyWorld(world);
     return tape;
 }
 
-// The bytes between a def's fields are not part of it: two defs with the
-// same field values record the same tape, whatever their padding holds.
+// The bytes between a def's fields are not part of it: two runs of the
+// same calls record the same tape whatever every recorded def's padding
+// holds, and the tape replays onto the world that recorded it.
 static void TestDefPaddingStaysOffTheTape(void)
 {
     int32_t bytesA = 0;
     int32_t bytesB = 0;
-    uint8_t* tapeA = TapeOfFilledBodyDef(0xA5, &bytesA);
-    uint8_t* tapeB = TapeOfFilledBodyDef(0x5A, &bytesB);
+    uint64_t hashA = 0;
+    uint64_t hashB = 0;
+    uint8_t* tapeA = TapeOfFilledDefs(0xA5, &bytesA, &hashA);
+    uint8_t* tapeB = TapeOfFilledDefs(0x5A, &bytesB, &hashB);
     CHECK(bytesA > 0 && bytesA == bytesB && memcmp(tapeA, tapeB, (size_t)bytesA) == 0,
-          "a body def's padding never reaches the tape");
+          "no def's padding reaches the tape");
+    m2World* replayed = NewDefWorld();
+    CHECK(ReplayJournal(replayed, tapeA, bytesA) && m2World_Hash(replayed) == hashA &&
+              hashA == hashB,
+          "and the tape replays onto the recorded world");
+    m2DestroyWorld(replayed);
     free(tapeA);
     free(tapeB);
 }

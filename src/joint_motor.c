@@ -46,6 +46,25 @@ static bool DefValid(const m2MotorJointDef* def)
            m2ValidCoefficient(def->dampingRatio);
 }
 
+// The create record holds the def's fields and zero bytes between them:
+// copied field by field into the zeroed record, so no padding of the
+// caller's struct reaches the tape.
+static void RecordMotorJointDef(m2MotorJointDef* out, const m2MotorJointDef* def)
+{
+    out->bodyIdA = def->bodyIdA;
+    out->bodyIdB = def->bodyIdB;
+    out->linearOffset = def->linearOffset;
+    out->angularOffset = def->angularOffset;
+    out->maxForce = def->maxForce;
+    out->maxTorque = def->maxTorque;
+    out->correctionFactor = def->correctionFactor;
+    out->hertz = def->hertz;
+    out->dampingRatio = def->dampingRatio;
+    out->userData = def->userData;
+    out->collideConnected = def->collideConnected;
+    out->internalValue = def->internalValue;
+}
+
 static M2_NOINLINE m2Result CreateMotorJointWorker(m2World* world, const m2MotorJointDef* def,
                                                    m2JointId* jointOut)
 {
@@ -101,7 +120,7 @@ static M2_NOINLINE m2Result CreateMotorJointWorker(m2World* world, const m2Motor
     {
         m2OpCreateMotorJoint record;
         memset(&record, 0, sizeof(record));
-        record.def = *def;
+        RecordMotorJointDef(&record.def, def);
         record.expected = jointId;
         m2JournalRecord(world, m2_opCreateMotorJoint, &record, (int32_t)sizeof(record));
     }

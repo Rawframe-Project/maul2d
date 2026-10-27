@@ -258,12 +258,12 @@ static void TestLongLevers(void)
 {
     Scene s = {ExtremeWorld(false), {{0}}, 0, {{0}}, 0, 0.0f};
     m2BodyId giant = Giant(&s, (m2Pos2){0.0, 0.0}, (m2Vec2){M2_MAX_SPEED, 0.0f});
-    m2BodyId near = Speck(&s, (m2Pos2){(double)M2_HUGE, 0.0}, (m2Vec2){0.0f, M2_MAX_SPEED});
-    m2BodyId far = Speck(&s, (m2Pos2){M2_JOINT_REACH * 4.0, 0.0}, (m2Vec2){0.0f, 0.0f});
+    m2BodyId edge = Speck(&s, (m2Pos2){(double)M2_HUGE, 0.0}, (m2Vec2){0.0f, M2_MAX_SPEED});
+    m2BodyId beyond = Speck(&s, (m2Pos2){M2_JOINT_REACH * 4.0, 0.0}, (m2Vec2){0.0f, 0.0f});
 
     m2RevoluteJointDef hinge = m2DefaultRevoluteJointDef();
     hinge.bodyIdA = giant;
-    hinge.bodyIdB = near;
+    hinge.bodyIdB = edge;
     hinge.localAnchorA = (m2Vec2){M2_HUGE, M2_HUGE};
     hinge.localAnchorB = (m2Vec2){-M2_HUGE, M2_HUGE};
     hinge.hertz = M2_MAX_RATE;
@@ -278,8 +278,8 @@ static void TestLongLevers(void)
     (void)Keep(&s, NewRevoluteJoint(s.world, &hinge));
 
     m2PrismaticJointDef slider = m2DefaultPrismaticJointDef();
-    slider.bodyIdA = near;
-    slider.bodyIdB = far;
+    slider.bodyIdA = edge;
+    slider.bodyIdB = beyond;
     slider.localAxisA = (m2Vec2){0.0f, 1.0f};
     slider.localAnchorA = (m2Vec2){M2_HUGE, -M2_HUGE};
     slider.enableLimit = true;
@@ -292,14 +292,14 @@ static void TestLongLevers(void)
 
     m2DistanceJointDef rope = m2DefaultDistanceJointDef();
     rope.bodyIdA = giant;
-    rope.bodyIdB = far;
+    rope.bodyIdB = beyond;
     rope.length = 0.005f;
     rope.hertz = M2_MAX_RATE;
     rope.dampingRatio = M2_MAX_COEFFICIENT;
     (void)Keep(&s, NewDistanceJoint(s.world, &rope));
 
     m2WheelJointDef wheel = m2DefaultWheelJointDef();
-    wheel.bodyIdA = far;
+    wheel.bodyIdA = beyond;
     wheel.bodyIdB = giant;
     wheel.localAnchorB = (m2Vec2){-M2_HUGE, -M2_HUGE};
     wheel.hertz = M2_MAX_RATE;
@@ -309,7 +309,7 @@ static void TestLongLevers(void)
     (void)Keep(&s, NewWheelJoint(s.world, &wheel));
 
     m2WeldJointDef weld = m2DefaultWeldJointDef();
-    weld.bodyIdA = near;
+    weld.bodyIdA = edge;
     weld.bodyIdB = giant;
     weld.localAnchorA = (m2Vec2){-M2_HUGE, -M2_HUGE};
     weld.angularHertz = M2_MAX_RATE;
