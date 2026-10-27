@@ -791,17 +791,16 @@ extern "C"
     /// Safe from any thread.
     M2_API m2QueryFilter m2DefaultQueryFilter(void);
 
-    /// The closest hit of a ray or sweep. Queries never change the world,
-    /// and their results are canonical: on a tie the lower shape index
-    /// wins.
-    typedef struct m2RayCastResult
+    /// One hit of a ray or sweep, from a closest cast or from a cast that
+    /// lists every hit. Queries never change the world, and their results
+    /// are canonical: on a tie the lower shape index wins.
+    typedef struct m2CastHit
     {
-        m2ShapeId shapeId; // the null id when hit is false
-        m2Pos2 point;      // the world hit point; the origin on initial overlap
-        m2Vec2 normal;     // the world surface normal; (0, 0) on initial overlap
-        float fraction;    // the hit is origin + fraction * translation
-        bool hit;
-    } m2RayCastResult;
+        m2ShapeId shapeId;
+        m2Pos2 point;   // the world hit point; the origin on initial overlap
+        m2Vec2 normal;  // the world surface normal; (0, 0) on initial overlap
+        float fraction; // the hit is origin + fraction * translation
+    } m2CastHit;
 
     /// Casts a ray and returns its closest hit. A chain link is hit only
     /// from its solid side.
@@ -811,13 +810,15 @@ extern "C"
     /// @param translation  The ray, origin + t * translation for t in
     ///                     [0, 1].
     /// @param filter       Which shapes the ray sees.
-    /// @return The closest hit; no hit for a non-finite argument, which
-    ///         counts one misuse.
+    /// @param hitOut       Receives the closest hit; left as it was on a
+    ///                     miss.
+    /// @return True on a hit; false on a miss, and for a non-finite argument
+    ///         or a null hitOut, which count one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API m2RayCastResult m2World_CastRayClosest(const m2World* world, m2Pos2 origin,
-                                                  m2Vec2 translation, m2QueryFilter filter);
+    M2_API bool m2World_CastRayClosest(const m2World* world, m2Pos2 origin, m2Vec2 translation,
+                                       m2QueryFilter filter, m2CastHit* hitOut);
 
     /// Casts a ray against one shape, with the conventions of
     /// m2World_CastRayClosest.
@@ -826,21 +827,14 @@ extern "C"
     /// @param shapeId      The shape; a stale id counts one misuse.
     /// @param origin       The start, in world space.
     /// @param translation  The ray.
-    /// @return The hit; no hit for a stale id or a non-finite argument.
+    /// @param hitOut       Receives the hit; left as it was on a miss.
+    /// @return True on a hit; false on a miss, and for a stale id, a
+    ///         non-finite argument or a null hitOut, which count one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API m2RayCastResult m2Shape_CastRay(const m2World* world, m2ShapeId shapeId, m2Pos2 origin,
-                                           m2Vec2 translation);
-
-    /// One hit of a ray or sweep that lists every hit.
-    typedef struct m2RayHit
-    {
-        m2ShapeId shapeId;
-        m2Pos2 point;
-        m2Vec2 normal; // (0, 0) on initial overlap
-        float fraction;
-    } m2RayHit;
+    M2_API bool m2Shape_CastRay(const m2World* world, m2ShapeId shapeId, m2Pos2 origin,
+                                m2Vec2 translation, m2CastHit* hitOut);
 
     /// Casts a ray and lists every hit in ascending fraction, ties to the
     /// lower shape index. When there are more hits than capacity, the
@@ -859,7 +853,7 @@ extern "C"
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
     M2_API int32_t m2World_CastRayAll(const m2World* world, m2Pos2 origin, m2Vec2 translation,
-                                      m2RayHit* hits, int32_t capacity, m2QueryFilter filter);
+                                      m2CastHit* hits, int32_t capacity, m2QueryFilter filter);
 
     /// Sweeps a circle and lists every hit, as m2World_CastRayAll does.
     ///
@@ -877,7 +871,7 @@ extern "C"
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
     M2_API int32_t m2World_CastCircleAll(const m2World* world, const m2Circle* circle,
-                                         m2Transform origin, m2Vec2 translation, m2RayHit* hits,
+                                         m2Transform origin, m2Vec2 translation, m2CastHit* hits,
                                          int32_t capacity, m2QueryFilter filter);
 
     /// Sweeps a capsule and lists every hit, as m2World_CastRayAll does.
@@ -896,7 +890,7 @@ extern "C"
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
     M2_API int32_t m2World_CastCapsuleAll(const m2World* world, const m2Capsule* capsule,
-                                          m2Transform origin, m2Vec2 translation, m2RayHit* hits,
+                                          m2Transform origin, m2Vec2 translation, m2CastHit* hits,
                                           int32_t capacity, m2QueryFilter filter);
 
     /// Sweeps a polygon and lists every hit, as m2World_CastRayAll does.
@@ -915,7 +909,7 @@ extern "C"
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
     M2_API int32_t m2World_CastPolygonAll(const m2World* world, const m2Polygon* polygon,
-                                          m2Transform origin, m2Vec2 translation, m2RayHit* hits,
+                                          m2Transform origin, m2Vec2 translation, m2CastHit* hits,
                                           int32_t capacity, m2QueryFilter filter);
 
     /// A plane touching a character mover, from m2World_CollideMover.
@@ -994,14 +988,16 @@ extern "C"
     /// @param origin       The circle's pose at the start.
     /// @param translation  The sweep.
     /// @param filter       Which shapes the sweep sees.
-    /// @return The closest hit; no hit for an invalid argument, which counts
-    ///         one misuse.
+    /// @param hitOut       Receives the closest hit; left as it was on a
+    ///                     miss.
+    /// @return True on a hit; false on a miss, and for an invalid argument or
+    ///         a null hitOut, which count one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API m2RayCastResult m2World_CastCircleClosest(const m2World* world, const m2Circle* circle,
-                                                     m2Transform origin, m2Vec2 translation,
-                                                     m2QueryFilter filter);
+    M2_API bool m2World_CastCircleClosest(const m2World* world, const m2Circle* circle,
+                                          m2Transform origin, m2Vec2 translation,
+                                          m2QueryFilter filter, m2CastHit* hitOut);
 
     /// Sweeps a capsule and returns its closest hit, as
     /// m2World_CastCircleClosest does. A character controller's sweep.
@@ -1011,14 +1007,16 @@ extern "C"
     /// @param origin       The capsule's pose at the start.
     /// @param translation  The sweep.
     /// @param filter       Which shapes the sweep sees.
-    /// @return The closest hit; no hit for an invalid argument, which counts
-    ///         one misuse.
+    /// @param hitOut       Receives the closest hit; left as it was on a
+    ///                     miss.
+    /// @return True on a hit; false on a miss, and for an invalid argument or
+    ///         a null hitOut, which count one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API m2RayCastResult m2World_CastCapsuleClosest(const m2World* world,
-                                                      const m2Capsule* capsule, m2Transform origin,
-                                                      m2Vec2 translation, m2QueryFilter filter);
+    M2_API bool m2World_CastCapsuleClosest(const m2World* world, const m2Capsule* capsule,
+                                           m2Transform origin, m2Vec2 translation,
+                                           m2QueryFilter filter, m2CastHit* hitOut);
 
     /// Sweeps a polygon and returns its closest hit, as
     /// m2World_CastCircleClosest does.
@@ -1028,14 +1026,16 @@ extern "C"
     /// @param origin       The polygon's pose at the start.
     /// @param translation  The sweep.
     /// @param filter       Which shapes the sweep sees.
-    /// @return The closest hit; no hit for an invalid argument, which counts
-    ///         one misuse.
+    /// @param hitOut       Receives the closest hit; left as it was on a
+    ///                     miss.
+    /// @return True on a hit; false on a miss, and for an invalid argument or
+    ///         a null hitOut, which count one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API m2RayCastResult m2World_CastPolygonClosest(const m2World* world,
-                                                      const m2Polygon* polygon, m2Transform origin,
-                                                      m2Vec2 translation, m2QueryFilter filter);
+    M2_API bool m2World_CastPolygonClosest(const m2World* world, const m2Polygon* polygon,
+                                           m2Transform origin, m2Vec2 translation,
+                                           m2QueryFilter filter, m2CastHit* hitOut);
 
     /// Lists the live shapes touching a posed circle, in ascending slot
     /// order. Touching within the engine's slop skin counts. A chain link

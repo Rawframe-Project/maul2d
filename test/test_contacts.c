@@ -164,8 +164,8 @@ static void TestChainDestroy(void)
     }
     CHECK(!m2Body_IsAwake(world, box), "box falls asleep on the chain");
 
-    m2RayCastResult before = m2World_CastRayClosest(world, (m2Pos2){-1.0, 2.0},
-                                                    (m2Vec2){0.0f, -4.0f}, m2DefaultQueryFilter());
+    CastResult before =
+        RayClosest(world, (m2Pos2){-1.0, 2.0}, (m2Vec2){0.0f, -4.0f}, m2DefaultQueryFilter());
     CHECK(before.hit, "a chain segment answers rays while alive");
 
     DestroyChain(world, chainId);
@@ -181,8 +181,8 @@ static void TestChainDestroy(void)
     CHECK(m2Body_GetPosition(world, box).y < -2.0,
           "sleeper wakes and falls once the ground is gone");
 
-    m2RayCastResult after = m2World_CastRayClosest(world, (m2Pos2){-1.0, 2.0},
-                                                   (m2Vec2){0.0f, -4.0f}, m2DefaultQueryFilter());
+    CastResult after =
+        RayClosest(world, (m2Pos2){-1.0, 2.0}, (m2Vec2){0.0f, -4.0f}, m2DefaultQueryFilter());
     CHECK(!after.hit, "no chain segment answers rays after destroy");
 
     // The slot recycles with a fresh generation.
@@ -275,10 +275,10 @@ static void TestChainGround(void)
     CHECK(cameBackDown, "from above, it is a floor: the ball lands and sleeps");
 
     // One-sided rays agree: from above it hits, from below it misses.
-    m2RayCastResult down = m2World_CastRayClosest(world, (m2Pos2){-2.0, 3.0}, (m2Vec2){0.0f, -5.0f},
-                                                  m2DefaultQueryFilter());
-    m2RayCastResult up = m2World_CastRayClosest(world, (m2Pos2){-2.0, -3.0}, (m2Vec2){0.0f, 2.5f},
-                                                m2DefaultQueryFilter());
+    CastResult down =
+        RayClosest(world, (m2Pos2){-2.0, 3.0}, (m2Vec2){0.0f, -5.0f}, m2DefaultQueryFilter());
+    CastResult up =
+        RayClosest(world, (m2Pos2){-2.0, -3.0}, (m2Vec2){0.0f, 2.5f}, m2DefaultQueryFilter());
     CHECK(down.hit, "a ray from above lands on the chain");
     CHECK(!up.hit, "a ray from below passes through");
 

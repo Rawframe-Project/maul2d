@@ -305,8 +305,8 @@ static void TestTeleport(void)
     CHECK(v.x == 1.5f && v.y == 0.0f, "teleport leaves velocity untouched");
 
     // Ray finds it at the new home immediately (broadphase refreshed).
-    m2RayCastResult hit = m2World_CastRayClosest(world, (m2Pos2){100.0, 2.0}, (m2Vec2){0.0f, -6.0f},
-                                                 m2DefaultQueryFilter());
+    CastResult hit =
+        RayClosest(world, (m2Pos2){100.0, 2.0}, (m2Vec2){0.0f, -6.0f}, m2DefaultQueryFilter());
     CHECK(hit.hit, "queries see the teleported body at once");
 
     CHECK(m2World_GetJournalBaseSize(world) == 40 + m2World_SnapshotSize(world),
@@ -1228,12 +1228,11 @@ static void TestDormancyMassAndExplosions(void)
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Body_GetPosition(world, rider).y < 0.6, "the rider wakes and lands on the floor");
-    m2RayCastResult probe = m2World_CastRayClosest(world, (m2Pos2){0.0, 5.0}, (m2Vec2){0.0f, -4.0f},
-                                                   m2DefaultQueryFilter());
+    CastResult probe =
+        RayClosest(world, (m2Pos2){0.0, 5.0}, (m2Vec2){0.0f, -4.0f}, m2DefaultQueryFilter());
     CHECK(!probe.hit, "a dormant body is invisible to queries");
     m2Body_SetEnabled(world, pedestal, true);
-    probe = m2World_CastRayClosest(world, (m2Pos2){0.0, 5.0}, (m2Vec2){0.0f, -4.5f},
-                                   m2DefaultQueryFilter());
+    probe = RayClosest(world, (m2Pos2){0.0, 5.0}, (m2Vec2){0.0f, -4.5f}, m2DefaultQueryFilter());
     CHECK(probe.hit, "and reappears where it stood");
 
     // Mass override: twice the mass, same impulse, half the speed.
@@ -1456,8 +1455,7 @@ static void TestLeftoverBasket(void)
     CHECK(!m2Shape_TestPoint(world, boxShape, (m2Pos2){2.0, 5.0}), "two meters out is not");
     m2Pos2 closest = m2Shape_GetClosestPoint(world, boxShape, (m2Pos2){3.0, 5.0});
     CHECK(closest.x > 0.35 && closest.x < 0.45, "closest point sits on the face");
-    m2RayCastResult ray =
-        m2Shape_CastRay(world, boxShape, (m2Pos2){3.0, 5.0}, (m2Vec2){-5.0f, 0.0f});
+    CastResult ray = ShapeRay(world, boxShape, (m2Pos2){3.0, 5.0}, (m2Vec2){-5.0f, 0.0f});
     CHECK(ray.hit && ray.normal.x > 0.99f, "the one-shape ray hits the right face");
 
     // Chain parentage.

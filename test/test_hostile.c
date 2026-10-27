@@ -746,12 +746,12 @@ static void TestHostileQueries(void)
     m2Transform pose = {{0.0, 3.0}, {1.0f, 0.0f}};
     m2Vec2 down = {0.0f, -6.0f};
     m2ShapeId ids[4];
-    m2RayHit hits[4];
+    m2CastHit hits[4];
 
     uint64_t misuse = m2World_GetCounters(world).misuse;
     m2Polygon huge = m2MakeBox(0.5f, 0.5f);
     huge.count = 1000;
-    CHECK(!m2World_CastPolygonClosest(world, &huge, pose, down, filter).hit,
+    CHECK(!PolygonClosest(world, &huge, pose, down, filter).hit,
           "an oversized polygon count casts nothing");
     CHECK(m2World_OverlapPolygon(world, &huge, pose, ids, 4, filter) == 0, "and overlaps nothing");
     CHECK(m2World_CastPolygonAll(world, &huge, pose, down, hits, 4, filter) == 0,
@@ -761,24 +761,22 @@ static void TestHostileQueries(void)
     CHECK(m2CreateParticlesInPolygon(world, &particleDef, &huge, &count) == m2_errorInvalid &&
               count == 0,
           "and fills nothing");
-    CHECK(!m2World_CastCircleClosest(world, NULL, pose, down, filter).hit,
-          "a NULL circle casts nothing");
+    CHECK(!CircleClosest(world, NULL, pose, down, filter).hit, "a NULL circle casts nothing");
     m2Circle ball = {{0.0f, 0.0f}, 0.25f};
     m2Transform nanPose = {{(double)NAN, 3.0}, {1.0f, 0.0f}};
     CHECK(m2World_OverlapCircle(world, &ball, nanPose, ids, 4, filter) == 0,
           "a NaN pose overlaps nothing");
     m2Transform sheared = {{0.0, 3.0}, {2.0f, 0.0f}};
-    CHECK(!m2World_CastCircleClosest(world, &ball, sheared, down, filter).hit,
+    CHECK(!CircleClosest(world, &ball, sheared, down, filter).hit,
           "a non-unit rotation casts nothing");
-    CHECK(!m2World_CastRayClosest(world, (m2Pos2){0.0, 3.0}, (m2Vec2){NAN, -6.0f}, filter).hit,
+    CHECK(!RayClosest(world, (m2Pos2){0.0, 3.0}, (m2Vec2){NAN, -6.0f}, filter).hit,
           "a NaN ray hits nothing");
     CHECK(m2World_OverlapAabb(world, (m2Pos2){(double)NAN, 0.0}, (m2Pos2){1.0, 1.0}, ids, 4,
                               filter) == 0,
           "a NaN box overlaps nothing");
     CHECK(m2World_GetCounters(world).misuse == misuse + 9, "every hostile query refuses once");
 
-    CHECK(m2World_CastCircleClosest(world, &ball, pose, down, filter).hit,
-          "an honest cast still hits");
+    CHECK(CircleClosest(world, &ball, pose, down, filter).hit, "an honest cast still hits");
     uint64_t beforeTeleport = m2World_GetCounters(world).misuse;
     m2Body_SetTransform(world, box, (m2Pos2){1.0, 0.0}, (m2Rot){2.0f, 0.0f});
     CHECK(m2World_GetCounters(world).misuse == beforeTeleport + 1,
@@ -906,8 +904,8 @@ static void TestQueryEdges(void)
     m2World* world = NewWorld(&def);
 
     // Empty world: everything misses quietly.
-    m2RayCastResult miss = m2World_CastRayClosest(world, (m2Pos2){0.0, 0.0}, (m2Vec2){5.0f, 0.0f},
-                                                  m2DefaultQueryFilter());
+    CastResult miss =
+        RayClosest(world, (m2Pos2){0.0, 0.0}, (m2Vec2){5.0f, 0.0f}, m2DefaultQueryFilter());
     CHECK(!miss.hit, "empty world misses");
     m2ShapeId results[4];
     CHECK(m2World_OverlapAabb(world, (m2Pos2){-1.0, -1.0}, (m2Pos2){1.0, 1.0}, results, 4,
@@ -917,8 +915,8 @@ static void TestQueryEdges(void)
     m2BodyId box = AddBox(world, 0.0, 0.0);
 
     // Zero-length ray inside a shape: initial-overlap convention.
-    m2RayCastResult inside = m2World_CastRayClosest(world, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f},
-                                                    m2DefaultQueryFilter());
+    CastResult inside =
+        RayClosest(world, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f}, m2DefaultQueryFilter());
     CHECK(inside.hit && inside.fraction == 0.0f, "zero ray inside reports initial overlap");
     CHECK(inside.normal.x == 0.0f && inside.normal.y == 0.0f, "initial overlap has no normal");
 
@@ -1454,8 +1452,8 @@ static void TestChainRollbackResurrection(void)
     CHECK(Restore(world, snap, size), "restore");
     CHECK(m2Chain_IsValid(world, chainId), "the rolled-back chain id lives again");
     CHECK(m2Chain_GetSegmentCount(world, chainId) == 3, "with all its segments");
-    m2RayCastResult ray = m2World_CastRayClosest(world, (m2Pos2){1.0, 2.0}, (m2Vec2){0.0f, -4.0f},
-                                                 m2DefaultQueryFilter());
+    CastResult ray =
+        RayClosest(world, (m2Pos2){1.0, 2.0}, (m2Vec2){0.0f, -4.0f}, m2DefaultQueryFilter());
     CHECK(ray.hit, "segments answer rays again");
 
     DestroyChain(world, chainId);

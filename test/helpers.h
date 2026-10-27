@@ -132,6 +132,63 @@ static inline int32_t FillParticles(m2World* world, const m2Polygon* polygon, m2
     return count;
 }
 
+// A closest cast's answer as one value, for scene checks: the hit, and
+// whether there is one (no hit leaves the rest zeroed).
+typedef struct CastResult
+{
+    m2ShapeId shapeId;
+    m2Pos2 point;
+    m2Vec2 normal;
+    float fraction;
+    bool hit;
+} CastResult;
+
+static inline CastResult CastResultOf(bool hit, m2CastHit h)
+{
+    CastResult r = {h.shapeId, h.point, h.normal, h.fraction, hit};
+    return r;
+}
+
+static inline CastResult RayClosest(const m2World* world, m2Pos2 origin, m2Vec2 translation,
+                                    m2QueryFilter filter)
+{
+    m2CastHit h = {{0, 0}, {0.0, 0.0}, {0.0f, 0.0f}, 0.0f};
+    return CastResultOf(m2World_CastRayClosest(world, origin, translation, filter, &h), h);
+}
+
+static inline CastResult ShapeRay(const m2World* world, m2ShapeId shapeId, m2Pos2 origin,
+                                  m2Vec2 translation)
+{
+    m2CastHit h = {{0, 0}, {0.0, 0.0}, {0.0f, 0.0f}, 0.0f};
+    return CastResultOf(m2Shape_CastRay(world, shapeId, origin, translation, &h), h);
+}
+
+static inline CastResult CircleClosest(const m2World* world, const m2Circle* circle,
+                                       m2Transform origin, m2Vec2 translation, m2QueryFilter filter)
+{
+    m2CastHit h = {{0, 0}, {0.0, 0.0}, {0.0f, 0.0f}, 0.0f};
+    return CastResultOf(m2World_CastCircleClosest(world, circle, origin, translation, filter, &h),
+                        h);
+}
+
+static inline CastResult CapsuleClosest(const m2World* world, const m2Capsule* capsule,
+                                        m2Transform origin, m2Vec2 translation,
+                                        m2QueryFilter filter)
+{
+    m2CastHit h = {{0, 0}, {0.0, 0.0}, {0.0f, 0.0f}, 0.0f};
+    return CastResultOf(m2World_CastCapsuleClosest(world, capsule, origin, translation, filter, &h),
+                        h);
+}
+
+static inline CastResult PolygonClosest(const m2World* world, const m2Polygon* polygon,
+                                        m2Transform origin, m2Vec2 translation,
+                                        m2QueryFilter filter)
+{
+    m2CastHit h = {{0, 0}, {0.0, 0.0}, {0.0f, 0.0f}, 0.0f};
+    return CastResultOf(m2World_CastPolygonClosest(world, polygon, origin, translation, filter, &h),
+                        h);
+}
+
 // The destroys return their status for the tests that compare it; the
 // others may drop it.
 static inline m2Result DestroyBody(m2World* world, m2BodyId id)

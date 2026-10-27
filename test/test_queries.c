@@ -67,8 +67,7 @@ static void TestShapeCastsAndOverlaps(void)
     // Circle drop: contact when the center reaches y = radius, so the
     // fraction is about (5 - 0.5) / 10 (the slop skin shifts it a hair).
     m2Circle ball = {{0.0f, 0.0f}, 0.5f};
-    m2RayCastResult drop =
-        m2World_CastCircleClosest(world, &ball, pose, (m2Vec2){0.0f, -10.0f}, all);
+    CastResult drop = CircleClosest(world, &ball, pose, (m2Vec2){0.0f, -10.0f}, all);
     CHECK(drop.hit, "the falling circle finds the floor");
     CHECK(drop.fraction > 0.43f && drop.fraction < 0.46f, "at the analytic fraction");
     CHECK(drop.normal.y > 0.99f, "with the surface normal facing the sweep");
@@ -76,26 +75,23 @@ static void TestShapeCastsAndOverlaps(void)
 
     // Capsule and polygon sweeps land on the same face.
     m2Capsule pill = {{-0.4f, 0.0f}, {0.4f, 0.0f}, 0.3f};
-    m2RayCastResult pillDrop =
-        m2World_CastCapsuleClosest(world, &pill, pose, (m2Vec2){0.0f, -10.0f}, all);
+    CastResult pillDrop = CapsuleClosest(world, &pill, pose, (m2Vec2){0.0f, -10.0f}, all);
     CHECK(pillDrop.hit && pillDrop.fraction > 0.44f && pillDrop.fraction < 0.48f,
           "the capsule lands where its radius says");
     m2Polygon crate = m2MakeBox(0.4f, 0.4f);
-    m2RayCastResult crateDrop =
-        m2World_CastPolygonClosest(world, &crate, pose, (m2Vec2){0.0f, -10.0f}, all);
+    CastResult crateDrop = PolygonClosest(world, &crate, pose, (m2Vec2){0.0f, -10.0f}, all);
     CHECK(crateDrop.hit && crateDrop.fraction > 0.44f && crateDrop.fraction < 0.47f,
           "the box lands on its face");
 
     // Initial overlap: pose the circle inside the floor.
     m2Transform buried = {{0.0, -0.5}, {1.0f, 0.0f}};
-    m2RayCastResult inside =
-        m2World_CastCircleClosest(world, &ball, buried, (m2Vec2){0.0f, -1.0f}, all);
+    CastResult inside = CircleClosest(world, &ball, buried, (m2Vec2){0.0f, -1.0f}, all);
     CHECK(inside.hit && inside.fraction == 0.0f && inside.normal.x == 0.0f &&
               inside.normal.y == 0.0f,
           "initial overlap follows the ray convention");
 
     // A miss stays a miss.
-    m2RayCastResult away = m2World_CastCircleClosest(world, &ball, pose, (m2Vec2){0.0f, 8.0f}, all);
+    CastResult away = CircleClosest(world, &ball, pose, (m2Vec2){0.0f, 8.0f}, all);
     CHECK(!away.hit, "sweeping away hits nothing");
 
     // One-sided chain: solid side up. From below, the sweep ghosts
@@ -109,12 +105,10 @@ static void TestShapeCastsAndOverlaps(void)
     chain.count = 5;
     NewChain(world, shelfBody, &chain);
     m2Transform below = {{30.0, -2.0}, {1.0f, 0.0f}};
-    m2RayCastResult rising =
-        m2World_CastCircleClosest(world, &ball, below, (m2Vec2){0.0f, 8.0f}, all);
+    CastResult rising = CircleClosest(world, &ball, below, (m2Vec2){0.0f, 8.0f}, all);
     CHECK(!rising.hit, "sweeps from the ghost side pass through the shelf");
     m2Transform above = {{30.0, 6.0}, {1.0f, 0.0f}};
-    m2RayCastResult diving =
-        m2World_CastCircleClosest(world, &ball, above, (m2Vec2){0.0f, -8.0f}, all);
+    CastResult diving = CircleClosest(world, &ball, above, (m2Vec2){0.0f, -8.0f}, all);
     CHECK(diving.hit, "and land from the solid side");
 
     // Overlaps: a probe circle around the origin touches the floor,
@@ -169,7 +163,7 @@ static void TestAllHits(void)
         m2Polygon slab = m2MakeBox(0.3f, 2.0f);
         walls[i] = NewPolygonShape(world, post, &sd, &slab);
     }
-    m2RayHit hits[8];
+    m2CastHit hits[8];
     int32_t n = m2World_CastRayAll(world, (m2Pos2){-2.0, 0.0}, (m2Vec2){12.0f, 0.0f}, hits, 8, all);
     CHECK(n == 3, "the ray reports all three walls");
     CHECK(hits[0].fraction < hits[1].fraction && hits[1].fraction < hits[2].fraction,
@@ -179,7 +173,7 @@ static void TestAllHits(void)
 
     // Under capacity pressure the total stays truthful and the two
     // CLOSEST are the ones kept.
-    m2RayHit two[2];
+    m2CastHit two[2];
     int32_t pressed =
         m2World_CastRayAll(world, (m2Pos2){-2.0, 0.0}, (m2Vec2){12.0f, 0.0f}, two, 2, all);
     CHECK(pressed == 3, "truthful total under pressure");
@@ -326,8 +320,8 @@ static void TestRayClosest(void)
     m2ShapeId nearWall = AddStaticBox(world, 4.0, 0.0, 0.5, 2.0);
     AddStaticBox(world, 12.0, 0.0, 0.5, 2.0);
 
-    m2RayCastResult hit = m2World_CastRayClosest(world, (m2Pos2){0.0, 0.0}, (m2Vec2){20.0f, 0.0f},
-                                                 m2DefaultQueryFilter());
+    CastResult hit =
+        RayClosest(world, (m2Pos2){0.0, 0.0}, (m2Vec2){20.0f, 0.0f}, m2DefaultQueryFilter());
     CHECK(hit.hit, "ray hits");
     CHECK(SameShape(hit.shapeId, nearWall), "closest wall wins");
     // Wall face at x = 3.5, ray length 20: fraction = 0.175 exactly.
@@ -337,15 +331,15 @@ static void TestRayClosest(void)
     CHECK(px > -1.0e-6 && px < 1.0e-6 && hit.point.y == 0.0, "hit point lands on the face");
 
     // A miss stays a miss.
-    m2RayCastResult miss = m2World_CastRayClosest(world, (m2Pos2){0.0, 10.0}, (m2Vec2){20.0f, 0.0f},
-                                                  m2DefaultQueryFilter());
+    CastResult miss =
+        RayClosest(world, (m2Pos2){0.0, 10.0}, (m2Vec2){20.0f, 0.0f}, m2DefaultQueryFilter());
     CHECK(!miss.hit, "ray over the walls misses");
 
     // Circle fraction: center (4,-6) r=1, vertical ray from (4,-3)
     // (below the wall) down 10: hits at y=-5, fraction 0.2.
     AddStaticCircle(world, 4.0, -6.0, 1.0f);
-    m2RayCastResult round = m2World_CastRayClosest(world, (m2Pos2){4.0, -3.0},
-                                                   (m2Vec2){0.0f, -10.0f}, m2DefaultQueryFilter());
+    CastResult round =
+        RayClosest(world, (m2Pos2){4.0, -3.0}, (m2Vec2){0.0f, -10.0f}, m2DefaultQueryFilter());
     CHECK(round.hit, "circle hit");
     CHECK(round.fraction == 0.2f, "circle fraction is analytically exact");
     CHECK(round.normal.y == 1.0f, "circle normal points up");
@@ -368,8 +362,8 @@ static void TestRayGeometries(void)
     m2Capsule capsule = {{-1.0f, 0.0f}, {1.0f, 0.0f}, 0.5f};
     NewCapsuleShape(world, body, &sd, &capsule);
 
-    m2RayCastResult hit = m2World_CastRayClosest(world, (m2Pos2){0.0, 5.0}, (m2Vec2){0.0f, -10.0f},
-                                                 m2DefaultQueryFilter());
+    CastResult hit =
+        RayClosest(world, (m2Pos2){0.0, 5.0}, (m2Vec2){0.0f, -10.0f}, m2DefaultQueryFilter());
     CHECK(hit.hit, "capsule hit");
     CHECK(hit.fraction == 0.45f, "capsule top at y=0.5: fraction exact");
 
@@ -379,8 +373,8 @@ static void TestRayGeometries(void)
     m2Segment segment = {{-2.0f, 0.0f}, {2.0f, 0.0f}};
     NewSegmentShape(world, ground, &sd, &segment);
 
-    m2RayCastResult seg = m2World_CastRayClosest(world, (m2Pos2){10.0, 3.0}, (m2Vec2){0.0f, -6.0f},
-                                                 m2DefaultQueryFilter());
+    CastResult seg =
+        RayClosest(world, (m2Pos2){10.0, 3.0}, (m2Vec2){0.0f, -6.0f}, m2DefaultQueryFilter());
     CHECK(seg.hit, "segment hit");
     CHECK(seg.fraction == 0.5f, "segment fraction exact");
 
@@ -397,8 +391,8 @@ static void TestRayFarFromOrigin(void)
 
     double bx = 3.0e5;
     AddStaticBox(world, bx + 4.0, 0.0, 0.5, 2.0);
-    m2RayCastResult hit = m2World_CastRayClosest(world, (m2Pos2){bx, 0.0}, (m2Vec2){20.0f, 0.0f},
-                                                 m2DefaultQueryFilter());
+    CastResult hit =
+        RayClosest(world, (m2Pos2){bx, 0.0}, (m2Vec2){20.0f, 0.0f}, m2DefaultQueryFilter());
     CHECK(hit.hit, "far cast hits");
     CHECK(hit.fraction == 0.175f, "far fraction identical to the origin scene");
     double farPx = hit.point.x - (bx + 3.5);
@@ -475,8 +469,8 @@ static void TestQueriesAreReadOnly(void)
     m2ShapeId results[32];
     for (int32_t i = 0; i < 50; ++i)
     {
-        m2World_CastRayClosest(world, (m2Pos2){-5.0 + 0.2 * (double)i, 3.0}, (m2Vec2){0.3f, -6.0f},
-                               m2DefaultQueryFilter());
+        RayClosest(world, (m2Pos2){-5.0 + 0.2 * (double)i, 3.0}, (m2Vec2){0.3f, -6.0f},
+                   m2DefaultQueryFilter());
         m2World_OverlapAabb(world, (m2Pos2){-4.0, -1.0}, (m2Pos2){0.1 * (double)i, 2.0}, results,
                             32, m2DefaultQueryFilter());
     }
@@ -539,13 +533,12 @@ static void TestQueryFilters(void)
 
     // Walls-only ray passes through the ghost and hits the wall.
     m2QueryFilter wallsOnly = {1u, 0x2u};
-    m2RayCastResult hit =
-        m2World_CastRayClosest(world, (m2Pos2){0.0, 0.0}, (m2Vec2){10.0f, 0.0f}, wallsOnly);
+    CastResult hit = RayClosest(world, (m2Pos2){0.0, 0.0}, (m2Vec2){10.0f, 0.0f}, wallsOnly);
     CHECK(hit.hit && hit.shapeId.index1 == wallId.index1, "filtered ray skips the ghost");
 
     // The default filter hits the ghost first.
-    m2RayCastResult any = m2World_CastRayClosest(world, (m2Pos2){0.0, 0.0}, (m2Vec2){10.0f, 0.0f},
-                                                 m2DefaultQueryFilter());
+    CastResult any =
+        RayClosest(world, (m2Pos2){0.0, 0.0}, (m2Vec2){10.0f, 0.0f}, m2DefaultQueryFilter());
     CHECK(any.hit && any.shapeId.index1 != wallId.index1, "default filter sees everything");
 
     m2ShapeId results[4];
@@ -621,7 +614,7 @@ static void TestAllHitsBeyondSixtyFour(void)
         m2Polygon slab = m2MakeBox(0.1f, 1.0f);
         NewPolygonShape(world, post, &sd, &slab);
     }
-    static m2RayHit hits[128];
+    static m2CastHit hits[128];
     m2Circle ball = {{0.0f, 0.0f}, 0.2f};
     m2Transform pose = {{0.0, 0.0}, {1.0f, 0.0f}};
     int32_t rays =
@@ -652,12 +645,10 @@ static void TestRayInsideRoundedPolygon(void)
     m2Polygon rounded = MakePolygon(square, 4, 0.5f);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2ShapeId shape = NewPolygonShape(world, body, &sd, &rounded);
-    m2RayCastResult inside =
-        m2Shape_CastRay(world, shape, (m2Pos2){0.0, 0.0}, (m2Vec2){5.0f, 0.0f});
+    CastResult inside = ShapeRay(world, shape, (m2Pos2){0.0, 0.0}, (m2Vec2){5.0f, 0.0f});
     CHECK(inside.hit && inside.fraction == 0.0f, "a ray from inside hits at its start");
     CHECK(inside.normal.x == 0.0f && inside.normal.y == 0.0f, "with no normal");
-    m2RayCastResult corner =
-        m2Shape_CastRay(world, shape, (m2Pos2){3.0, 3.0}, (m2Vec2){-3.0f, -3.0f});
+    CastResult corner = ShapeRay(world, shape, (m2Pos2){3.0, 3.0}, (m2Vec2){-3.0f, -3.0f});
     double expected = 1.0 + 0.5 * 0.70710678;
     CHECK(corner.hit && fabs(corner.point.x - expected) < 1.0e-4 &&
               fabs(corner.point.y - expected) < 1.0e-4,
@@ -666,8 +657,44 @@ static void TestRayInsideRoundedPolygon(void)
     m2DestroyWorld(world);
 }
 
+// A closest cast says whether it hits and writes only a hit: a miss
+// leaves hitOut as it was, and a null hitOut is refused as a misuse.
+static void TestCastHitOut(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon slab = m2MakeBox(2.0f, 0.5f);
+    m2ShapeId floor = NewPolygonShape(world, ground, &sd, &slab);
+    m2QueryFilter all = m2DefaultQueryFilter();
+    m2CastHit hit = {{0, 0}, {0.0, 0.0}, {0.0f, 0.0f}, 0.0f};
+    CHECK(m2World_CastRayClosest(world, (m2Pos2){0.0, 3.0}, (m2Vec2){0.0f, -6.0f}, all, &hit) &&
+              hit.shapeId.index1 == floor.index1 && hit.normal.y == 1.0f,
+          "a ray that hits says so and writes the hit");
+    m2CastHit kept = hit;
+    CHECK(!m2World_CastRayClosest(world, (m2Pos2){9.0, 3.0}, (m2Vec2){0.0f, -6.0f}, all, &hit) &&
+              memcmp(&hit, &kept, sizeof(hit)) == 0,
+          "a miss leaves the hit as it was");
+    m2Circle ball = {{0.0f, 0.0f}, 0.25f};
+    m2Capsule rod = {{-0.25f, 0.0f}, {0.25f, 0.0f}, 0.1f};
+    m2Polygon chip = m2MakeBox(0.25f, 0.25f);
+    m2Transform above = {{0.0, 3.0}, {1.0f, 0.0f}};
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    CHECK(!m2World_CastRayClosest(world, (m2Pos2){0.0, 3.0}, (m2Vec2){0.0f, -6.0f}, all, NULL) &&
+              !m2World_CastCircleClosest(world, &ball, above, (m2Vec2){0.0f, -6.0f}, all, NULL) &&
+              !m2World_CastCapsuleClosest(world, &rod, above, (m2Vec2){0.0f, -6.0f}, all, NULL) &&
+              !m2World_CastPolygonClosest(world, &chip, above, (m2Vec2){0.0f, -6.0f}, all, NULL) &&
+              !m2Shape_CastRay(world, floor, (m2Pos2){0.0, 3.0}, (m2Vec2){0.0f, -6.0f}, NULL),
+          "a null hitOut is refused");
+    CHECK(m2World_GetCounters(world).misuse == misuse + 5, "each counting one misuse");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
+    TestCastHitOut();
     TestRayInsideRoundedPolygon();
     TestAllHitsBeyondSixtyFour();
     TestQueryFilters();
