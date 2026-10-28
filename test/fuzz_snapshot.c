@@ -33,7 +33,7 @@ static void Setup(void)
     {
         FuzzFail("the fuzz scene builds");
     }
-    s_size = m2World_SnapshotSize(s_world);
+    s_size = m2World_GetSnapshotSize(s_world);
     s_valid = (uint8_t*)malloc((size_t)s_size);
     s_bytes = (uint8_t*)malloc((size_t)s_size);
     s_again = (uint8_t*)malloc((size_t)s_size);

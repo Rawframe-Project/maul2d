@@ -377,14 +377,14 @@ extern "C"
     /// Lists the world's bodies in ascending slot order.
     ///
     /// @param world     The world.
-    /// @param ids       Receives up to capacity bodies; may be null to
+    /// @param idsOut    Receives up to capacity bodies; may be null to
     ///                  measure.
-    /// @param capacity  The length of ids.
+    /// @param capacity  The length of idsOut.
     /// @return The number of bodies, which may exceed capacity.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API int32_t m2World_GetBodies(const m2World* world, m2BodyId* ids, int32_t capacity);
+    M2_API int32_t m2World_GetBodies(const m2World* world, m2BodyId* idsOut, int32_t capacity);
 
     /// Maps a point from a body's frame to world space.
     ///

@@ -486,7 +486,7 @@ static bool ApplyShatterBody(m2ReplayCursor* r, const m2OpPayload* p)
     m2BodyId first[1] = {m2_nullBodyId};
     int32_t made = 0;
     m2Result shattered =
-        m2World_ShatterBody(r->world, op->body, pieces, op->pieceCount, first, 1, &made);
+        m2Body_Shatter(r->world, op->body, pieces, op->pieceCount, first, 1, &made);
     m2WorldFree(r->world, pieces, (size_t)pieceBytes);
     return shattered == m2_success && made == op->pieceCount &&
            first[0].index1 == (uint32_t)op->expectedFirst;

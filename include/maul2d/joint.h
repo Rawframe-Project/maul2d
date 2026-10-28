@@ -1236,28 +1236,28 @@ extern "C"
     /// Lists the world's joints in ascending slot order.
     ///
     /// @param world     The world.
-    /// @param ids       Receives up to capacity joints; may be null to
+    /// @param idsOut    Receives up to capacity joints; may be null to
     ///                  measure.
-    /// @param capacity  The length of ids.
+    /// @param capacity  The length of idsOut.
     /// @return The number of joints, which may exceed capacity.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API int32_t m2World_GetJoints(const m2World* world, m2JointId* ids, int32_t capacity);
+    M2_API int32_t m2World_GetJoints(const m2World* world, m2JointId* idsOut, int32_t capacity);
 
     /// Lists the joints attached to a body, in ascending slot order.
     ///
     /// @param world     The world.
     /// @param bodyId    The body; a stale id counts one misuse.
-    /// @param ids       Receives up to capacity joints; may be null to
+    /// @param idsOut    Receives up to capacity joints; may be null to
     ///                  measure.
-    /// @param capacity  The length of ids.
+    /// @param capacity  The length of idsOut.
     /// @return The number of joints, which may exceed capacity; 0 for a
     ///         stale id.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API int32_t m2Body_GetJoints(const m2World* world, m2BodyId bodyId, m2JointId* ids,
+    M2_API int32_t m2Body_GetJoints(const m2World* world, m2BodyId bodyId, m2JointId* idsOut,
                                     int32_t capacity);
 
     static const m2JointId m2_nullJointId = {0, 0};

@@ -281,7 +281,7 @@ static int64_t ShapeWorldSnapshot(int32_t shapeCapacity)
     def.shapeCapacity = shapeCapacity;
     def.jointCapacity = 1;
     m2World* world = NewWorld(&def);
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     m2DestroyWorld(world);
     return size;
 }

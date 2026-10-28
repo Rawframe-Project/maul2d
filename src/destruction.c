@@ -198,10 +198,10 @@ static m2BodyId CreatePiece(m2World* world, int32_t parent, const m2ShapeDef* sh
     return piece;
 }
 
-static M2_NOINLINE m2Result WorldShatterBodyWorker(m2World* world, m2BodyId bodyId,
-                                                   const m2Polygon* pieces, int32_t pieceCount,
-                                                   m2BodyId* bodiesOut, int32_t capacity,
-                                                   int32_t* countOut)
+static M2_NOINLINE m2Result BodyShatterWorker(m2World* world, m2BodyId bodyId,
+                                              const m2Polygon* pieces, int32_t pieceCount,
+                                              m2BodyId* bodiesOut, int32_t capacity,
+                                              int32_t* countOut)
 {
     if (countOut != NULL)
     {
@@ -263,13 +263,13 @@ static M2_NOINLINE m2Result WorldShatterBodyWorker(m2World* world, m2BodyId body
     return m2_success;
 }
 
-m2Result m2World_ShatterBody(m2World* world, m2BodyId bodyId, const m2Polygon* pieces,
-                             int32_t pieceCount, m2BodyId* bodiesOut, int32_t capacity,
-                             int32_t* countOut)
+m2Result m2Body_Shatter(m2World* world, m2BodyId bodyId, const m2Polygon* pieces,
+                        int32_t pieceCount, m2BodyId* bodiesOut, int32_t capacity,
+                        int32_t* countOut)
 {
     uint64_t env = m2FloatEnvEnter();
     m2Result result =
-        WorldShatterBodyWorker(world, bodyId, pieces, pieceCount, bodiesOut, capacity, countOut);
+        BodyShatterWorker(world, bodyId, pieces, pieceCount, bodiesOut, capacity, countOut);
     m2FloatEnvLeave(env);
     return result;
 }

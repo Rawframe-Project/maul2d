@@ -144,7 +144,7 @@ static void TestRestoreClearsAndReplays(void)
         NewCircleShape(world, body, &sd, &c);
     }
 
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "snapshot");
 

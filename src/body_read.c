@@ -161,7 +161,7 @@ m2Vec2 m2Body_GetWorldPointVelocity(const m2World* world, m2BodyId bodyId, m2Pos
     return result;
 }
 
-int32_t m2Body_GetJoints(const m2World* world, m2BodyId bodyId, m2JointId* ids, int32_t capacity)
+int32_t m2Body_GetJoints(const m2World* world, m2BodyId bodyId, m2JointId* idsOut, int32_t capacity)
 {
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0)
@@ -174,10 +174,10 @@ int32_t m2Body_GetJoints(const m2World* world, m2BodyId bodyId, m2JointId* ids, 
          e = world->joints.jointEdgeNext[e])
     {
         int32_t j = e >> 1;
-        if (ids != NULL && total < capacity)
+        if (idsOut != NULL && total < capacity)
         {
             m2JointId id = {(uint32_t)(j + 1), world->joints.jointGenerations[j]};
-            ids[total] = id;
+            idsOut[total] = id;
         }
         total += 1;
     }
@@ -389,7 +389,7 @@ float m2Body_GetGravityScale(const m2World* world, m2BodyId bodyId)
     return result;
 }
 
-int32_t m2Body_GetShapes(const m2World* world, m2BodyId bodyId, m2ShapeId* ids, int32_t capacity)
+int32_t m2Body_GetShapes(const m2World* world, m2BodyId bodyId, m2ShapeId* idsOut, int32_t capacity)
 {
     int32_t bodyIndex = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (bodyIndex < 0)
@@ -404,9 +404,9 @@ int32_t m2Body_GetShapes(const m2World* world, m2BodyId bodyId, m2ShapeId* ids, 
         {
             continue;
         }
-        if (ids != NULL && total < capacity)
+        if (idsOut != NULL && total < capacity)
         {
-            ids[total] = m2MakeShapeId(world, i);
+            idsOut[total] = m2MakeShapeId(world, i);
         }
         total += 1;
     }

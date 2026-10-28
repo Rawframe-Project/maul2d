@@ -370,9 +370,9 @@ typedef struct m2World
     uint8_t* restoreMarks;
 
     // Host hooks and diagnostics (never snapshot state).
-    m2Allocator allocator;        // the def's, or the C library's; kept for the world's life
-    m2EnqueueTaskFn* enqueueTask; // host executor; both NULL =
-    m2FinishTaskFn* finishTask;   // serial; never snapshot state
+    m2Allocator allocator;              // the def's, or the C library's; kept for the world's life
+    m2EnqueueTaskFunction* enqueueTask; // host executor; both NULL =
+    m2FinishTaskFunction* finishTask;   // serial; never snapshot state
     void* userTaskContext;
     m2Profile profile; // diagnostics only (never walked/hashed)
     // Cumulative misuse, accessed only atomically (m2Refuse, m2MisuseCount);

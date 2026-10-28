@@ -120,7 +120,7 @@ static void TestRollbackIdentity(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "snapshot writes its full size");
     for (int32_t i = 0; i < 30; ++i)
@@ -839,7 +839,7 @@ static void TestLifetimeAndUserData(void)
     CHECK(m2Particle_GetLifetime(world, drops[1]) == 0.0f, "immortals report zero");
 
     // Snapshot before the reaping, then run past it.
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
     Snapshot(world, snap, size);
     for (int32_t i = 0; i < 20; ++i)

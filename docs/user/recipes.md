@@ -8,7 +8,7 @@ Common builds, each a few calls on top of the other pages.
 
 **A vehicle.** A chassis body and two wheel bodies, each joined with a wheel joint, whose suspension spring is built in. Enable the wheels' motors and drive the motor speed from input. `sample_car` is the two-wheel version.
 
-**Destructible geometry.** Run a sprite's outline through `m2DecomposeOutline` once to get convex pieces, and build the body from them. When it should break, call `m2World_ShatterBody` with the same pieces: the body becomes one fragment per piece, each moving with the parent. An `m2World_Explode` at the impact point gives the shove ([Bodies and shapes](bodies-and-shapes.md#geometry-from-points)).
+**Destructible geometry.** Run a sprite's outline through `m2DecomposeOutline` once to get convex pieces, and build the body from them. When it should break, call `m2Body_Shatter` with the same pieces: the body becomes one fragment per piece, each moving with the parent. An `m2World_Explode` at the impact point gives the shove ([Bodies and shapes](bodies-and-shapes.md#geometry-from-points)).
 
 **Water without particles.** Place a fluid volume over the region and set its surface: light bodies float and dense ones sink. Give it a flow for a current, and move the surface for a tide. Reach for a particle pool only when the splash matters ([Fluids](fluids.md)).
 

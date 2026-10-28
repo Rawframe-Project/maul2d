@@ -383,11 +383,11 @@ static M2_NOINLINE m2Result DecomposeOutlineWorker(const m2Vec2* points, int32_t
     return m2_success;
 }
 
-m2Result m2DecomposeOutline(const m2Vec2* points, int32_t count, m2Polygon* pieces,
+m2Result m2DecomposeOutline(const m2Vec2* points, int32_t count, m2Polygon* piecesOut,
                             int32_t capacity, int32_t* countOut)
 {
     uint64_t env = m2FloatEnvEnter();
-    m2Result result = DecomposeOutlineWorker(points, count, pieces, capacity, countOut);
+    m2Result result = DecomposeOutlineWorker(points, count, piecesOut, capacity, countOut);
     m2FloatEnvLeave(env);
     return result;
 }

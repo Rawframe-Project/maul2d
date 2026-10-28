@@ -503,7 +503,7 @@ static void SceneRollback(void)
     {
         m2World_Step(world, DT, 4);
     }
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     uint8_t* snapshot = malloc((size_t)size);
     uint8_t* again = malloc((size_t)size);
     CHECK(Snapshot(world, snapshot, size) == size, "ROLLBACK: the snapshot writes");

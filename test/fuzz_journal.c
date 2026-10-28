@@ -42,7 +42,7 @@ static void RecordTape(void)
     }
     int64_t capacity = m2World_GetJournalBaseSize(recorder) * 2 + FUZZ_TAPE_ROOM;
     s_tape = (uint8_t*)malloc((size_t)capacity);
-    int64_t snapshotSize = m2World_SnapshotSize(recorder);
+    int64_t snapshotSize = m2World_GetSnapshotSize(recorder);
     uint8_t* snapshot = (uint8_t*)malloc((size_t)snapshotSize);
     if (s_tape == NULL || snapshot == NULL || !StartJournal(recorder, s_tape, capacity) ||
         !BuildFuzzScene(recorder) || Snapshot(recorder, snapshot, snapshotSize) != snapshotSize)
@@ -77,7 +77,7 @@ static void Setup(void)
     {
         FuzzFail("the replay world builds");
     }
-    s_emptySize = m2World_SnapshotSize(s_world);
+    s_emptySize = m2World_GetSnapshotSize(s_world);
     s_empty = (uint8_t*)malloc((size_t)s_emptySize);
     if (s_empty == NULL || Snapshot(s_world, s_empty, s_emptySize) != s_emptySize)
     {

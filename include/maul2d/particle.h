@@ -245,28 +245,29 @@ extern "C"
     ///
     /// @param world     The world.
     /// @param box       The box, in world space.
-    /// @param ids       Receives up to capacity particles; may be null to
+    /// @param idsOut    Receives up to capacity particles; may be null to
     ///                  measure.
-    /// @param capacity  The length of ids.
+    /// @param capacity  The length of idsOut.
     /// @return The number of particles inside, which may exceed capacity;
     ///         0 for a non-finite corner, which counts one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
     M2_API int32_t m2World_OverlapParticlesAabb(const m2World* world, m2WorldAabb box,
-                                                m2ParticleId* ids, int32_t capacity);
+                                                m2ParticleId* idsOut, int32_t capacity);
 
     /// Lists the live particles in ascending slot order.
     ///
     /// @param world     The world.
-    /// @param ids       Receives up to capacity particles; may be null to
+    /// @param idsOut    Receives up to capacity particles; may be null to
     ///                  measure.
-    /// @param capacity  The length of ids.
+    /// @param capacity  The length of idsOut.
     /// @return The number of particles, which may exceed capacity.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API int32_t m2World_GetParticles(const m2World* world, m2ParticleId* ids, int32_t capacity);
+    M2_API int32_t m2World_GetParticles(const m2World* world, m2ParticleId* idsOut,
+                                        int32_t capacity);
 
 #ifdef __cplusplus
 }

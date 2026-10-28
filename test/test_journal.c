@@ -331,7 +331,7 @@ static void TestOverflowIsLoud(void)
 {
     m2WorldDef def = TestDef();
     m2World* world = NewWorld(&def);
-    int64_t snapshotSize = m2World_SnapshotSize(world);
+    int64_t snapshotSize = m2World_GetSnapshotSize(world);
     int64_t capacity = snapshotSize + 64; // room for the header + a crumb
     uint8_t* journal = malloc((size_t)capacity + sizeof(void*));
     CHECK(StartJournal(world, journal, capacity), "tiny journal starts");
@@ -378,7 +378,7 @@ static void TestRollbackWhileRecording(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    int64_t snapSize = m2World_SnapshotSize(world);
+    int64_t snapSize = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)snapSize);
     CHECK(Snapshot(world, snap, snapSize) == snapSize, "mid-recording snapshot");
 
@@ -459,7 +459,7 @@ static void TestRestoreRefusesBadCounters(void)
     m2Circle ball = {{0.0f, 0.0f}, 0.5f};
     m2ShapeDef sd = m2DefaultShapeDef();
     NewCircleShape(world, body, &sd, &ball);
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     uint8_t* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "snapshot taken");
     m2World_Step(world, 1.0f / 60.0f, 4);

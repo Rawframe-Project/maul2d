@@ -94,7 +94,7 @@ static void TestJellyRollbackStorm(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
     Snapshot(world, snap, size);
 
@@ -264,7 +264,7 @@ static void TestMachineryResurrection(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
     Snapshot(world, snap, size);
 
@@ -576,7 +576,7 @@ static void TestOtherReleasesAreRefused(void)
     }
     int64_t tapeBytes = StopJournal(world);
     CHECK(tapeBytes > 0, "the tape is recorded");
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     CHECK(snap != NULL && Snapshot(world, snap, size) == size, "the snapshot is taken");
     if (snap == NULL || tapeBytes <= 0)
@@ -862,7 +862,7 @@ static void TestHostileSnapshotWords(void)
     NewRevoluteJoint(world, &rj);
     m2World_Step(world, 1.0f / 60.0f, 4);
 
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     uint8_t* poisoned = (uint8_t*)malloc((size_t)size);
     CHECK(clean != NULL && poisoned != NULL, "snapshot buffers");
@@ -1212,7 +1212,7 @@ static void TestBreakStorm(void)
         m2Joint_SetBreakLimits(world, ropes[i], 30.0f, 0.0f);
     }
 
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "snapshot");
 
@@ -1436,7 +1436,7 @@ static void TestChainRollbackResurrection(void)
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
 
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "snapshot before the demolition");
 
@@ -1490,7 +1490,7 @@ static void TestReactionRollbackReading(void)
     float midSwing = m2Joint_GetReactionForce(world, rope);
     CHECK(midSwing > 0.0f, "a swinging rope carries load");
 
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "snapshot mid-swing");
     for (int32_t i = 0; i < 30; ++i)
@@ -1596,7 +1596,7 @@ static void TestVelocityCapUnderRollback(void)
         m2BodyId body = AddBox(world, 0.0, 100.0);
         m2Body_SetLinearVelocity(world, body, (m2Vec2){70000.0f, 4000.0f});
         m2Body_SetAngularVelocity(world, body, 9000.0f);
-        int64_t size = m2World_SnapshotSize(world);
+        int64_t size = m2World_GetSnapshotSize(world);
         void* snap = malloc((size_t)size);
         Snapshot(world, snap, size);
         m2World_Step(world, 1.0f / 60.0f, 4);
@@ -1708,7 +1708,7 @@ static void TestOffCenterInertiaPrismatic(void)
                   "the off-center stressed body stays finite");
             if (i == 60)
             {
-                size = m2World_SnapshotSize(world);
+                size = m2World_GetSnapshotSize(world);
                 snap = malloc((size_t)size);
                 Snapshot(world, snap, size);
             }

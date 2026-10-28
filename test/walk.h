@@ -899,7 +899,7 @@ static uint64_t RunScenario(uint64_t seed, uint8_t* journal, int32_t journalCapa
 
     // Rollback identity from a randomized world: restore returns the
     // exact bits and a re-snapshot is byte-equal.
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* snapA = malloc((size_t)size);
     void* snapB = malloc((size_t)size);
     CHECK(Snapshot(world, snapA, size) == size, "snapshot");

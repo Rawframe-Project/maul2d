@@ -76,7 +76,7 @@ static bool ImpulsesWithinLimit(const Scene* s, float invH)
 // The world's own snapshot restores onto the same hash.
 static bool RoundTrips(m2World* world)
 {
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* bytes = malloc((size_t)size);
     if (bytes == NULL)
     {

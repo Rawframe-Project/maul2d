@@ -28,7 +28,7 @@ World positions are 64-bit and not bounded. A joint takes bodies farther apart t
 
 ## World size
 
-Snapshot and journal sizes are `int64_t` byte counts, so a world is bounded by its capacities and memory, not by its formats. A shape slot takes about 1.3 KB of the snapshot, its contact pairs included, a particle about 170 bytes, a body about 110 and a joint about 160; `m2World_SnapshotSize` gives a world's exact size. On a 32-bit target, `m2CreateWorld` refuses with `m2_errorCapacity`, before it allocates anything, a def whose snapshot a `size_t` cannot hold, and `m2World_StartJournal` and `m2World_ReplayJournal` refuse a size past it as an invalid argument.
+Snapshot and journal sizes are `int64_t` byte counts, so a world is bounded by its capacities and memory, not by its formats. A shape slot takes about 1.3 KB of the snapshot, its contact pairs included, a particle about 170 bytes, a body about 110 and a joint about 160; `m2World_GetSnapshotSize` gives a world's exact size. On a 32-bit target, `m2CreateWorld` refuses with `m2_errorCapacity`, before it allocates anything, a def whose snapshot a `size_t` cannot hold, and `m2World_StartJournal` and `m2World_ReplayJournal` refuse a size past it as an invalid argument.
 
 ## Clamped and saturated values
 

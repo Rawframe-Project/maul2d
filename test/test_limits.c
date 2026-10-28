@@ -250,7 +250,7 @@ static m2BodyId Box(m2World* world, m2BodyType type, float x)
 
 static void ExpectRestores(m2World* world)
 {
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     uint8_t* bytes = (uint8_t*)malloc((size_t)size);
     CHECK(bytes != NULL, "snapshot buffer");
     uint64_t hash = m2World_Hash(world);
@@ -753,7 +753,7 @@ static void TestBoundsRefuseAsLimit(void)
         shards[i] = m2MakeBox(0.1f, 0.1f);
     }
     misuse = Misuse(world);
-    CHECK(m2World_ShatterBody(world, a, shards, M2_MAX_SHATTER_PIECES + 1, NULL, 0, &count) ==
+    CHECK(m2Body_Shatter(world, a, shards, M2_MAX_SHATTER_PIECES + 1, NULL, 0, &count) ==
                   m2_errorLimit &&
               Misuse(world) == misuse + 1,
           "a shatter past M2_MAX_SHATTER_PIECES is m2_errorLimit");
