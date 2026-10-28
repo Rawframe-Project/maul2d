@@ -375,7 +375,7 @@ static void TestRatiosAndDrives(void)
     m2RatchetJointDef ratchet = m2DefaultRatchetJointDef();
     ratchet.bodyIdA = speck;
     ratchet.bodyIdB = giant;
-    ratchet.ratchet = M2_MIN_RATCHET_TOOTH;
+    ratchet.toothAngle = M2_MIN_RATCHET_TOOTH;
     ratchet.phase = M2_ANGLE_LIMIT;
     (void)Keep(&s, NewRatchetJoint(s.world, &ratchet));
     ExpectFinite(&s, "ratios and drives");

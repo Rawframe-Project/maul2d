@@ -258,7 +258,7 @@ static void TestMachineryResurrection(void)
     m2RatchetJointDef rd = m2DefaultRatchetJointDef();
     rd.bodyIdA = wheels[1];
     rd.bodyIdB = wheels[2];
-    rd.ratchet = 0.4f;
+    rd.toothAngle = 0.4f;
     m2JointId pawl = NewRatchetJoint(world, &rd);
     for (int32_t i = 0; i < 60; ++i)
     {
@@ -331,7 +331,7 @@ static void TestRatchetMotorWar(void)
         m2RatchetJointDef rd = m2DefaultRatchetJointDef();
         rd.bodyIdA = post;
         rd.bodyIdB = wheel;
-        rd.ratchet = 0.3f;
+        rd.toothAngle = 0.3f;
         NewRatchetJoint(world, &rd);
         for (int32_t i = 0; i < 240; ++i)
         {
