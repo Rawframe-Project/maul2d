@@ -176,8 +176,8 @@ static void TestMoverFrame(void)
 
     m2Capsule capsule = {{0.0f, -0.5f}, {0.0f, 0.5f}, 0.3f};
     m2MoverPlane planes[M2_MOVER_PLANES];
-    int32_t planeCount = m2World_CollideMover(world, &capsule, pose, planes, M2_MOVER_PLANES,
-                                              m2DefaultQueryFilter());
+    int32_t planeCount = m2World_CollideMover(world, &capsule, pose, m2DefaultQueryFilter(), planes,
+                                              M2_MOVER_PLANES);
     if (planeCount > M2_MOVER_PLANES)
     {
         planeCount = M2_MOVER_PLANES;
