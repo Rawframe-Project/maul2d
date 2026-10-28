@@ -80,7 +80,9 @@ static m2LocalHit RayCastCircle(m2Vec2 p1, m2Vec2 d, float maxFraction, m2Vec2 c
         return s_miss; // passing by
     }
     float h = sqrtf(h2);
-    float t = (-along - h) / scale / length;
+    // Outside the circle the root is never negative, but rounding can take
+    // it a few ulps below 0 for an origin on the surface.
+    float t = m2MaxF(-along - h, 0.0f) / scale / length;
     if (t > maxFraction)
     {
         return s_miss;

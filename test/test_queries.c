@@ -441,6 +441,24 @@ static void TestFarAndLongRaysAtRoundShapes(void)
     }
 }
 
+static void TestRayFromTheSurfaceHitsAtZero(void)
+{
+    // An origin one float step outside a unit circle, aimed in: the root
+    // rounds a few ulps below 0 unless it is held there.
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2BodyId body = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Circle circle = {{0.0f, 0.0f}, 1.0f};
+    NewCircleShape(world, body, &sd, &circle);
+    m2Pos2 origin = {(double)-0x1.b9c784p-1f, (double)0x1.02cb9cp-1f};
+    m2Vec2 translation = {0x1.664cdap+0f, 0x1.a4ae84p-2f};
+    CastResult hit = RayClosest(world, origin, translation, m2DefaultQueryFilter());
+    CHECK(hit.hit && hit.fraction == 0.0f, "a ray from the surface hits at a fraction of 0");
+    m2DestroyWorld(world);
+}
+
 static void TestOverlap(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
@@ -740,6 +758,7 @@ static void TestCastHitOut(void)
 
 int main(void)
 {
+    TestRayFromTheSurfaceHitsAtZero();
     TestFarAndLongRaysAtRoundShapes();
     TestCastHitOut();
     TestRayInsideRoundedPolygon();
