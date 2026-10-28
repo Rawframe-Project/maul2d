@@ -115,10 +115,10 @@ m2StatePrefix m2MakeStatePrefix(uint32_t magic, uint32_t formatVersion, int32_t 
     return prefix;
 }
 
-m2Result m2CheckStatePrefix(const void* bytes, int32_t size, uint32_t magic, uint32_t formatVersion,
+m2Result m2CheckStatePrefix(const void* bytes, int64_t size, uint32_t magic, uint32_t formatVersion,
                             int32_t headerBytes)
 {
-    if (size < (int32_t)sizeof(m2StatePrefix))
+    if (size < (int64_t)sizeof(m2StatePrefix))
     {
         return m2_errorInvalid;
     }

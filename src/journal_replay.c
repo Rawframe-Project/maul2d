@@ -237,16 +237,24 @@ static bool ApplyShapeUserData(m2ReplayCursor* r, const m2OpPayload* p)
     return true;
 }
 
+bool m2ReplayTailFits(const m2ReplayCursor* r, int32_t count, int32_t elementBytes,
+                      int64_t* bytesOut)
+{
+    int64_t bytes = (int64_t)count * (int64_t)elementBytes; // an int32_t times a small size
+    *bytesOut = bytes;
+    return count >= 0 && bytes <= r->size - r->offset;
+}
+
 // Chains.
 
 static bool ApplyCreateChain(m2ReplayCursor* r, const m2OpPayload* p)
 {
     const m2OpChainHeader* op = &p->chainHeader;
-    if (op->count < 3 || op->count > (r->size - r->offset) / (int32_t)sizeof(m2Vec2))
+    int64_t pointBytes = 0;
+    if (op->count < 3 || !m2ReplayTailFits(r, op->count, (int32_t)sizeof(m2Vec2), &pointBytes))
     {
         return false;
     }
-    int32_t pointBytes = op->count * (int32_t)sizeof(m2Vec2);
     // The stream is unaligned; the points are copied out before use.
     m2Vec2* points = m2WorldAlloc(r->world, (size_t)pointBytes);
     if (points == NULL)
@@ -443,7 +451,7 @@ static bool ApplyExplode(m2ReplayCursor* r, const m2OpPayload* p)
 
 static bool ApplyRestore(m2ReplayCursor* r, const m2OpPayload* p)
 {
-    int32_t bytes = p->restoreSize;
+    int64_t bytes = p->restoreSize;
     if (bytes <= 0 || bytes > r->size - r->offset)
     {
         return false; // truncated restore payload
@@ -459,11 +467,12 @@ static bool ApplyRestore(m2ReplayCursor* r, const m2OpPayload* p)
 static bool ApplyShatterBody(m2ReplayCursor* r, const m2OpPayload* p)
 {
     const m2OpShatterHeader* op = &p->shatterHeader;
-    if (op->pieceCount < 1 || op->pieceCount > (r->size - r->offset) / (int32_t)sizeof(m2Polygon))
+    int64_t pieceBytes = 0;
+    if (op->pieceCount < 1 ||
+        !m2ReplayTailFits(r, op->pieceCount, (int32_t)sizeof(m2Polygon), &pieceBytes))
     {
         return false;
     }
-    int32_t pieceBytes = op->pieceCount * (int32_t)sizeof(m2Polygon);
     // The stream is unaligned; the pieces are copied out before use.
     m2Polygon* pieces = m2WorldAlloc(r->world, (size_t)pieceBytes);
     if (pieces == NULL)
@@ -546,7 +555,7 @@ static const m2JournalCommand s_commands[m2_opCount] = {
     M2_COMMAND(m2_opSetJointParam, m2OpJointParam, ApplySetJointParam),
     M2_COMMAND(m2_opSetTransform, m2OpSetTransform, ApplySetTransform),
     M2_COMMAND(m2_opSetType, m2OpBodyByte, ApplySetType),
-    M2_COMMAND(m2_opRestore, int32_t, ApplyRestore),
+    M2_COMMAND(m2_opRestore, int64_t, ApplyRestore),
     M2_COMMAND(m2_opCreateChain, m2OpChainHeader, ApplyCreateChain),
     M2_COMMAND(m2_opSetGravity, m2OpVec, ApplySetGravity),
     M2_COMMAND(m2_opShapeParam, m2OpShapeParam, ApplyShapeParam),

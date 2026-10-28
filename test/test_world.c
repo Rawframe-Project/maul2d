@@ -58,7 +58,7 @@ static void TestRollbackIdentity(void)
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
 
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     void* snapA = malloc((size_t)size);
     void* snapB = malloc((size_t)size);
     CHECK(Snapshot(world, snapA, size) == size, "snapshot A");
@@ -309,7 +309,7 @@ static void TestTeleport(void)
         RayClosest(world, (m2Pos2){100.0, 2.0}, (m2Vec2){0.0f, -6.0f}, m2DefaultQueryFilter());
     CHECK(hit.hit, "queries see the teleported body at once");
 
-    CHECK(m2World_GetJournalBaseSize(world) == 40 + m2World_SnapshotSize(world),
+    CHECK(m2World_GetJournalBaseSize(world) == 24 + m2World_SnapshotSize(world),
           "journal base size is header plus snapshot");
 
     m2DestroyWorld(world);
@@ -1817,11 +1817,11 @@ static void TestDefsMatchWhatARestoreAccepts(void)
               fabsf(diagonal.c - 0.70710678f) < 1.0e-6f && diagonal.c == diagonal.s,
           "a huge rotation keeps its direction");
 
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     uint8_t* first = (uint8_t*)malloc((size_t)size);
     uint8_t* second = (uint8_t*)malloc((size_t)size);
     CHECK(first != NULL && second != NULL, "snapshot buffers");
-    int32_t written = Snapshot(world, first, size);
+    int64_t written = Snapshot(world, first, size);
     CHECK(written == size && Restore(world, first, written), "edge values restore");
     CHECK(Snapshot(world, second, size) == size && memcmp(first, second, (size_t)size) == 0,
           "a restored world snapshots the same bytes");
@@ -1844,7 +1844,7 @@ static void TestRestoreRefusesANonUnitRotation(void)
     m2BodyId body = NewBody(world, &bodyDef);
     m2Transform xf = {m2Body_GetPosition(world, body), m2Body_GetRotation(world, body)};
 
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     uint8_t* bytes = (uint8_t*)malloc((size_t)size);
     CHECK(bytes != NULL && Snapshot(world, bytes, size) == size, "the world snapshots");
     int32_t at = -1;
@@ -1889,11 +1889,11 @@ static void TestSubstepCap(void)
     CHECK(m2World_GetStepCount(world) == 1 && m2World_GetCounters(world).misuse == misuse + 1,
           "a step at the cap runs");
 
-    int32_t capacity = m2World_GetJournalBaseSize(world) + 1024;
+    int64_t capacity = m2World_GetJournalBaseSize(world) + 1024;
     uint8_t* tape = (uint8_t*)malloc((size_t)capacity);
     CHECK(tape != NULL && StartJournal(world, tape, capacity), "the journal starts");
     m2World_Step(world, 1.0f / 60.0f, 4);
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     // The step record's payload: dt, then the substep count.
     struct
     {
@@ -2086,7 +2086,7 @@ static void TestAllocatorCannotWrite(void)
     m2World* world = NewWorld(&def);
 
     // A tape whose replay allocates scratch: a chain and a shatter.
-    int32_t capacity = m2World_GetJournalBaseSize(world) + (1 << 14);
+    int64_t capacity = m2World_GetJournalBaseSize(world) + (1 << 14);
     void* tape = malloc((size_t)capacity);
     CHECK(StartJournal(world, tape, capacity), "the journal starts");
     m2BodyDef gd = m2DefaultBodyDef();
@@ -2107,7 +2107,7 @@ static void TestAllocatorCannotWrite(void)
     m2Vec2 right[4] = {{0.0f, -0.5f}, {0.5f, -0.5f}, {0.5f, 0.5f}, {0.0f, 0.5f}};
     m2Polygon halves[2] = {MakePolygon(left, 4, 0.0f), MakePolygon(right, 4, 0.0f)};
     CHECK(ShatterBody(world, crate, halves, 2, NULL, 0) == 2, "the shatter is recorded");
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     CHECK(bytes > 0, "the journal stops");
 
     Meddler meddler = {NULL, m2_nullBodyId, 0, 0, 0, 0};
@@ -2186,11 +2186,11 @@ static void TestHostCodeMistakesCountMidReplay(void)
 
     // The ball rests on the slab, so the recorded step hands work to the
     // task hook, and so does its replay.
-    int32_t capacity = m2World_GetJournalBaseSize(world) + 1024;
+    int64_t capacity = m2World_GetJournalBaseSize(world) + 1024;
     void* tape = malloc((size_t)capacity);
     CHECK(StartJournal(world, tape, capacity), "the journal starts");
     m2World_Step(world, 1.0f / 60.0f, 4);
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     CHECK(bytes > 0, "the journal stops");
 
     m2World* fresh = NewWorld(&def);
@@ -2218,14 +2218,14 @@ static void TestCorruptInputIsNotMisuse(void)
     bd.type = m2_dynamicBody;
     m2BodyId box = NewBody(world, &bd);
 
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     uint8_t* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "a snapshot is taken");
-    int32_t capacity = m2World_GetJournalBaseSize(world) + 256;
+    int64_t capacity = m2World_GetJournalBaseSize(world) + 256;
     uint8_t* tape = malloc((size_t)capacity);
     CHECK(StartJournal(world, tape, capacity), "the journal starts");
     m2Body_SetLinearDamping(world, box, 0.25f);
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
 
     uint64_t misuse = m2World_GetCounters(world).misuse;
     snap[0] ^= 0xFF;
@@ -2594,7 +2594,7 @@ static void TestFluidVolume(void)
     hs.density = 5.0f;
     NewPolygonShape(world, heavy, &hs, &box);
 
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
     Snapshot(world, snap, size);
 
@@ -2653,7 +2653,7 @@ static void TestFluidVolume(void)
     {
         m2World_Step(rec, 1.0f / 60.0f, 4);
     }
-    int32_t used = StopJournal(rec);
+    int64_t used = StopJournal(rec);
     uint64_t recorded = m2World_Hash(rec);
     m2World* fresh = NewWorld(&def);
     CHECK(ReplayJournal(fresh, tape, used), "the buoyancy tape replays");
@@ -2682,7 +2682,7 @@ static void TestShatterBody(void)
     m2Polygon box = m2MakeBox(0.5f, 0.5f);
     NewPolygonShape(world, crate, &sd, &box);
 
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
     Snapshot(world, snap, size);
 
@@ -2742,7 +2742,7 @@ static void TestShatterBody(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t used = StopJournal(world);
+    int64_t used = StopJournal(world);
     uint64_t recorded = m2World_Hash(world);
     m2World* fresh = NewWorld(&def);
     CHECK(ReplayJournal(fresh, tape, used), "the shatter tape replays");
@@ -2948,7 +2948,7 @@ static void TestMotionLocks(void)
         }
         m2Body_SetMotionLocks(w, b,
                               (m2MotionLocks){true, true, false}); // lock both linear axes now
-        int32_t size = m2World_SnapshotSize(w);
+        int64_t size = m2World_SnapshotSize(w);
         void* snap = malloc((size_t)size);
         CHECK(Snapshot(w, snap, size) == size, "the snapshot fits");
         for (int32_t i = 0; i < 30; ++i)
@@ -3037,7 +3037,7 @@ static void TestWind(void)
         {
             m2World_Step(w, 1.0f / 60.0f, 4);
         }
-        int32_t size = m2World_SnapshotSize(w);
+        int64_t size = m2World_SnapshotSize(w);
         void* snap = malloc((size_t)size);
         CHECK(Snapshot(w, snap, size) == size, "the snapshot fits");
         for (int32_t i = 0; i < 30; ++i)
@@ -3124,7 +3124,7 @@ static void TestSetMassDataChecksEveryField(void)
     // masses and inertias either set and round-trip, or are refused.
     const float extremes[] = {1e-30f, 1e-20f, 1.0f, 1e30f, 1e38f, 3e38f, FLT_MAX};
     const int32_t extremeCount = (int32_t)(sizeof(extremes) / sizeof(extremes[0]));
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     void* snapshot = malloc((size_t)size);
     for (int32_t i = 0; i < extremeCount && snapshot != NULL; ++i)
     {
@@ -3205,7 +3205,7 @@ static void TestCentersAtTheBoundRestore(void)
         m2Vec2 center = m2Body_GetLocalCenter(world, body);
         CHECK(center.x <= M2_HUGE && center.y >= -M2_HUGE, "the center stays within M2_HUGE");
     }
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     void* snapshot = malloc((size_t)size);
     CHECK(snapshot != NULL && Snapshot(world, snapshot, size) == size &&
               Restore(world, snapshot, size),

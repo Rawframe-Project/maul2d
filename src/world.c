@@ -208,9 +208,8 @@ static M2_NOINLINE m2Result CreateWorldWorker(const m2WorldDef* def, m2World** w
     {
         return m2_errorInvalid;
     }
-    // The world's snapshot, and a journal holding two of them, must fit
-    // their int32_t byte counts: measured on the def's capacities alone,
-    // before anything is allocated.
+    // The world's snapshot size must fit a size_t: measured on the def's
+    // capacities alone, before anything is allocated.
     m2World shape;
     memset(&shape, 0, sizeof(shape));
     if (!ApplyWorldDef(&shape, def) || !m2SnapshotFits(&shape))

@@ -38,7 +38,7 @@ int main(void)
     m2World* world = NULL;
     Require(m2CreateWorld(&def, &world), "create the world");
 
-    int tapeCapacity = m2World_GetJournalBaseSize(world) + (1 << 16);
+    int64_t tapeCapacity = m2World_GetJournalBaseSize(world) + (1 << 16);
     unsigned char* journal = malloc((size_t)tapeCapacity);
     if (journal == NULL)
     {
@@ -80,10 +80,10 @@ int main(void)
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
 
-    int bytes = 0;
+    int64_t bytes = 0;
     Require(m2World_StopJournal(world, &bytes), "stop the journal");
     unsigned long long recorded = (unsigned long long)m2World_Hash(world);
-    printf("recorded %d bytes of session, end hash %016llx\n", bytes, recorded);
+    printf("recorded %lld bytes of session, end hash %016llx\n", (long long)bytes, recorded);
 
     // A brand-new world, same capacities, replay the tape.
     m2World* fresh = NULL;

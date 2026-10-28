@@ -133,7 +133,7 @@ static void TestCcdRollback(void)
 
     m2World_Step(world, 1.0f / 60.0f, 4); // bullet mid-flight
 
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "snapshot");
     uint64_t hashes[30];

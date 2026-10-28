@@ -333,8 +333,8 @@ typedef struct m2Events
 typedef struct m2Recorder
 {
     uint8_t* journal;
-    int32_t journalCapacity;
-    int32_t journalCursor;
+    int64_t journalCapacity;
+    int64_t journalCursor;
     uint8_t journalActive;
     uint8_t journalOverflow;
 } m2Recorder;
@@ -432,13 +432,25 @@ typedef struct m2StatePrefix
 // The prefix this release writes for a format.
 m2StatePrefix m2MakeStatePrefix(uint32_t magic, uint32_t formatVersion, int32_t headerBytes);
 
+// Whether a caller's byte count of 0 or more can describe memory on this
+// target, that is, whether a size_t holds it. Only a 32-bit target says no.
+static inline bool m2SizeFitsMemory(int64_t bytes)
+{
+#if SIZE_MAX < INT64_MAX
+    return bytes <= (int64_t)SIZE_MAX;
+#else
+    (void)bytes;
+    return true;
+#endif
+}
+
 // Checks the prefix of untrusted bytes, in the order every state format
 // shares: too short or another magic is m2_errorInvalid, since the bytes
 // are not this format; another release or format number is
 // m2_errorVersion, since only the release that wrote them reads them; a
 // header size that is not this format's, or bytes too short to hold it,
 // is m2_errorInvalid. Counts nothing: the bytes are untrusted.
-m2Result m2CheckStatePrefix(const void* bytes, int32_t size, uint32_t magic, uint32_t formatVersion,
+m2Result m2CheckStatePrefix(const void* bytes, int64_t size, uint32_t magic, uint32_t formatVersion,
                             int32_t headerBytes);
 
 #endif // MAUL2D_SRC_WORLD_INTERNAL_H

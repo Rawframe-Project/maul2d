@@ -94,7 +94,7 @@ static void TestJellyRollbackStorm(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
     Snapshot(world, snap, size);
 
@@ -162,7 +162,7 @@ static void TestJellyJournalStorm(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t used = StopJournal(world);
+    int64_t used = StopJournal(world);
     CHECK(used > 0, "the storm tape closed");
     uint64_t recorded = m2World_Hash(world);
     m2World* fresh = NewWorld(&def);
@@ -264,7 +264,7 @@ static void TestMachineryResurrection(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
     Snapshot(world, snap, size);
 
@@ -453,7 +453,7 @@ static void TestJournalDefenses(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     CHECK(bytes > 0, "journal captured");
     uint64_t recordedHash = m2World_Hash(world);
     m2DestroyWorld(world);
@@ -507,7 +507,7 @@ static uint32_t Reversed(uint32_t word)
 // Offers state bytes: a snapshot to m2World_Restore, a tape to
 // m2World_ReplayJournal. The refusal must be the expected status, change
 // nothing and count nothing, since the bytes are untrusted.
-static void ExpectRefused(m2World* world, const uint8_t* bytes, int32_t size, bool tape,
+static void ExpectRefused(m2World* world, const uint8_t* bytes, int64_t size, bool tape,
                           m2Result expected, const char* what)
 {
     uint64_t hash = m2World_Hash(world);
@@ -521,7 +521,7 @@ static void ExpectRefused(m2World* world, const uint8_t* bytes, int32_t size, bo
 
 // Offers state bytes with one 32-bit word changed and every other byte
 // equal.
-static void ExpectWordRefused(m2World* world, const uint8_t* bytes, int32_t size, bool tape,
+static void ExpectWordRefused(m2World* world, const uint8_t* bytes, int64_t size, bool tape,
                               int32_t offset, uint32_t word, m2Result expected, const char* what)
 {
     uint8_t* edited = (uint8_t*)malloc((size_t)size);
@@ -539,7 +539,7 @@ static void ExpectWordRefused(m2World* world, const uint8_t* bytes, int32_t size
 // Offers the first `keep` bytes of state bytes, in an allocation of
 // exactly that size, so AddressSanitizer catches a reader that looks past
 // the end. Each cut is refused as m2_errorInvalid.
-static void ExpectCutRefused(m2World* world, const uint8_t* bytes, int32_t keep, bool tape,
+static void ExpectCutRefused(m2World* world, const uint8_t* bytes, int64_t keep, bool tape,
                              const char* what)
 {
     uint8_t* cut = (uint8_t*)malloc((size_t)keep);
@@ -574,9 +574,9 @@ static void TestOtherReleasesAreRefused(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t tapeBytes = StopJournal(world);
+    int64_t tapeBytes = StopJournal(world);
     CHECK(tapeBytes > 0, "the tape is recorded");
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     uint8_t* snap = (uint8_t*)malloc((size_t)size);
     CHECK(snap != NULL && Snapshot(world, snap, size) == size, "the snapshot is taken");
     if (snap == NULL || tapeBytes <= 0)
@@ -698,7 +698,7 @@ static void TestParameterChannels(void)
           "a negative damping changes nothing");
 
     uint8_t tape[1 << 16];
-    int32_t bytes = 0;
+    int64_t bytes = 0;
     StartJournal(world, tape, (int32_t)sizeof(tape));
     m2Body_SetLinearDamping(world, box, 0.25f);
     bytes = StopJournal(world);
@@ -862,7 +862,7 @@ static void TestHostileSnapshotWords(void)
     NewRevoluteJoint(world, &rj);
     m2World_Step(world, 1.0f / 60.0f, 4);
 
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
     uint8_t* poisoned = (uint8_t*)malloc((size_t)size);
     CHECK(clean != NULL && poisoned != NULL, "snapshot buffers");
@@ -1212,7 +1212,7 @@ static void TestBreakStorm(void)
         m2Joint_SetBreakLimits(world, ropes[i], 30.0f, 0.0f);
     }
 
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "snapshot");
 
@@ -1436,7 +1436,7 @@ static void TestChainRollbackResurrection(void)
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
 
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "snapshot before the demolition");
 
@@ -1490,7 +1490,7 @@ static void TestReactionRollbackReading(void)
     float midSwing = m2Joint_GetReactionForce(world, rope);
     CHECK(midSwing > 0.0f, "a swinging rope carries load");
 
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "snapshot mid-swing");
     for (int32_t i = 0; i < 30; ++i)
@@ -1596,7 +1596,7 @@ static void TestVelocityCapUnderRollback(void)
         m2BodyId body = AddBox(world, 0.0, 100.0);
         m2Body_SetLinearVelocity(world, body, (m2Vec2){70000.0f, 4000.0f});
         m2Body_SetAngularVelocity(world, body, 9000.0f);
-        int32_t size = m2World_SnapshotSize(world);
+        int64_t size = m2World_SnapshotSize(world);
         void* snap = malloc((size_t)size);
         Snapshot(world, snap, size);
         m2World_Step(world, 1.0f / 60.0f, 4);
@@ -1647,7 +1647,7 @@ static void TestBeltWakeReplayStorm(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t used = StopJournal(world);
+    int64_t used = StopJournal(world);
     CHECK(used > 0, "the belt tape closed");
     uint64_t recorded = m2World_Hash(world);
     m2World* fresh = NewWorld(&def);
@@ -1697,7 +1697,7 @@ static void TestOffCenterInertiaPrismatic(void)
         m2PrismaticJointDef pj2 = pj;
         pj2.localAxisA = (m2Vec2){0.0f, 1.0f};
         NewPrismaticJoint(world, &pj2);
-        int32_t size = 0;
+        int64_t size = 0;
         void* snap = NULL;
         for (int32_t i = 0; i < 120; ++i)
         {
@@ -1730,6 +1730,25 @@ static void TestOffCenterInertiaPrismatic(void)
 // A chain's points are checked before anything is built: a NaN point
 // or a degenerate segment is invalid input, and a full shape pool is a
 // capacity refusal that leaves no trace in the chain ids.
+static void TestSizesPastMemory(void)
+{
+#if SIZE_MAX < INT64_MAX
+    // Where a size_t is 32 bits, a capacity or size it cannot hold
+    // describes no buffer: refused as an argument, one misuse each.
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    uint8_t byte = 0;
+    int64_t past = (int64_t)SIZE_MAX + 1;
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    CHECK(m2World_StartJournal(world, &byte, past) == m2_errorInvalid,
+          "a capacity past SIZE_MAX starts no journal");
+    CHECK(m2World_ReplayJournal(world, &byte, past) == m2_errorInvalid,
+          "a size past SIZE_MAX replays nothing");
+    CHECK(m2World_GetCounters(world).misuse == misuse + 2, "each counting one misuse");
+    m2DestroyWorld(world);
+#endif
+}
+
 static void TestChainRefusals(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
@@ -1776,6 +1795,7 @@ static void TestChainRefusals(void)
 
 int main(void)
 {
+    TestSizesPastMemory();
     TestChainRefusals();
     TestJournalDefenses();
     TestOtherReleasesAreRefused();

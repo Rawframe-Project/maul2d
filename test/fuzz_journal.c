@@ -25,10 +25,10 @@ enum
 
 static m2World* s_world;
 static uint8_t* s_empty; // a snapshot of s_world before any replay
-static int32_t s_emptySize;
+static int64_t s_emptySize;
 static uint8_t* s_tape;
 static uint8_t* s_bytes;
-static int32_t s_tapeSize;
+static int64_t s_tapeSize;
 
 // Records the scene, a snapshot, a few more steps and a restore, so the
 // tape holds creates, steps, a setter and a restore record.
@@ -40,9 +40,9 @@ static void RecordTape(void)
     {
         FuzzFail("the recording world builds");
     }
-    int32_t capacity = m2World_GetJournalBaseSize(recorder) * 2 + FUZZ_TAPE_ROOM;
+    int64_t capacity = m2World_GetJournalBaseSize(recorder) * 2 + FUZZ_TAPE_ROOM;
     s_tape = (uint8_t*)malloc((size_t)capacity);
-    int32_t snapshotSize = m2World_SnapshotSize(recorder);
+    int64_t snapshotSize = m2World_SnapshotSize(recorder);
     uint8_t* snapshot = (uint8_t*)malloc((size_t)snapshotSize);
     if (s_tape == NULL || snapshot == NULL || !StartJournal(recorder, s_tape, capacity) ||
         !BuildFuzzScene(recorder) || Snapshot(recorder, snapshot, snapshotSize) != snapshotSize)
@@ -106,7 +106,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
         return 0;
     }
     const uint8_t* bytes = data + 1;
-    int32_t count = (int32_t)(size - 1 < (size_t)INT32_MAX ? size - 1 : (size_t)INT32_MAX);
+    int64_t count = (int64_t)(size - 1);
     if ((data[0] & 1u) != 0)
     {
         memcpy(s_bytes, s_tape, (size_t)s_tapeSize);

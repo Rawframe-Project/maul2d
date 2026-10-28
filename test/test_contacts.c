@@ -436,7 +436,7 @@ static void TestFilterRollback(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "snapshot");
     uint64_t hashes[60];
@@ -470,7 +470,7 @@ static void TestChainCutShort(void)
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Circle ball = {{0.0f, 5.0f}, 0.5f};
     NewCircleShape(world, ground, &sd, &ball);
-    int32_t capacity = m2World_GetJournalBaseSize(world) + 4096;
+    int64_t capacity = m2World_GetJournalBaseSize(world) + 4096;
     uint8_t* tape = (uint8_t*)malloc((size_t)capacity);
     CHECK(tape != NULL && StartJournal(world, tape, capacity), "the journal starts");
     uint64_t misuse = m2World_GetCounters(world).misuse;
@@ -484,7 +484,7 @@ static void TestChainCutShort(void)
               m2Chain_IsValid(world, made) && m2Chain_GetSegmentCount(world, made) == 3,
           "a chain the pool cuts short keeps its three segments and says so");
     CHECK(m2World_GetCounters(world).misuse == misuse, "counting no misuse");
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     CHECK(bytes > 0 && ReplayJournal(replayed, tape, bytes) &&
               m2World_Hash(replayed) == m2World_Hash(world),
           "and its replay reaches the same world");
