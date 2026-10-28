@@ -861,17 +861,17 @@ extern "C"
     /// @param world        The world.
     /// @param origin       The start, in world space.
     /// @param translation  The ray.
+    /// @param filter       Which shapes the ray sees.
     /// @param hits         Receives up to capacity hits; may be null to
     ///                     measure.
     /// @param capacity     The length of hits.
-    /// @param filter       Which shapes the ray sees.
     /// @return The number of hits, which may exceed capacity; 0 for a
     ///         non-finite argument, which counts one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
     M2_API int32_t m2World_CastRayAll(const m2World* world, m2Pos2 origin, m2Vec2 translation,
-                                      m2CastHit* hits, int32_t capacity, m2QueryFilter filter);
+                                      m2QueryFilter filter, m2CastHit* hits, int32_t capacity);
 
     /// Sweeps a circle and lists every hit, as m2World_CastRayAll does.
     ///
@@ -879,18 +879,18 @@ extern "C"
     /// @param circle       The circle, in its own frame.
     /// @param origin       The circle's pose at the start.
     /// @param translation  The sweep.
+    /// @param filter       Which shapes the sweep sees.
     /// @param hits         Receives up to capacity hits; may be null to
     ///                     measure.
     /// @param capacity     The length of hits.
-    /// @param filter       Which shapes the sweep sees.
     /// @return The number of hits, which may exceed capacity; 0 for an
     ///         invalid argument, which counts one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
     M2_API int32_t m2World_CastCircleAll(const m2World* world, const m2Circle* circle,
-                                         m2Transform origin, m2Vec2 translation, m2CastHit* hits,
-                                         int32_t capacity, m2QueryFilter filter);
+                                         m2Transform origin, m2Vec2 translation,
+                                         m2QueryFilter filter, m2CastHit* hits, int32_t capacity);
 
     /// Sweeps a capsule and lists every hit, as m2World_CastRayAll does.
     ///
@@ -898,18 +898,18 @@ extern "C"
     /// @param capsule      The capsule, in its own frame.
     /// @param origin       The capsule's pose at the start.
     /// @param translation  The sweep.
+    /// @param filter       Which shapes the sweep sees.
     /// @param hits         Receives up to capacity hits; may be null to
     ///                     measure.
     /// @param capacity     The length of hits.
-    /// @param filter       Which shapes the sweep sees.
     /// @return The number of hits, which may exceed capacity; 0 for an
     ///         invalid argument, which counts one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
     M2_API int32_t m2World_CastCapsuleAll(const m2World* world, const m2Capsule* capsule,
-                                          m2Transform origin, m2Vec2 translation, m2CastHit* hits,
-                                          int32_t capacity, m2QueryFilter filter);
+                                          m2Transform origin, m2Vec2 translation,
+                                          m2QueryFilter filter, m2CastHit* hits, int32_t capacity);
 
     /// Sweeps a polygon and lists every hit, as m2World_CastRayAll does.
     ///
@@ -917,18 +917,18 @@ extern "C"
     /// @param polygon      The polygon, in its own frame.
     /// @param origin       The polygon's pose at the start.
     /// @param translation  The sweep.
+    /// @param filter       Which shapes the sweep sees.
     /// @param hits         Receives up to capacity hits; may be null to
     ///                     measure.
     /// @param capacity     The length of hits.
-    /// @param filter       Which shapes the sweep sees.
     /// @return The number of hits, which may exceed capacity; 0 for an
     ///         invalid argument, which counts one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
     M2_API int32_t m2World_CastPolygonAll(const m2World* world, const m2Polygon* polygon,
-                                          m2Transform origin, m2Vec2 translation, m2CastHit* hits,
-                                          int32_t capacity, m2QueryFilter filter);
+                                          m2Transform origin, m2Vec2 translation,
+                                          m2QueryFilter filter, m2CastHit* hits, int32_t capacity);
 
     /// A plane touching a character mover, from m2World_CollideMover.
     typedef struct m2MoverPlane
@@ -957,18 +957,18 @@ extern "C"
     /// @param world     The world.
     /// @param mover     The capsule, in its own frame.
     /// @param origin    The capsule's pose.
+    /// @param filter    Which shapes the mover sees.
     /// @param planes    Receives up to capacity planes; may be null to
     ///                  measure.
     /// @param capacity  The length of planes.
-    /// @param filter    Which shapes the mover sees.
     /// @return The number of planes, which may exceed capacity; 0 for an
     ///         invalid argument, which counts one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
     M2_API int32_t m2World_CollideMover(const m2World* world, const m2Capsule* mover,
-                                        m2Transform origin, m2MoverPlane* planes, int32_t capacity,
-                                        m2QueryFilter filter);
+                                        m2Transform origin, m2QueryFilter filter,
+                                        m2MoverPlane* planes, int32_t capacity);
 
     /// Turns a wished translation into the closest one no plane blocks, and
     /// reports which planes it rests on.
@@ -1062,18 +1062,18 @@ extern "C"
     /// @param world     The world.
     /// @param circle    The circle, in its own frame.
     /// @param origin    The circle's pose.
+    /// @param filter    Which shapes the query sees.
     /// @param ids       Receives up to capacity shapes; may be null to
     ///                  measure.
     /// @param capacity  The length of ids.
-    /// @param filter    Which shapes the query sees.
     /// @return The number of shapes, which may exceed capacity; 0 for an
     ///         invalid argument, which counts one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
     M2_API int32_t m2World_OverlapCircle(const m2World* world, const m2Circle* circle,
-                                         m2Transform origin, m2ShapeId* ids, int32_t capacity,
-                                         m2QueryFilter filter);
+                                         m2Transform origin, m2QueryFilter filter, m2ShapeId* ids,
+                                         int32_t capacity);
 
     /// Lists the live shapes touching a posed capsule, as
     /// m2World_OverlapCircle does.
@@ -1081,18 +1081,18 @@ extern "C"
     /// @param world     The world.
     /// @param capsule   The capsule, in its own frame.
     /// @param origin    The capsule's pose.
+    /// @param filter    Which shapes the query sees.
     /// @param ids       Receives up to capacity shapes; may be null to
     ///                  measure.
     /// @param capacity  The length of ids.
-    /// @param filter    Which shapes the query sees.
     /// @return The number of shapes, which may exceed capacity; 0 for an
     ///         invalid argument, which counts one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
     M2_API int32_t m2World_OverlapCapsule(const m2World* world, const m2Capsule* capsule,
-                                          m2Transform origin, m2ShapeId* ids, int32_t capacity,
-                                          m2QueryFilter filter);
+                                          m2Transform origin, m2QueryFilter filter, m2ShapeId* ids,
+                                          int32_t capacity);
 
     /// Lists the live shapes touching a posed polygon, as
     /// m2World_OverlapCircle does.
@@ -1100,35 +1100,35 @@ extern "C"
     /// @param world     The world.
     /// @param polygon   The polygon, in its own frame.
     /// @param origin    The polygon's pose.
+    /// @param filter    Which shapes the query sees.
     /// @param ids       Receives up to capacity shapes; may be null to
     ///                  measure.
     /// @param capacity  The length of ids.
-    /// @param filter    Which shapes the query sees.
     /// @return The number of shapes, which may exceed capacity; 0 for an
     ///         invalid argument, which counts one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
     M2_API int32_t m2World_OverlapPolygon(const m2World* world, const m2Polygon* polygon,
-                                          m2Transform origin, m2ShapeId* ids, int32_t capacity,
-                                          m2QueryFilter filter);
+                                          m2Transform origin, m2QueryFilter filter, m2ShapeId* ids,
+                                          int32_t capacity);
 
     /// Lists the live shapes whose tight box overlaps a world box, in
     /// ascending slot order.
     ///
     /// @param world     The world.
     /// @param box       The box, in world space.
+    /// @param filter    Which shapes the query sees.
     /// @param results   Receives up to capacity shapes; may be null to
     ///                  measure.
     /// @param capacity  The length of results.
-    /// @param filter    Which shapes the query sees.
     /// @return The number of shapes, which may exceed capacity; 0 for a
     ///         non-finite or inverted box, which counts one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API int32_t m2World_OverlapAabb(const m2World* world, m2WorldAabb box, m2ShapeId* results,
-                                       int32_t capacity, m2QueryFilter filter);
+    M2_API int32_t m2World_OverlapAabb(const m2World* world, m2WorldAabb box, m2QueryFilter filter,
+                                       m2ShapeId* results, int32_t capacity);
 
 #ifdef __cplusplus
 }

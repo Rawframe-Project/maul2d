@@ -122,10 +122,10 @@ static void TestShapeCastsAndOverlaps(void)
     m2ShapeId boxShape = NewPolygonShape(world, box, &sd, &unit);
     m2Transform probe = {{0.0, 0.2}, {1.0f, 0.0f}};
     m2Circle area = {{0.0f, 0.0f}, 1.0f};
-    CHECK(m2World_OverlapCircle(world, &area, probe, NULL, 0, all) == 2,
+    CHECK(m2World_OverlapCircle(world, &area, probe, all, NULL, 0) == 2,
           "the probe touches floor and box, truthfully counted");
     m2ShapeId found[4];
-    int32_t n = m2World_OverlapCircle(world, &area, probe, found, 4, all);
+    int32_t n = m2World_OverlapCircle(world, &area, probe, all, found, 4);
     CHECK(n == 2 && found[0].index1 < found[1].index1, "ascending slot order");
     CHECK(found[0].index1 == floor.index1 && found[1].index1 == boxShape.index1,
           "and the right two");
@@ -133,10 +133,10 @@ static void TestShapeCastsAndOverlaps(void)
     // A far probe touches nothing; a capsule probe agrees with the
     // circle; the polygon probe sees only the box when small.
     m2Transform distant = {{50.0, 50.0}, {1.0f, 0.0f}};
-    CHECK(m2World_OverlapCircle(world, &area, distant, NULL, 0, all) == 0, "far probe is empty");
+    CHECK(m2World_OverlapCircle(world, &area, distant, all, NULL, 0) == 0, "far probe is empty");
     m2Transform tight = {{0.0, 0.45}, {1.0f, 0.0f}};
     m2Polygon smallProbe = m2MakeBox(0.1f, 0.1f);
-    CHECK(m2World_OverlapPolygon(world, &smallProbe, tight, NULL, 0, all) == 1,
+    CHECK(m2World_OverlapPolygon(world, &smallProbe, tight, all, NULL, 0) == 1,
           "a tight polygon probe sees only the box");
 
     m2DestroyWorld(world);
@@ -164,7 +164,7 @@ static void TestAllHits(void)
         walls[i] = NewPolygonShape(world, post, &sd, &slab);
     }
     m2CastHit hits[8];
-    int32_t n = m2World_CastRayAll(world, (m2Pos2){-2.0, 0.0}, (m2Vec2){12.0f, 0.0f}, hits, 8, all);
+    int32_t n = m2World_CastRayAll(world, (m2Pos2){-2.0, 0.0}, (m2Vec2){12.0f, 0.0f}, all, hits, 8);
     CHECK(n == 3, "the ray reports all three walls");
     CHECK(hits[0].fraction < hits[1].fraction && hits[1].fraction < hits[2].fraction,
           "in ascending fraction order");
@@ -175,17 +175,17 @@ static void TestAllHits(void)
     // CLOSEST are the ones kept.
     m2CastHit two[2];
     int32_t pressed =
-        m2World_CastRayAll(world, (m2Pos2){-2.0, 0.0}, (m2Vec2){12.0f, 0.0f}, two, 2, all);
+        m2World_CastRayAll(world, (m2Pos2){-2.0, 0.0}, (m2Vec2){12.0f, 0.0f}, all, two, 2);
     CHECK(pressed == 3, "truthful total under pressure");
     CHECK(two[0].shapeId.index1 == walls[0].index1 && two[1].shapeId.index1 == walls[1].index1,
           "and the closest two are kept");
-    CHECK(m2World_CastRayAll(world, (m2Pos2){-2.0, 0.0}, (m2Vec2){12.0f, 0.0f}, NULL, 0, all) == 3,
+    CHECK(m2World_CastRayAll(world, (m2Pos2){-2.0, 0.0}, (m2Vec2){12.0f, 0.0f}, all, NULL, 0) == 3,
           "counting works without an array");
 
     // A swept circle collects the same walls.
     m2Circle ball = {{0.0f, 0.0f}, 0.4f};
     m2Transform pose = {{-2.0, 0.0}, {1.0f, 0.0f}};
-    n = m2World_CastCircleAll(world, &ball, pose, (m2Vec2){12.0f, 0.0f}, hits, 8, all);
+    n = m2World_CastCircleAll(world, &ball, pose, (m2Vec2){12.0f, 0.0f}, all, hits, 8);
     CHECK(n == 3, "the swept circle reports all three too");
     CHECK(hits[0].fraction < hits[1].fraction, "sorted the same way");
 
@@ -199,12 +199,12 @@ static void TestAllHits(void)
     chain.count = 5;
     NewChain(world, shelfBody, &chain);
     m2Transform below = {{20.0, -1.0}, {1.0f, 0.0f}};
-    CHECK(m2World_CastCircleAll(world, &ball, below, (m2Vec2){0.0f, 6.0f}, NULL, 0, all) == 0,
+    CHECK(m2World_CastCircleAll(world, &ball, below, (m2Vec2){0.0f, 6.0f}, all, NULL, 0) == 0,
           "rising sweeps ghost through the shelf");
     m2Transform above = {{20.0, 5.0}, {1.0f, 0.0f}};
     // The dive lands on the shared vertex of the two live links,
     // so both count: all-hits means ALL.
-    CHECK(m2World_CastCircleAll(world, &ball, above, (m2Vec2){0.0f, -6.0f}, NULL, 0, all) == 2,
+    CHECK(m2World_CastCircleAll(world, &ball, above, (m2Vec2){0.0f, -6.0f}, all, NULL, 0) == 2,
           "diving sweeps count both touched links");
 
     m2DestroyWorld(world);
@@ -237,7 +237,7 @@ static void TestMoverKit(void)
     m2Capsule mover = {{0.0f, -0.4f}, {0.0f, 0.4f}, 0.3f};
     m2Transform pose = {{3.69, 0.71}, {1.0f, 0.0f}};
     m2MoverPlane found[8];
-    int32_t n = m2World_CollideMover(world, &mover, pose, found, 8, all);
+    int32_t n = m2World_CollideMover(world, &mover, pose, all, found, 8);
     CHECK(n == 2, "the corner offers two planes");
     CHECK(found[0].shapeId.index1 < found[1].shapeId.index1, "ascending shape order");
     // One normal points up (the floor), one points -x (the wall).
@@ -286,7 +286,7 @@ static void TestMoverKit(void)
 
     // Free air: no planes at all.
     m2Transform sky = {{-5.0, 5.0}, {1.0f, 0.0f}};
-    CHECK(m2World_CollideMover(world, &mover, sky, NULL, 0, all) == 0, "clear air is clear");
+    CHECK(m2World_CollideMover(world, &mover, sky, all, NULL, 0) == 0, "clear air is clear");
 
     // One-way shelf: standing under it collects nothing, standing on
     // it collects the shelf.
@@ -299,10 +299,10 @@ static void TestMoverKit(void)
     chain.count = 5;
     NewChain(world, shelfBody, &chain);
     m2Transform under = {{-4.5, 1.3}, {1.0f, 0.0f}};
-    CHECK(m2World_CollideMover(world, &mover, under, NULL, 0, all) == 0,
+    CHECK(m2World_CollideMover(world, &mover, under, all, NULL, 0) == 0,
           "under the shelf the mover is a ghost");
     m2Transform standing = {{-4.5, 2.71}, {1.0f, 0.0f}}; // mid-link, one plane
-    CHECK(m2World_CollideMover(world, &mover, standing, NULL, 0, all) == 1,
+    CHECK(m2World_CollideMover(world, &mover, standing, all, NULL, 0) == 1,
           "standing on it collects the shelf plane");
 
     m2DestroyWorld(world);
@@ -472,8 +472,8 @@ static void TestOverlap(void)
     AddStaticBox(world, 40.0, 0.0, 0.5, 0.5); // far away
 
     m2ShapeId results[8];
-    int32_t total = m2World_OverlapAabb(world, (m2WorldAabb){{-1.0, -1.0}, {4.2, 1.0}}, results, 8,
-                                        m2DefaultQueryFilter());
+    int32_t total = m2World_OverlapAabb(world, (m2WorldAabb){{-1.0, -1.0}, {4.2, 1.0}},
+                                        m2DefaultQueryFilter(), results, 8);
     CHECK(total == 3, "overlap finds exactly the three");
     CHECK(SameShape(results[0], a) && SameShape(results[1], b) && SameShape(results[2], c),
           "overlap order is canonical (creation order)");
@@ -481,14 +481,14 @@ static void TestOverlap(void)
     // Truthful total under a tight capacity; the kept ones are the
     // lowest indices.
     m2ShapeId two[2];
-    int32_t clamped = m2World_OverlapAabb(world, (m2WorldAabb){{-1.0, -1.0}, {4.2, 1.0}}, two, 2,
-                                          m2DefaultQueryFilter());
+    int32_t clamped = m2World_OverlapAabb(world, (m2WorldAabb){{-1.0, -1.0}, {4.2, 1.0}},
+                                          m2DefaultQueryFilter(), two, 2);
     CHECK(clamped == 3, "total reported even beyond capacity");
     CHECK(SameShape(two[0], a) && SameShape(two[1], b), "capacity keeps the canonical head");
 
     // Empty region.
     int32_t none = m2World_OverlapAabb(world, (m2WorldAabb){{100.0, 100.0}, {101.0, 101.0}},
-                                       results, 8, m2DefaultQueryFilter());
+                                       m2DefaultQueryFilter(), results, 8);
     CHECK(none == 0, "empty region reports zero");
 
     m2DestroyWorld(world);
@@ -529,8 +529,8 @@ static void TestQueriesAreReadOnly(void)
     {
         RayClosest(world, (m2Pos2){-5.0 + 0.2 * (double)i, 3.0}, (m2Vec2){0.3f, -6.0f},
                    m2DefaultQueryFilter());
-        m2World_OverlapAabb(world, (m2WorldAabb){{-4.0, -1.0}, {0.1 * (double)i, 2.0}}, results, 32,
-                            m2DefaultQueryFilter());
+        m2World_OverlapAabb(world, (m2WorldAabb){{-4.0, -1.0}, {0.1 * (double)i, 2.0}},
+                            m2DefaultQueryFilter(), results, 32);
     }
     CHECK(m2World_Hash(world) == before, "queries never touch simulation state");
 
@@ -601,7 +601,7 @@ static void TestQueryFilters(void)
 
     m2ShapeId results[4];
     int32_t total =
-        m2World_OverlapAabb(world, (m2WorldAabb){{0.0, -1.0}, {5.0, 1.0}}, results, 4, wallsOnly);
+        m2World_OverlapAabb(world, (m2WorldAabb){{0.0, -1.0}, {5.0, 1.0}}, wallsOnly, results, 4);
     CHECK(total == 1 && results[0].index1 == wallId.index1, "filtered overlap lists walls only");
 
     m2DestroyWorld(world);
@@ -676,8 +676,8 @@ static void TestAllHitsBeyondSixtyFour(void)
     m2Circle ball = {{0.0f, 0.0f}, 0.2f};
     m2Transform pose = {{0.0, 0.0}, {1.0f, 0.0f}};
     int32_t rays =
-        m2World_CastRayAll(world, (m2Pos2){0.0, 0.0}, (m2Vec2){(float)POSTS + 1.0f, 0.0f}, hits,
-                           128, m2DefaultQueryFilter());
+        m2World_CastRayAll(world, (m2Pos2){0.0, 0.0}, (m2Vec2){(float)POSTS + 1.0f, 0.0f},
+                           m2DefaultQueryFilter(), hits, 128);
     bool ordered = true;
     for (int32_t i = 1; i < rays && i < 128; ++i)
     {
@@ -685,7 +685,7 @@ static void TestAllHitsBeyondSixtyFour(void)
     }
     CHECK(rays == POSTS && ordered, "a ray keeps all 100 hits in order");
     int32_t circles = m2World_CastCircleAll(world, &ball, pose, (m2Vec2){(float)POSTS + 1.0f, 0.0f},
-                                            hits, 128, m2DefaultQueryFilter());
+                                            m2DefaultQueryFilter(), hits, 128);
     CHECK(circles == POSTS && hits[99].shapeId.index1 != 0, "a swept circle keeps all 100 too");
     m2DestroyWorld(world);
 }

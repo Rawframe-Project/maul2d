@@ -753,8 +753,8 @@ static void TestHostileQueries(void)
     huge.count = 1000;
     CHECK(!PolygonClosest(world, &huge, pose, down, filter).hit,
           "an oversized polygon count casts nothing");
-    CHECK(m2World_OverlapPolygon(world, &huge, pose, ids, 4, filter) == 0, "and overlaps nothing");
-    CHECK(m2World_CastPolygonAll(world, &huge, pose, down, hits, 4, filter) == 0,
+    CHECK(m2World_OverlapPolygon(world, &huge, pose, filter, ids, 4) == 0, "and overlaps nothing");
+    CHECK(m2World_CastPolygonAll(world, &huge, pose, down, filter, hits, 4) == 0,
           "and sweeps nothing");
     m2ParticleDef particleDef = m2DefaultParticleDef();
     int32_t count = -1;
@@ -764,15 +764,15 @@ static void TestHostileQueries(void)
     CHECK(!CircleClosest(world, NULL, pose, down, filter).hit, "a NULL circle casts nothing");
     m2Circle ball = {{0.0f, 0.0f}, 0.25f};
     m2Transform nanPose = {{(double)NAN, 3.0}, {1.0f, 0.0f}};
-    CHECK(m2World_OverlapCircle(world, &ball, nanPose, ids, 4, filter) == 0,
+    CHECK(m2World_OverlapCircle(world, &ball, nanPose, filter, ids, 4) == 0,
           "a NaN pose overlaps nothing");
     m2Transform sheared = {{0.0, 3.0}, {2.0f, 0.0f}};
     CHECK(!CircleClosest(world, &ball, sheared, down, filter).hit,
           "a non-unit rotation casts nothing");
     CHECK(!RayClosest(world, (m2Pos2){0.0, 3.0}, (m2Vec2){NAN, -6.0f}, filter).hit,
           "a NaN ray hits nothing");
-    CHECK(m2World_OverlapAabb(world, (m2WorldAabb){{(double)NAN, 0.0}, {1.0, 1.0}}, ids, 4,
-                              filter) == 0,
+    CHECK(m2World_OverlapAabb(world, (m2WorldAabb){{(double)NAN, 0.0}, {1.0, 1.0}}, filter, ids,
+                              4) == 0,
           "a NaN box overlaps nothing");
     CHECK(m2World_GetCounters(world).misuse == misuse + 9, "every hostile query refuses once");
 
@@ -908,8 +908,8 @@ static void TestQueryEdges(void)
         RayClosest(world, (m2Pos2){0.0, 0.0}, (m2Vec2){5.0f, 0.0f}, m2DefaultQueryFilter());
     CHECK(!miss.hit, "empty world misses");
     m2ShapeId results[4];
-    CHECK(m2World_OverlapAabb(world, (m2WorldAabb){{-1.0, -1.0}, {1.0, 1.0}}, results, 4,
-                              m2DefaultQueryFilter()) == 0,
+    CHECK(m2World_OverlapAabb(world, (m2WorldAabb){{-1.0, -1.0}, {1.0, 1.0}},
+                              m2DefaultQueryFilter(), results, 4) == 0,
           "empty world overlaps nothing");
 
     m2BodyId box = AddBox(world, 0.0, 0.0);
@@ -923,8 +923,8 @@ static void TestQueryEdges(void)
     // Destroyed shapes drop out of query results after the flush.
     DestroyBody(world, box);
     m2World_Step(world, 1.0f / 60.0f, 4);
-    CHECK(m2World_OverlapAabb(world, (m2WorldAabb){{-1.0, -1.0}, {1.0, 1.0}}, results, 4,
-                              m2DefaultQueryFilter()) == 0,
+    CHECK(m2World_OverlapAabb(world, (m2WorldAabb){{-1.0, -1.0}, {1.0, 1.0}},
+                              m2DefaultQueryFilter(), results, 4) == 0,
           "destroyed shape leaves the query space");
 
     m2DestroyWorld(world);

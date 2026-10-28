@@ -27,7 +27,7 @@ for (int32_t i = 0; i < contacts.beginCount; ++i)
 
 ## Rays, sweeps and overlaps
 
-A ray (`m2World_CastRayClosest`) or a swept circle, capsule or polygon (`m2World_CastCircleClosest` and its siblings) returns whether it hits and writes the closest hit through its last argument: an `m2CastHit` with the shape, the fraction along the path, the facing normal and the point. On a miss the hit is left as it was. A cast that starts inside a shape reports fraction 0 and a zero normal. On a tie the lower shape index wins. The all-hits variants (`m2World_CastRayAll` and its siblings) fill an array of the same `m2CastHit` with every hit in ascending fraction and keep the closest when there are more than fit.
+A ray (`m2World_CastRayClosest`) or a swept circle, capsule or polygon (`m2World_CastCircleClosest` and its siblings) returns whether it hits and writes the closest hit through its last argument: an `m2CastHit` with the shape, the fraction along the path, the facing normal and the point. On a miss the hit is left as it was. A cast that starts inside a shape reports fraction 0 and a zero normal. On a tie the lower shape index wins. The all-hits variants (`m2World_CastRayAll` and its siblings) fill an array of the same `m2CastHit` with every hit in ascending fraction and keep the closest when there are more than fit. Every query takes its filter after what it looks for and before what it writes, so a list query ends with its filter, its array and the array's capacity.
 
 The overlap queries (`m2World_OverlapAabb`, `m2World_OverlapCircle` and its siblings) list every live shape touching a box (an `m2WorldAabb`, the type `m2Body_ComputeAabb` and `m2Shape_GetAabb` return) or a posed shape, in ascending order; touching within the engine's slop skin counts. Every query takes an `m2QueryFilter` with the same category and mask rule as contacts, and chain segments stay one-sided: a cast that starts on a segment's back side passes through.
 
@@ -40,8 +40,8 @@ A character controller is usually not a body: it is a capsule the game moves its
 ```c
 m2Capsule capsule = {{0.0f, -0.5f}, {0.0f, 0.5f}, 0.3f};
 m2MoverPlane planes[M2_MAX_MOVER_PLANES];
-int32_t planeCount = m2World_CollideMover(world, &capsule, pose, planes, M2_MAX_MOVER_PLANES,
-                                          m2DefaultQueryFilter());
+int32_t planeCount = m2World_CollideMover(world, &capsule, pose, m2DefaultQueryFilter(), planes,
+                                          M2_MAX_MOVER_PLANES);
 if (planeCount > M2_MAX_MOVER_PLANES)
 {
     planeCount = M2_MAX_MOVER_PLANES;

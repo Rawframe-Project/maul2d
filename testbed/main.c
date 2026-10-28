@@ -710,7 +710,7 @@ static void CharacterUpdate(m2World* world, float dt)
     // Gather planes at the current pose.
     m2Transform pose = {s_charPos, {1.0f, 0.0f}};
     m2MoverPlane found[16];
-    int32_t n = m2World_CollideMover(world, &s_charShape, pose, found, 16, m2DefaultQueryFilter());
+    int32_t n = m2World_CollideMover(world, &s_charShape, pose, m2DefaultQueryFilter(), found, 16);
     n = n < 16 ? n : 16;
     m2Vec2 carry = {0.0f, 0.0f};
     for (int32_t i = 0; i < n; ++i)
@@ -1255,7 +1255,7 @@ int main(void)
             m2Circle probe = {{0.0f, 0.0f}, 0.05f};
             m2Transform pose = {cursor, {1.0f, 0.0f}};
             m2ShapeId hit[1];
-            if (m2World_OverlapCircle(world, &probe, pose, hit, 1, m2DefaultQueryFilter()) > 0)
+            if (m2World_OverlapCircle(world, &probe, pose, m2DefaultQueryFilter(), hit, 1) > 0)
             {
                 m2BodyId body = m2Shape_GetBody(world, hit[0]);
                 if (m2Body_GetType(world, body) == m2_dynamicBody)

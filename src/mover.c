@@ -123,7 +123,7 @@ static M2_NOINLINE int32_t WorldCollideMoverWorker(const m2World* world, const m
 }
 
 int32_t m2World_CollideMover(const m2World* world, const m2Capsule* mover, m2Transform origin,
-                             m2MoverPlane* results, int32_t capacity, m2QueryFilter filter)
+                             m2QueryFilter filter, m2MoverPlane* results, int32_t capacity)
 {
     uint64_t env = m2FloatEnvEnter();
     int32_t result = WorldCollideMoverWorker(world, mover, origin, results, capacity, filter);

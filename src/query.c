@@ -323,8 +323,8 @@ static M2_NOINLINE int32_t WorldOverlapAabbWorker(const m2World* world, m2WorldA
     return FinishSelection(&sel);
 }
 
-int32_t m2World_OverlapAabb(const m2World* world, m2WorldAabb box, m2ShapeId* results,
-                            int32_t capacity, m2QueryFilter filter)
+int32_t m2World_OverlapAabb(const m2World* world, m2WorldAabb box, m2QueryFilter filter,
+                            m2ShapeId* results, int32_t capacity)
 {
     uint64_t env = m2FloatEnvEnter();
     int32_t result = WorldOverlapAabbWorker(world, box, results, capacity, filter);
@@ -583,7 +583,7 @@ static M2_NOINLINE int32_t WorldOverlapCircleWorker(const m2World* world, const 
 }
 
 int32_t m2World_OverlapCircle(const m2World* world, const m2Circle* circle, m2Transform origin,
-                              m2ShapeId* ids, int32_t capacity, m2QueryFilter filter)
+                              m2QueryFilter filter, m2ShapeId* ids, int32_t capacity)
 {
     uint64_t env = m2FloatEnvEnter();
     int32_t result = WorldOverlapCircleWorker(world, circle, origin, ids, capacity, filter);
@@ -600,7 +600,7 @@ static M2_NOINLINE int32_t WorldOverlapCapsuleWorker(const m2World* world, const
 }
 
 int32_t m2World_OverlapCapsule(const m2World* world, const m2Capsule* capsule, m2Transform origin,
-                               m2ShapeId* ids, int32_t capacity, m2QueryFilter filter)
+                               m2QueryFilter filter, m2ShapeId* ids, int32_t capacity)
 {
     uint64_t env = m2FloatEnvEnter();
     int32_t result = WorldOverlapCapsuleWorker(world, capsule, origin, ids, capacity, filter);
@@ -617,7 +617,7 @@ static M2_NOINLINE int32_t WorldOverlapPolygonWorker(const m2World* world, const
 }
 
 int32_t m2World_OverlapPolygon(const m2World* world, const m2Polygon* polygon, m2Transform origin,
-                               m2ShapeId* ids, int32_t capacity, m2QueryFilter filter)
+                               m2QueryFilter filter, m2ShapeId* ids, int32_t capacity)
 {
     uint64_t env = m2FloatEnvEnter();
     int32_t result = WorldOverlapPolygonWorker(world, polygon, origin, ids, capacity, filter);
@@ -813,8 +813,8 @@ static M2_NOINLINE int32_t WorldCastRayAllWorker(const m2World* world, m2Pos2 or
     return total;
 }
 
-int32_t m2World_CastRayAll(const m2World* world, m2Pos2 origin, m2Vec2 translation, m2CastHit* hits,
-                           int32_t capacity, m2QueryFilter filter)
+int32_t m2World_CastRayAll(const m2World* world, m2Pos2 origin, m2Vec2 translation,
+                           m2QueryFilter filter, m2CastHit* hits, int32_t capacity)
 {
     uint64_t env = m2FloatEnvEnter();
     int32_t result = WorldCastRayAllWorker(world, origin, translation, hits, capacity, filter);
@@ -926,8 +926,8 @@ static M2_NOINLINE int32_t WorldCastCircleAllWorker(const m2World* world, const 
 }
 
 int32_t m2World_CastCircleAll(const m2World* world, const m2Circle* circle, m2Transform origin,
-                              m2Vec2 translation, m2CastHit* hits, int32_t capacity,
-                              m2QueryFilter filter)
+                              m2Vec2 translation, m2QueryFilter filter, m2CastHit* hits,
+                              int32_t capacity)
 {
     uint64_t env = m2FloatEnvEnter();
     int32_t result =
@@ -946,8 +946,8 @@ static M2_NOINLINE int32_t WorldCastCapsuleAllWorker(const m2World* world, const
 }
 
 int32_t m2World_CastCapsuleAll(const m2World* world, const m2Capsule* capsule, m2Transform origin,
-                               m2Vec2 translation, m2CastHit* hits, int32_t capacity,
-                               m2QueryFilter filter)
+                               m2Vec2 translation, m2QueryFilter filter, m2CastHit* hits,
+                               int32_t capacity)
 {
     uint64_t env = m2FloatEnvEnter();
     int32_t result =
@@ -966,8 +966,8 @@ static M2_NOINLINE int32_t WorldCastPolygonAllWorker(const m2World* world, const
 }
 
 int32_t m2World_CastPolygonAll(const m2World* world, const m2Polygon* polygon, m2Transform origin,
-                               m2Vec2 translation, m2CastHit* hits, int32_t capacity,
-                               m2QueryFilter filter)
+                               m2Vec2 translation, m2QueryFilter filter, m2CastHit* hits,
+                               int32_t capacity)
 {
     uint64_t env = m2FloatEnvEnter();
     int32_t result =
