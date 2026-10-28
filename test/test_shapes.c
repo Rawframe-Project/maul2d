@@ -343,6 +343,32 @@ static void TestComputeHull(void)
     CHECK(ComputeHull(line, 4, 0.0f).count == 0, "collinear input returns count zero");
     m2Vec2 blob[3] = {{0.0f, 0.0f}, {0.001f, 0.001f}, {0.002f, 0.0f}};
     CHECK(ComputeHull(blob, 3, 0.0f).count == 0, "a welded-away blob returns count zero");
+
+    // The whole cloud makes the hull: a point past the eighth is in it.
+    m2Vec2 spur[9] = {{-1.0f, -1.0f}, {1.0f, -1.0f}, {1.0f, 1.0f},  {-1.0f, 1.0f}, {0.0f, -1.0f},
+                      {1.0f, 0.0f},   {0.0f, 1.0f},  {-1.0f, 0.0f}, {5.0f, 0.0f}};
+    hull = ComputeHull(spur, 9, 0.0f);
+    bool reachesSpur = false;
+    for (int32_t i = 0; i < hull.count; ++i)
+    {
+        reachesSpur = reachesSpur || (hull.vertices[i].x == 5.0f && hull.vertices[i].y == 0.0f);
+    }
+    CHECK(hull.count == 5 && reachesSpur, "the ninth point of a cloud is in its hull");
+
+    // A hull of more vertices than a polygon holds, and a cloud past
+    // M2_MAX_HULL_POINTS, are past a bound.
+    m2Vec2 ring[M2_MAX_HULL_POINTS + 1];
+    for (int32_t i = 0; i <= M2_MAX_HULL_POINTS; ++i)
+    {
+        m2Rot turn = m2MakeRot(2.0f * M2_PI * (float)(i % 12) / 12.0f);
+        ring[i] = (m2Vec2){3.0f * turn.c, 3.0f * turn.s};
+    }
+    m2Polygon kept = m2MakeBox(1.0f, 1.0f);
+    CHECK(m2ComputeHull(ring, 12, 0.0f, &kept) == m2_errorLimit && kept.count == 4,
+          "a hull of 12 vertices is m2_errorLimit and leaves the output as it was");
+    CHECK(m2ComputeHull(ring, M2_MAX_HULL_POINTS + 1, 0.0f, &kept) == m2_errorLimit,
+          "a cloud past M2_MAX_HULL_POINTS is m2_errorLimit");
+    CHECK(ComputeHull(ring, 8, 0.0f).count == 8, "the first 8 of the ring are its own hull");
 }
 
 // Mass properties against closed forms: a capsule is a rectangle and
