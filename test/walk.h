@@ -336,7 +336,7 @@ static void DoRandomOp(m2World* world)
             jd.bodyIdB = b;
             jd.enableConnectedCollision = collide;
             float tooth = 0.2f + (float)Pick(5) * 0.1f;
-            jd.ratchet = Pick(2) == 0 ? tooth : -tooth;
+            jd.toothAngle = Pick(2) == 0 ? tooth : -tooth;
             NewRatchetJoint(world, &jd);
             return;
         }

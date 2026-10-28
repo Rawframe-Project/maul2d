@@ -326,7 +326,7 @@ M2_PIN_AT(m2PulleyJointDef, internalValue, 84);
 M2_PIN_SIZE(m2RatchetJointDef, 40);
 M2_PIN_AT(m2RatchetJointDef, bodyIdA, 0);
 M2_PIN_AT(m2RatchetJointDef, bodyIdB, 8);
-M2_PIN_AT(m2RatchetJointDef, ratchet, 16);
+M2_PIN_AT(m2RatchetJointDef, toothAngle, 16);
 M2_PIN_AT(m2RatchetJointDef, phase, 20);
 M2_PIN_AT(m2RatchetJointDef, userData, 24);
 M2_PIN_AT(m2RatchetJointDef, enableConnectedCollision, 32);

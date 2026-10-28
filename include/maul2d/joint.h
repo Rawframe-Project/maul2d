@@ -254,7 +254,7 @@ extern "C"
         m2BodyId bodyIdB;
         /// The tooth angle, M2_MIN_RATCHET_TOOTH to M2_ANGLE_LIMIT by
         /// magnitude; its sign is the free direction.
-        float ratchet;
+        float toothAngle;
         float phase; // offsets the teeth, radians
         M2_ALIGN8 uint64_t userData;
         bool enableConnectedCollision;
@@ -1191,7 +1191,7 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API float m2RatchetJoint_GetRatchet(const m2World* world, m2JointId jointId);
+    M2_API float m2RatchetJoint_GetToothAngle(const m2World* world, m2JointId jointId);
 
     /// Reads a ratchet's tooth phase.
     ///

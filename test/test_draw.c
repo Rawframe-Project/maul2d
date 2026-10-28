@@ -347,7 +347,7 @@ static void TestJointDrawing(void)
     m2RatchetJointDef rj = m2DefaultRatchetJointDef();
     rj.bodyIdA = a;
     rj.bodyIdB = b;
-    rj.ratchet = 0.3f;
+    rj.toothAngle = 0.3f;
     NewRatchetJoint(world, &rj);
 
     // Mouse: from the world target to B, one segment, two points.

@@ -232,7 +232,7 @@ static void RunSession(m2World* world, uint8_t* journal, int64_t capacity, int64
     m2RatchetJointDef pawlDef = m2DefaultRatchetJointDef();
     pawlDef.bodyIdA = anchor;
     pawlDef.bodyIdB = sidecar;
-    pawlDef.ratchet = -0.3f;
+    pawlDef.toothAngle = -0.3f;
     NewRatchetJoint(world, &pawlDef); // op 56
     m2RevoluteJointDef swingDef = m2DefaultRevoluteJointDef();
     swingDef.bodyIdA = anchor;
@@ -797,7 +797,7 @@ static void FilledRatchetJointDef(m2RatchetJointDef* to, const m2RatchetJointDef
     memset(to, fill, sizeof(*to));
     to->bodyIdA = from->bodyIdA;
     to->bodyIdB = from->bodyIdB;
-    to->ratchet = from->ratchet;
+    to->toothAngle = from->toothAngle;
     to->phase = from->phase;
     to->userData = from->userData;
     to->enableConnectedCollision = from->enableConnectedCollision;

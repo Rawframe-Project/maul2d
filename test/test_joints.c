@@ -1531,9 +1531,9 @@ static void TestRatchetJoint(void)
     m2RatchetJointDef ratchetDef = m2DefaultRatchetJointDef();
     ratchetDef.bodyIdA = post;
     ratchetDef.bodyIdB = wheel;
-    ratchetDef.ratchet = 0.5f;
+    ratchetDef.toothAngle = 0.5f;
     m2JointId ratchet = NewRatchetJoint(world, &ratchetDef);
-    CHECK(m2RatchetJoint_GetRatchet(world, ratchet) == 0.5f, "the tooth angle reads back");
+    CHECK(m2RatchetJoint_GetToothAngle(world, ratchet) == 0.5f, "the tooth angle reads back");
     CHECK(m2RatchetJoint_GetPhase(world, ratchet) == 0.0f, "the phase reads back");
 
     // Forward: free spin, more than a full turn (multi-turn law).
@@ -1589,7 +1589,7 @@ static m2World* RatchetScene(m2JointId* ratchetOut, m2BodyId* wheelOut)
     m2RatchetJointDef ratchetDef = m2DefaultRatchetJointDef();
     ratchetDef.bodyIdA = post;
     ratchetDef.bodyIdB = *wheelOut;
-    ratchetDef.ratchet = 0.5f;
+    ratchetDef.toothAngle = 0.5f;
     *ratchetOut = NewRatchetJoint(world, &ratchetDef);
     m2Body_SetAngularVelocity(world, *wheelOut, 3.0f);
     for (int32_t i = 0; i < 60; ++i)
@@ -2276,7 +2276,7 @@ static bool FarJoint(m2World* world, m2JointType type, m2BodyId a, m2BodyId b)
         m2RatchetJointDef def = m2DefaultRatchetJointDef();
         def.bodyIdA = a;
         def.bodyIdB = b;
-        def.ratchet = 0.5f;
+        def.toothAngle = 0.5f;
         joint = NewRatchetJoint(world, &def);
         break;
     }
