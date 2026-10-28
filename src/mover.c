@@ -221,7 +221,7 @@ static M2_NOINLINE m2MoverMove SolveMoverWorker(m2Vec2 wish, const m2MoverPlane*
     {
         return move;
     }
-    count = count < M2_MOVER_PLANES ? count : M2_MOVER_PLANES;
+    count = count < M2_MAX_MOVER_PLANES ? count : M2_MAX_MOVER_PLANES;
     Candidate best = {wish, -3.4e38f, 0};
     int32_t set[2] = {0, 0};
     Consider(wish, planes, count, set, 0, &best);
@@ -261,9 +261,9 @@ static M2_NOINLINE m2Vec2 ClipMoverVelocityWorker(m2Vec2 velocity, const m2Mover
     {
         return velocity;
     }
-    m2MoverPlane touching[M2_MOVER_PLANES];
+    m2MoverPlane touching[M2_MAX_MOVER_PLANES];
     int32_t n = 0;
-    for (int32_t i = 0; i < count && i < M2_MOVER_PLANES; ++i)
+    for (int32_t i = 0; i < count && i < M2_MAX_MOVER_PLANES; ++i)
     {
         if ((pressed & (1u << i)) != 0)
         {

@@ -730,7 +730,7 @@ static void CharacterUpdate(m2World* world, float dt)
     s_charVel = m2ClipMoverVelocity(s_charVel, found, n, solved.pressed);
 
     s_charGrounded = false;
-    for (int32_t i = 0; i < n && i < M2_MOVER_PLANES; ++i)
+    for (int32_t i = 0; i < n && i < M2_MAX_MOVER_PLANES; ++i)
     {
         if ((solved.pressed & (1u << i)) != 0 && found[i].normal.y > 0.7f)
         {

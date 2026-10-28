@@ -175,12 +175,12 @@ static void TestMoverFrame(void)
     m2Vec2 velocity = {2.0f, -5.0f};
 
     m2Capsule capsule = {{0.0f, -0.5f}, {0.0f, 0.5f}, 0.3f};
-    m2MoverPlane planes[M2_MOVER_PLANES];
-    int32_t planeCount = m2World_CollideMover(world, &capsule, pose, planes, M2_MOVER_PLANES,
+    m2MoverPlane planes[M2_MAX_MOVER_PLANES];
+    int32_t planeCount = m2World_CollideMover(world, &capsule, pose, planes, M2_MAX_MOVER_PLANES,
                                               m2DefaultQueryFilter());
-    if (planeCount > M2_MOVER_PLANES)
+    if (planeCount > M2_MAX_MOVER_PLANES)
     {
-        planeCount = M2_MOVER_PLANES;
+        planeCount = M2_MAX_MOVER_PLANES;
     }
     m2MoverMove move = m2SolveMover(wish, planes, planeCount);
     pose.p.x += (double)move.translation.x;
