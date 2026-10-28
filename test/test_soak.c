@@ -86,7 +86,7 @@ int main(int argc, char** argv)
         {
             rj.enableMotor = true;
             rj.motorSpeed = 1.5f;
-            rj.maxMotorTorque = 60.0f;
+            rj.maxMotorEffort = 60.0f;
         }
         NewRevoluteJoint(world, &rj);
     }

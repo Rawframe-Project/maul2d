@@ -41,7 +41,7 @@ static m2Result DefCheck(const m2WheelJointDef* def)
     result = m2BothChecks(result, m2CheckRate(def->springHertz));
     result = m2BothChecks(result, m2CheckCoefficient(def->springDampingRatio));
     result = m2BothChecks(result, m2CheckSpeed(def->motorSpeed));
-    result = m2BothChecks(result, m2CheckMaxForce(def->maxMotorTorque));
+    result = m2BothChecks(result, m2CheckMaxForce(def->maxMotorEffort));
     result = m2BothChecks(result, m2CheckReach(def->lowerTranslation));
     result = m2BothChecks(result, m2CheckReach(def->upperTranslation));
     return m2BothChecks(result, m2CheckValid(!(def->lowerTranslation > def->upperTranslation)));
@@ -62,7 +62,7 @@ static void RecordWheelJointDef(m2WheelJointDef* out, const m2WheelJointDef* def
     out->springDampingRatio = def->springDampingRatio;
     out->enableMotor = def->enableMotor;
     out->motorSpeed = def->motorSpeed;
-    out->maxMotorTorque = def->maxMotorTorque;
+    out->maxMotorEffort = def->maxMotorEffort;
     out->enableLimit = def->enableLimit;
     out->lowerTranslation = def->lowerTranslation;
     out->upperTranslation = def->upperTranslation;
@@ -127,7 +127,7 @@ static M2_NOINLINE m2Result CreateWheelJointWorker(m2World* world, const m2Wheel
                                       (def->enableLimit ? M2_JOINT_LIMIT : 0u) |
                                       (def->enableSpring ? M2_JOINT_SPRING : 0u);
     world->joints.jointMotorSpeed[index] = def->motorSpeed;
-    world->joints.jointMaxMotor[index] = def->maxMotorTorque;
+    world->joints.jointMaxMotor[index] = def->maxMotorEffort;
     world->joints.jointLower[index] = def->lowerTranslation;
     world->joints.jointUpper[index] = def->upperTranslation;
     world->joints.jointLocalAxisA[index] =

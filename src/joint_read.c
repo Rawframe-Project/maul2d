@@ -202,16 +202,16 @@ float m2Joint_GetMotorSpeed(const m2World* world, m2JointId jointId)
     return result;
 }
 
-static M2_NOINLINE float JointGetMaxMotorWorker(const m2World* world, m2JointId jointId)
+static M2_NOINLINE float JointGetMaxMotorEffortWorker(const m2World* world, m2JointId jointId)
 {
     int32_t index = JointSlotOfKind(world, jointId, M2_MAX_MOTOR_KINDS);
     return index >= 0 ? world->joints.jointMaxMotor[index] : 0.0f;
 }
 
-float m2Joint_GetMaxMotor(const m2World* world, m2JointId jointId)
+float m2Joint_GetMaxMotorEffort(const m2World* world, m2JointId jointId)
 {
     uint64_t env = m2FloatEnvEnter();
-    float result = JointGetMaxMotorWorker(world, jointId);
+    float result = JointGetMaxMotorEffortWorker(world, jointId);
     m2FloatEnvLeave(env);
     return result;
 }

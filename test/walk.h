@@ -433,7 +433,7 @@ static void DoRandomOp(m2World* world)
             jd.springDampingRatio = 0.5f;
             jd.enableMotor = Pick(2) == 0;
             jd.motorSpeed = (float)((int32_t)Pick(7) - 3);
-            jd.maxMotorTorque = 5.0f + (float)Pick(20);
+            jd.maxMotorEffort = 5.0f + (float)Pick(20);
             jd.enableLimit = Pick(2) == 0;
             jd.lowerAngle = -0.1f - (float)Pick(10) * 0.05f;
             jd.upperAngle = 0.1f + (float)Pick(10) * 0.05f;
@@ -481,7 +481,7 @@ static void DoRandomOp(m2World* world)
             jd.springDampingRatio = PickUnit();
             jd.enableMotor = Pick(3) == 0;
             jd.motorSpeed = (float)((int32_t)Pick(9) - 4);
-            jd.maxMotorTorque = 5.0f + (float)Pick(15);
+            jd.maxMotorEffort = 5.0f + (float)Pick(15);
             made = NewWheelJoint(world, &jd);
         }
         if (made.index1 != 0 && Pick(5) == 0)

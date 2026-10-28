@@ -8,7 +8,7 @@
 // counts one misuse. A call made for one joint type (a motor joint's
 // offsets, a distance joint's length) does the same on a joint of
 // another type. Motors and limits belong to the revolute, prismatic and
-// wheel joints; m2Joint_SetMaxMotor also sets a motor joint's torque
+// wheel joints; m2Joint_SetMaxMotorEffort also sets a motor joint's torque
 // budget. Every setter is journaled, and one that changes how a joint
 // pulls wakes the bodies it moves.
 
@@ -93,7 +93,7 @@ extern "C"
         bool enableSpring; // off by default; springHertz 0 is no spring force
         bool enableMotor;
         float motorSpeed;     // rad/s, positive: B turns counter-clockwise against A
-        float maxMotorTorque; // N m
+        float maxMotorEffort; // the motor's torque budget, N m
         bool enableLimit;
         float lowerAngle; // radians from the creation angle
         float upperAngle;
@@ -116,8 +116,8 @@ extern "C"
         float constraintHertz; // the slide's softness; 0: the stiff default
         float constraintDampingRatio;
         bool enableMotor;
-        float motorSpeed;    // m/s along the axis
-        float maxMotorForce; // N
+        float motorSpeed;     // m/s along the axis
+        float maxMotorEffort; // the motor's force budget, N
         bool enableLimit;
         float lowerTranslation; // meters from the separation at creation
         float upperTranslation;
@@ -159,7 +159,7 @@ extern "C"
         float springDampingRatio;
         bool enableMotor;
         float motorSpeed;     // rad/s of B against A
-        float maxMotorTorque; // N m
+        float maxMotorEffort; // the motor's torque budget, N m
         bool enableLimit;
         float lowerTranslation; // meters from the separation at creation
         float upperTranslation;
@@ -513,12 +513,12 @@ extern "C"
     /// a motor joint, a force on a prismatic joint. A budget outside 0 to
     /// M2_FORCE_LIMIT or another joint type counts one misuse.
     ///
-    /// @param world             The world.
-    /// @param jointId           A revolute, prismatic, wheel or motor joint.
-    /// @param maxTorqueOrForce  The budget, N m or N.
+    /// @param world      The world.
+    /// @param jointId    A revolute, prismatic, wheel or motor joint.
+    /// @param maxEffort  The budget, N m or N.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
-    M2_API void m2Joint_SetMaxMotor(m2World* world, m2JointId jointId, float maxTorqueOrForce);
+    M2_API void m2Joint_SetMaxMotorEffort(m2World* world, m2JointId jointId, float maxEffort);
 
     /// Turns a motor on or off. Another joint type counts one misuse.
     ///
@@ -887,7 +887,7 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API float m2Joint_GetMaxMotor(const m2World* world, m2JointId jointId);
+    M2_API float m2Joint_GetMaxMotorEffort(const m2World* world, m2JointId jointId);
 
     /// Tells whether a motor drives.
     ///
@@ -1047,7 +1047,7 @@ extern "C"
     M2_API float m2Joint_GetAngularSeparation(const m2World* world, m2JointId jointId);
 
     /// Moves a motor joint's target, as a moving platform does every frame.
-    /// The torque budget is set with m2Joint_SetMaxMotor. Another joint
+    /// The torque budget is set with m2Joint_SetMaxMotorEffort. Another joint
     /// type, an angular offset beyond M2_ANGLE_LIMIT or a linear offset beyond
     /// M2_LOCAL_LIMIT counts one misuse.
     ///

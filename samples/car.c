@@ -70,7 +70,7 @@ int main(void)
         ride.upperTranslation = 0.2f;
         ride.enableMotor = true;
         ride.motorSpeed = -14.0f; // rad/s; clockwise spin drives +x
-        ride.maxMotorTorque = 22.0f;
+        ride.maxMotorEffort = 22.0f;
         m2JointId joint = m2_nullJointId;
         Require(m2CreateWheelJoint(world, &ride, &joint), "mount a wheel");
     }

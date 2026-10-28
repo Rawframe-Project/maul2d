@@ -38,7 +38,7 @@ static m2Result DefCheck(const m2RevoluteJointDef* def)
     result = m2BothChecks(result, m2CheckRate(def->springHertz));
     result = m2BothChecks(result, m2CheckCoefficient(def->springDampingRatio));
     result = m2BothChecks(result, m2CheckSpeed(def->motorSpeed));
-    result = m2BothChecks(result, m2CheckMaxForce(def->maxMotorTorque));
+    result = m2BothChecks(result, m2CheckMaxForce(def->maxMotorEffort));
     result = m2BothChecks(result, m2CheckAngle(def->lowerAngle));
     result = m2BothChecks(result, m2CheckAngle(def->upperAngle));
     return m2BothChecks(result, m2CheckValid(!(def->lowerAngle > def->upperAngle)));
@@ -60,7 +60,7 @@ static void RecordRevoluteJointDef(m2RevoluteJointDef* out, const m2RevoluteJoin
     out->enableSpring = def->enableSpring;
     out->enableMotor = def->enableMotor;
     out->motorSpeed = def->motorSpeed;
-    out->maxMotorTorque = def->maxMotorTorque;
+    out->maxMotorEffort = def->maxMotorEffort;
     out->enableLimit = def->enableLimit;
     out->lowerAngle = def->lowerAngle;
     out->upperAngle = def->upperAngle;
@@ -119,7 +119,7 @@ static M2_NOINLINE m2Result CreateRevoluteJointWorker(m2World* world, const m2Re
                                       (def->enableLimit ? M2_JOINT_LIMIT : 0u) |
                                       (def->enableSpring ? M2_JOINT_SPRING : 0u);
     world->joints.jointMotorSpeed[index] = def->motorSpeed;
-    world->joints.jointMaxMotor[index] = def->maxMotorTorque;
+    world->joints.jointMaxMotor[index] = def->maxMotorEffort;
     world->joints.jointLower[index] = def->lowerAngle;
     world->joints.jointUpper[index] = def->upperAngle;
     world->joints.jointRefAngle[index] =

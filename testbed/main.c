@@ -257,7 +257,7 @@ static void SceneCar(m2World* world)
         wj.springDampingRatio = 0.7f;
         wj.enableMotor = true;
         wj.motorSpeed = 0.0f;
-        wj.maxMotorTorque = 24.0f;
+        wj.maxMotorEffort = 24.0f;
         axles[i] = NewWheelJoint(world, &wj);
     }
     s_driveWheelA = wheels[0];
@@ -498,7 +498,7 @@ static void SceneJointZoo(m2World* world)
     rj.bodyIdB = blade;
     rj.enableMotor = true;
     rj.motorSpeed = 2.5f;
-    rj.maxMotorTorque = 60.0f;
+    rj.maxMotorEffort = 60.0f;
     NewRevoluteJoint(world, &rj);
 
     m2BodyDef ed = m2DefaultBodyDef();
@@ -518,7 +518,7 @@ static void SceneJointZoo(m2World* world)
     pj.upperTranslation = 2.0f;
     pj.enableMotor = true;
     pj.motorSpeed = 1.5f;
-    pj.maxMotorForce = 80.0f;
+    pj.maxMotorEffort = 80.0f;
     s_driveJointB = NewPrismaticJoint(world, &pj); // elevator handle
 
     m2BodyDef wd = m2DefaultBodyDef();
@@ -948,7 +948,7 @@ static void SceneMachinery(m2World* world)
         {
             pin.enableMotor = true;
             pin.motorSpeed = 2.5f;
-            pin.maxMotorTorque = 80.0f;
+            pin.maxMotorEffort = 80.0f;
         }
         NewRevoluteJoint(world, &pin);
     }

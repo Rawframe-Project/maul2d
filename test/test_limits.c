@@ -157,11 +157,11 @@ static float GetMotorSpeed(const Channel* c)
 }
 static void SetMaxMotor(const Channel* c, float v)
 {
-    m2Joint_SetMaxMotor(c->world, c->joint, v);
+    m2Joint_SetMaxMotorEffort(c->world, c->joint, v);
 }
 static float GetMaxMotor(const Channel* c)
 {
-    return m2Joint_GetMaxMotor(c->world, c->joint);
+    return m2Joint_GetMaxMotorEffort(c->world, c->joint);
 }
 static void SetSpringHertz(const Channel* c, float v)
 {

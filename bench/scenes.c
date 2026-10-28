@@ -163,7 +163,7 @@ static m2World* SceneJointFarm(void)
         mill.bodyIdB = blade;
         mill.enableMotor = true;
         mill.motorSpeed = 2.5f;
-        mill.maxMotorTorque = 30.0f;
+        mill.maxMotorEffort = 30.0f;
         NewRevoluteJoint(world, &mill);
 
         m2BodyDef pd = m2DefaultBodyDef();

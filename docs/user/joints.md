@@ -10,11 +10,11 @@ A joint connects two bodies. It joins their sleep island, wakes both when it is 
 - **Weld** holds two bodies as one piece. Its linear and angular rows soften separately into springs (`linearSpringHertz`, `angularSpringHertz`); 0 hertz is rigid. A rigid weld solves its point and its angle together, so it holds a long arm against a small inertia as firmly as a revolute joint does.
 - **Wheel** is a suspension: body B slides on a sprung axis and spins freely, and the motor drives the spin.
 
-Motors and limits belong to the revolute, prismatic and wheel joints. `m2Joint_SetMotorSpeed`, `m2Joint_SetMaxMotor`, `m2Joint_EnableMotor`, `m2Joint_EnableLimit` and `m2Joint_SetLimits` tune them at run time; on another type they change nothing and count one misuse. Angles are measured from the pose at creation.
+Motors and limits belong to the revolute, prismatic and wheel joints. `m2Joint_SetMotorSpeed`, `m2Joint_SetMaxMotorEffort`, `m2Joint_EnableMotor`, `m2Joint_EnableLimit` and `m2Joint_SetLimits` tune them at run time; on another type they change nothing and count one misuse. A motor's budget, `maxMotorEffort` in the def, is a torque on revolute and wheel joints and a force on prismatic joints. Angles are measured from the pose at creation.
 
 ## The utility joints
 
-- **Motor** drives body B's pose toward an offset from body A within a force and a torque budget. A moving platform calls `m2MotorJoint_SetOffsets` every frame and the physics stays correct; `m2Joint_SetMaxMotor` sets its torque budget.
+- **Motor** drives body B's pose toward an offset from body A within a force and a torque budget. A moving platform calls `m2MotorJoint_SetOffsets` every frame and the physics stays correct; `m2Joint_SetMaxMotorEffort` sets its torque budget.
 - **Mouse** is a soft spring pulling a point of body B toward a world target (`m2MouseJoint_SetTarget`): dragging, deterministic and journaled. The spring has B's own mass, so it pulls equally hard in every direction, whichever point of B it holds.
 - **Filter** has no constraint: it switches collision off between its two bodies while it lives. Destroying it turns collision back on, with begin events where the bodies overlap.
 - **Gear** couples two spins at a ratio, positive for meshed cogs and negative for belts. Its phase is exact across any number of turns. Pin each body with its own joint; the gear only owns rotation.
