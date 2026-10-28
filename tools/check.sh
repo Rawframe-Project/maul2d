@@ -85,6 +85,8 @@ source_checks() {
     python3 tools/check_float_env.py
     python3 tools/check_records.py --self-test
     python3 tools/check_records.py
+    python3 tools/check_patch_results.py --self-test
+    python3 tools/check_patch_results.py
     python3 tools/check_test_hygiene.py --self-test
     python3 tools/check_test_hygiene.py
     if [ -f "$org/scripts/docs_check.py" ]; then
