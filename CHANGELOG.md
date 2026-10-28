@@ -6,6 +6,23 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.7.0](https://github.com/Rawframe-Project/maul2d/compare/v0.6.0...v0.7.0) (2026-10-28)
+
+
+### ⚠ BREAKING CHANGES
+
+* **query:** m2World_CastRayAll, m2World_CastCircleAll, m2World_CastCapsuleAll, m2World_CastPolygonAll, m2World_OverlapCircle, m2World_OverlapCapsule, m2World_OverlapPolygon, m2World_OverlapAabb and m2World_CollideMover take their m2QueryFilter before the output array and its capacity, not last.
+* **joints:** the revolute and wheel defs' maxMotorTorque and the prismatic def's maxMotorForce are renamed maxMotorEffort, and m2Joint_SetMaxMotor and m2Joint_GetMaxMotor are renamed m2Joint_SetMaxMotorEffort and m2Joint_GetMaxMotorEffort.
+* **joints:** m2RatchetJointDef.ratchet is renamed toothAngle, and m2RatchetJoint_GetRatchet is renamed m2RatchetJoint_GetToothAngle.
+* **query:** M2_MOVER_PLANES is renamed M2_MAX_MOVER_PLANES.
+
+### Changed
+
+* **joints:** name a motor's budget maxMotorEffort ([#151](https://github.com/Rawframe-Project/maul2d/issues/151)) ([73ce057](https://github.com/Rawframe-Project/maul2d/commit/73ce057f3427a6a5f083eadac114e99eace23c82))
+* **joints:** name the ratchet's tooth angle toothAngle ([#149](https://github.com/Rawframe-Project/maul2d/issues/149)) ([e483928](https://github.com/Rawframe-Project/maul2d/commit/e483928d2780d982b2e7ca81cf516160c4f6d420))
+* **query:** name the mover's plane count M2_MAX_MOVER_PLANES ([#150](https://github.com/Rawframe-Project/maul2d/issues/150)) ([b016625](https://github.com/Rawframe-Project/maul2d/commit/b01662569b625c2d866c32b3bbae338b10d249c8)), closes [#145](https://github.com/Rawframe-Project/maul2d/issues/145)
+* **query:** take the filter before the outputs in list queries ([#153](https://github.com/Rawframe-Project/maul2d/issues/153)) ([fdc6524](https://github.com/Rawframe-Project/maul2d/commit/fdc6524e1b8840204a4468b8bcfd848764575e5f))
+
 ## [0.6.0](https://github.com/Rawframe-Project/maul2d/compare/v0.5.0...v0.6.0) (2026-10-28)
 
 This release settles most of the API before 1.0.0, so nearly every program needs changes to build against it. Each **Breaking** item says what to change.
