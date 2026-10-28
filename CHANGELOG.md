@@ -6,6 +6,30 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.7.0](https://github.com/Rawframe-Project/maul2d/compare/v0.6.0...v0.7.0) (2026-10-28)
+
+This release ends the API audit before 1.0.0. Every change is a rename or a new parameter order, so a program builds again once it follows the items below, and nothing it computes changes.
+
+### Changed
+
+- **Breaking:** the list queries take their filter before what they write, so each one ends with its filter, its array and the array's capacity ([#153](https://github.com/Rawframe-Project/maul2d/pull/153)).
+  - `m2World_CastRayAll`, `m2World_CastCircleAll`, `m2World_CastCapsuleAll`, `m2World_CastPolygonAll`, `m2World_OverlapCircle`, `m2World_OverlapCapsule`, `m2World_OverlapPolygon`, `m2World_OverlapAabb` and `m2World_CollideMover` take `(world, ..., filter, out, capacity)`. The filter used to come last.
+  - Move the `m2QueryFilter` argument from the end to just before the output array. A call left in the old order no longer compiles.
+- **Breaking:** these are renamed, with their meaning unchanged ([#149](https://github.com/Rawframe-Project/maul2d/pull/149), [#150](https://github.com/Rawframe-Project/maul2d/pull/150), [#151](https://github.com/Rawframe-Project/maul2d/pull/151)):
+
+  | Old name | New name |
+  |---|---|
+  | `M2_MOVER_PLANES` | `M2_MAX_MOVER_PLANES` |
+  | `m2RatchetJointDef.ratchet` | `m2RatchetJointDef.toothAngle` |
+  | `m2RatchetJoint_GetRatchet` | `m2RatchetJoint_GetToothAngle` |
+  | `maxMotorTorque` (revolute and wheel defs) | `maxMotorEffort` |
+  | `maxMotorForce` (prismatic def) | `maxMotorEffort` |
+  | `m2Joint_SetMaxMotor` | `m2Joint_SetMaxMotorEffort` |
+  | `m2Joint_GetMaxMotor` | `m2Joint_GetMaxMotorEffort` |
+
+  A motor's `maxMotorEffort` is still a torque on revolute and wheel joints and a force on prismatic joints.
+- Results and formats: the same calls, renamed and reordered, step to the same bits as on 0.6.0, and no golden value moves. The snapshot (version 7) and journal tape (version 8) formats are unchanged, but as before 1.0.0, 0.7.0 reads only its own snapshots and tapes and refuses 0.6.0's with `m2_errorVersion`.
+
 ## [0.6.0](https://github.com/Rawframe-Project/maul2d/compare/v0.5.0...v0.6.0) (2026-10-28)
 
 This release settles most of the API before 1.0.0, so nearly every program needs changes to build against it. Each **Breaking** item says what to change.
