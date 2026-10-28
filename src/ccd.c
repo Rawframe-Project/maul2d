@@ -48,6 +48,16 @@ static float BulletBoundingRadius(const m2World* world, int32_t body)
             radius = m2MaxF(radius, m2MaxF(r1, r2) + g->capsule.radius);
             break;
         }
+        case m2_segmentShape:
+        case m2_chainSegmentShape:
+        {
+            const m2Segment* seg =
+                g->type == m2_segmentShape ? &g->segment : &g->chainSegment.segment;
+            float r1 = sqrtf(seg->point1.x * seg->point1.x + seg->point1.y * seg->point1.y);
+            float r2 = sqrtf(seg->point2.x * seg->point2.x + seg->point2.y * seg->point2.y);
+            radius = m2MaxF(radius, m2MaxF(r1, r2));
+            break;
+        }
         default:
         {
             for (int32_t v = 0; v < g->polygon.count; ++v)
