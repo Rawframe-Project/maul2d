@@ -38,12 +38,11 @@ m2ParticleDef m2DefaultParticleDef(void)
     return def;
 }
 
-// A particle def a create or a fill accepts, in a world with a particle
-// system.
-static m2Result ParticleDefCheck(const m2World* world, const m2ParticleDef* def)
+// A particle def a create or a fill accepts. A world created with a
+// particle pool of 0 refuses every particle as a full pool does.
+static m2Result ParticleDefCheck(const m2ParticleDef* def)
 {
-    if (def == NULL || def->internalValue != M2_PARTICLE_COOKIE ||
-        world->particles.particleCapacity == 0)
+    if (def == NULL || def->internalValue != M2_PARTICLE_COOKIE)
     {
         return m2_errorInvalid;
     }
@@ -63,7 +62,7 @@ static M2_NOINLINE m2Result CreateParticleWorker(m2World* world, const m2Particl
     {
         return writer;
     }
-    m2Result checked = ParticleDefCheck(world, def);
+    m2Result checked = ParticleDefCheck(def);
     if (checked != m2_success)
     {
         return m2Refuse(world, checked);
@@ -536,10 +535,16 @@ static M2_NOINLINE m2Result CreateParticlesInPolygonWorker(m2World* world, const
     }
     // The region is the polygon a shape would take: within M2_LOCAL_LIMIT,
     // convex, not a sliver, with its normals recomputed from its vertices.
-    m2Result checked = m2BothChecks(ParticleDefCheck(world, def), m2CheckPolygon(polygon));
+    m2Result checked = m2BothChecks(ParticleDefCheck(def), m2CheckPolygon(polygon));
     if (checked != m2_success)
     {
         return m2Refuse(world, checked);
+    }
+    if (world->particles.particleCapacity == 0)
+    {
+        // A pool of 0 is full; stop before the unchecked radius sizes a lattice.
+        world->particles.particlePoolFullCount += 1;
+        return m2Refuse(world, m2_errorCapacity);
     }
     m2Polygon region = m2CanonicalPolygon(polygon);
     if (region.count == 0)

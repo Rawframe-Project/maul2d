@@ -77,13 +77,13 @@ extern "C"
     /// @param world        The world.
     /// @param def          The particle, from m2DefaultParticleDef.
     /// @param particleOut  Receives the particle; the null id on failure.
-    /// @return m2_success; m2_errorInvalid when the world has no particle
-    ///         system, def or particleOut is null, def was not initialized
-    ///         by m2DefaultParticleDef or a value of it is NaN or not
-    ///         finite where it has no bound; m2_errorLimit for a velocity
-    ///         past M2_SPEED_LIMIT; m2_errorCapacity when the pool is full, which
-    ///         counts no misuse; m2_errorBusy from host code the world is
-    ///         running.
+    /// @return m2_success; m2_errorInvalid when def or particleOut is
+    ///         null, def was not initialized by m2DefaultParticleDef or a
+    ///         value of it is NaN or not finite where it has no bound;
+    ///         m2_errorLimit for a velocity past M2_SPEED_LIMIT;
+    ///         m2_errorCapacity when the pool is full, a pool of 0 included,
+    ///         which counts no misuse; m2_errorBusy from host code the world
+    ///         is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2CreateParticle(m2World* world, const m2ParticleDef* def,
@@ -224,11 +224,11 @@ extern "C"
     /// @param countOut  Receives the number of particles created; 0 when
     ///                  the fill is refused.
     /// @return m2_success; m2_errorCapacity when the pool ran out before
-    ///         the polygon was full, which counts no misuse and counts once
-    ///         in m2Counters.particlePoolFull; m2_errorInvalid when the
-    ///         world has no particle system, an argument is null, def was
-    ///         not initialized by m2DefaultParticleDef, a value of it is
-    ///         NaN or the polygon is not one a shape would take;
+    ///         the polygon was full, a pool of 0 included, which counts no
+    ///         misuse and counts once in m2Counters.particlePoolFull;
+    ///         m2_errorInvalid when an argument is null, def was not
+    ///         initialized by m2DefaultParticleDef, a value of it is NaN or
+    ///         the polygon is not one a shape would take;
     ///         m2_errorLimit for a velocity or a polygon past its published
     ///         bound, or a polygon wider than M2_MAX_FILL_COLUMNS strides;
     ///         m2_errorBusy from host code the world is running.

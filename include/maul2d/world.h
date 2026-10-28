@@ -582,11 +582,11 @@ extern "C"
     /// @param world      The world.
     /// @param def        The volume, from m2DefaultFluidVolumeDef.
     /// @param volumeOut  Receives the volume; the null id on failure.
-    /// @return m2_success; m2_errorInvalid for a bad def, a null argument
-    ///         or a world without volumes; m2_errorLimit for a value past
-    ///         its published bound; m2_errorCapacity when the
-    ///         volume pool is full; m2_errorBusy from host code the world
-    ///         is running.
+    /// @return m2_success; m2_errorInvalid for a bad def or a null
+    ///         argument; m2_errorLimit for a value past its published
+    ///         bound; m2_errorCapacity when the volume pool is full, a pool
+    ///         of 0 included, which counts no misuse; m2_errorBusy from
+    ///         host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2CreateFluidVolume(m2World* world, const m2FluidVolumeDef* def,

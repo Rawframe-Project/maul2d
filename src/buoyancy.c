@@ -257,7 +257,7 @@ static M2_NOINLINE m2Result CreateFluidVolumeWorker(m2World* world, const m2Flui
     {
         return writer;
     }
-    if (def == NULL || def->internalValue != M2_FVOLUME_COOKIE || world->volumes.fvCapacity == 0)
+    if (def == NULL || def->internalValue != M2_FVOLUME_COOKIE)
     {
         return m2Refuse(world, m2_errorInvalid);
     }
