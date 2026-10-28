@@ -8,54 +8,107 @@ snapshot and journal formats.
 
 ## [0.6.0](https://github.com/Rawframe-Project/maul2d/compare/v0.5.0...v0.6.0) (2026-10-28)
 
-
-### ⚠ BREAKING CHANGES
-
-* **fluid:** m2CreateParticle, m2CreateParticlesInPolygon and m2CreateFluidVolume return m2_errorCapacity, counting no misuse, in a world whose pool for them is sized 0, where they returned m2_errorInvalid and counted one misuse.
-* **geometry:** m2ComputeHull builds the hull of the whole cloud, not of its first 8 points. It refuses with m2_errorLimit a cloud of more than M2_MAX_HULL_POINTS (256) points, or one whose hull has more than M2_MAX_POLYGON_VERTICES vertices, where it used to return a hull of the first 8 points.
-* **api:** refusals return the family's statuses. A writer from host code the world is running returns m2_errorBusy (-10), not m2_errorState. Bad snapshot and tape bytes, a world of another shape included, return m2_errorFormat (-8), not m2_errorInvalid. An argument past a published bound returns m2_errorLimit (-9), not m2_errorInvalid. The bounds are renamed: M2_HUGE to M2_LOCAL_LIMIT, M2_MAX_SPEED to M2_SPEED_LIMIT, M2_MAX_ACCELERATION to M2_ACCEL_LIMIT, M2_MAX_GRAVITY_SCALE to M2_GRAVITY_SCALE_LIMIT, M2_MAX_RATE to M2_RATE_LIMIT, M2_MAX_COEFFICIENT to M2_COEFFICIENT_LIMIT, M2_MAX_DENSITY to M2_DENSITY_LIMIT, M2_MAX_RATIO to M2_RATIO_LIMIT, M2_MAX_MASS to M2_MASS_LIMIT, M2_MAX_INERTIA to M2_INERTIA_LIMIT, M2_MAX_FORCE to M2_FORCE_LIMIT, M2_MIN_TIME_STEP to M2_MIN_STEP, M2_MAX_TIME_STEP to M2_STEP_LIMIT, M2_MAX_ANGLE to M2_ANGLE_LIMIT and M2_JOINT_REACH to M2_REACH_LIMIT.
-* **api:** snapshot and journal sizes are int64_t: m2World_SnapshotSize and m2World_GetJournalBaseSize return int64_t, and m2World_Snapshot, m2World_Restore, m2World_StartJournal, m2World_StopJournal and m2World_ReplayJournal take int64_t sizes and int64_t* outputs. M2_MAX_SNAPSHOT_BYTES is removed; m2CreateWorld no longer refuses a world for its snapshot size, except on a 32-bit target when a size_t cannot hold it. The journal tape header is 24 bytes, the state prefix and a 64-bit snapshot size, and a restore record carries a 64-bit size.
-* **api:** m2SensorEvents holds m2SensorBeginEvent and m2SensorEndEvent arrays, {sensorShapeId, visitorShapeId, step}, in place of m2ContactBeginEvent and m2ContactEndEvent. A sensor begin no longer carries a normal, contact points or an approach speed.
-* **api:** m2RayCastResult and m2RayHit are replaced by m2CastHit, which has no hit flag. m2World_CastRayClosest, m2Shape_CastRay, m2World_CastCircleClosest, m2World_CastCapsuleClosest and m2World_CastPolygonClosest return bool and write the hit through a new last parameter, m2CastHit* hitOut; a null hitOut counts one misuse. m2World_CastRayAll, m2World_CastCircleAll, m2World_CastCapsuleAll and m2World_CastPolygonAll fill m2CastHit arrays.
-* **api:** joint stiffness fields are renamed: distance, wheel, motor and mouse hertz and dampingRatio become springHertz and springDampingRatio; revolute and prismatic hertz and dampingRatio become constraintHertz and constraintDampingRatio; weld linearHertz, linearDampingRatio, angularHertz and angularDampingRatio become linearSpringHertz, linearSpringDampingRatio, angularSpringHertz and angularSpringDampingRatio. The revolute def gains enableSpring, which its angular spring now needs. A distance joint is a spring only with enableSpring on; off, it is a rigid rod. m2Joint_SetSpringHertz and m2Joint_SetSpringDampingRatio set a revolute joint's spring, not its pin, which m2Joint_SetConstraintHertz and m2Joint_SetConstraintDampingRatio set; they refuse prismatic, weld, gear, pulley and ratchet joints. m2Joint_SetAngularSpringHertz, m2Joint_SetAngularSpringDampingRatio and their getters are removed in favor of m2Joint_SetSpringHertz on a revolute and m2WeldJoint_SetAngularSpringHertz on a weld.
-* **api:** m2AabbResult is renamed m2WorldAabb, and m2World_OverlapAabb and m2World_OverlapParticlesAabb take an m2WorldAabb instead of separate lower and upper corners.
-* **api:** m2CreateChain returns m2_errorCapacity, not m2_success, when the shape pool cuts a chain short; chainOut still names the shorter chain.
-* **api:** m2WorldDef.enableSleeping is renamed enableSleep, and m2World_EnableSleeping and m2World_IsSleepingEnabled are renamed m2World_EnableSleep and m2World_IsSleepEnabled. Every joint def's collideConnected is renamed enableConnectedCollision, and m2Joint_GetCollideConnected is renamed m2Joint_IsConnectedCollisionEnabled. m2Body_Enable and m2Body_Disable are replaced by m2Body_SetEnabled. m2DistanceJoint_IsSpringEnabled is removed; m2Joint_IsSpringEnabled reads distance and wheel joints. New: m2Joint_EnableConnectedCollision, m2Joint_EnableSpring and m2Chain_IsLoop. Snapshots and tapes from earlier releases are refused.
-* **api:** m2World_EmitParticle is replaced by m2CreateParticle and m2World_FillPolygonWithParticles by m2CreateParticlesInPolygon, both taking an m2ParticleDef from m2DefaultParticleDef. The fill returns m2Result, reports its count through countOut, and returns m2_errorCapacity when the pool cuts it short.
-* **fluid:** a snapshot header holds the world's particle radius, and a snapshot restores only into a world of the same capacities and particle radius. M2_SNAPSHOT_VERSION is 7.
-* **api:** m2BodyDef.fixedRotation, m2Body_SetFixedRotation and m2Body_IsFixedRotation are removed; lock rotation with m2MotionLocks.angularZ. m2Body_GetRotationalInertia is renamed m2Body_GetCentralInertia, and m2Body_GetMass is declared in maul2d/body.h. The journal tape format is version 8, so tapes recorded by earlier releases are refused.
-* **joints:** m2Joint_GetHertz, m2Joint_GetDampingRatio, m2Joint_GetAngularHertz and m2Joint_GetAngularDampingRatio are removed in favor of their m2Joint_GetSpring* equivalents; m2Joint_GetLength is renamed m2DistanceJoint_GetLength; m2Joint_GetLimits no longer reads a distance joint's range, which m2DistanceJoint_GetLengthRange now reads.
+This release settles most of the API before 1.0.0, so nearly every program needs changes to build against it. Each **Breaking** item says what to change.
 
 ### Added
 
-* **api:** return the family's format, limit and busy statuses ([#133](https://github.com/Rawframe-Project/maul2d/issues/133)) ([9d6748e](https://github.com/Rawframe-Project/maul2d/commit/9d6748e1386e7ceccb89d26e09f0322a6876297a))
-
-
-### Fixed
-
-* **api:** report a chain the shape pool cuts short as m2_errorCapacity ([#117](https://github.com/Rawframe-Project/maul2d/issues/117)) ([e9c27de](https://github.com/Rawframe-Project/maul2d/commit/e9c27def2e74a30df43e9e18eb41bbbc8c03dd4a))
-* **collision:** sweep a bullet's segments in its bounding circle ([#137](https://github.com/Rawframe-Project/maul2d/issues/137)) ([9501525](https://github.com/Rawframe-Project/maul2d/commit/950152518155a1d9d3643717d0e3892c7bb1b341)), closes [#134](https://github.com/Rawframe-Project/maul2d/issues/134)
-* **fluid:** check a fill's polygon as a shape's and bound its rows ([#102](https://github.com/Rawframe-Project/maul2d/issues/102)) ([a529764](https://github.com/Rawframe-Project/maul2d/commit/a529764e8ca9d21f54d6b9d80fef65a8f53e4833)), closes [#101](https://github.com/Rawframe-Project/maul2d/issues/101)
-* **fluid:** keep a far or reshaped particle link finite ([#105](https://github.com/Rawframe-Project/maul2d/issues/105)) ([c6f2d60](https://github.com/Rawframe-Project/maul2d/commit/c6f2d600bb77429d531063807c644fadcbab240f))
-* **fluid:** refuse a particle or volume pool of 0 as a full one ([#143](https://github.com/Rawframe-Project/maul2d/issues/143)) ([2692811](https://github.com/Rawframe-Project/maul2d/commit/26928112d6034f9f859f63b067a6a83e1e116172))
-* **geometry:** hull a whole cloud, past 8 points included ([#141](https://github.com/Rawframe-Project/maul2d/issues/141)) ([7888878](https://github.com/Rawframe-Project/maul2d/commit/7888878be793c6a865395e5a30e99e915fd85037))
-* **journal:** copy every recorded def field by field ([#107](https://github.com/Rawframe-Project/maul2d/issues/107)) ([d3b289b](https://github.com/Rawframe-Project/maul2d/commit/d3b289bdfa9447395166405819df1716badb67fc)), closes [#106](https://github.com/Rawframe-Project/maul2d/issues/106)
-* **journal:** record a caller's polygon in its canonical form ([#116](https://github.com/Rawframe-Project/maul2d/issues/116)) ([4a2bb54](https://github.com/Rawframe-Project/maul2d/commit/4a2bb54c4d6e75675c394fd21d7ee1354404b9b3)), closes [#110](https://github.com/Rawframe-Project/maul2d/issues/110)
-* **query:** cast at circles about the ray's closest approach ([#138](https://github.com/Rawframe-Project/maul2d/issues/138)) ([cc210e3](https://github.com/Rawframe-Project/maul2d/commit/cc210e3e9cec19e35bee788bfe95f115faca6757)), closes [#135](https://github.com/Rawframe-Project/maul2d/issues/135)
-* **query:** hold a circle cast's root at 0; take .github v0.0.33 ([#140](https://github.com/Rawframe-Project/maul2d/issues/140)) ([754765e](https://github.com/Rawframe-Project/maul2d/commit/754765ed51fa50d9242e11d330e32de2595ee7cd)), closes [#139](https://github.com/Rawframe-Project/maul2d/issues/139)
-
+- Three new statuses: `m2_errorFormat` (-8), `m2_errorLimit` (-9) and `m2_errorBusy` (-10), named by `m2ResultName` ([#133](https://github.com/Rawframe-Project/maul2d/pull/133)).
+- Every fixed bound a call checks is now a public constant. `M2_MAX_*` is a count, `M2_*_LIMIT` a magnitude and `M2_MIN_*` a floor. New ones: `M2_MAX_OUTLINE_POINTS` and `M2_MAX_SHATTER_PIECES` (64 each), `M2_MAX_HULL_POINTS` (256), `M2_MAX_FILL_COLUMNS` (256) and `M2_MIN_PARTICLE_RADIUS` (0.02 m) ([#133](https://github.com/Rawframe-Project/maul2d/pull/133), [#141](https://github.com/Rawframe-Project/maul2d/pull/141)).
+- Particles are created from a def like every other object: `m2ParticleDef` and `m2DefaultParticleDef` ([#109](https://github.com/Rawframe-Project/maul2d/pull/109)).
+- New calls ([#98](https://github.com/Rawframe-Project/maul2d/pull/98), [#114](https://github.com/Rawframe-Project/maul2d/pull/114), [#123](https://github.com/Rawframe-Project/maul2d/pull/123)):
+  - `m2Joint_EnableConnectedCollision` changes a live joint's connected collision;
+  - `m2Joint_EnableSpring` turns a distance, wheel or revolute spring on or off;
+  - `m2Chain_IsLoop` reads a chain's kind;
+  - `m2DistanceJoint_GetLengthRange` reads what `m2DistanceJoint_SetLengthRange` sets;
+  - `m2Joint_SetConstraintHertz` and `m2Joint_SetConstraintDampingRatio`, with their getters, soften the rows that hold a revolute, prismatic, gear, pulley or ratchet joint together;
+  - `m2WeldJoint_SetLinearSpringHertz`, `SetLinearSpringDampingRatio`, `SetAngularSpringHertz` and `SetAngularSpringDampingRatio`, with their getters, tune a weld's two springs;
+  - a motor joint's drive can change while the world runs.
 
 ### Changed
 
-* **api:** create particles from a def like every other object ([#109](https://github.com/Rawframe-Project/maul2d/issues/109)) ([5d92cb8](https://github.com/Rawframe-Project/maul2d/commit/5d92cb8bc173f437be20d30d0a4941d92b5762fc))
-* **api:** drop fixed rotation, keep the mass readers in body.h ([#100](https://github.com/Rawframe-Project/maul2d/issues/100)) ([803a31a](https://github.com/Rawframe-Project/maul2d/commit/803a31aa038fd57eb3a8e7ef0fe95af51496fefa))
-* **api:** give sensor events their own sensor and visitor ids ([#125](https://github.com/Rawframe-Project/maul2d/issues/125)) ([550352c](https://github.com/Rawframe-Project/maul2d/commit/550352ced8c3c907845e43f03d95ef6f09291c7a))
-* **api:** name def switches and their accessors by one rule ([#114](https://github.com/Rawframe-Project/maul2d/issues/114)) ([2b3af14](https://github.com/Rawframe-Project/maul2d/commit/2b3af144b311a6cad95a4544983bef1f294d58bd))
-* **api:** name the world box m2WorldAabb, taken by box queries ([#119](https://github.com/Rawframe-Project/maul2d/issues/119)) ([4d3f1e7](https://github.com/Rawframe-Project/maul2d/commit/4d3f1e792374947fced2d68eab9e9196995bab08))
-* **api:** one cast hit type, closest casts return bool ([#121](https://github.com/Rawframe-Project/maul2d/issues/121)) ([e2b46b0](https://github.com/Rawframe-Project/maul2d/commit/e2b46b0d8720ff888c7d2e5a3c909f78054ce4d2))
-* **api:** one spring and constraint vocabulary for joints ([#123](https://github.com/Rawframe-Project/maul2d/issues/123)) ([09130be](https://github.com/Rawframe-Project/maul2d/commit/09130be7eeba95c03b8bd00abcde5b5ac04e7c5e))
-* **api:** size snapshots and journals in 64 bits, with no cap ([#127](https://github.com/Rawframe-Project/maul2d/issues/127)) ([b10ccb7](https://github.com/Rawframe-Project/maul2d/commit/b10ccb7dc6904f143fee3fed9e64edc7a3f57fa1))
-* **joints:** drop alias getters, type the distance readers ([#98](https://github.com/Rawframe-Project/maul2d/issues/98)) ([588c81f](https://github.com/Rawframe-Project/maul2d/commit/588c81f8fc108121cd2a5a9534349462806091f8))
+- **Breaking:** refusals return the family's statuses ([#133](https://github.com/Rawframe-Project/maul2d/pull/133)):
+  - a writer called from host code the world is running (a task hook, a debug draw callback, the allocator) returns `m2_errorBusy`, not `m2_errorState`;
+  - bad snapshot and tape bytes, a world of another shape included, return `m2_errorFormat`, not `m2_errorInvalid`, and count no misuse;
+  - a value past a published bound, infinity included, returns `m2_errorLimit`, not `m2_errorInvalid`;
+  - a NaN, or a value outside its parameter's documented range, is still `m2_errorInvalid`.
+  Code that compares a status with `m2_errorInvalid` or `m2_errorState` needs the new cases.
+- **Breaking:** bounds are renamed, with their values unchanged ([#133](https://github.com/Rawframe-Project/maul2d/pull/133)):
+
+  | Old name | New name |
+  |---|---|
+  | `M2_HUGE` | `M2_LOCAL_LIMIT` |
+  | `M2_MAX_SPEED` | `M2_SPEED_LIMIT` |
+  | `M2_MAX_ACCELERATION` | `M2_ACCEL_LIMIT` |
+  | `M2_MAX_GRAVITY_SCALE` | `M2_GRAVITY_SCALE_LIMIT` |
+  | `M2_MAX_RATE` | `M2_RATE_LIMIT` |
+  | `M2_MAX_COEFFICIENT` | `M2_COEFFICIENT_LIMIT` |
+  | `M2_MAX_DENSITY` | `M2_DENSITY_LIMIT` |
+  | `M2_MAX_RATIO` | `M2_RATIO_LIMIT` |
+  | `M2_MAX_MASS` | `M2_MASS_LIMIT` |
+  | `M2_MAX_INERTIA` | `M2_INERTIA_LIMIT` |
+  | `M2_MAX_FORCE` | `M2_FORCE_LIMIT` |
+  | `M2_MIN_TIME_STEP` | `M2_MIN_STEP` |
+  | `M2_MAX_TIME_STEP` | `M2_STEP_LIMIT` |
+  | `M2_MAX_ANGLE` | `M2_ANGLE_LIMIT` |
+  | `M2_JOINT_REACH` | `M2_REACH_LIMIT` |
+- **Breaking:** joints use one spring and constraint vocabulary ([#123](https://github.com/Rawframe-Project/maul2d/pull/123)).
+  - Rename the def fields:
+    - `hertz` and `dampingRatio` become `springHertz` and `springDampingRatio` on distance, wheel, motor and mouse joints;
+    - they become `constraintHertz` and `constraintDampingRatio` on revolute and prismatic joints;
+    - weld `linearHertz`, `linearDampingRatio`, `angularHertz` and `angularDampingRatio` become `linearSpringHertz`, `linearSpringDampingRatio`, `angularSpringHertz` and `angularSpringDampingRatio`.
+  - A distance joint is a spring only with `enableSpring` on, and is a rigid rod with it off. A revolute joint's angular spring now needs the def's new `enableSpring`. Turn `enableSpring` on wherever a spring used to be on through its hertz alone.
+  - `m2Joint_SetSpringHertz` and `m2Joint_SetSpringDampingRatio` set a revolute joint's spring, not its pin, and refuse prismatic, weld, gear, pulley and ratchet joints. Use `m2Joint_SetConstraintHertz` and `m2Joint_SetConstraintDampingRatio` for the pin.
+- **Breaking:** one cast hit type ([#121](https://github.com/Rawframe-Project/maul2d/pull/121)).
+  - `m2CastHit` replaces `m2RayCastResult` and `m2RayHit`, and has no hit flag.
+  - `m2World_CastRayClosest`, `m2Shape_CastRay`, `m2World_CastCircleClosest`, `m2World_CastCapsuleClosest` and `m2World_CastPolygonClosest` return `bool` and write the hit through a new last parameter, `m2CastHit* hitOut`. A miss leaves `hitOut` as it was, and a null `hitOut` counts one misuse.
+  - The casts that list every hit fill `m2CastHit` arrays.
+- **Breaking:** sensor events have their own types, `m2SensorBeginEvent` and `m2SensorEndEvent`: {`sensorShapeId`, `visitorShapeId`, `step`} ([#125](https://github.com/Rawframe-Project/maul2d/pull/125)).
+  - Read the sensor and the visitor directly, instead of testing both shapes of a contact pair.
+  - A sensor begin no longer carries a normal, contact points or an approach speed.
+- **Breaking:** snapshot and journal sizes are `int64_t` ([#127](https://github.com/Rawframe-Project/maul2d/pull/127)).
+  - `m2World_SnapshotSize` and `m2World_GetJournalBaseSize` return it.
+  - `m2World_Snapshot`, `m2World_Restore`, `m2World_StartJournal`, `m2World_StopJournal` and `m2World_ReplayJournal` take `int64_t` sizes and `int64_t*` outputs.
+  - `M2_MAX_SNAPSHOT_BYTES` is gone, and `m2CreateWorld` no longer refuses a large world for its snapshot size. The one exception is a 32-bit target where a `size_t` cannot hold the size.
+- **Breaking:** particles are created like other objects ([#109](https://github.com/Rawframe-Project/maul2d/pull/109)).
+  - `m2CreateParticle` replaces `m2World_EmitParticle`.
+  - `m2CreateParticlesInPolygon` replaces `m2World_FillPolygonWithParticles`. It returns `m2Result` and reports its count through `countOut`.
+  - A fill the pool cuts short keeps what it made and returns `m2_errorCapacity`.
+- **Breaking:** names follow one rule ([#114](https://github.com/Rawframe-Project/maul2d/pull/114), [#119](https://github.com/Rawframe-Project/maul2d/pull/119), [#98](https://github.com/Rawframe-Project/maul2d/pull/98), [#100](https://github.com/Rawframe-Project/maul2d/pull/100)):
+  - `m2WorldDef.enableSleeping` becomes `enableSleep`, with `m2World_EnableSleep` and `m2World_IsSleepEnabled`;
+  - every joint def's `collideConnected` becomes `enableConnectedCollision`, and `m2Joint_GetCollideConnected` becomes `m2Joint_IsConnectedCollisionEnabled`;
+  - `m2Body_SetEnabled(world, body, bool)` replaces `m2Body_Enable` and `m2Body_Disable`;
+  - `m2AabbResult` becomes `m2WorldAabb`, and `m2World_OverlapAabb` and `m2World_OverlapParticlesAabb` take one `m2WorldAabb` instead of two corners;
+  - `m2Joint_GetLength` becomes `m2DistanceJoint_GetLength`, and `m2Joint_GetLimits` no longer reads a distance joint;
+  - `m2Body_GetRotationalInertia` becomes `m2Body_GetCentralInertia`, and `m2Body_GetMass` moves to `maul2d/body.h`.
+- **Breaking:** a pool sized 0 is full from the start ([#143](https://github.com/Rawframe-Project/maul2d/pull/143), [#117](https://github.com/Rawframe-Project/maul2d/pull/117)).
+  - `m2CreateParticle`, `m2CreateParticlesInPolygon` and `m2CreateFluidVolume` return `m2_errorCapacity` and count no misuse in a world whose pool for them is sized 0. They used to return `m2_errorInvalid`.
+  - `m2CreateChain` returns `m2_errorCapacity` when the shape pool cuts a chain short. `chainOut` still names the shorter chain.
+- **Breaking:** `m2ComputeHull` hulls the whole cloud, up to `M2_MAX_HULL_POINTS` points. It returns `m2_errorLimit` for a larger cloud, or for one whose hull has more than `M2_MAX_POLYGON_VERTICES` vertices ([#141](https://github.com/Rawframe-Project/maul2d/pull/141)).
+- **Breaking:** both formats change, so 0.6.0 refuses the snapshots and tapes of 0.5.0 with `m2_errorVersion`.
+  - **Snapshot version 7.** The header holds the world's particle radius, and a snapshot restores only into a world with the same capacities and particle radius ([#105](https://github.com/Rawframe-Project/maul2d/pull/105)). Each chain's loop flag is part of the state ([#114](https://github.com/Rawframe-Project/maul2d/pull/114)).
+  - **Journal tape version 8.** The header is 24 bytes and a restore record's size is 64 bits ([#127](https://github.com/Rawframe-Project/maul2d/pull/127)). The body and revolute records follow their new defs ([#100](https://github.com/Rawframe-Project/maul2d/pull/100), [#123](https://github.com/Rawframe-Project/maul2d/pull/123)).
+- Results: a program that makes the same calls, with the renames above and `enableSpring` turned on wherever a spring was on, steps its bodies, contacts and particles to the same bits as on 0.5.0. Only the fixes below change results. `m2World_Hash` covers each joint's spring switch, so a world whose joints now turn `enableSpring` on hashes differently from 0.5.0, even though it steps the same.
+
+### Removed
+
+- **Breaking:** these have no replacement under the old name:
+  - `m2BodyDef.fixedRotation`, `m2Body_SetFixedRotation` and `m2Body_IsFixedRotation`: lock rotation with `m2MotionLocks.angularZ` ([#100](https://github.com/Rawframe-Project/maul2d/pull/100));
+  - `m2Joint_GetHertz`, `m2Joint_GetDampingRatio`, `m2Joint_GetAngularHertz` and `m2Joint_GetAngularDampingRatio`: use the `m2Joint_GetSpring*` calls ([#98](https://github.com/Rawframe-Project/maul2d/pull/98));
+  - `m2Joint_SetAngularSpringHertz`, `m2Joint_SetAngularSpringDampingRatio` and their getters: use `m2Joint_SetSpringHertz` on a revolute and `m2WeldJoint_SetAngularSpringHertz` on a weld ([#123](https://github.com/Rawframe-Project/maul2d/pull/123));
+  - `m2DistanceJoint_IsSpringEnabled`: use `m2Joint_IsSpringEnabled` ([#114](https://github.com/Rawframe-Project/maul2d/pull/114)).
+
+### Fixed
+
+- A bullet whose only shapes are segments or chain segments no longer passes through thin walls. Such a bullet's results change ([#137](https://github.com/Rawframe-Project/maul2d/pull/137)).
+- Circle, capsule and rounded polygon casts give the right hit far from the origin and for very long rays, from about 1e9 m. They used to hit the center line, or report a hit at the ray's origin. A ray starting on a circle's surface hits at a fraction of 0, never slightly below it ([#138](https://github.com/Rawframe-Project/maul2d/pull/138), [#140](https://github.com/Rawframe-Project/maul2d/pull/140)).
+- `m2ComputeHull` no longer ignores every point after the eighth ([#141](https://github.com/Rawframe-Project/maul2d/pull/141)).
+- A particle spring or elastic triad whose ends are farther apart than `M2_REACH_LIMIT` stays finite, by treating the ends as that far apart. Before, it made the world's particle state non-finite. Nearer links keep their results ([#105](https://github.com/Rawframe-Project/maul2d/pull/105)).
+
+### Security
+
+- Recording a create, a particle fill or a shatter no longer writes bytes of the caller's memory into the journal tape. A def's padding and a polygon's normals and unused slots used to reach the tape, so two recordings of the same calls could differ. Every recorded def and polygon is now copied field by field ([#107](https://github.com/Rawframe-Project/maul2d/pull/107), [#116](https://github.com/Rawframe-Project/maul2d/pull/116)).
+- A particle fill, or the replay of a tape carrying one, no longer hangs on a huge polygon. The fill checks its polygon as a shape's and bounds its rows ([#102](https://github.com/Rawframe-Project/maul2d/pull/102)).
+- A snapshot whose spring rest lengths or triad corners lie outside what a fill makes is refused with `m2_errorFormat`, before it changes anything ([#105](https://github.com/Rawframe-Project/maul2d/pull/105)).
 
 ## [0.5.0](https://github.com/Rawframe-Project/maul2d/compare/v0.4.0...v0.5.0) (2026-10-27)
 
