@@ -68,9 +68,12 @@ jobs:
     permissions:
       contents: read
     steps:
+      # The whole history, for the release tags the patch release check
+      # compares with.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          fetch-depth: 0
       - name: clang-format
         run: |
           clang-format --version
@@ -89,6 +92,8 @@ jobs:
           python3 tools/check_float_env.py
           python3 tools/check_records.py --self-test
           python3 tools/check_records.py
+          python3 tools/check_patch_results.py --self-test
+          python3 tools/check_patch_results.py
       # Every test registration, in the configurations that add tests: the
       # shared build adds the package test.
       - name: Test hygiene
