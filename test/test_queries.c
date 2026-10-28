@@ -401,6 +401,46 @@ static void TestRayFarFromOrigin(void)
     m2DestroyWorld(world);
 }
 
+static void TestFarAndLongRaysAtRoundShapes(void)
+{
+    // A ray from far away, or a very long one, at a circle and a capsule
+    // hits the face it crosses: the normal points back along the ray and
+    // the fraction is where that face lies, never 0 at the ray's origin.
+    const double backs[] = {1.0e9, 1.0e10, 1.0e15, 1.0e18, 10.0};
+    const float lengths[] = {2.0e9f, 2.0e10f, 2.0e15f, 2.0e18f, 1.0e20f};
+    for (int32_t kind = 0; kind < 2; ++kind)
+    {
+        m2WorldDef def = m2DefaultWorldDef();
+        m2World* world = NewWorld(&def);
+        m2BodyDef bd = m2DefaultBodyDef();
+        m2BodyId body = NewBody(world, &bd);
+        m2ShapeDef sd = m2DefaultShapeDef();
+        m2Circle circle = {{0.0f, 0.0f}, 1.0f};
+        m2Capsule capsule = {{0.0f, -1.0f}, {0.0f, 1.0f}, 0.2f};
+        double face = kind == 0 ? 0.99498743710662 : 0.2; // where y = 0.1 crosses the shape
+        if (kind == 0)
+        {
+            NewCircleShape(world, body, &sd, &circle);
+        }
+        else
+        {
+            NewCapsuleShape(world, body, &sd, &capsule);
+        }
+        for (int32_t k = 0; k < 5; ++k)
+        {
+            CastResult hit = RayClosest(world, (m2Pos2){-backs[k], 0.1}, (m2Vec2){lengths[k], 0.0f},
+                                        m2DefaultQueryFilter());
+            double expected = (backs[k] - face) / (double)lengths[k];
+            double error = (double)hit.fraction - expected;
+            CHECK(hit.hit && hit.normal.x < -0.9f && hit.fraction > 0.0f &&
+                      error < 1.0e-6 * expected && error > -1.0e-6 * expected,
+                  kind == 0 ? "a far or long ray hits the circle's near face"
+                            : "a far or long ray hits the capsule's near face");
+        }
+        m2DestroyWorld(world);
+    }
+}
+
 static void TestOverlap(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
@@ -700,6 +740,7 @@ static void TestCastHitOut(void)
 
 int main(void)
 {
+    TestFarAndLongRaysAtRoundShapes();
     TestCastHitOut();
     TestRayInsideRoundedPolygon();
     TestAllHitsBeyondSixtyFour();
