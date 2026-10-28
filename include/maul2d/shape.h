@@ -28,6 +28,9 @@ extern "C"
 #define M2_MAX_OUTLINE_POINTS 64
 #define M2_MAX_SHATTER_PIECES 64
 
+// The most points m2ComputeHull takes in one cloud.
+#define M2_MAX_HULL_POINTS 256
+
     /// A shape of a world: a 1-based slot and a generation.
     typedef struct m2ShapeId
     {
@@ -247,13 +250,14 @@ extern "C"
     /// order. The way from a sprite's points to a collision shape.
     ///
     /// @param points      The cloud.
-    /// @param count       The number of points.
+    /// @param count       The number of points, 3 to M2_MAX_HULL_POINTS.
     /// @param radius      The rounding radius, at least 0.
     /// @param polygonOut  Receives the hull; left as it was on failure.
-    /// @return m2_success; m2_errorLimit for a point the hull takes or a
-    ///         radius past M2_LOCAL_LIMIT; m2_errorInvalid when no hull
-    ///         remains (too few points, all welded together, all collinear)
-    ///         or an argument is null.
+    /// @return m2_success; m2_errorLimit for more than M2_MAX_HULL_POINTS
+    ///         points, a point or the radius past M2_LOCAL_LIMIT, or a hull
+    ///         of more than M2_MAX_POLYGON_VERTICES vertices; m2_errorInvalid
+    ///         when no hull remains (too few points, all welded together,
+    ///         all collinear) or an argument is null.
     /// @par Thread safety
     /// Safe from any thread.
     M2_NODISCARD M2_API m2Result m2ComputeHull(const m2Vec2* points, int32_t count, float radius,

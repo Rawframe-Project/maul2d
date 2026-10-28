@@ -248,32 +248,6 @@ static int32_t MergeCollinear(m2Vec2* hull, int32_t n)
     return n;
 }
 
-// The hull, or a polygon with count 0 when the input has none.
-static m2Polygon BuildHull(const m2Vec2* points, int32_t count, float radius)
-{
-    m2Polygon invalid;
-    memset(&invalid, 0, sizeof(invalid));
-    if (points == NULL || count < 3)
-    {
-        return invalid; // check your data: count == 0 is the loud sign
-    }
-    count = count < M2_MAX_POLYGON_VERTICES ? count : M2_MAX_POLYGON_VERTICES;
-    m2Vec2 ps[M2_MAX_POLYGON_VERTICES];
-    int32_t n = WeldPoints(points, count, ps);
-    if (n < 3)
-    {
-        return invalid; // welded away: a scale problem, be loud
-    }
-    m2Vec2 hull[2 * M2_MAX_POLYGON_VERTICES];
-    n = MergeCollinear(hull, MonotoneChain(ps, n, hull));
-    if (n < 3)
-    {
-        return invalid; // all collinear
-    }
-    // The constructor adds the normals and its own validation.
-    return m2BuildPolygon(hull, n, radius);
-}
-
 // The bounds of caller points and a radius: a point or the radius past
 // M2_LOCAL_LIMIT is m2_errorLimit, a NaN m2_errorInvalid.
 static m2Result PointsBoundsCheck(const m2Vec2* points, int32_t count, float radius)
@@ -286,6 +260,33 @@ static m2Result PointsBoundsCheck(const m2Vec2* points, int32_t count, float rad
     return result;
 }
 
+// The hull of the whole cloud into hullOut: m2_errorLimit when it has
+// more than M2_MAX_POLYGON_VERTICES vertices, m2_errorInvalid when none
+// remains (welded together or collinear). The cloud holds at most
+// M2_MAX_HULL_POINTS points.
+static m2Result BuildHull(const m2Vec2* points, int32_t count, float radius, m2Polygon* hullOut)
+{
+    m2Vec2 ps[M2_MAX_HULL_POINTS];
+    int32_t n = WeldPoints(points, count, ps);
+    if (n < 3)
+    {
+        return m2_errorInvalid; // welded away: a scale problem, be loud
+    }
+    m2Vec2 hull[2 * M2_MAX_HULL_POINTS];
+    n = MergeCollinear(hull, MonotoneChain(ps, n, hull));
+    if (n < 3)
+    {
+        return m2_errorInvalid; // all collinear
+    }
+    if (n > M2_MAX_POLYGON_VERTICES)
+    {
+        return m2_errorLimit;
+    }
+    // The constructor adds the normals and its own validation.
+    *hullOut = m2BuildPolygon(hull, n, radius);
+    return hullOut->count != 0 ? m2_success : m2_errorInvalid;
+}
+
 static M2_NOINLINE m2Result ComputeHullWorker(const m2Vec2* points, int32_t count, float radius,
                                               m2Polygon* polygonOut)
 {
@@ -293,21 +294,22 @@ static M2_NOINLINE m2Result ComputeHullWorker(const m2Vec2* points, int32_t coun
     {
         return m2_errorInvalid;
     }
-    // The cloud's first M2_MAX_POLYGON_VERTICES points are the ones the
-    // hull takes.
-    int32_t taken = count < M2_MAX_POLYGON_VERTICES ? count : M2_MAX_POLYGON_VERTICES;
-    m2Result bounds = PointsBoundsCheck(points, taken, radius);
+    m2Result bounds = m2CheckCount(count, M2_MAX_HULL_POINTS);
+    if (bounds == m2_success)
+    {
+        bounds = PointsBoundsCheck(points, count, radius);
+    }
     if (bounds != m2_success)
     {
         return bounds;
     }
-    m2Polygon hull = BuildHull(points, count, radius);
-    if (polygonOut == NULL || hull.count == 0)
+    m2Polygon hull;
+    m2Result built = BuildHull(points, count, radius, &hull);
+    if (built == m2_success)
     {
-        return m2_errorInvalid;
+        *polygonOut = hull;
     }
-    *polygonOut = hull;
-    return m2_success;
+    return built;
 }
 
 m2Result m2ComputeHull(const m2Vec2* points, int32_t count, float radius, m2Polygon* polygonOut)
