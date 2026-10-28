@@ -7,8 +7,8 @@ A deterministic 2D physics engine for games. Written in C, with a plain C API, n
 Same inputs, same bits, on every supported platform and at every thread count. A snapshot restores a world exactly, and the command journal records a session and replays it byte for byte. Rollback netcode, lockstep multiplayer, replays and server-side verification are a few calls away:
 
 ```c
-int32_t size = m2World_SnapshotSize(world);
-int32_t written = 0;
+int64_t size = m2World_SnapshotSize(world);
+int64_t written = 0;
 m2Result result = m2World_Snapshot(world, buffer, size, &written);
 /* ... mispredicted steps ... */
 result = m2World_Restore(world, buffer, written); // resimulate from here, bit for bit

@@ -63,13 +63,29 @@ extern "C"
     /// several readers at once.
     M2_API m2ContactEvents m2World_GetContactEvents(const m2World* world);
 
-    /// The sensor events of the last step: the contact records, in their
-    /// own arrays, with the same pairing. A begin carries the overlap's
-    /// point, normal and closing speed; an end, the shapes and the step.
+    /// A shape that began overlapping a sensor during a step. Two sensors
+    /// never detect each other, so every sensor event has exactly one
+    /// sensor. Begin and end events pair up as contact events do.
+    typedef struct m2SensorBeginEvent
+    {
+        m2ShapeId sensorShapeId;
+        m2ShapeId visitorShapeId; // the shape inside the sensor
+        M2_ALIGN8 uint64_t step;  // the step the event belongs to
+    } m2SensorBeginEvent;
+
+    /// A shape that stopped overlapping a sensor during a step.
+    typedef struct m2SensorEndEvent
+    {
+        m2ShapeId sensorShapeId; // the ids as they were when the overlap ended
+        m2ShapeId visitorShapeId;
+        M2_ALIGN8 uint64_t step;
+    } m2SensorEndEvent;
+
+    /// The sensor events of the last step, in canonical pair order.
     typedef struct m2SensorEvents
     {
-        const m2ContactBeginEvent* beginEvents;
-        const m2ContactEndEvent* endEvents;
+        const m2SensorBeginEvent* beginEvents;
+        const m2SensorEndEvent* endEvents;
         int32_t beginCount;
         int32_t endCount;
     } m2SensorEvents;

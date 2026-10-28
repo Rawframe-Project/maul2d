@@ -289,30 +289,33 @@ static int64_t ShapeWorldSnapshot(int32_t shapeCapacity)
 static void TestWorldSnapshotBound(void)
 {
     // A world's snapshot grows by the same bytes per shape slot, so the
-    // largest shape capacity M2_MAX_SNAPSHOT_BYTES allows follows from two
+    // shape capacity that takes it past a given size follows from two
     // small worlds.
     int64_t perShape = (ShapeWorldSnapshot(2000) - ShapeWorldSnapshot(1000)) / 1000;
     int64_t fixed = ShapeWorldSnapshot(1000) - 1000 * perShape;
     CHECK(perShape > 0 && ShapeWorldSnapshot(3000) == fixed + 3000 * perShape,
           "a world's snapshot grows by the same bytes per shape slot");
-    int32_t most = (int32_t)((M2_MAX_SNAPSHOT_BYTES - fixed) / perShape);
 
     // An allocator that refuses everything shows how far creation got: a
-    // def past the bound is refused before anything is asked for, and one
-    // at the bound passes the size check and is refused by the allocator.
+    // def whose snapshot passes what an int32_t counts gets past the size
+    // check and is refused by the allocator.
     Ledger ledger = {0, 0, 0, 0, 0, 0};
     m2WorldDef def = LedgerDef(&ledger);
     def.bodyCapacity = 1;
     def.jointCapacity = 1;
-    def.shapeCapacity = most + 1;
+    def.shapeCapacity = (int32_t)((INT32_MAX - fixed) / perShape) + 1;
     m2World* world = (m2World*)&ledger;
-    CHECK(m2CreateWorld(&def, &world) == m2_errorCapacity && world == NULL,
-          "a world whose snapshot passes M2_MAX_SNAPSHOT_BYTES is refused");
-    CHECK(ledger.asked == 0, "before anything is allocated");
-    def.shapeCapacity = most;
     CHECK(m2CreateWorld(&def, &world) == m2_errorCapacity && world == NULL && ledger.asked > 0,
-          "a world whose snapshot is M2_MAX_SNAPSHOT_BYTES or less goes on to allocate");
+          "a world whose snapshot passes INT32_MAX bytes goes on to allocate");
     CHECK(ledger.live == 0, "and the refused allocations leave nothing behind");
+#if SIZE_MAX < INT64_MAX
+    // Where a size_t is 32 bits, a snapshot it cannot hold is refused
+    // before anything is asked for.
+    ledger.asked = 0;
+    def.shapeCapacity = (int32_t)(((int64_t)SIZE_MAX - fixed) / perShape) + 1;
+    CHECK(m2CreateWorld(&def, &world) == m2_errorCapacity && world == NULL && ledger.asked == 0,
+          "a world whose snapshot a size_t cannot hold is refused before it allocates");
+#endif
 }
 
 // --- World defs, versions and results ------------------------------------------

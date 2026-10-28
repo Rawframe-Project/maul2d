@@ -405,8 +405,16 @@ static void SceneContacts(void)
                                contacts.endEvents[e].shapeIdB);
         }
         m2SensorEvents sensors = m2World_GetSensorEvents(world);
-        hash =
-            Mix(hash, ((uint64_t)(uint32_t)sensors.beginCount << 32) | (uint32_t)sensors.endCount);
+        for (int32_t e = 0; e < sensors.beginCount; ++e)
+        {
+            hash = HashShapeId(HashShapeId(hash, sensors.beginEvents[e].sensorShapeId),
+                               sensors.beginEvents[e].visitorShapeId);
+        }
+        for (int32_t e = 0; e < sensors.endCount; ++e)
+        {
+            hash = HashShapeId(HashShapeId(hash, sensors.endEvents[e].sensorShapeId),
+                               sensors.endEvents[e].visitorShapeId);
+        }
     }
     hash = Mix(hash, m2World_Hash(world));
     m2DestroyWorld(world);
@@ -495,7 +503,7 @@ static void SceneRollback(void)
     {
         m2World_Step(world, DT, 4);
     }
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     uint8_t* snapshot = malloc((size_t)size);
     uint8_t* again = malloc((size_t)size);
     CHECK(Snapshot(world, snapshot, size) == size, "ROLLBACK: the snapshot writes");
@@ -538,7 +546,7 @@ static void SceneRollback(void)
 
 // The walks' tapes, kept for the hostile host to replay.
 static uint8_t* s_tapes[WALK_SEEDS];
-static int32_t s_tapeSizes[WALK_SEEDS];
+static int64_t s_tapeSizes[WALK_SEEDS];
 
 static uint64_t JournalHash(uint64_t hash, uint64_t walk)
 {

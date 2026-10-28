@@ -15,9 +15,9 @@ Step the world at a fixed `dt`, never tied to the frame rate. For presentation, 
 Snapshot every confirmed frame. When a late input arrives, restore, apply the corrected inputs and step again to the present. The re-simulation lands on the bits the original would have reached, so a divergence can only come from the game's own input handling.
 
 ```c
-int32_t size = m2World_SnapshotSize(world);
+int64_t size = m2World_SnapshotSize(world);
 void* frame = malloc((size_t)size);
-int32_t written = 0;
+int64_t written = 0;
 bool saved = frame != NULL && m2World_Snapshot(world, frame, size, &written) == m2_success;
 
 m2Body_ApplyLinearImpulse(world, ball, (m2Vec2){3.0f, 0.0f}); // a mispredicted input
@@ -37,9 +37,9 @@ A snapshot's size is fixed for a world's life, so one buffer per frame of histor
 A journal records into a buffer the program owns: a snapshot of the world when recording starts, then one record per call that changes the world. `m2World_GetJournalBaseSize` is the fixed part; size the buffer as that plus room for the session. A buffer that overflows is reported when recording stops, never cut short silently.
 
 ```c
-int32_t capacity = m2World_GetJournalBaseSize(world) + 64 * 1024;
+int64_t capacity = m2World_GetJournalBaseSize(world) + 64 * 1024;
 void* tape = malloc((size_t)capacity);
-int32_t tapeSize = 0;
+int64_t tapeSize = 0;
 bool recorded = tape != NULL && m2World_StartJournal(world, tape, capacity) == m2_success;
 for (int32_t i = 0; recorded && i < 60; ++i)
 {

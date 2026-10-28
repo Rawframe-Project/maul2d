@@ -17,4 +17,9 @@ int32_t m2ShapeSlot(const m2World* world, m2ShapeId id);
 // The public id of a shape slot.
 m2ShapeId m2MakeShapeId(const m2World* world, int32_t shapeIndex);
 
+// The public ids of a sensor pair's shapes: the sensor and the shape
+// inside it. Two sensors never pair, so exactly one of the two is a sensor.
+void m2SensorPairIds(const m2World* world, int32_t shapeA, int32_t shapeB, m2ShapeId* sensorOut,
+                     m2ShapeId* visitorOut);
+
 #endif // MAUL2D_SRC_OBJECT_IDS_H

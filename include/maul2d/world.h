@@ -176,8 +176,9 @@ extern "C"
     ///         M2_MIN_PARTICLE_RADIUS, a particle parameter past its
     ///         bound);
     ///         m2_errorCapacity, before anything is allocated, when the
-    ///         world would snapshot to more than M2_MAX_SNAPSHOT_BYTES, and
-    ///         when the allocator refuses or a size does not fit.
+    ///         world's snapshot size does not fit a size_t (only on a 32-bit
+    ///         target), and when the allocator refuses or a size does not
+    ///         fit.
     /// @par Thread safety
     /// Safe from any thread.
     M2_NODISCARD M2_API m2Result m2CreateWorld(const m2WorldDef* def, m2World** worldOut);
@@ -424,14 +425,14 @@ extern "C"
     M2_API uint64_t m2World_GetStepCount(const m2World* world);
 
     /// Returns the size of this world's snapshot. It is fixed for the
-    /// world's life and at most M2_MAX_SNAPSHOT_BYTES.
+    /// world's life and fits a size_t.
     ///
     /// @param world  The world.
     /// @return The size in bytes; 0 for a null world.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API int32_t m2World_SnapshotSize(const m2World* world);
+    M2_API int64_t m2World_SnapshotSize(const m2World* world);
 
     /// Writes the whole simulation state into caller memory.
     ///
@@ -447,7 +448,7 @@ extern "C"
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
     M2_NODISCARD M2_API m2Result m2World_Snapshot(const m2World* world, void* buffer,
-                                                  int32_t capacity, int32_t* bytesOut);
+                                                  int64_t capacity, int64_t* bytesOut);
 
     /// Restores a snapshot of a world with the same shape: the same
     /// capacities and the same particle radius in its def. Everything,
@@ -472,7 +473,7 @@ extern "C"
     ///         counts one; m2_errorBusy from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
-    M2_NODISCARD M2_API m2Result m2World_Restore(m2World* world, const void* buffer, int32_t size);
+    M2_NODISCARD M2_API m2Result m2World_Restore(m2World* world, const void* buffer, int64_t size);
 
     /// Hashes every piece of state the step reads and a call can change:
     /// the world's gravity, wind, sleeping switch and step count; every
@@ -649,7 +650,7 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API int32_t m2World_GetJournalBaseSize(const m2World* world);
+    M2_API int64_t m2World_GetJournalBaseSize(const m2World* world);
 
     /// Starts recording a journal into caller memory: a snapshot first,
     /// then every call that changes the world, the steps and the restores
@@ -659,15 +660,15 @@ extern "C"
     /// @param world     The world.
     /// @param buffer    Receives the tape.
     /// @param capacity  The length of buffer, in bytes.
-    /// @return m2_success; m2_errorInvalid for a null buffer;
-    ///         m2_errorCapacity when capacity is below
+    /// @return m2_success; m2_errorInvalid for a null buffer or a capacity
+    ///         a size_t cannot hold; m2_errorCapacity when capacity is below
     ///         m2World_GetJournalBaseSize; m2_errorState when the world is
     ///         already recording; m2_errorBusy from host code the world is
     ///         running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2World_StartJournal(m2World* world, void* buffer,
-                                                      int32_t capacity);
+                                                      int64_t capacity);
 
     /// Stops recording. Operations that did not fit make the tape unusable:
     /// it is never cut short silently.
@@ -680,7 +681,7 @@ extern "C"
     ///         from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
-    M2_NODISCARD M2_API m2Result m2World_StopJournal(m2World* world, int32_t* bytesOut);
+    M2_NODISCARD M2_API m2Result m2World_StopJournal(m2World* world, int64_t* bytesOut);
 
     /// Replays a tape: restores the snapshot it embeds and applies its
     /// operations through the same calls that recorded them. It is atomic:
@@ -697,14 +698,15 @@ extern "C"
     ///         snapshot, another release or build wrote, and m2_errorFormat
     ///         for another tape that fails its checks (a record the world
     ///         refuses included), neither of which counts misuse;
-    ///         m2_errorInvalid for a null data pointer, which counts one;
-    ///         m2_errorState while the world is recording; m2_errorBusy
-    ///         from host code the world is running; m2_errorCapacity when
-    ///         the allocator cannot give the replay its scratch memory.
+    ///         m2_errorInvalid for a null data pointer or a size a size_t
+    ///         cannot hold, which counts one; m2_errorState while the world
+    ///         is recording; m2_errorBusy from host code the world is
+    ///         running; m2_errorCapacity when the allocator cannot give the
+    ///         replay its scratch memory.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2World_ReplayJournal(m2World* world, const void* data,
-                                                       int32_t size);
+                                                       int64_t size);
 
 #ifdef __cplusplus
 }

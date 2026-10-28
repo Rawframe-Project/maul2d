@@ -51,10 +51,12 @@ Together the checks make every index a later call or step follows safe, every li
 
 ## Tape format
 
-A tape is a 40-byte header, the embedded snapshot with its own header, then records:
+A tape is a 24-byte header, the embedded snapshot with its own header, then records:
 
-- the header: the prefix, with `magic` `M2JN` and `M2_JOURNAL_VERSION`; then the recording world's gravity at offset 16, and its body, shape and joint capacities and the snapshot's size from offset 24;
-- each record: one op byte and that op's payload, a raw struct from `src/journal.h`. Most ops are one public call with its arguments; a chain, a shatter and a restore carry their variable-length data after a fixed header.
+- the header: the prefix, with `magic` `M2JN` and `M2_JOURNAL_VERSION`; then the embedded snapshot's size as an `int64_t` at offset 16. The world's shape travels in the snapshot's own header, which restore checks;
+- each record: one op byte and that op's payload, a raw struct from `src/journal.h`. Most ops are one public call with its arguments; a chain, a shatter and a restore carry their variable-length data after a fixed header, a restore's size as an `int64_t`.
+
+Every size of a snapshot or a tape, in the formats and in the API, is an `int64_t`, so a world is bounded by its capacities and memory, never by its formats. On a 32-bit target, `m2CreateWorld` refuses a world whose snapshot a `size_t` cannot hold, and a journal's capacity or a tape's size past `SIZE_MAX` is refused before any pointer is formed.
 
 Both formats store structs raw: the records, the public defs they embed, and the structs a snapshot walks: the array elements `m2Transform`, `m2ShapeGeometry`, `m2Manifold` and `m2TreeNode`, and the broadphase trees' `m2DynamicTree`, held inline in the world. `src/format_layout.c` pins each of them to its x86-64 layout, every size and every member's offset, and refuses to build on a big-endian target. 32-bit x86 aligns a double or a 64-bit integer to 4 inside a struct, so every such member carries `M2_ALIGN8`, and that target writes the same bytes. A change to one of these structs is a format change. A record copies a caller's def field by field into zeroed memory and a caller's polygon in its canonical form (`m2CanonicalPolygon`: the normals the library computes and zero unused slots), never whole. The bytes the caller never set, between a def's fields or in a polygon's normals and unused slots, stay off the tape, and the same calls record the same bytes; `tools/check_records.py` refuses a whole copy in `src/`.
 
@@ -62,7 +64,7 @@ Every public writer records itself when a journal is running, after its checks p
 
 ## Replay
 
-`m2World_ReplayJournal` checks the header against the world, restores the embedded snapshot (a refusal of the snapshot is the tape's, `m2_errorVersion` included), then applies each record through a table of commands (`src/journal_replay.c`) that call the same public entry points the recording called. A create must land on the id the recording saw, and a destroy that succeeded must succeed again; anything else means the tape does not describe this world.
+`m2World_ReplayJournal` checks the header's snapshot size against the tape's length, restores the embedded snapshot (a refusal of the snapshot is the tape's, `m2_errorVersion` included), then applies each record through a table of commands (`src/journal_replay.c`) that call the same public entry points the recording called. A create must land on the id the recording saw, and a destroy that succeeded must succeed again; anything else means the tape does not describe this world.
 
 Replay is atomic. Before it starts, the world is snapshotted into scratch memory from its own allocator; a replay that fails part way restores that backup, so a malformed, truncated or mismatched tape never leaves a half-built world. While the records apply, the world is marked as replaying: a value a record carries that the setter refuses is the tape's fault and counts no misuse, while a refusal from host code the replay runs (a task hook, the allocator) is the program's and counts.
 

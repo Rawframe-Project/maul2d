@@ -21,6 +21,29 @@
 
 #include <string.h>
 
+// Queues the end event of a touching pair whose shape leaves between
+// steps; the next step's event window flushes it.
+static void QueueEndEvent(m2World* world, int32_t a, int32_t b)
+{
+    if (world->shapes.shapeSensor[a] != 0 || world->shapes.shapeSensor[b] != 0)
+    {
+        if (world->events.pendingSensorEndCount < world->contacts.pairCapacity)
+        {
+            m2SensorEndEvent* e =
+                &world->events.pendingSensorEnd[world->events.pendingSensorEndCount++];
+            m2SensorPairIds(world, a, b, &e->sensorShapeId, &e->visitorShapeId);
+            e->step = world->stepCount;
+        }
+    }
+    else if (world->events.pendingEndCount < world->contacts.pairCapacity)
+    {
+        m2ContactEndEvent* e = &world->events.pendingEndEvents[world->events.pendingEndCount++];
+        e->shapeIdA = m2MakeShapeId(world, a);
+        e->shapeIdB = m2MakeShapeId(world, b);
+        e->step = world->stepCount;
+    }
+}
+
 // Shared by destroy and disable: end every touching
 // contact of this shape, wake its riders, drop the proxy, prune pairs.
 void m2RetireShapeFromBroadphase(m2World* world, int32_t shapeIndex)
@@ -42,18 +65,7 @@ void m2RetireShapeFromBroadphase(m2World* world, int32_t shapeIndex)
         // float on a memory. (Caught by the floor-yank probe.)
         int32_t partner = world->shapes.shapeBody[a == shapeIndex ? b : a];
         m2WakeIfDynamic(world, partner);
-        bool sensor = world->shapes.shapeSensor[a] != 0 || world->shapes.shapeSensor[b] != 0;
-        m2ContactEndEvent* queue =
-            sensor ? world->events.pendingSensorEnd : world->events.pendingEndEvents;
-        int32_t* queueCount =
-            sensor ? &world->events.pendingSensorEndCount : &world->events.pendingEndCount;
-        if (*queueCount < world->contacts.pairCapacity)
-        {
-            m2ContactEndEvent* e = &queue[(*queueCount)++];
-            e->shapeIdA = m2MakeShapeId(world, a);
-            e->shapeIdB = m2MakeShapeId(world, b);
-            e->step = world->stepCount;
-        }
+        QueueEndEvent(world, a, b);
     }
 
     if (world->broadphase.proxyIds[shapeIndex] != M2_NULL_NODE)

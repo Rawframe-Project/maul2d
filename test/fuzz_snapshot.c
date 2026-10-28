@@ -23,7 +23,7 @@ static m2World* s_world;
 static uint8_t* s_valid;
 static uint8_t* s_bytes;
 static uint8_t* s_again;
-static int32_t s_size;
+static int64_t s_size;
 
 static void Setup(void)
 {
@@ -57,7 +57,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
         return 0;
     }
     const uint8_t* bytes = data + 1;
-    int32_t count = (int32_t)(size - 1 < (size_t)INT32_MAX ? size - 1 : (size_t)INT32_MAX);
+    int64_t count = (int64_t)(size - 1);
     if ((data[0] & 1u) != 0)
     {
         memcpy(s_bytes, s_valid, (size_t)s_size);

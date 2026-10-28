@@ -34,7 +34,7 @@ typedef struct Scene
 {
     m2World* world;
     uint8_t* valid;
-    int32_t size;
+    int64_t size;
     int32_t headerBytes;
     m2BodyId ground;
     m2BodyId boxA;
@@ -95,7 +95,7 @@ static Scene MakeSceneAfter(int32_t steps)
     scene.valid = (uint8_t*)malloc((size_t)scene.size);
     CHECK(scene.valid != NULL && Snapshot(scene.world, scene.valid, scene.size) == scene.size,
           "the scene snapshots");
-    scene.headerBytes = scene.size - (int32_t)m2StateWalk(scene.world, NULL, NULL, 2);
+    scene.headerBytes = (int32_t)(scene.size - (int64_t)m2StateWalk(scene.world, NULL, NULL, 2));
     return scene;
 }
 
@@ -888,7 +888,7 @@ static Scene MakeJointScene(void)
     scene.valid = (uint8_t*)malloc((size_t)scene.size);
     CHECK(scene.valid != NULL && Snapshot(w, scene.valid, scene.size) == scene.size,
           "the joint scene snapshots");
-    scene.headerBytes = scene.size - (int32_t)m2StateWalk(w, NULL, NULL, 2);
+    scene.headerBytes = (int32_t)(scene.size - (int64_t)m2StateWalk(w, NULL, NULL, 2));
     return scene;
 }
 
@@ -1067,7 +1067,7 @@ static void AwakeBoxMoved(const Scene* scene, uint8_t* block)
 // The world's own snapshot restores onto the same hash.
 static bool RoundTripsAlone(m2World* world)
 {
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     void* bytes = malloc((size_t)size);
     if (bytes == NULL)
     {
@@ -1123,7 +1123,7 @@ static void TestRestingBoxes(void)
     sleeping.valid = (uint8_t*)malloc((size_t)sleeping.size);
     CHECK(sleeping.valid != NULL && Snapshot(world, sleeping.valid, sleeping.size) == sleeping.size,
           "the sleeping world snapshots");
-    sleeping.headerBytes = sleeping.size - (int32_t)m2StateWalk(world, NULL, NULL, 2);
+    sleeping.headerBytes = (int32_t)(sleeping.size - (int64_t)m2StateWalk(world, NULL, NULL, 2));
     uint64_t hash = m2World_Hash(world);
     CHECK(Restore(world, sleeping.valid, sleeping.size) && m2World_Hash(world) == hash,
           "a body that fell asleep after moving past its margin restores its own snapshot");
@@ -1256,7 +1256,7 @@ static Scene MakeJellyScene(void)
     scene.valid = (uint8_t*)malloc((size_t)scene.size);
     CHECK(scene.valid != NULL && Snapshot(w, scene.valid, scene.size) == scene.size,
           "the jelly snapshots");
-    scene.headerBytes = scene.size - (int32_t)m2StateWalk(w, NULL, NULL, 2);
+    scene.headerBytes = (int32_t)(scene.size - (int64_t)m2StateWalk(w, NULL, NULL, 2));
     return scene;
 }
 
@@ -1547,7 +1547,7 @@ static void SpendPool(const SpentPool* pool)
 static void RestoreSpentPool(const SpentPool* pool, const void* freeQueue, const void* freeHead,
                              const void* freeCount)
 {
-    int32_t size = m2World_SnapshotSize(pool->world);
+    int64_t size = m2World_SnapshotSize(pool->world);
     uint8_t* bytes = (uint8_t*)malloc((size_t)size);
     uint8_t* edited = (uint8_t*)malloc((size_t)size);
     CHECK(bytes != NULL && edited != NULL && Snapshot(pool->world, bytes, size) == size,
@@ -1562,7 +1562,7 @@ static void RestoreSpentPool(const SpentPool* pool, const void* freeQueue, const
     CHECK(m2World_Restore(pool->world, bytes, size) == m2_success &&
               m2World_Hash(pool->world) == hash,
           "a spent pool round-trips");
-    int32_t header = size - (int32_t)m2StateWalk(pool->world, NULL, NULL, 2);
+    int32_t header = (int32_t)(size - (int64_t)m2StateWalk(pool->world, NULL, NULL, 2));
     uint8_t* block = edited + header;
 
     memcpy(edited, bytes, (size_t)size);
@@ -1679,22 +1679,34 @@ static void TestSpentSlotsRetire(void)
 
 static void TestJournalRecordRoom(void)
 {
-    // A record's room on a tape is reckoned in 64 bits: its op byte and
-    // payload against what is left, at every capacity an int32_t names
-    // and for every payload a record can carry.
+    // A record's room on a tape is its op byte and payload against what
+    // is left, at every capacity an int64_t names and for every payload a
+    // record can carry.
     CHECK(m2JournalRecordFits(0, 10, 9) && !m2JournalRecordFits(0, 10, 10),
           "a record takes its op byte and its payload");
-    CHECK(m2JournalRecordFits(INT32_MAX - 10, INT32_MAX, 9) &&
-              !m2JournalRecordFits(INT32_MAX - 10, INT32_MAX, 10),
+    CHECK(m2JournalRecordFits(INT64_MAX - 10, INT64_MAX, 9) &&
+              !m2JournalRecordFits(INT64_MAX - 10, INT64_MAX, 10),
           "the same at the largest capacity");
-    CHECK(!m2JournalRecordFits(INT32_MAX, INT32_MAX, 0), "a full tape takes no record");
-    CHECK(!m2JournalRecordFits(M2_MAX_SNAPSHOT_BYTES + 40, INT32_MAX, INT32_MAX),
-          "a payload as large as a tape does not fit behind a snapshot");
-    CHECK(!m2JournalRecordFits(40, INT32_MAX, (int64_t)INT32_MAX + 4),
-          "nor one past what an int32_t names");
-    CHECK(m2JournalRecordFits(M2_MAX_SNAPSHOT_BYTES + 40, INT32_MAX, M2_MAX_SNAPSHOT_BYTES + 4),
-          "the restore of the largest snapshot fits behind the one a tape starts from");
+    CHECK(!m2JournalRecordFits(INT64_MAX, INT64_MAX, 0), "a full tape takes no record");
+    CHECK(!m2JournalRecordFits(24, INT64_MAX, INT64_MAX),
+          "a payload as large as a tape does not fit behind its header");
+    int64_t snapshot = (int64_t)INT32_MAX + 1;
+    CHECK(m2JournalRecordFits(24 + snapshot, 24 + 2 * snapshot + 9, snapshot + 8) &&
+              !m2JournalRecordFits(24 + snapshot, 24 + 2 * snapshot + 8, snapshot + 8),
+          "the restore of a snapshot past INT32_MAX bytes fits a tape with room for it");
     CHECK(!m2JournalRecordFits(0, 10, -1), "a negative payload takes no room");
+
+    // A replayed record's tail is measured the same way: a count whose
+    // bytes pass what an int32_t holds is measured whole, never wrapped.
+    m2ReplayCursor cursor = {NULL, NULL, 4 * snapshot, 0, m2_errorFormat};
+    int64_t tail = 0;
+    CHECK(m2ReplayTailFits(&cursor, 0x20000001, 8, &tail) && tail == (int64_t)0x20000001 * 8,
+          "a tail past INT32_MAX bytes is measured whole");
+    cursor.size = 64;
+    CHECK(!m2ReplayTailFits(&cursor, 0x20000001, 8, &tail), "and does not fit a short tape");
+    CHECK(m2ReplayTailFits(&cursor, 8, 8, &tail) && !m2ReplayTailFits(&cursor, 9, 8, &tail),
+          "a tail fits up to the tape's end");
+    CHECK(!m2ReplayTailFits(&cursor, -1, 8, &tail), "a negative count never fits");
 }
 
 // A snapshot of a world with the given particle radius holding one spring
@@ -1703,7 +1715,7 @@ typedef struct LinkScene
 {
     m2World* world;
     uint8_t* bytes;
-    int32_t size;
+    int64_t size;
     int32_t header;
 } LinkScene;
 
@@ -1725,7 +1737,7 @@ static LinkScene MakeLinkScene(float radius)
     scene.bytes = (uint8_t*)malloc((size_t)scene.size);
     CHECK(scene.bytes != NULL && Snapshot(scene.world, scene.bytes, scene.size) == scene.size,
           "the world snapshots");
-    scene.header = scene.size - (int32_t)m2StateWalk(scene.world, NULL, NULL, 2);
+    scene.header = (int32_t)(scene.size - (int64_t)m2StateWalk(scene.world, NULL, NULL, 2));
     return scene;
 }
 
@@ -1807,7 +1819,7 @@ static void TestRestoreKeepsTheParticleRadius(void)
           "a snapshot from a world of another particle radius is refused");
     def.particleRadius = 0.1f;
     m2World* same = NewWorld(&def);
-    int32_t emptySize = m2World_SnapshotSize(same);
+    int64_t emptySize = m2World_SnapshotSize(same);
     uint8_t* empty = (uint8_t*)malloc((size_t)emptySize);
     CHECK(empty != NULL && Snapshot(same, empty, emptySize) == emptySize,
           "an empty world snapshots");

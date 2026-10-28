@@ -34,13 +34,13 @@ static uint64_t s_rng;
 static uint64_t s_walkTapeHash = M2_HASH_INIT;
 
 // The size of the last tape the walk recorded.
-static int32_t s_walkTapeSize = 0;
+static int64_t s_walkTapeSize = 0;
 
 // A state format's bytes as the golden lines pin them: everything after
 // the prefix's ABI word (offset 4), with the ABI word of a header embedded
 // at `embedded` (0 for none) zeroed in a copy, so a release bump moves no
 // line. Each ABI word must be this release's.
-static uint64_t HashStateBytes(uint64_t hash, const uint8_t* bytes, int32_t size, int32_t embedded)
+static uint64_t HashStateBytes(uint64_t hash, const uint8_t* bytes, int64_t size, int32_t embedded)
 {
     uint8_t* copy = malloc((size_t)size);
     if (copy == NULL || size < 16 || embedded + 16 > size)
@@ -59,7 +59,7 @@ static uint64_t HashStateBytes(uint64_t hash, const uint8_t* bytes, int32_t size
         CHECK(abi == M2_ABI_VERSION, "an embedded header carries this release's ABI version");
         memset(copy + embedded + 4, 0, sizeof(abi));
     }
-    hash = m2Hash64(hash, copy + 8, size - 8);
+    hash = m2Hash64(hash, copy + 8, (int32_t)(size - 8));
     free(copy);
     return hash;
 }
@@ -68,7 +68,7 @@ static uint64_t HashStateBytes(uint64_t hash, const uint8_t* bytes, int32_t size
 // starts where the tape's header ends (headerBytes, offset 12). A tape
 // whose records restore would carry more snapshots; the walk restores
 // none while it records.
-static uint64_t HashTapeBytes(uint64_t hash, const uint8_t* tape, int32_t size)
+static uint64_t HashTapeBytes(uint64_t hash, const uint8_t* tape, int64_t size)
 {
     uint32_t headerBytes = 0;
     if (size >= 16)
@@ -887,7 +887,7 @@ static uint64_t RunScenario(uint64_t seed, uint8_t* journal, int32_t journalCapa
 
     if (journal != NULL)
     {
-        int32_t bytes = StopJournal(world);
+        int64_t bytes = StopJournal(world);
         CHECK(bytes > 0, "the walk fits the journal");
         s_walkTapeHash = HashTapeBytes(s_walkTapeHash, journal, bytes);
         s_walkTapeSize = bytes;
@@ -899,7 +899,7 @@ static uint64_t RunScenario(uint64_t seed, uint8_t* journal, int32_t journalCapa
 
     // Rollback identity from a randomized world: restore returns the
     // exact bits and a re-snapshot is byte-equal.
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     void* snapA = malloc((size_t)size);
     void* snapB = malloc((size_t)size);
     CHECK(Snapshot(world, snapA, size) == size, "snapshot");

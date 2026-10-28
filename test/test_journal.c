@@ -31,7 +31,7 @@ static m2WorldDef TestDef(void)
 
 // A session with every op type: floor, rain of shapes, a pendulum, a
 // shove, a destroy, steps in two dt flavors (markers carry dt unchanged).
-static void RunSession(m2World* world, uint8_t* journal, int32_t capacity, int32_t* outSize,
+static void RunSession(m2World* world, uint8_t* journal, int64_t capacity, int64_t* outSize,
                        uint64_t* outHash)
 {
     if (journal != NULL)
@@ -301,7 +301,7 @@ static void TestRecordReplay(void)
 
     m2WorldDef def = TestDef();
     m2World* original = NewWorld(&def);
-    int32_t journalSize = 0;
+    int64_t journalSize = 0;
     uint64_t originalHash = 0;
     RunSession(original, journal, CAPACITY, &journalSize, &originalHash);
 
@@ -331,8 +331,8 @@ static void TestOverflowIsLoud(void)
 {
     m2WorldDef def = TestDef();
     m2World* world = NewWorld(&def);
-    int32_t snapshotSize = m2World_SnapshotSize(world);
-    int32_t capacity = snapshotSize + 64; // room for the header + a crumb
+    int64_t snapshotSize = m2World_SnapshotSize(world);
+    int64_t capacity = snapshotSize + 64; // room for the header + a crumb
     uint8_t* journal = malloc((size_t)capacity + sizeof(void*));
     CHECK(StartJournal(world, journal, capacity), "tiny journal starts");
     for (int32_t i = 0; i < 8; ++i)
@@ -355,7 +355,7 @@ static void TestRollbackWhileRecording(void)
     def.bodyCapacity = 32;
     def.shapeCapacity = 32;
     m2World* world = NewWorld(&def);
-    int32_t tapeCapacity = 2 * m2World_GetJournalBaseSize(world) + (1 << 16);
+    int64_t tapeCapacity = 2 * m2World_GetJournalBaseSize(world) + (1 << 16);
     unsigned char* tape = malloc((size_t)tapeCapacity);
     CHECK(StartJournal(world, tape, tapeCapacity), "tape starts");
 
@@ -378,7 +378,7 @@ static void TestRollbackWhileRecording(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t snapSize = m2World_SnapshotSize(world);
+    int64_t snapSize = m2World_SnapshotSize(world);
     void* snap = malloc((size_t)snapSize);
     CHECK(Snapshot(world, snap, snapSize) == snapSize, "mid-recording snapshot");
 
@@ -396,7 +396,7 @@ static void TestRollbackWhileRecording(void)
         m2World_Step(world, 1.0f / 60.0f, 4); // the corrected timeline
     }
 
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     CHECK(bytes > snapSize, "the tape survived the rollback and kept recording");
     uint64_t recorded = m2World_Hash(world);
 
@@ -422,7 +422,7 @@ static void TestReplayIsAtomic(void)
     uint8_t* tape = malloc(CAPACITY);
     m2WorldDef def = TestDef();
     m2World* recorder = NewWorld(&def);
-    int32_t size = 0;
+    int64_t size = 0;
     uint64_t recordedHash = 0;
     RunSession(recorder, tape, CAPACITY, &size, &recordedHash);
     m2DestroyWorld(recorder);
@@ -459,7 +459,7 @@ static void TestRestoreRefusesBadCounters(void)
     m2Circle ball = {{0.0f, 0.0f}, 0.5f};
     m2ShapeDef sd = m2DefaultShapeDef();
     NewCircleShape(world, body, &sd, &ball);
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     uint8_t* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "snapshot taken");
     m2World_Step(world, 1.0f / 60.0f, 4);
@@ -482,8 +482,8 @@ static void TestRestoreRefusesBadCounters(void)
 // Replays a tape whose one record, made at the start of a recording, has
 // the byte at payloadOffset replaced: it must be refused, change nothing
 // and count nothing.
-static void ExpectByteRefused(m2World* world, const uint8_t* tape, int32_t bytes,
-                              int32_t recordStart, size_t payloadOffset, const char* what)
+static void ExpectByteRefused(m2World* world, const uint8_t* tape, int64_t bytes,
+                              int64_t recordStart, size_t payloadOffset, const char* what)
 {
     uint8_t* edited = (uint8_t*)malloc((size_t)bytes);
     CHECK(edited != NULL, "a copy of the tape");
@@ -492,7 +492,7 @@ static void ExpectByteRefused(m2World* world, const uint8_t* tape, int32_t bytes
         return;
     }
     memcpy(edited, tape, (size_t)bytes);
-    edited[recordStart + 1 + (int32_t)payloadOffset] = 29;
+    edited[recordStart + 1 + (int64_t)payloadOffset] = 29;
     uint64_t hash = m2World_Hash(world);
     uint64_t misuse = m2World_GetCounters(world).misuse;
     CHECK(m2World_ReplayJournal(world, edited, bytes) == m2_errorFormat, what);
@@ -511,16 +511,16 @@ static void TestTapeBoolsAreZeroOrOne(void)
     def.shapeCapacity = 4;
     def.jointCapacity = 2;
     m2World* world = NewWorld(&def);
-    int32_t capacity = m2World_GetJournalBaseSize(world) + 4096;
+    int64_t capacity = m2World_GetJournalBaseSize(world) + 4096;
     uint8_t* tape = (uint8_t*)malloc((size_t)capacity);
     CHECK(tape != NULL && StartJournal(world, tape, capacity), "the journal starts");
-    int32_t recordStart = StopJournal(world); // the header and snapshot alone
+    int64_t recordStart = StopJournal(world); // the header and snapshot alone
 
     m2BodyDef bodyDef = m2DefaultBodyDef();
     bodyDef.type = m2_dynamicBody;
     CHECK(StartJournal(world, tape, capacity), "the journal starts again");
     m2BodyId body = NewBody(world, &bodyDef);
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     const size_t bodyBools[] = {offsetof(m2BodyDef, enableSleep), offsetof(m2BodyDef, isEnabled),
                                 offsetof(m2BodyDef, isBullet),
                                 offsetof(m2BodyDef, motionLocks.angularZ)};
@@ -847,12 +847,12 @@ static m2Polygon FilledPolygon(const m2Polygon* from, uint8_t fill)
 // Records a create from every def the journal records into a fresh
 // world's tape, each def's bytes starting as fill, and gives the world's
 // hash at the end.
-static uint8_t* TapeOfFilledDefs(uint8_t fill, int32_t* bytesOut, uint64_t* hashOut)
+static uint8_t* TapeOfFilledDefs(uint8_t fill, int64_t* bytesOut, uint64_t* hashOut)
 {
     m2World* world = NewDefWorld();
     m2BodyDef groundValues = m2DefaultBodyDef();
     m2BodyId ground = NewBody(world, &groundValues);
-    int32_t capacity = m2World_GetJournalBaseSize(world) + 16384;
+    int64_t capacity = m2World_GetJournalBaseSize(world) + 16384;
     uint8_t* tape = (uint8_t*)malloc((size_t)capacity);
     CHECK(tape != NULL && StartJournal(world, tape, capacity), "the journal starts");
 
@@ -944,8 +944,8 @@ static uint8_t* TapeOfFilledDefs(uint8_t fill, int32_t* bytesOut, uint64_t* hash
 // world that recorded it.
 static void TestDefPaddingStaysOffTheTape(void)
 {
-    int32_t bytesA = 0;
-    int32_t bytesB = 0;
+    int64_t bytesA = 0;
+    int64_t bytesB = 0;
     uint64_t hashA = 0;
     uint64_t hashB = 0;
     uint8_t* tapeA = TapeOfFilledDefs(0xA5, &bytesA, &hashA);

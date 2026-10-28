@@ -120,7 +120,7 @@ static void TestRollbackIdentity(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "snapshot writes its full size");
     for (int32_t i = 0; i < 30; ++i)
@@ -167,7 +167,7 @@ static void TestJournalReplay(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    int32_t used = StopJournal(world);
+    int64_t used = StopJournal(world);
     CHECK(used > 0, "journal closed with bytes");
     uint64_t recorded = m2World_Hash(world);
 
@@ -623,11 +623,11 @@ static void TestFillChecksItsPolygon(void)
 
     // A tape whose fill record carries the distant triangle is refused whole.
     m2World* recorder = NewWorld(&def);
-    int32_t capacity = m2World_GetJournalBaseSize(recorder) + 4096;
+    int64_t capacity = m2World_GetJournalBaseSize(recorder) + 4096;
     uint8_t* tape = (uint8_t*)malloc((size_t)capacity);
     CHECK(tape != NULL && StartJournal(recorder, tape, capacity), "the journal starts");
     FillParticles(recorder, &box, (m2Pos2){1.0, 1.0}, (m2Vec2){0.0f, 0.0f}, 0);
-    int32_t bytes = StopJournal(recorder);
+    int64_t bytes = StopJournal(recorder);
     int32_t at = -1;
     for (int32_t i = 0; at < 0 && i + (int32_t)sizeof(box) <= bytes; ++i)
     {
@@ -839,7 +839,7 @@ static void TestLifetimeAndUserData(void)
     CHECK(m2Particle_GetLifetime(world, drops[1]) == 0.0f, "immortals report zero");
 
     // Snapshot before the reaping, then run past it.
-    int32_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_SnapshotSize(world);
     void* snap = malloc((size_t)size);
     Snapshot(world, snap, size);
     for (int32_t i = 0; i < 20; ++i)
@@ -1144,7 +1144,7 @@ static void TestFillCutShortReplays(void)
         EmitParticle(world, (m2Pos2){(double)i, 3.0}, (m2Vec2){0.0f, 0.0f}, 0);
     }
     m2World* replayed = NewWorld(&def);
-    int32_t capacity = m2World_GetJournalBaseSize(world) + 4096;
+    int64_t capacity = m2World_GetJournalBaseSize(world) + 4096;
     uint8_t* tape = (uint8_t*)malloc((size_t)capacity);
     CHECK(tape != NULL && StartJournal(world, tape, capacity), "the journal starts");
     m2Counters before = m2World_GetCounters(world);
@@ -1159,7 +1159,7 @@ static void TestFillCutShortReplays(void)
     CHECK(after.misuse == before.misuse && after.particlePoolFull == before.particlePoolFull + 1,
           "counting no misuse and one full pool");
     m2World_Step(world, 1.0f / 60.0f, 4);
-    int32_t bytes = StopJournal(world);
+    int64_t bytes = StopJournal(world);
     CHECK(bytes > 0 && ReplayJournal(replayed, tape, bytes) &&
               m2World_Hash(replayed) == m2World_Hash(world),
           "and its replay reaches the same world");
