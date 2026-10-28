@@ -38,12 +38,15 @@ m2MotorJointDef m2DefaultMotorJointDef(void)
 // jointLength and its world target in jointTargets.
 // The def contract: finite values, non-negative gains and budgets,
 // ordered ranges.
-static bool DefValid(const m2MotorJointDef* def)
+static m2Result DefCheck(const m2MotorJointDef* def)
 {
-    return m2LocalVec2(def->linearOffset) && m2ValidAngle(def->angularOffset) &&
-           m2ValidMaxForce(def->maxForce) && m2ValidMaxForce(def->maxTorque) &&
-           m2ValidFraction(def->correctionFactor) && m2ValidRate(def->springHertz) &&
-           m2ValidCoefficient(def->springDampingRatio);
+    m2Result result =
+        m2BothChecks(m2CheckLocalVec2(def->linearOffset), m2CheckAngle(def->angularOffset));
+    result = m2BothChecks(result, m2CheckMaxForce(def->maxForce));
+    result = m2BothChecks(result, m2CheckMaxForce(def->maxTorque));
+    result = m2BothChecks(result, m2CheckFraction(def->correctionFactor));
+    result = m2BothChecks(result, m2CheckRate(def->springHertz));
+    return m2BothChecks(result, m2CheckCoefficient(def->springDampingRatio));
 }
 
 // The create record holds the def's fields and zero bytes between them:
@@ -78,9 +81,14 @@ static M2_NOINLINE m2Result CreateMotorJointWorker(m2World* world, const m2Motor
     {
         return writer;
     }
-    if (def == NULL || def->internalValue != M2_MOJOINT_COOKIE || !DefValid(def))
+    if (def == NULL || def->internalValue != M2_MOJOINT_COOKIE)
     {
         return m2Refuse(world, m2_errorInvalid);
+    }
+    m2Result checked = DefCheck(def);
+    if (checked != m2_success)
+    {
+        return m2Refuse(world, checked);
     }
     int32_t bodyA = m2BodySlot(world, def->bodyIdA);
     int32_t bodyB = m2BodySlot(world, def->bodyIdB);

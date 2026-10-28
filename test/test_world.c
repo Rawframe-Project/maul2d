@@ -1711,16 +1711,16 @@ static m2BodyDef BadBodyDef(int32_t field)
         def.angularDamping = INFINITY;
         break;
     case 14:
-        def.linearVelocity.x = nextafterf(M2_MAX_SPEED, INFINITY);
+        def.linearVelocity.x = nextafterf(M2_SPEED_LIMIT, INFINITY);
         break;
     case 15:
-        def.angularVelocity = -nextafterf(M2_MAX_SPEED, INFINITY);
+        def.angularVelocity = -nextafterf(M2_SPEED_LIMIT, INFINITY);
         break;
     case 16:
-        def.gravityScale = nextafterf(M2_MAX_GRAVITY_SCALE, INFINITY);
+        def.gravityScale = nextafterf(M2_GRAVITY_SCALE_LIMIT, INFINITY);
         break;
     case 17:
-        def.angularDamping = nextafterf(M2_MAX_RATE, INFINITY);
+        def.angularDamping = nextafterf(M2_RATE_LIMIT, INFINITY);
         break;
     default:
         def.rotation = (m2Rot){0.0f, -0.0f}; // no direction
@@ -1761,13 +1761,27 @@ static m2WorldDef BadWorldDef(int32_t field)
     return def;
 }
 
+// A NaN, or a value outside its field's own domain, is invalid; an
+// infinity or a value past a published bound is past a limit.
+static m2Result BadWorldDefStatus(int32_t field)
+{
+    return field == 0 || field == 4 ? m2_errorInvalid : m2_errorLimit;
+}
+
+static m2Result BadBodyDefStatus(int32_t field)
+{
+    const bool limit[19] = {[7] = true,  [9] = true,  [13] = true, [14] = true,
+                            [15] = true, [16] = true, [17] = true};
+    return limit[field] ? m2_errorLimit : m2_errorInvalid;
+}
+
 static void TestDefsMatchWhatARestoreAccepts(void)
 {
     for (int32_t field = 0; field < 13; ++field)
     {
         m2WorldDef def = BadWorldDef(field);
         m2World* refused = NULL;
-        CHECK(m2CreateWorld(&def, &refused) == m2_errorInvalid && refused == NULL,
+        CHECK(m2CreateWorld(&def, &refused) == BadWorldDefStatus(field) && refused == NULL,
               "a world def with a field out of range is refused");
         if (refused != NULL)
         {
@@ -1776,11 +1790,11 @@ static void TestDefsMatchWhatARestoreAccepts(void)
     }
 
     m2WorldDef def = m2DefaultWorldDef();
-    def.gravity = (m2Vec2){-M2_MAX_ACCELERATION, M2_MAX_ACCELERATION};
+    def.gravity = (m2Vec2){-M2_ACCEL_LIMIT, M2_ACCEL_LIMIT};
     def.particleCapacity = 8;
     def.particleRadius = 0.02f;
     def.particleDensity = 2.0e-6f; // a particle of 1.8e-9 kg, near M2_MIN_MASS
-    def.particleViscousStrength = M2_MAX_COEFFICIENT;
+    def.particleViscousStrength = M2_COEFFICIENT_LIMIT;
     def.particleCohesionStrength = 0.0f;
     m2World* world = NewWorld(&def);
     for (int32_t field = 0; field < 19; ++field)
@@ -1788,7 +1802,7 @@ static void TestDefsMatchWhatARestoreAccepts(void)
         m2BodyDef bodyDef = BadBodyDef(field);
         uint64_t misuse = m2World_GetCounters(world).misuse;
         m2BodyId body = {7, 7};
-        CHECK(m2CreateBody(world, &bodyDef, &body) == m2_errorInvalid && body.index1 == 0 &&
+        CHECK(m2CreateBody(world, &bodyDef, &body) == BadBodyDefStatus(field) && body.index1 == 0 &&
                   m2World_GetCounters(world).misuse == misuse + 1,
               "a body def with a field out of range is refused and counted");
     }
@@ -1796,16 +1810,17 @@ static void TestDefsMatchWhatARestoreAccepts(void)
     m2BodyDef edge = m2DefaultBodyDef();
     edge.position = (m2Pos2){DBL_MAX, -DBL_MAX};
     edge.rotation = (m2Rot){0.0f, 1.0e-30f};
-    edge.gravityScale = -M2_MAX_GRAVITY_SCALE;
+    edge.gravityScale = -M2_GRAVITY_SCALE_LIMIT;
     edge.linearDamping = -0.0f;
-    edge.angularDamping = M2_MAX_RATE;
+    edge.angularDamping = M2_RATE_LIMIT;
     edge.dominance = INT8_MIN;
     for (int32_t type = m2_staticBody; type <= m2_dynamicBody; ++type)
     {
         edge.type = (m2BodyType)type;
         bool still = edge.type == m2_staticBody; // a static def has no velocity
-        edge.linearVelocity = still ? (m2Vec2){-0.0f, 0.0f} : (m2Vec2){M2_MAX_SPEED, -M2_MAX_SPEED};
-        edge.angularVelocity = still ? -0.0f : -M2_MAX_SPEED;
+        edge.linearVelocity =
+            still ? (m2Vec2){-0.0f, 0.0f} : (m2Vec2){M2_SPEED_LIMIT, -M2_SPEED_LIMIT};
+        edge.angularVelocity = still ? -0.0f : -M2_SPEED_LIMIT;
         m2Rot q = m2Body_GetRotation(world, NewBody(world, &edge));
         CHECK(q.c == 0.0f && q.s == 1.0f, "a tiny rotation keeps its direction");
     }
@@ -1864,7 +1879,7 @@ static void TestRestoreRefusesANonUnitRotation(void)
     for (size_t k = 0; at >= 0 && k < sizeof(bad) / sizeof(bad[0]); ++k)
     {
         memcpy(bytes + at + (int32_t)sizeof(m2Pos2), &bad[k], sizeof(bad[k]));
-        CHECK(m2World_Restore(world, bytes, size) == m2_errorInvalid,
+        CHECK(m2World_Restore(world, bytes, size) == m2_errorFormat,
               "a rotation that is not of unit length is refused");
     }
     CHECK(m2World_Hash(world) == hash && m2World_GetCounters(world).misuse == misuse,
@@ -1926,7 +1941,7 @@ static void TestSubstepCap(void)
 
 // Host code a world runs, a task hook or a debug draw callback, tries to
 // change the world it serves. Every writer refuses: a status writer with
-// m2_errorState, a void writer by counting one misuse.
+// m2_errorBusy, a void writer by counting one misuse.
 typedef struct Intruder
 {
     m2World* world;
@@ -2006,9 +2021,9 @@ static void TestHostCodeCannotWrite(void)
     uint64_t misuse = m2World_GetCounters(in.world).misuse;
     m2World_Step(in.world, 1.0f / 60.0f, 4);
     CHECK(in.calls > 0, "the step ran the task hook");
-    CHECK(in.created == m2_errorState, "a create inside a task refuses with m2_errorState");
-    CHECK(in.destroyed == m2_errorState, "so does a destroy");
-    CHECK(in.restored == m2_errorState, "and a restore, before it reads the bytes");
+    CHECK(in.created == m2_errorBusy, "a create inside a task refuses with m2_errorBusy");
+    CHECK(in.destroyed == m2_errorBusy, "so does a destroy");
+    CHECK(in.restored == m2_errorBusy, "and a restore, before it reads the bytes");
     CHECK(in.stepsSeen == 0, "a nested step does not run, and readers still answer");
     CHECK(m2World_GetCounters(in.world).misuse == misuse + 5,
           "each refusal, the void ones too, counts one misuse");
@@ -2025,7 +2040,7 @@ static void TestHostCodeCannotWrite(void)
     draw.context = &in;
     m2World_Draw(in.world, &draw);
     CHECK(in.calls > 0, "the draw ran its callback");
-    CHECK(in.created == m2_errorState && in.destroyed == m2_errorState,
+    CHECK(in.created == m2_errorBusy && in.destroyed == m2_errorBusy,
           "writers refuse inside a draw callback");
     CHECK(in.stepsSeen == 1, "a step inside a draw does not run");
 
@@ -2056,7 +2071,7 @@ static void* MeddlingAlloc(size_t size, size_t alignment, void* context)
         m->allocCalls += 1;
         m2BodyDef bd = m2DefaultBodyDef();
         m2BodyId made = m2_nullBodyId;
-        m->allocRefused += m2CreateBody(m->target, &bd, &made) == m2_errorState ? 1 : 0;
+        m->allocRefused += m2CreateBody(m->target, &bd, &made) == m2_errorBusy ? 1 : 0;
     }
     return malloc(size);
 }
@@ -2069,7 +2084,7 @@ static void MeddlingFree(void* memory, size_t size, size_t alignment, void* cont
     if (m->target != NULL)
     {
         m->freeCalls += 1;
-        m->freeRefused += m2DestroyBody(m->target, m->body) == m2_errorState ? 1 : 0;
+        m->freeRefused += m2DestroyBody(m->target, m->body) == m2_errorBusy ? 1 : 0;
     }
     free(memory);
 }
@@ -2165,6 +2180,69 @@ static void PeekingFinish(void* userTask, void* userContext)
     (void)userContext;
 }
 
+// An allocator that gives out a set number of blocks; -1 never runs out.
+typedef struct Ration
+{
+    int32_t left;
+} Ration;
+
+static void* RationedAlloc(size_t size, size_t alignment, void* context)
+{
+    (void)alignment;
+    Ration* ration = (Ration*)context;
+    if (ration->left == 0)
+    {
+        return NULL;
+    }
+    ration->left -= ration->left > 0 ? 1 : 0;
+    return malloc(size);
+}
+
+static void RationedFree(void* memory, size_t size, size_t alignment, void* context)
+{
+    (void)size;
+    (void)alignment;
+    (void)context;
+    free(memory);
+}
+
+static void TestReplayScratchRefusedIsCapacity(void)
+{
+    // A replay whose backup fits but whose chain record's scratch the
+    // allocator refuses is out of memory, not a malformed tape.
+    Ration ration = {-1};
+    m2WorldDef def = m2DefaultWorldDef();
+    def.allocator.alloc = RationedAlloc;
+    def.allocator.free = RationedFree;
+    def.allocator.context = &ration;
+    m2World* world = NewWorld(&def);
+    int64_t capacity = m2World_GetJournalBaseSize(world) + (1 << 12);
+    void* tape = malloc((size_t)capacity);
+    CHECK(StartJournal(world, tape, capacity), "the journal starts");
+    m2BodyDef gd = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(world, &gd);
+    m2Vec2 ledge[4] = {{-4.0f, 0.0f}, {-2.0f, 0.0f}, {2.0f, 0.0f}, {4.0f, 0.0f}};
+    m2ChainDef cd = m2DefaultChainDef();
+    cd.points = ledge;
+    cd.count = 4;
+    CHECK(NewChain(world, ground, &cd).index1 != 0, "the chain is recorded");
+    int64_t bytes = StopJournal(world);
+
+    m2World* fresh = NewWorld(&def);
+    uint64_t hash = m2World_Hash(fresh);
+    uint64_t misuse = m2World_GetCounters(fresh).misuse;
+    ration.left = 1; // the backup, and nothing after it
+    CHECK(m2World_ReplayJournal(fresh, tape, bytes) == m2_errorCapacity,
+          "a refused record scratch is m2_errorCapacity");
+    ration.left = -1;
+    CHECK(m2World_Hash(fresh) == hash && m2World_GetCounters(fresh).misuse == misuse,
+          "and the world is as it was, with no misuse counted");
+    CHECK(ReplayJournal(fresh, tape, bytes), "with memory, the same tape replays");
+    free(tape);
+    m2DestroyWorld(fresh);
+    m2DestroyWorld(world);
+}
+
 static void TestHostCodeMistakesCountMidReplay(void)
 {
     Peeker peek = {NULL, {9u, 1u}, 0};
@@ -2229,15 +2307,15 @@ static void TestCorruptInputIsNotMisuse(void)
 
     uint64_t misuse = m2World_GetCounters(world).misuse;
     snap[0] ^= 0xFF;
-    CHECK(m2World_Restore(world, snap, size) == m2_errorInvalid, "a corrupt snapshot refuses");
-    CHECK(m2World_Restore(world, snap, 3) == m2_errorInvalid, "so does a truncated one");
+    CHECK(m2World_Restore(world, snap, size) == m2_errorFormat, "a corrupt snapshot refuses");
+    CHECK(m2World_Restore(world, snap, 3) == m2_errorFormat, "so does a truncated one");
     // The last record is the body-param op; its channel byte sits four
     // bytes from the end. An unknown channel is refused by the setter the
     // replay calls.
     tape[bytes - 4] = 200;
-    CHECK(m2World_ReplayJournal(world, tape, bytes) == m2_errorInvalid, "a corrupt tape refuses");
+    CHECK(m2World_ReplayJournal(world, tape, bytes) == m2_errorFormat, "a corrupt tape refuses");
     tape[0] ^= 0xFF;
-    CHECK(m2World_ReplayJournal(world, tape, bytes) == m2_errorInvalid,
+    CHECK(m2World_ReplayJournal(world, tape, bytes) == m2_errorFormat,
           "and so does one with a broken header");
     CHECK(m2World_GetCounters(world).misuse == misuse, "none of it counts as misuse");
 
@@ -2774,8 +2852,14 @@ static void TestShatterBody(void)
     CHECK(m2World_GetCounters(small).misuse == misuseBefore, "a full pool is not misuse");
     m2Polygon bent = shards[0];
     bent.count = M2_MAX_POLYGON_VERTICES + 1;
+    CHECK(m2World_ShatterBody(small, lone, &bent, 1, NULL, 0, &count) == m2_errorLimit,
+          "a piece past M2_MAX_POLYGON_VERTICES refuses with m2_errorLimit");
+    CHECK(m2World_GetCounters(small).misuse == misuseBefore + 1, "as misuse");
+    bent = shards[0];
+    bent.vertices[1] = bent.vertices[0];
     CHECK(m2World_ShatterBody(small, lone, &bent, 1, NULL, 0, &count) == m2_errorInvalid,
-          "a malformed piece refuses with m2_errorInvalid");
+          "a degenerate piece refuses with m2_errorInvalid");
+    misuseBefore += 1;
     CHECK(m2World_GetCounters(small).misuse == misuseBefore + 1, "as misuse");
     CHECK(m2World_Hash(small) == before, "a refusal moves no bits");
     m2BodyDef fixed = m2DefaultBodyDef();
@@ -3086,7 +3170,7 @@ static void TestSetMassDataChecksEveryField(void)
         bad[i] = good;
     }
     bad[0].center.x = NAN;
-    bad[1].center.x = 2.0f * M2_HUGE;
+    bad[1].center.x = 2.0f * M2_LOCAL_LIMIT;
     bad[2].centralInertia = NAN;
     bad[3].centralInertia = INFINITY;
     bad[4].mass = 1e-45f; // its inverse overflows
@@ -3114,7 +3198,7 @@ static void TestSetMassDataChecksEveryField(void)
     m2MassData fixed = m2Body_GetMassData(world, body);
     m2Body_SetMassData(world, body, fixed);
     m2Body_SetMotionLocks(world, body, (m2MotionLocks){false, false, false});
-    m2MassData distant = {1.0f, {M2_HUGE, 0.0f}, 1.0f};
+    m2MassData distant = {1.0f, {M2_LOCAL_LIMIT, 0.0f}, 1.0f};
     m2Body_SetMassData(world, body, distant);
     m2MassData back = m2Body_GetMassData(world, body);
     m2Body_SetMassData(world, body, back);
@@ -3182,7 +3266,7 @@ static void TestSmallCentralInertiaIsKept(void)
     m2DestroyWorld(world);
 }
 
-// A body whose shapes all sit at M2_HUGE has its center there: the
+// A body whose shapes all sit at M2_LOCAL_LIMIT has its center there: the
 // weighted mean's rounding must not carry it past the bound the snapshot
 // checks, whatever the density.
 static void TestCentersAtTheBoundRestore(void)
@@ -3194,7 +3278,7 @@ static void TestCentersAtTheBoundRestore(void)
     m2BodyDef bodyDef = m2DefaultBodyDef();
     bodyDef.type = m2_dynamicBody;
     m2ShapeDef shapeDef = m2DefaultShapeDef();
-    const m2Circle edge = {{M2_HUGE, -M2_HUGE}, 0.1f};
+    const m2Circle edge = {{M2_LOCAL_LIMIT, -M2_LOCAL_LIMIT}, 0.1f};
     for (int32_t i = 0; i < 64; ++i)
     {
         bodyDef.position = (m2Pos2){(double)i * 10.0, 0.0};
@@ -3203,7 +3287,8 @@ static void TestCentersAtTheBoundRestore(void)
         NewCircleShape(world, body, &shapeDef, &edge);
         NewCircleShape(world, body, &shapeDef, &edge);
         m2Vec2 center = m2Body_GetLocalCenter(world, body);
-        CHECK(center.x <= M2_HUGE && center.y >= -M2_HUGE, "the center stays within M2_HUGE");
+        CHECK(center.x <= M2_LOCAL_LIMIT && center.y >= -M2_LOCAL_LIMIT,
+              "the center stays within M2_LOCAL_LIMIT");
     }
     int64_t size = m2World_SnapshotSize(world);
     void* snapshot = malloc((size_t)size);
@@ -3631,6 +3716,7 @@ static void TestHashSeesTheBroadphase(void)
 
 int main(void)
 {
+    TestReplayScratchRefusedIsCapacity();
     TestHashSeesTheBroadphase();
     TestHashCoversEverySetting();
     TestHashKeysSlotsAndPools();

@@ -51,11 +51,13 @@ float m2PulleyLiveLength(const m2World* world, int32_t index, int32_t side)
 // reference angle: defs carry no length. All snapshot state.
 // The def contract: finite values, non-negative gains and budgets,
 // ordered ranges.
-static bool DefValid(const m2PulleyJointDef* def)
+static m2Result DefCheck(const m2PulleyJointDef* def)
 {
-    return m2FinitePos2(def->groundAnchorA) && m2FinitePos2(def->groundAnchorB) &&
-           m2LocalVec2(def->localAnchorA) && m2LocalVec2(def->localAnchorB) &&
-           m2ValidRatio(def->ratio) && def->ratio > 0.0f;
+    m2Result result = m2CheckValid(m2FinitePos2(def->groundAnchorA) &&
+                                   m2FinitePos2(def->groundAnchorB) && !(def->ratio < 0.0f));
+    result = m2BothChecks(result, m2CheckLocalVec2(def->localAnchorA));
+    result = m2BothChecks(result, m2CheckLocalVec2(def->localAnchorB));
+    return m2BothChecks(result, m2CheckRatio(def->ratio));
 }
 
 // The create record holds the def's fields and zero bytes between them:
@@ -88,9 +90,14 @@ static M2_NOINLINE m2Result CreatePulleyJointWorker(m2World* world, const m2Pull
     {
         return writer;
     }
-    if (def == NULL || def->internalValue != M2_PLJOINT_COOKIE || !DefValid(def))
+    if (def == NULL || def->internalValue != M2_PLJOINT_COOKIE)
     {
         return m2Refuse(world, m2_errorInvalid);
+    }
+    m2Result checked = DefCheck(def);
+    if (checked != m2_success)
+    {
+        return m2Refuse(world, checked);
     }
     int32_t bodyA = m2BodySlot(world, def->bodyIdA);
     int32_t bodyB = m2BodySlot(world, def->bodyIdB);

@@ -63,7 +63,7 @@ typedef struct m2RowDrive
 // A limit row's gap is held within this before it becomes a speed: every
 // real gap is within the reach plus a lever, and an open-ended limit
 // (the distance joint's unbounded length) stays finite.
-#define M2_LIMIT_GAP_MAX (4.0f * (float)M2_JOINT_REACH)
+#define M2_LIMIT_GAP_MAX (4.0f * (float)M2_REACH_LIMIT)
 
 // B's point minus A's point moving along u, where u is fixed in the world
 // (leverA = A's arm) or turns with A (leverA = A's arm plus the gap).
@@ -98,15 +98,15 @@ static inline float m2RowSpeed(const m2JointRow* row, const m2JointBodies* b)
 // The row's effective mass, zero when the row cannot move.
 float m2RowMass(const m2JointRow* row, const m2JointBodies* b);
 
-// Holds both bodies' velocities within M2_MAX_SPEED, after every push.
+// Holds both bodies' velocities within M2_SPEED_LIMIT, after every push.
 static inline void m2SaturateBodies(m2JointBodies* b)
 {
-    b->vA.x = m2SaturateF(b->vA.x, M2_MAX_SPEED);
-    b->vA.y = m2SaturateF(b->vA.y, M2_MAX_SPEED);
-    b->wA = m2SaturateF(b->wA, M2_MAX_SPEED);
-    b->vB.x = m2SaturateF(b->vB.x, M2_MAX_SPEED);
-    b->vB.y = m2SaturateF(b->vB.y, M2_MAX_SPEED);
-    b->wB = m2SaturateF(b->wB, M2_MAX_SPEED);
+    b->vA.x = m2SaturateF(b->vA.x, M2_SPEED_LIMIT);
+    b->vA.y = m2SaturateF(b->vA.y, M2_SPEED_LIMIT);
+    b->wA = m2SaturateF(b->wA, M2_SPEED_LIMIT);
+    b->vB.x = m2SaturateF(b->vB.x, M2_SPEED_LIMIT);
+    b->vB.y = m2SaturateF(b->vB.y, M2_SPEED_LIMIT);
+    b->wB = m2SaturateF(b->wB, M2_SPEED_LIMIT);
 }
 
 static inline void m2PushRow(const m2JointRow* row, m2JointBodies* b, float impulse)

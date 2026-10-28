@@ -29,13 +29,14 @@ m2WeldJointDef m2DefaultWeldJointDef(void)
 
 // The def contract: finite values, non-negative gains and budgets,
 // ordered ranges.
-static bool DefValid(const m2WeldJointDef* def)
+static m2Result DefCheck(const m2WeldJointDef* def)
 {
-    return m2LocalVec2(def->localAnchorA) && m2LocalVec2(def->localAnchorB) &&
-           m2ValidRate(def->linearSpringHertz) &&
-           m2ValidCoefficient(def->linearSpringDampingRatio) &&
-           m2ValidRate(def->angularSpringHertz) &&
-           m2ValidCoefficient(def->angularSpringDampingRatio);
+    m2Result result =
+        m2BothChecks(m2CheckLocalVec2(def->localAnchorA), m2CheckLocalVec2(def->localAnchorB));
+    result = m2BothChecks(result, m2CheckRate(def->linearSpringHertz));
+    result = m2BothChecks(result, m2CheckCoefficient(def->linearSpringDampingRatio));
+    result = m2BothChecks(result, m2CheckRate(def->angularSpringHertz));
+    return m2BothChecks(result, m2CheckCoefficient(def->angularSpringDampingRatio));
 }
 
 // The create record holds the def's fields and zero bytes between them:
@@ -69,9 +70,14 @@ static M2_NOINLINE m2Result CreateWeldJointWorker(m2World* world, const m2WeldJo
     {
         return writer;
     }
-    if (def == NULL || def->internalValue != M2_WJOINT_COOKIE || !DefValid(def))
+    if (def == NULL || def->internalValue != M2_WJOINT_COOKIE)
     {
         return m2Refuse(world, m2_errorInvalid);
+    }
+    m2Result checked = DefCheck(def);
+    if (checked != m2_success)
+    {
+        return m2Refuse(world, checked);
     }
     int32_t bodyA = m2BodySlot(world, def->bodyIdA);
     int32_t bodyB = m2BodySlot(world, def->bodyIdB);

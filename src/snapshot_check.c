@@ -468,7 +468,7 @@ static bool JointKindValid(const JointFields* f)
         // The ratio in length, the rope total (one side plus ratio times
         // the other) in reference.
         return m2ValidRatio(f->length) && f->length > 0.0f &&
-               m2WithinF(f->reference, 0.0f, (1.0f + f->length) * 2.0f * (float)M2_JOINT_REACH);
+               m2WithinF(f->reference, 0.0f, (1.0f + f->length) * 2.0f * (float)M2_REACH_LIMIT);
     case m2_ratchetJoint:
         // The tooth pitch in length, its phase in reference.
         return m2ValidRatchetTooth(f->length) && m2ValidAngle(f->reference);

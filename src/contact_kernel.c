@@ -148,14 +148,14 @@ static m2f8 RelativeSpeed(const Pair* p, const Arms* r, m2f8 dx, m2f8 dy)
     return m2F8MulAdd(y, dy, m2F8Mul(x, dx));
 }
 
-// x held within M2_MAX_SPEED.
+// x held within M2_SPEED_LIMIT.
 static m2f8 SaturateSpeed(m2f8 x)
 {
-    return m2F8Min(m2F8Max(x, m2F8Set1(-M2_MAX_SPEED)), m2F8Set1(M2_MAX_SPEED));
+    return m2F8Min(m2F8Max(x, m2F8Set1(-M2_SPEED_LIMIT)), m2F8Set1(M2_SPEED_LIMIT));
 }
 
 // Applies the impulse (px, py) to B and its opposite to A; every velocity
-// is held within M2_MAX_SPEED.
+// is held within M2_SPEED_LIMIT.
 static void ApplyImpulse(Pair* p, const Arms* r, m2f8 px, m2f8 py)
 {
     m2f8 torqueA = m2F8NegMulAdd(r->ay, px, m2F8Mul(r->ax, py));

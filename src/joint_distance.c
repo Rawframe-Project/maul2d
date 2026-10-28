@@ -29,13 +29,17 @@ m2DistanceJointDef m2DefaultDistanceJointDef(void)
 
 // The def contract: finite values, non-negative gains and budgets,
 // ordered ranges.
-static bool DefValid(const m2DistanceJointDef* def)
+static m2Result DefCheck(const m2DistanceJointDef* def)
 {
-    return m2LocalVec2(def->localAnchorA) && m2LocalVec2(def->localAnchorB) &&
-           m2ValidReach(def->length) && m2ValidReach(def->minLength) &&
-           m2ValidReach(def->maxLength) &&
-           !(def->maxLength > 0.0f && def->minLength > def->maxLength) &&
-           m2ValidRate(def->springHertz) && m2ValidCoefficient(def->springDampingRatio);
+    m2Result result =
+        m2BothChecks(m2CheckLocalVec2(def->localAnchorA), m2CheckLocalVec2(def->localAnchorB));
+    result = m2BothChecks(result, m2CheckReach(def->length));
+    result = m2BothChecks(result, m2CheckReach(def->minLength));
+    result = m2BothChecks(result, m2CheckReach(def->maxLength));
+    result = m2BothChecks(
+        result, m2CheckValid(!(def->maxLength > 0.0f && def->minLength > def->maxLength)));
+    result = m2BothChecks(result, m2CheckRate(def->springHertz));
+    return m2BothChecks(result, m2CheckCoefficient(def->springDampingRatio));
 }
 
 // The create record holds the def's fields and zero bytes between them:
@@ -71,9 +75,14 @@ static M2_NOINLINE m2Result CreateDistanceJointWorker(m2World* world, const m2Di
     {
         return writer;
     }
-    if (def == NULL || def->internalValue != M2_DJOINT_COOKIE || !DefValid(def))
+    if (def == NULL || def->internalValue != M2_DJOINT_COOKIE)
     {
         return m2Refuse(world, m2_errorInvalid);
+    }
+    m2Result checked = DefCheck(def);
+    if (checked != m2_success)
+    {
+        return m2Refuse(world, checked);
     }
     int32_t bodyA = m2BodySlot(world, def->bodyIdA);
     int32_t bodyB = m2BodySlot(world, def->bodyIdB);

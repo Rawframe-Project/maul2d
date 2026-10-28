@@ -34,8 +34,8 @@ typedef struct m2MassShapes
 m2BodyMass m2BodyMassFromShapes(uint8_t type, bool fixedRotation, const m2MassShapes* shapes);
 
 // Whether a body may keep these inverses as mass data of its own: the
-// inverse of a mass within [M2_MIN_MASS, M2_MAX_MASS], and 0 or the
-// inverse of an inertia within [M2_MIN_INERTIA, M2_MAX_INERTIA].
+// inverse of a mass within [M2_MIN_MASS, M2_MASS_LIMIT], and 0 or the
+// inverse of an inertia within [M2_MIN_INERTIA, M2_INERTIA_LIMIT].
 // m2Body_SetMassData and the snapshot check share it, so what one accepts
 // the other does.
 bool m2MassInversesValid(float invMass, float invInertia);

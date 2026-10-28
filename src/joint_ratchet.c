@@ -35,9 +35,9 @@ m2RatchetJointDef m2DefaultRatchetJointDef(void)
 // engaged tooth rides jointLower. All snapshot state.
 // The def contract: finite values, non-negative gains and budgets,
 // ordered ranges.
-static bool DefValid(const m2RatchetJointDef* def)
+static m2Result DefCheck(const m2RatchetJointDef* def)
 {
-    return m2ValidRatchetTooth(def->ratchet) && m2ValidAngle(def->phase);
+    return m2BothChecks(m2CheckRatchetTooth(def->ratchet), m2CheckAngle(def->phase));
 }
 
 // The create record holds the def's fields and zero bytes between them:
@@ -67,9 +67,14 @@ static M2_NOINLINE m2Result CreateRatchetJointWorker(m2World* world, const m2Rat
     {
         return writer;
     }
-    if (def == NULL || def->internalValue != M2_RTJOINT_COOKIE || !DefValid(def))
+    if (def == NULL || def->internalValue != M2_RTJOINT_COOKIE)
     {
         return m2Refuse(world, m2_errorInvalid);
+    }
+    m2Result checked = DefCheck(def);
+    if (checked != m2_success)
+    {
+        return m2Refuse(world, checked);
     }
     int32_t bodyA = m2BodySlot(world, def->bodyIdA);
     int32_t bodyB = m2BodySlot(world, def->bodyIdB);

@@ -43,16 +43,19 @@ m2BodyDef m2DefaultBodyDef(void)
 
 // A def every field of which a snapshot of the world will restore: a
 // known type, a finite position, a rotation with a direction, and the
-// velocities, gravity scale and dampings within their ranges.
-static bool BodyDefValid(const m2BodyDef* def)
+// velocities, gravity scale and dampings within their bounds.
+static m2Result BodyDefCheck(const m2BodyDef* def)
 {
-    return (int32_t)def->type >= (int32_t)m2_staticBody &&
-           (int32_t)def->type <= (int32_t)m2_dynamicBody && m2FinitePos2(def->position) &&
-           m2FiniteF(def->rotation.c) && m2FiniteF(def->rotation.s) &&
-           (def->rotation.c != 0.0f || def->rotation.s != 0.0f) &&
-           m2ValidVelocity(def->linearVelocity) && m2ValidSpeed(def->angularVelocity) &&
-           m2ValidGravityScale(def->gravityScale) && m2ValidRate(def->linearDamping) &&
-           m2ValidRate(def->angularDamping);
+    m2Result result =
+        m2CheckValid((int32_t)def->type >= (int32_t)m2_staticBody &&
+                     (int32_t)def->type <= (int32_t)m2_dynamicBody && m2FinitePos2(def->position) &&
+                     m2FiniteF(def->rotation.c) && m2FiniteF(def->rotation.s) &&
+                     (def->rotation.c != 0.0f || def->rotation.s != 0.0f));
+    result = m2BothChecks(result, m2CheckVelocity(def->linearVelocity));
+    result = m2BothChecks(result, m2CheckSpeed(def->angularVelocity));
+    result = m2BothChecks(result, m2CheckGravityScale(def->gravityScale));
+    result = m2BothChecks(result, m2CheckRate(def->linearDamping));
+    return m2BothChecks(result, m2CheckRate(def->angularDamping));
 }
 
 // A static body never moves, so its def carries no velocity, as its
@@ -103,10 +106,14 @@ static M2_NOINLINE m2Result CreateBodyWorker(m2World* world, const m2BodyDef* de
     {
         return writer;
     }
-    if (def == NULL || def->internalValue != M2_BODY_COOKIE || !BodyDefValid(def) ||
-        !StaticDefIsStill(def))
+    if (def == NULL || def->internalValue != M2_BODY_COOKIE)
     {
         return m2Refuse(world, m2_errorInvalid);
+    }
+    m2Result checked = m2BothChecks(BodyDefCheck(def), m2CheckValid(StaticDefIsStill(def)));
+    if (checked != m2_success)
+    {
+        return m2Refuse(world, checked);
     }
     if (world->bodies.freeCount == 0)
     {
@@ -153,7 +160,7 @@ static M2_NOINLINE m2Result CreateBodyWorker(m2World* world, const m2BodyDef* de
     {
         world->bodies.maxBodyIndex = index + 1;
     }
-    M2_ASSERT(m2StateBodyValid(world, index)); // BodyDefValid admits what a restore does
+    M2_ASSERT(m2StateBodyValid(world, index)); // BodyDefCheck admits what a restore does
 
     m2BodyId id = {(uint32_t)(index + 1), world->bodies.generations[index]};
 
@@ -800,7 +807,7 @@ void m2Body_SetDominance(m2World* world, m2BodyId bodyId, int8_t dominance)
 }
 
 // The inverses a body keeps for mass data, or false when the data has
-// none a float holds: a mass outside its range, a center beyond M2_HUGE,
+// none a float holds: a mass outside its range, a center beyond M2_LOCAL_LIMIT,
 // a central inertia that is neither 0 nor within its range, or inverses
 // m2MassInversesValid refuses: one that overflows, or one whose own
 // inverse does, as the inverse of a mass of FLT_MAX does. The inertia is

@@ -239,11 +239,11 @@ static m2Result ReplayOps(m2World* world, const uint8_t* data, int64_t size)
     memcpy(&header, data, sizeof(header));
     if (header.snapshotSize < 0 || size - (int64_t)sizeof(header) < header.snapshotSize)
     {
-        return m2_errorInvalid;
+        return m2_errorFormat;
     }
-    // The embedded snapshot's refusal is the tape's: one from another
-    // release or build stays m2_errorVersion, one from another world shape
-    // m2_errorInvalid.
+    // The embedded snapshot's refusal is the tape's: m2_errorVersion for
+    // one from another release or build, m2_errorFormat for the rest, one
+    // from another world shape included.
     m2Result restored = m2World_Restore(world, data + sizeof(header), header.snapshotSize);
     if (restored != m2_success)
     {
@@ -257,6 +257,7 @@ static m2Result ReplayOps(m2World* world, const uint8_t* data, int64_t size)
     cursor.data = data;
     cursor.size = size;
     cursor.offset = (int64_t)sizeof(header) + header.snapshotSize;
+    cursor.failure = m2_errorFormat;
 
     // Payloads sit unaligned in the stream; each is copied out first, so
     // an apply function always reads an aligned struct.
@@ -267,20 +268,20 @@ static m2Result ReplayOps(m2World* world, const uint8_t* data, int64_t size)
         cursor.offset += 1;
         if (command == NULL || size - cursor.offset < command->payloadSize)
         {
-            return m2_errorInvalid; // unknown op or truncated payload
+            return m2_errorFormat; // unknown op or truncated payload
         }
         for (int32_t k = 0; k < command->boolCount; ++k)
         {
             if (data[cursor.offset + command->bools[k]] > 1)
             {
-                return m2_errorInvalid; // a bool that is neither false nor true
+                return m2_errorFormat; // a bool that is neither false nor true
             }
         }
         memcpy(&payload, data + cursor.offset, (size_t)command->payloadSize);
         cursor.offset += command->payloadSize;
         if (!command->apply(&cursor, &payload))
         {
-            return m2_errorInvalid;
+            return cursor.failure;
         }
     }
     return m2_success;

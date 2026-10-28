@@ -23,6 +23,11 @@ extern "C"
 // boundary becomes a chain.
 #define M2_MAX_POLYGON_VERTICES 8
 
+// The most points m2DecomposeOutline takes, and the most pieces
+// m2World_ShatterBody takes in one call.
+#define M2_MAX_OUTLINE_POINTS 64
+#define M2_MAX_SHATTER_PIECES 64
+
     /// A shape of a world: a 1-based slot and a generation.
     typedef struct m2ShapeId
     {
@@ -31,7 +36,7 @@ extern "C"
     } m2ShapeId;
 
     /// A circle. All geometry is authored in body-local space, in 32-bit
-    /// floats, with every coordinate and radius within M2_HUGE.
+    /// floats, with every coordinate and radius within M2_LOCAL_LIMIT.
     typedef struct m2Circle
     {
         m2Vec2 center;
@@ -89,9 +94,9 @@ extern "C"
     /// The def of a shape. Initialize it with m2DefaultShapeDef.
     typedef struct m2ShapeDef
     {
-        float density;      // kg/m^2, 0 to M2_MAX_DENSITY; a dynamic body gets a minimum mass
-        float friction;     // Coulomb, 0 to M2_MAX_COEFFICIENT; pairs mix by geometric mean
-        float tangentSpeed; // conveyor along the contact tangent, m/s, within M2_MAX_SPEED
+        float density;      // kg/m^2, 0 to M2_DENSITY_LIMIT; a dynamic body gets a minimum mass
+        float friction;     // Coulomb, 0 to M2_COEFFICIENT_LIMIT; pairs mix by geometric mean
+        float tangentSpeed; // conveyor along the contact tangent, m/s, within M2_SPEED_LIMIT
         float restitution;  // bounce in [0, 1]; pairs mix by maximum
         /// Two shapes collide when each one's category intersects the
         /// other's mask. Defaults: category 1, mask all. Queries take
@@ -121,14 +126,14 @@ extern "C"
     /// The def of a chain. Initialize it with m2DefaultChainDef. An open
     /// chain needs at least 4 points: the first and last are ghosts, and
     /// the chain collides along points[1..count-2]. A loop needs at least
-    /// 3 and wraps. Every point lies within M2_HUGE. The points are copied,
+    /// 3 and wraps. Every point lies within M2_LOCAL_LIMIT. The points are copied,
     /// so the array may be temporary.
     typedef struct m2ChainDef
     {
         const m2Vec2* points;
         int32_t count;
         bool isLoop;
-        float friction;    // 0 to M2_MAX_COEFFICIENT
+        float friction;    // 0 to M2_COEFFICIENT_LIMIT
         float restitution; // 0 to 1
         M2_ALIGN8 uint64_t categoryBits;
         M2_ALIGN8 uint64_t maskBits;
@@ -161,7 +166,8 @@ extern "C"
     ///         the shorter chain) or the chain or shape pool has no room at
     ///         all (chainOut is the null id); m2_errorStale for a stale
     ///         body; m2_errorInvalid for a bad def or a null chainOut;
-    ///         m2_errorState from host code the world is running.
+    ///         m2_errorLimit for a point or value past its published bound;
+    ///         m2_errorBusy from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2CreateChain(m2World* world, m2BodyId bodyId,
@@ -173,7 +179,7 @@ extern "C"
     /// @param world    The world.
     /// @param chainId  The chain.
     /// @return m2_success; m2_errorStale when the chain is already gone;
-    ///         m2_errorState from host code the world is running.
+    ///         m2_errorBusy from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2DestroyChain(m2World* world, m2ChainId chainId);
@@ -223,10 +229,13 @@ extern "C"
     /// thresholds relative to its size.
     ///
     /// @param points      The vertices.
-    /// @param count       The number of points, 3 to 8.
+    /// @param count       The number of points, 3 to
+    ///                    M2_MAX_POLYGON_VERTICES.
     /// @param radius      The rounding radius, at least 0.
     /// @param polygonOut  Receives the polygon; left as it was on failure.
-    /// @return m2_success; m2_errorInvalid when the points do not make a
+    /// @return m2_success; m2_errorLimit for more than
+    ///         M2_MAX_POLYGON_VERTICES points, or a point or radius past
+    ///         M2_LOCAL_LIMIT; m2_errorInvalid when the points do not make a
     ///         valid polygon or an argument is null.
     /// @par Thread safety
     /// Safe from any thread.
@@ -241,9 +250,10 @@ extern "C"
     /// @param count       The number of points.
     /// @param radius      The rounding radius, at least 0.
     /// @param polygonOut  Receives the hull; left as it was on failure.
-    /// @return m2_success; m2_errorInvalid when no hull remains (too few
-    ///         points, all welded together, all collinear) or an argument
-    ///         is null.
+    /// @return m2_success; m2_errorLimit for a point the hull takes or a
+    ///         radius past M2_LOCAL_LIMIT; m2_errorInvalid when no hull
+    ///         remains (too few points, all welded together, all collinear)
+    ///         or an argument is null.
     /// @par Thread safety
     /// Safe from any thread.
     M2_NODISCARD M2_API m2Result m2ComputeHull(const m2Vec2* points, int32_t count, float radius,
@@ -255,20 +265,21 @@ extern "C"
     /// dropped by validation; a clean outline loses nothing, and one that
     /// would lose every piece is refused.
     ///
-    /// @param points    The outline, up to 64 points.
+    /// @param points    The outline, up to M2_MAX_OUTLINE_POINTS points.
     /// @param count     The number of points.
     /// @param pieces    Receives up to capacity pieces; may be null to
     ///                  measure.
     /// @param capacity  The length of pieces.
     /// @param countOut  Receives the number of pieces, which may exceed
     ///                  capacity; left as it was on failure.
-    /// @return m2_success; m2_errorInvalid for too few or too many points,
-    ///         clockwise winding, an outline too thin for any piece to pass
-    ///         validation, an outline that is not simple (an edge
-    ///         crossing another, a vertex within 0.005 m of an edge it
-    ///         does not end, a repeated vertex, an edge folding back over
-    ///         its neighbor), a point beyond M2_HUGE or a null argument. It takes no world, so
-    ///         a refusal counts nothing.
+    /// @return m2_success; m2_errorLimit for more than
+    ///         M2_MAX_OUTLINE_POINTS points or a point past M2_LOCAL_LIMIT;
+    ///         m2_errorInvalid for too few points, clockwise winding, an
+    ///         outline too thin for any piece to pass validation, an
+    ///         outline that is not simple (an edge crossing another, a
+    ///         vertex within 0.005 m of an edge it does not end, a repeated
+    ///         vertex, an edge folding back over its neighbor) or a null
+    ///         argument. It takes no world, so a refusal counts nothing.
     /// @par Thread safety
     /// Safe from any thread.
     M2_NODISCARD M2_API m2Result m2DecomposeOutline(const m2Vec2* points, int32_t count,
@@ -287,7 +298,7 @@ extern "C"
     /// @param bodyId      The dynamic body to break.
     /// @param pieces      The pieces, body-local polygons (pair with
     ///                    m2DecomposeOutline).
-    /// @param pieceCount  The number of pieces, 1 to 64.
+    /// @param pieceCount  The number of pieces, 1 to M2_MAX_SHATTER_PIECES.
     /// @param bodiesOut   Receives up to capacity new bodies, in piece
     ///                    order; null ids on failure. May be null with
     ///                    capacity 0.
@@ -296,9 +307,11 @@ extern "C"
     ///                    exceed capacity; 0 on failure.
     /// @return m2_success; m2_errorStale for a stale body; m2_errorInvalid
     ///         for a body that is not dynamic, an invalid piece or piece
-    ///         count, or a bad output argument; m2_errorCapacity when the
+    ///         count, or a bad output argument; m2_errorLimit for more than
+    ///         M2_MAX_SHATTER_PIECES pieces or a piece past its bounds, as
+    ///         m2MakePolygon gives them; m2_errorCapacity when the
     ///         body or shape pool cannot seat every piece, which counts no
-    ///         misuse; m2_errorState from host code the world is running.
+    ///         misuse; m2_errorBusy from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2World_ShatterBody(m2World* world, m2BodyId bodyId,
@@ -325,8 +338,9 @@ extern "C"
     /// @param circle    The geometry, in the body's frame.
     /// @param shapeOut  Receives the shape; the null id on failure.
     /// @return m2_success; m2_errorStale for a stale body; m2_errorInvalid
-    ///         for a bad def or geometry or a null argument;
-    ///         m2_errorCapacity when the shape pool is full; m2_errorState
+    ///         for a bad def or geometry or a null argument; m2_errorLimit
+    ///         for a value or coordinate past its published bound;
+    ///         m2_errorCapacity when the shape pool is full; m2_errorBusy
     ///         from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
@@ -397,7 +411,7 @@ extern "C"
     /// @param world    The world.
     /// @param shapeId  The shape.
     /// @return m2_success; m2_errorStale when the shape is already gone;
-    ///         m2_errorState from host code the world is running.
+    ///         m2_errorBusy from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2DestroyShape(m2World* world, m2ShapeId shapeId);
@@ -408,7 +422,7 @@ extern "C"
     ///
     /// @param world     The world.
     /// @param shapeId   The shape.
-    /// @param friction  The Coulomb friction, 0 to M2_MAX_COEFFICIENT.
+    /// @param friction  The Coulomb friction, 0 to M2_COEFFICIENT_LIMIT.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_API void m2Shape_SetFriction(m2World* world, m2ShapeId shapeId, float friction);
@@ -425,7 +439,7 @@ extern "C"
     /// Sets a shape's conveyor speed along the contact tangent. A pair
     /// slides at the sum of both shapes' speeds; positive drives a rider
     /// toward +x on an upward-facing floor. Riders wake. A stale id or a
-    /// speed beyond M2_MAX_SPEED changes nothing and counts one misuse.
+    /// speed beyond M2_SPEED_LIMIT changes nothing and counts one misuse.
     /// Journaled.
     ///
     /// @param world    The world.
@@ -671,7 +685,7 @@ extern "C"
     ///
     /// @param world     The world.
     /// @param chainId   The chain.
-    /// @param friction  The Coulomb friction, 0 to M2_MAX_COEFFICIENT.
+    /// @param friction  The Coulomb friction, 0 to M2_COEFFICIENT_LIMIT.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_API void m2Chain_SetFriction(m2World* world, m2ChainId chainId, float friction);
@@ -743,7 +757,7 @@ extern "C"
     M2_API m2Pos2 m2Shape_GetClosestPoint(const m2World* world, m2ShapeId shapeId, m2Pos2 point);
 
     /// Sets a shape's density; a dynamic body recomputes its mass. A stale
-    /// id or a density outside 0 to M2_MAX_DENSITY changes nothing and
+    /// id or a density outside 0 to M2_DENSITY_LIMIT changes nothing and
     /// counts one misuse. Journaled.
     ///
     /// @param world    The world.

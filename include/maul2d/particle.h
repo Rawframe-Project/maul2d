@@ -19,6 +19,10 @@
 #include "maul2d/shape.h"
 #include "maul2d/world.h"
 
+// The most rest strides a particle fill spans across: a polygon wider
+// than this many strides is refused.
+#define M2_MAX_FILL_COLUMNS 256
+
 #ifdef __cplusplus
 extern "C"
 {
@@ -53,7 +57,7 @@ extern "C"
     typedef struct m2ParticleDef
     {
         m2Pos2 position;       // world space; for a fill, where the polygon's frame sits
-        m2Vec2 velocity;       // m/s, within M2_MAX_SPEED per axis
+        m2Vec2 velocity;       // m/s, within M2_SPEED_LIMIT per axis
         uint32_t flags;        // m2ParticleFlags values, ored together
         int32_t internalValue; // the cookie m2DefaultParticleDef sets
     } m2ParticleDef;
@@ -75,9 +79,10 @@ extern "C"
     /// @param particleOut  Receives the particle; the null id on failure.
     /// @return m2_success; m2_errorInvalid when the world has no particle
     ///         system, def or particleOut is null, def was not initialized
-    ///         by m2DefaultParticleDef or a value of it is not finite or out
-    ///         of range; m2_errorCapacity when the pool is full, which
-    ///         counts no misuse; m2_errorState from host code the world is
+    ///         by m2DefaultParticleDef or a value of it is NaN or not
+    ///         finite where it has no bound; m2_errorLimit for a velocity
+    ///         past M2_SPEED_LIMIT; m2_errorCapacity when the pool is full, which
+    ///         counts no misuse; m2_errorBusy from host code the world is
     ///         running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
@@ -91,7 +96,7 @@ extern "C"
     /// @param world       The world.
     /// @param particleId  The particle.
     /// @return m2_success; m2_errorStale when it is already gone, which
-    ///         counts no misuse; m2_errorState from host code the world is
+    ///         counts no misuse; m2_errorBusy from host code the world is
     ///         running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
@@ -181,7 +186,7 @@ extern "C"
     /// several readers at once.
     M2_API m2Vec2 m2Particle_GetVelocity(const m2World* world, m2ParticleId particleId);
 
-    /// Sets a particle's velocity. A velocity beyond M2_MAX_SPEED on either
+    /// Sets a particle's velocity. A velocity beyond M2_SPEED_LIMIT on either
     /// axis counts one misuse.
     /// Journaled.
     ///
@@ -213,7 +218,7 @@ extern "C"
     /// @param def       Every particle's velocity and flags, and where the
     ///                  polygon's frame sits, from m2DefaultParticleDef.
     /// @param polygon   The region, in the frame at def->position: a
-    ///                  polygon a shape would take, within M2_HUGE, convex
+    ///                  polygon a shape would take, within M2_LOCAL_LIMIT, convex
     ///                  and not a sliver. Its normals are recomputed from
     ///                  its vertices.
     /// @param countOut  Receives the number of particles created; 0 when
@@ -222,10 +227,11 @@ extern "C"
     ///         the polygon was full, which counts no misuse and counts once
     ///         in m2Counters.particlePoolFull; m2_errorInvalid when the
     ///         world has no particle system, an argument is null, def was
-    ///         not initialized by m2DefaultParticleDef or a value of it is
-    ///         not finite or out of range, the polygon is one m2MakePolygon
-    ///         would refuse or it is wider than 256 strides; m2_errorState
-    ///         from host code the world is running.
+    ///         not initialized by m2DefaultParticleDef, a value of it is
+    ///         NaN or the polygon is not one a shape would take;
+    ///         m2_errorLimit for a velocity or a polygon past its published
+    ///         bound, or a polygon wider than M2_MAX_FILL_COLUMNS strides;
+    ///         m2_errorBusy from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2CreateParticlesInPolygon(m2World* world,

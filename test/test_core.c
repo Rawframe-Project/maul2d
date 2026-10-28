@@ -368,6 +368,11 @@ static void TestVersionAndResultNames(void)
           "unsupported has its name");
     CHECK(strcmp(m2ResultName(m2_errorState), "m2_errorState") == 0, "state has its name");
     CHECK(strcmp(m2ResultName(m2_errorVersion), "m2_errorVersion") == 0, "version has its name");
+    CHECK(strcmp(m2ResultName(m2_errorFormat), "m2_errorFormat") == 0, "format has its name");
+    CHECK(strcmp(m2ResultName(m2_errorLimit), "m2_errorLimit") == 0, "limit has its name");
+    CHECK(strcmp(m2ResultName(m2_errorBusy), "m2_errorBusy") == 0, "busy has its name");
+    CHECK(m2_errorFormat == -8 && m2_errorLimit == -9 && m2_errorBusy == -10,
+          "the family's shared values");
     CHECK(strcmp(m2ResultName(-5), "unknown m2Result") == 0, "an unused value is named unknown");
 }
 

@@ -408,7 +408,7 @@ void m2WorldFree(const m2World* world, void* memory, size_t bytes);
 
 // The check every mutating call makes before anything else: a null world
 // is invalid, and a world running host code (a step's tasks, a debug draw
-// callback) refuses with m2_errorState. Returns m2_success otherwise.
+// callback) refuses with m2_errorBusy. Returns m2_success otherwise.
 m2Result m2CheckWriter(const m2World* world);
 
 // The 16 bytes every state format starts with, the snapshot's and the
@@ -445,11 +445,11 @@ static inline bool m2SizeFitsMemory(int64_t bytes)
 }
 
 // Checks the prefix of untrusted bytes, in the order every state format
-// shares: too short or another magic is m2_errorInvalid, since the bytes
+// shares: too short or another magic is m2_errorFormat, since the bytes
 // are not this format; another release or format number is
 // m2_errorVersion, since only the release that wrote them reads them; a
 // header size that is not this format's, or bytes too short to hold it,
-// is m2_errorInvalid. Counts nothing: the bytes are untrusted.
+// is m2_errorFormat. Counts nothing: the bytes are untrusted.
 m2Result m2CheckStatePrefix(const void* bytes, int64_t size, uint32_t magic, uint32_t formatVersion,
                             int32_t headerBytes);
 

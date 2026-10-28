@@ -158,11 +158,15 @@ m2ShapeDef m2DefaultShapeDef(void)
     return def;
 }
 
-static bool ShapeDefValid(const m2ShapeDef* def)
+static m2Result ShapeDefCheck(const m2ShapeDef* def)
 {
-    return def != NULL && def->internalValue == M2_SHAPE_COOKIE && m2ValidDensity(def->density) &&
-           m2ValidCoefficient(def->friction) && m2ValidRestitution(def->restitution) &&
-           m2ValidSpeed(def->tangentSpeed);
+    if (def == NULL || def->internalValue != M2_SHAPE_COOKIE)
+    {
+        return m2_errorInvalid;
+    }
+    m2Result result = m2BothChecks(m2CheckDensity(def->density), m2CheckCoefficient(def->friction));
+    result = m2BothChecks(result, m2CheckRestitution(def->restitution));
+    return m2BothChecks(result, m2CheckSpeed(def->tangentSpeed));
 }
 
 static void WriteShapeSlot(m2World* world, int32_t index, int32_t bodyIndex, const m2ShapeDef* def,
@@ -239,9 +243,10 @@ m2Result m2CreateShape(m2World* world, m2BodyId bodyId, const m2ShapeDef* def,
     {
         return m2Refuse(world, m2_errorStale);
     }
-    if (!ShapeDefValid(def))
+    m2Result checked = ShapeDefCheck(def);
+    if (checked != m2_success)
     {
-        return m2Refuse(world, m2_errorInvalid);
+        return m2Refuse(world, checked);
     }
     if (world->shapes.shapeFreeCount == 0)
     {
@@ -293,9 +298,10 @@ m2Result m2CreateShape(m2World* world, m2BodyId bodyId, const m2ShapeDef* def,
         {                                                                                          \
             return writer;                                                                         \
         }                                                                                          \
-        if (geom == NULL || !validator(geom))                                                      \
+        m2Result checked = validator(geom);                                                        \
+        if (checked != m2_success)                                                                 \
         {                                                                                          \
-            return m2Refuse(world, m2_errorInvalid);                                               \
+            return m2Refuse(world, checked);                                                       \
         }                                                                                          \
         m2ShapeGeometry geometry;                                                                  \
         memset(&geometry, 0, sizeof(geometry));                                                    \
@@ -316,13 +322,13 @@ m2Result m2CreateShape(m2World* world, m2BodyId bodyId, const m2ShapeDef* def,
         return result;                                                                             \
     }
 
-M2_SHAPE_CTOR(m2CreateCircleShape, m2Circle, m2_circleShape, m2ValidateCircle, circle)
+M2_SHAPE_CTOR(m2CreateCircleShape, m2Circle, m2_circleShape, m2CheckCircle, circle)
 
-M2_SHAPE_CTOR(m2CreateCapsuleShape, m2Capsule, m2_capsuleShape, m2ValidateCapsule, capsule)
+M2_SHAPE_CTOR(m2CreateCapsuleShape, m2Capsule, m2_capsuleShape, m2CheckCapsule, capsule)
 
-M2_SHAPE_CTOR(m2CreatePolygonShape, m2Polygon, m2_polygonShape, m2ValidatePolygon, polygon)
+M2_SHAPE_CTOR(m2CreatePolygonShape, m2Polygon, m2_polygonShape, m2CheckPolygon, polygon)
 
-M2_SHAPE_CTOR(m2CreateSegmentShape, m2Segment, m2_segmentShape, m2ValidateSegment, segment)
+M2_SHAPE_CTOR(m2CreateSegmentShape, m2Segment, m2_segmentShape, m2CheckSegment, segment)
 
 bool m2Shape_IsValid(const m2World* world, m2ShapeId shapeId)
 {

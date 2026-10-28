@@ -40,11 +40,14 @@ m2ParticleDef m2DefaultParticleDef(void)
 
 // A particle def a create or a fill accepts, in a world with a particle
 // system.
-static bool ValidParticleDef(const m2World* world, const m2ParticleDef* def)
+static m2Result ParticleDefCheck(const m2World* world, const m2ParticleDef* def)
 {
-    return def != NULL && def->internalValue == M2_PARTICLE_COOKIE &&
-           world->particles.particleCapacity > 0 && m2FinitePos2(def->position) &&
-           m2ValidVelocity(def->velocity);
+    if (def == NULL || def->internalValue != M2_PARTICLE_COOKIE ||
+        world->particles.particleCapacity == 0)
+    {
+        return m2_errorInvalid;
+    }
+    return m2BothChecks(m2CheckValid(m2FinitePos2(def->position)), m2CheckVelocity(def->velocity));
 }
 
 static M2_NOINLINE m2Result CreateParticleWorker(m2World* world, const m2ParticleDef* def,
@@ -60,9 +63,10 @@ static M2_NOINLINE m2Result CreateParticleWorker(m2World* world, const m2Particl
     {
         return writer;
     }
-    if (!ValidParticleDef(world, def))
+    m2Result checked = ParticleDefCheck(world, def);
+    if (checked != m2_success)
     {
-        return m2Refuse(world, m2_errorInvalid);
+        return m2Refuse(world, checked);
     }
     if (world->particles.particleFreeCount == 0)
     {
@@ -376,15 +380,14 @@ int32_t m2World_GetParticles(const m2World* world, m2ParticleId* ids, int32_t ca
 // --- Fills: a convex polygon of particles in one call ------------------------------
 
 // The fill lattice is at most this many columns wide.
-#define M2_FILL_COLUMNS 256
 
 typedef struct FillBatch
 {
     int32_t* emitted; // borrowed scratch, one slot per particle of capacity
     int32_t count;
     float stride;
-    int32_t prevRow[M2_FILL_COLUMNS];
-    int32_t currRow[M2_FILL_COLUMNS];
+    int32_t prevRow[M2_MAX_FILL_COLUMNS];
+    int32_t currRow[M2_MAX_FILL_COLUMNS];
 } FillBatch;
 
 static bool InsidePolygon(const m2Polygon* polygon, float x, float y)
@@ -465,14 +468,14 @@ static void AddFillSprings(m2World* world, const FillBatch* batch)
 static bool FillRow(m2World* world, FillBatch* batch, const m2Polygon* polygon, float minX,
                     float maxX, float y, const m2OpFillParticles* op)
 {
-    for (int32_t i = 0; i < M2_FILL_COLUMNS; ++i)
+    for (int32_t i = 0; i < M2_MAX_FILL_COLUMNS; ++i)
     {
         batch->currRow[i] = -1;
     }
     // The column coordinate accumulates stride by stride; the sum is part
     // of the fill result, so it is not recomputed from the column index.
     float x = minX + 0.5f * batch->stride;
-    for (int32_t col = 0; col < M2_FILL_COLUMNS && x < maxX; ++col)
+    for (int32_t col = 0; col < M2_MAX_FILL_COLUMNS && x < maxX; ++col)
     {
         float atX = x;
         x += batch->stride;
@@ -531,13 +534,14 @@ static M2_NOINLINE m2Result CreateParticlesInPolygonWorker(m2World* world, const
     {
         return writer;
     }
-    // The region is the polygon a shape would take: within M2_HUGE,
+    // The region is the polygon a shape would take: within M2_LOCAL_LIMIT,
     // convex, not a sliver, with its normals recomputed from its vertices.
-    m2Polygon region = {0};
-    if (ValidParticleDef(world, def) && polygon != NULL)
+    m2Result checked = m2BothChecks(ParticleDefCheck(world, def), m2CheckPolygon(polygon));
+    if (checked != m2_success)
     {
-        region = m2CanonicalPolygon(polygon);
+        return m2Refuse(world, checked);
     }
+    m2Polygon region = m2CanonicalPolygon(polygon);
     if (region.count == 0)
     {
         return m2Refuse(world, m2_errorInvalid);
@@ -547,9 +551,9 @@ static M2_NOINLINE m2Result CreateParticlesInPolygonWorker(m2World* world, const
     PolygonBounds(&region, &lower, &upper);
     FillBatch batch;
     batch.stride = 0.75f * 2.0f * world->particles.particleRadius;
-    if ((upper.x - lower.x) / batch.stride >= (float)M2_FILL_COLUMNS)
+    if ((upper.x - lower.x) / batch.stride >= (float)M2_MAX_FILL_COLUMNS)
     {
-        return m2Refuse(world, m2_errorInvalid); // wider than the fill lattice allows
+        return m2Refuse(world, m2_errorLimit); // wider than the fill lattice allows
     }
     m2OpFillParticles op;
     memset(&op, 0, sizeof(op));
@@ -566,7 +570,7 @@ static M2_NOINLINE m2Result CreateParticlesInPolygonWorker(m2World* world, const
     world->recorder.journalActive = 0;
     batch.emitted = (int32_t*)world->particles.particleProxies;
     batch.count = 0;
-    for (int32_t i = 0; i < M2_FILL_COLUMNS; ++i)
+    for (int32_t i = 0; i < M2_MAX_FILL_COLUMNS; ++i)
     {
         batch.prevRow[i] = -1;
     }

@@ -33,10 +33,12 @@ m2MouseJointDef m2DefaultMouseJointDef(void)
 
 // The def contract: finite values, non-negative gains and budgets,
 // ordered ranges.
-static bool DefValid(const m2MouseJointDef* def)
+static m2Result DefCheck(const m2MouseJointDef* def)
 {
-    return m2FinitePos2(def->target) && m2ValidRate(def->springHertz) &&
-           m2ValidCoefficient(def->springDampingRatio) && m2ValidMaxForce(def->maxForce);
+    m2Result result =
+        m2BothChecks(m2CheckValid(m2FinitePos2(def->target)), m2CheckRate(def->springHertz));
+    result = m2BothChecks(result, m2CheckCoefficient(def->springDampingRatio));
+    return m2BothChecks(result, m2CheckMaxForce(def->maxForce));
 }
 
 // The create record holds the def's fields and zero bytes between them:
@@ -68,9 +70,14 @@ static M2_NOINLINE m2Result CreateMouseJointWorker(m2World* world, const m2Mouse
     {
         return writer;
     }
-    if (def == NULL || def->internalValue != M2_MSJOINT_COOKIE || !DefValid(def))
+    if (def == NULL || def->internalValue != M2_MSJOINT_COOKIE)
     {
         return m2Refuse(world, m2_errorInvalid);
+    }
+    m2Result checked = DefCheck(def);
+    if (checked != m2_success)
+    {
+        return m2Refuse(world, checked);
     }
     int32_t bodyA = m2BodySlot(world, def->bodyIdA);
     int32_t bodyB = m2BodySlot(world, def->bodyIdB);
@@ -84,13 +91,14 @@ static M2_NOINLINE m2Result CreateMouseJointWorker(m2World* world, const m2Mouse
     }
     // The grab point is where the target sits at creation, in B's
     // local frame (the single f64 crossing). It becomes B's anchor, a
-    // body-local length, so it stays within M2_HUGE like any other.
+    // body-local length, so it stays within M2_LOCAL_LIMIT like any other.
     m2Transform xfB = world->bodies.transforms[bodyB];
     m2Vec2 rel = {(float)(def->target.x - xfB.p.x), (float)(def->target.y - xfB.p.y)};
     m2Vec2 grab = {xfB.q.c * rel.x + xfB.q.s * rel.y, -xfB.q.s * rel.x + xfB.q.c * rel.y};
-    if (!m2LocalVec2(grab))
+    m2Result grabbed = m2CheckLocalVec2(grab);
+    if (grabbed != m2_success)
     {
-        return m2Refuse(world, m2_errorInvalid);
+        return m2Refuse(world, grabbed);
     }
     int32_t index = m2AllocateJoint(world);
     if (index < 0)

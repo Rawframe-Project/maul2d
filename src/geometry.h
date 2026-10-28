@@ -37,6 +37,25 @@ bool m2ValidateSegment(const m2Segment* segment);
 // m2ValidatePolygon is internal; the validator family is not public API.
 bool m2ValidatePolygon(const m2Polygon* polygon);
 
+// The same checks with the status a call returns: coordinates or a radius
+// past M2_LOCAL_LIMIT, or a polygon past M2_MAX_POLYGON_VERTICES, are
+// m2_errorLimit, and a NaN, a null shape or one within the bounds that
+// fails the rest (a radius below the slop, a short edge, a concave or
+// clockwise polygon) is m2_errorInvalid. The rest is judged only within
+// the bounds, where its arithmetic means something.
+m2Result m2CheckCircle(const m2Circle* circle);
+m2Result m2CheckCapsule(const m2Capsule* capsule);
+m2Result m2CheckSegment(const m2Segment* segment);
+m2Result m2CheckPolygon(const m2Polygon* polygon);
+
+// The linear slop: the distance below which two points are one.
+#define M2_LINEAR_SLOP 0.005f
+
+// A polygon built from vertices, a count and a radius: normals computed
+// from the edges, unused slots zeroed. Count 0 when they do not make a
+// polygon.
+m2Polygon m2BuildPolygon(const m2Vec2* points, int32_t count, float radius);
+
 // A polygon as the library builds it from the caller's vertices, count
 // and radius: normals computed from the edges, unused slots zeroed. Count
 // 0 when they do not make a polygon. A caller's polygon carries normals

@@ -469,6 +469,9 @@ typedef struct m2ReplayCursor
     const uint8_t* data;
     int64_t size;
     int64_t offset;
+    // What a refused record returns: m2_errorFormat, or m2_errorCapacity
+    // when the allocator refused a record's scratch memory.
+    m2Result failure;
 } m2ReplayCursor;
 
 typedef bool m2ReplayApplyFn(m2ReplayCursor* cursor, const m2OpPayload* payload);

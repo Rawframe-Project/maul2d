@@ -259,6 +259,7 @@ static bool ApplyCreateChain(m2ReplayCursor* r, const m2OpPayload* p)
     m2Vec2* points = m2WorldAlloc(r->world, (size_t)pointBytes);
     if (points == NULL)
     {
+        r->failure = m2_errorCapacity;
         return false;
     }
     memcpy(points, r->data + r->offset, (size_t)pointBytes);
@@ -477,6 +478,7 @@ static bool ApplyShatterBody(m2ReplayCursor* r, const m2OpPayload* p)
     m2Polygon* pieces = m2WorldAlloc(r->world, (size_t)pieceBytes);
     if (pieces == NULL)
     {
+        r->failure = m2_errorCapacity;
         return false;
     }
     memcpy(pieces, r->data + r->offset, (size_t)pieceBytes);

@@ -45,128 +45,290 @@ static inline bool m2FinitePos2(m2Pos2 p)
 {
     return m2FiniteD(p.x) && m2FiniteD(p.y);
 }
-// A body-local point or length within M2_HUGE; NaN fails both.
+// The status checks of caller input against the published bounds of
+// base.h, shared by the defs, the setters, replay and restore: a value
+// past a bound is m2_errorLimit, infinities included, and NaN or a value
+// outside the quantity's own domain is m2_errorInvalid. m2BothChecks
+// joins two checks, an invalid value outranking one past a bound, so a
+// call's status does not depend on the order it checks its fields in.
+static inline m2Result m2BothChecks(m2Result a, m2Result b)
+{
+    if (a == m2_errorInvalid || b == m2_errorInvalid)
+    {
+        return m2_errorInvalid;
+    }
+    return a != m2_success ? a : b;
+}
+static inline m2Result m2CheckValid(bool valid)
+{
+    return valid ? m2_success : m2_errorInvalid;
+}
+// x within [lo, hi], both published bounds.
+static inline m2Result m2CheckRange(float x, float lo, float hi)
+{
+    if (x >= lo && x <= hi)
+    {
+        return m2_success;
+    }
+    return x != x ? m2_errorInvalid : m2_errorLimit; // NOLINT(misc-redundant-expression): NaN
+}
+static inline m2Result m2CheckWithin(float x, float limit)
+{
+    return m2CheckRange(x, -limit, limit);
+}
+static inline m2Result m2CheckWithinVec2(m2Vec2 v, float limit)
+{
+    return m2BothChecks(m2CheckWithin(v.x, limit), m2CheckWithin(v.y, limit));
+}
+// x from zero to limit: below zero is invalid, as for a rate, whose sign
+// has no meaning.
+static inline m2Result m2CheckNonNegative(float x, float limit)
+{
+    return x >= 0.0f ? m2CheckRange(x, 0.0f, limit) : m2_errorInvalid;
+}
+// x from floor to limit, positive: zero or below is invalid, as for a
+// mass, and a positive value below the floor is past a bound.
+static inline m2Result m2CheckPositive(float x, float floor, float limit)
+{
+    return x > 0.0f ? m2CheckRange(x, floor, limit) : m2_errorInvalid;
+}
+// A magnitude from floor to limit, of either sign, as for a ratio.
+static inline m2Result m2CheckMagnitude(float x, float floor, float limit)
+{
+    return m2CheckRange(x < 0.0f ? -x : x, floor, limit);
+}
+// A count from zero to max; a negative count is invalid.
+static inline m2Result m2CheckCount(int32_t count, int32_t max)
+{
+    if (count < 0)
+    {
+        return m2_errorInvalid;
+    }
+    return count <= max ? m2_success : m2_errorLimit;
+}
+
+// A body-local point or length within M2_LOCAL_LIMIT.
+static inline m2Result m2CheckLocalVec2(m2Vec2 v)
+{
+    return m2CheckWithinVec2(v, M2_LOCAL_LIMIT);
+}
+static inline m2Result m2CheckLocalLength(float x)
+{
+    return m2CheckNonNegative(x, M2_LOCAL_LIMIT);
+}
+static inline m2Result m2CheckSpeed(float x)
+{
+    return m2CheckWithin(x, M2_SPEED_LIMIT);
+}
+static inline m2Result m2CheckVelocity(m2Vec2 v)
+{
+    return m2CheckWithinVec2(v, M2_SPEED_LIMIT);
+}
+static inline m2Result m2CheckAcceleration(m2Vec2 a)
+{
+    return m2CheckWithinVec2(a, M2_ACCEL_LIMIT);
+}
+static inline m2Result m2CheckGravityScale(float x)
+{
+    return m2CheckWithin(x, M2_GRAVITY_SCALE_LIMIT);
+}
+static inline m2Result m2CheckRate(float x)
+{
+    return m2CheckNonNegative(x, M2_RATE_LIMIT);
+}
+static inline m2Result m2CheckCoefficient(float x)
+{
+    return m2CheckNonNegative(x, M2_COEFFICIENT_LIMIT);
+}
+// From 0 to 1 with no published bound: its own domain.
+static inline m2Result m2CheckRestitution(float x)
+{
+    return m2CheckValid(x >= 0.0f && x <= 1.0f);
+}
+static inline m2Result m2CheckDensity(float x)
+{
+    return m2CheckNonNegative(x, M2_DENSITY_LIMIT);
+}
+static inline m2Result m2CheckRatio(float x)
+{
+    return m2CheckMagnitude(x, M2_MIN_RATIO, M2_RATIO_LIMIT);
+}
+static inline m2Result m2CheckMass(float x)
+{
+    return m2CheckPositive(x, M2_MIN_MASS, M2_MASS_LIMIT);
+}
+// Rotational inertia about the center of mass; 0 does not rotate.
+static inline m2Result m2CheckInertia(float x)
+{
+    return x == 0.0f ? m2_success : m2CheckPositive(x, M2_MIN_INERTIA, M2_INERTIA_LIMIT);
+}
+static inline m2Result m2CheckForce(float x)
+{
+    return m2CheckWithin(x, M2_FORCE_LIMIT);
+}
+static inline m2Result m2CheckForceVec(m2Vec2 f)
+{
+    return m2CheckWithinVec2(f, M2_FORCE_LIMIT);
+}
+// A budget: a motor's or a mouse's largest force or torque.
+static inline m2Result m2CheckMaxForce(float x)
+{
+    return m2CheckNonNegative(x, M2_FORCE_LIMIT);
+}
+static inline m2Result m2CheckImpulse(float x)
+{
+    return m2CheckWithin(x, M2_IMPULSE_LIMIT);
+}
+static inline m2Result m2CheckImpulseVec(m2Vec2 j)
+{
+    return m2CheckWithinVec2(j, M2_IMPULSE_LIMIT);
+}
+static inline m2Result m2CheckTimeStep(float x)
+{
+    return m2CheckPositive(x, M2_MIN_STEP, M2_STEP_LIMIT);
+}
+static inline m2Result m2CheckAngle(float x)
+{
+    return m2CheckWithin(x, M2_ANGLE_LIMIT);
+}
+// A joint length or translation, signed.
+static inline m2Result m2CheckReach(float x)
+{
+    return m2CheckWithin(x, (float)M2_REACH_LIMIT);
+}
+// A length a joint takes from its bodies' poses (a distance joint's
+// derived rest length, one side of a pulley's rope): two points at most
+// the reach apart per axis, plus anchor levers within M2_LOCAL_LIMIT, so
+// below the reach's diagonal and so below twice the reach.
+static inline m2Result m2CheckSpan(float x)
+{
+    return m2CheckNonNegative(x, 2.0f * (float)M2_REACH_LIMIT);
+}
+// A share from none to all, with no published bound: a motor joint's
+// position correction.
+static inline m2Result m2CheckFraction(float x)
+{
+    return m2CheckValid(x >= 0.0f && x <= 1.0f);
+}
+// A ratchet's tooth pitch, signed by the free direction.
+static inline m2Result m2CheckRatchetTooth(float x)
+{
+    return m2CheckMagnitude(x, M2_MIN_RATCHET_TOOTH, M2_ANGLE_LIMIT);
+}
+// A joint's break force or torque: 0 turns breaking off, infinity never
+// breaks.
+static inline m2Result m2CheckBreakLimit(float x)
+{
+    return m2CheckValid(x >= 0.0f);
+}
+
+// The same checks as a yes or no, for restore, replay and the setters
+// that return nothing.
 static inline bool m2LocalVec2(m2Vec2 v)
 {
-    return v.x >= -M2_HUGE && v.x <= M2_HUGE && v.y >= -M2_HUGE && v.y <= M2_HUGE;
+    return m2CheckLocalVec2(v) == m2_success;
 }
 static inline bool m2LocalLength(float x)
 {
-    return x >= 0.0f && x <= M2_HUGE;
+    return m2CheckLocalLength(x) == m2_success;
 }
-// The ranges of base.h, one check per quantity, shared by the defs, the
-// setters, replay and restore. NaN fails every one of them.
 static inline bool m2WithinF(float x, float lo, float hi)
 {
     return x >= lo && x <= hi;
 }
 static inline bool m2ValidSpeed(float x)
 {
-    return m2WithinF(x, -M2_MAX_SPEED, M2_MAX_SPEED);
+    return m2CheckSpeed(x) == m2_success;
 }
 static inline bool m2ValidVelocity(m2Vec2 v)
 {
-    return m2ValidSpeed(v.x) && m2ValidSpeed(v.y);
+    return m2CheckVelocity(v) == m2_success;
 }
 static inline bool m2ValidAcceleration(m2Vec2 a)
 {
-    return m2WithinF(a.x, -M2_MAX_ACCELERATION, M2_MAX_ACCELERATION) &&
-           m2WithinF(a.y, -M2_MAX_ACCELERATION, M2_MAX_ACCELERATION);
+    return m2CheckAcceleration(a) == m2_success;
 }
 static inline bool m2ValidGravityScale(float x)
 {
-    return m2WithinF(x, -M2_MAX_GRAVITY_SCALE, M2_MAX_GRAVITY_SCALE);
+    return m2CheckGravityScale(x) == m2_success;
 }
 static inline bool m2ValidRate(float x)
 {
-    return m2WithinF(x, 0.0f, M2_MAX_RATE);
+    return m2CheckRate(x) == m2_success;
 }
 static inline bool m2ValidCoefficient(float x)
 {
-    return m2WithinF(x, 0.0f, M2_MAX_COEFFICIENT);
+    return m2CheckCoefficient(x) == m2_success;
 }
 static inline bool m2ValidRestitution(float x)
 {
-    return m2WithinF(x, 0.0f, 1.0f);
+    return m2CheckRestitution(x) == m2_success;
 }
 static inline bool m2ValidDensity(float x)
 {
-    return m2WithinF(x, 0.0f, M2_MAX_DENSITY);
+    return m2CheckDensity(x) == m2_success;
 }
 static inline bool m2ValidRatio(float x)
 {
-    float magnitude = x < 0.0f ? -x : x;
-    return m2WithinF(magnitude, M2_MIN_RATIO, M2_MAX_RATIO);
+    return m2CheckRatio(x) == m2_success;
 }
 static inline bool m2ValidMass(float x)
 {
-    return m2WithinF(x, M2_MIN_MASS, M2_MAX_MASS);
+    return m2CheckMass(x) == m2_success;
 }
-// Rotational inertia about the center of mass; 0 does not rotate.
 static inline bool m2ValidInertia(float x)
 {
-    return x == 0.0f || m2WithinF(x, M2_MIN_INERTIA, M2_MAX_INERTIA);
+    return m2CheckInertia(x) == m2_success;
 }
 static inline bool m2ValidForce(float x)
 {
-    return m2WithinF(x, -M2_MAX_FORCE, M2_MAX_FORCE);
+    return m2CheckForce(x) == m2_success;
 }
 static inline bool m2ValidForceVec(m2Vec2 f)
 {
-    return m2ValidForce(f.x) && m2ValidForce(f.y);
+    return m2CheckForceVec(f) == m2_success;
 }
-// A budget: a motor's or a mouse's largest force or torque.
 static inline bool m2ValidMaxForce(float x)
 {
-    return m2WithinF(x, 0.0f, M2_MAX_FORCE);
+    return m2CheckMaxForce(x) == m2_success;
 }
 static inline bool m2ValidImpulse(float x)
 {
-    return m2WithinF(x, -M2_IMPULSE_LIMIT, M2_IMPULSE_LIMIT);
+    return m2CheckImpulse(x) == m2_success;
 }
 static inline bool m2ValidImpulseVec(m2Vec2 j)
 {
-    return m2ValidImpulse(j.x) && m2ValidImpulse(j.y);
+    return m2CheckImpulseVec(j) == m2_success;
 }
 static inline bool m2ValidTimeStep(float x)
 {
-    return m2WithinF(x, M2_MIN_TIME_STEP, M2_MAX_TIME_STEP);
+    return m2CheckTimeStep(x) == m2_success;
 }
 static inline bool m2ValidAngle(float x)
 {
-    return m2WithinF(x, -M2_MAX_ANGLE, M2_MAX_ANGLE);
+    return m2CheckAngle(x) == m2_success;
 }
-// A joint length or translation, signed.
 static inline bool m2ValidReach(float x)
 {
-    return m2WithinF(x, -(float)M2_JOINT_REACH, (float)M2_JOINT_REACH);
+    return m2CheckReach(x) == m2_success;
 }
-// A length a joint takes from its bodies' poses (a distance joint's
-// derived rest length, one side of a pulley's rope): two points at most
-// the reach apart per axis, plus anchor levers within M2_HUGE, so below
-// the reach's diagonal and so below twice the reach.
 static inline bool m2ValidSpan(float x)
 {
-    return m2WithinF(x, 0.0f, 2.0f * (float)M2_JOINT_REACH);
+    return m2CheckSpan(x) == m2_success;
 }
-// A share from none to all: a motor joint's position correction.
 static inline bool m2ValidFraction(float x)
 {
-    return m2WithinF(x, 0.0f, 1.0f);
+    return m2CheckFraction(x) == m2_success;
 }
-// A ratchet's tooth pitch, signed by the free direction.
 static inline bool m2ValidRatchetTooth(float x)
 {
-    float magnitude = x < 0.0f ? -x : x;
-    return m2WithinF(magnitude, M2_MIN_RATCHET_TOOTH, M2_MAX_ANGLE);
+    return m2CheckRatchetTooth(x) == m2_success;
 }
-// A joint's break force or torque: 0 turns breaking off, infinity never
-// breaks.
 static inline bool m2ValidBreakLimit(float x)
 {
-    return x >= 0.0f;
+    return m2CheckBreakLimit(x) == m2_success;
 }
-// A world-space difference as a float, clamped to M2_JOINT_REACH. World
+// A world-space difference as a float, clamped to M2_REACH_LIMIT. World
 // positions are 64-bit and unbounded, and their difference can pass what
 // a float holds; it would reach the solver as infinity and leave NaN in
 // the bodies. Clamped, a lever stays within the bound docs/user/limits.md
@@ -174,8 +336,8 @@ static inline bool m2ValidBreakLimit(float x)
 // 400 m/s, closing 1e9 m takes a month.
 static inline float m2WorldOffset(double d)
 {
-    d = d < M2_JOINT_REACH ? d : M2_JOINT_REACH;
-    d = d > -M2_JOINT_REACH ? d : -M2_JOINT_REACH;
+    d = d < M2_REACH_LIMIT ? d : M2_REACH_LIMIT;
+    d = d > -M2_REACH_LIMIT ? d : -M2_REACH_LIMIT;
     return (float)d;
 }
 // Saturation: a velocity component or an accumulated load held to its

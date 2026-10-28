@@ -575,7 +575,7 @@ static void TestParticleFill(void)
     m2DestroyWorld(small);
 }
 
-// A triangle 2e30 m tall with its apex at the bottom: past M2_HUGE, so a
+// A triangle 2e30 m tall with its apex at the bottom: past M2_LOCAL_LIMIT, so a
 // fill refuses it as a shape would.
 static m2Polygon FarTriangle(void)
 {
@@ -599,9 +599,9 @@ static void TestFillChecksItsPolygon(void)
     uint64_t misuse = m2World_GetCounters(world).misuse;
     m2ParticleDef particleDef = m2DefaultParticleDef();
     int32_t count = -1;
-    CHECK(m2CreateParticlesInPolygon(world, &particleDef, &distant, &count) == m2_errorInvalid &&
+    CHECK(m2CreateParticlesInPolygon(world, &particleDef, &distant, &count) == m2_errorLimit &&
               count == 0,
-          "a polygon past M2_HUGE fills nothing");
+          "a polygon past M2_LOCAL_LIMIT fills nothing");
     CHECK(m2World_GetCounters(world).misuse == misuse + 1 && m2World_GetParticleCount(world) == 0,
           "and is refused as a misuse");
 
@@ -637,7 +637,7 @@ static void TestFillChecksItsPolygon(void)
     memcpy(tape + at, &distant, sizeof(distant));
     m2World* fresh = NewWorld(&def);
     uint64_t before = m2World_Hash(fresh);
-    CHECK(m2World_ReplayJournal(fresh, tape, bytes) == m2_errorInvalid,
+    CHECK(m2World_ReplayJournal(fresh, tape, bytes) == m2_errorFormat,
           "replay refuses the distant triangle's fill");
     CHECK(m2World_Hash(fresh) == before && m2World_GetCounters(fresh).misuse == 0,
           "and changes nothing, counting no misuse");

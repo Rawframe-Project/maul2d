@@ -62,31 +62,26 @@ static int32_t ChainSegmentCount(const m2ChainDef* def)
     return def->isLoop ? def->count : def->count - 3;
 }
 
-// Points within M2_HUGE and a real length on every segment, so the
+// Points within M2_LOCAL_LIMIT and a real length on every segment, so the
 // segment creates below can only fail for capacity.
-static bool ChainDefValid(const m2ChainDef* def)
+static m2Result ChainDefCheck(const m2ChainDef* def)
 {
-    if (def->points == NULL || (def->isLoop ? def->count < 3 : def->count < 4) ||
-        !m2ValidCoefficient(def->friction) || !m2ValidRestitution(def->restitution))
+    if (def->points == NULL || (def->isLoop ? def->count < 3 : def->count < 4))
     {
-        return false;
+        return m2_errorInvalid;
     }
+    m2Result result =
+        m2BothChecks(m2CheckCoefficient(def->friction), m2CheckRestitution(def->restitution));
     for (int32_t i = 0; i < def->count; ++i)
     {
-        if (!m2LocalVec2(def->points[i]))
-        {
-            return false;
-        }
+        result = m2BothChecks(result, m2CheckLocalVec2(def->points[i]));
     }
-    for (int32_t i = 0; i < ChainSegmentCount(def); ++i)
+    for (int32_t i = 0; result == m2_success && i < ChainSegmentCount(def); ++i)
     {
         m2ChainSegment seg = ChainSegmentAt(def, i);
-        if (!m2ValidateSegment(&seg.segment))
-        {
-            return false;
-        }
+        result = m2CheckValid(m2ValidateSegment(&seg.segment));
     }
-    return true;
+    return result;
 }
 
 // Creates the chain's segment shapes, each tagged with its chain as it
@@ -144,9 +139,14 @@ static M2_NOINLINE m2Result CreateChainWorker(m2World* world, m2BodyId bodyId,
     {
         return m2Refuse(world, m2_errorStale);
     }
-    if (def == NULL || def->internalValue != M2_CHAIN_COOKIE || !ChainDefValid(def))
+    if (def == NULL || def->internalValue != M2_CHAIN_COOKIE)
     {
         return m2Refuse(world, m2_errorInvalid);
+    }
+    m2Result checked = ChainDefCheck(def);
+    if (checked != m2_success)
+    {
+        return m2Refuse(world, checked);
     }
     if (world->chains.chainFreeCount == 0 || world->shapes.shapeFreeCount == 0)
     {

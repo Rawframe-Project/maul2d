@@ -92,9 +92,9 @@ extern "C"
     {
         // The call did what was asked.
         m2_success = 0,
-        // An argument or def is invalid, or a snapshot or journal tape
-        // fails its checks (another build, another world shape, damaged
-        // bytes).
+        // An argument a correct program never passes: a null pointer, an
+        // object of the wrong kind, a NaN, a value outside its parameter's
+        // own documented domain, a combination the call does not take.
         m2_errorInvalid = -1,
         // A fixed pool of the world, a caller buffer or the allocator is
         // too small for the result.
@@ -103,13 +103,24 @@ extern "C"
         m2_errorStale = -3,
         // The CPU cannot run the SIMD backend the library was built for.
         m2_errorUnsupported = -4,
-        // The call is not allowed now: a writer called from host code the
-        // world is running (a task hook, a debug draw callback, the
-        // allocator), or a journal call in the wrong recording state.
+        // A journal call in the wrong recording state: a start while
+        // recording, a stop or a replay that does not fit it.
         m2_errorState = -6,
-        // A world def was built from headers of another binary interface
-        // than the library's (M2_ABI_VERSION).
+        // A def, a snapshot or a journal tape comes from another binary
+        // interface or release than the library's (M2_ABI_VERSION).
         m2_errorVersion = -7,
+        // A snapshot's or a journal tape's bytes fail their checks:
+        // damaged, truncated, from another world shape, or a record the
+        // world refuses. Counts no misuse.
+        m2_errorFormat = -8,
+        // An argument, or its content, passes a published bound of the
+        // library (an M2_MAX_* or M2_*_LIMIT, or below an M2_MIN_*),
+        // infinity included.
+        m2_errorLimit = -9,
+        // A writer called from host code the world is running (a task
+        // hook, a debug draw callback, the allocator); the same call
+        // succeeds once that code returns.
+        m2_errorBusy = -10,
     };
 
     // The allocator a world takes in its def and keeps for its lifetime.
@@ -193,70 +204,75 @@ extern "C"
 // 32-bit floats relative to each body, and lengths beyond this overflow
 // its products. Box2D uses the same bound. World positions are 64-bit and
 // not bounded.
-#define M2_HUGE 100000.0f
+#define M2_LOCAL_LIMIT 100000.0f
 
 // The ranges of every number the step multiplies, in meters, kilograms
 // and seconds. Each leaves realistic game values far inside it, and each
 // is chosen against the products the solver forms in 32-bit floats, as
-// docs/user/limits.md derives. A def or setter value outside its range
-// is refused.
+// docs/user/limits.md derives. A call that returns a status refuses a
+// value past one of them with m2_errorLimit, a NaN with m2_errorInvalid;
+// a setter that returns nothing refuses either and counts one misuse.
 
 // The largest speed: a body's linear speed per axis (m/s) and angular
 // speed (rad/s), a conveyor, a motor, the wind, a flow, a particle.
-#define M2_MAX_SPEED 1.0e5f
+#define M2_SPEED_LIMIT 1.0e5f
 
 // The largest gravity per axis, in m/s^2.
-#define M2_MAX_ACCELERATION 1.0e6f
+#define M2_ACCEL_LIMIT 1.0e6f
 
 // The largest magnitude of a body's or the particles' gravity scale.
-#define M2_MAX_GRAVITY_SCALE 1.0e3f
+#define M2_GRAVITY_SCALE_LIMIT 1.0e3f
 
 // The largest rate, in 1/s: linear and angular damping, wind and fluid
 // drag, a spring's frequency in hertz.
-#define M2_MAX_RATE 1.0e6f
+#define M2_RATE_LIMIT 1.0e6f
 
 // The largest dimensionless coefficient: friction, a damping ratio, a
 // particle strength.
-#define M2_MAX_COEFFICIENT 1.0e3f
+#define M2_COEFFICIENT_LIMIT 1.0e3f
 
 // The largest density, in kg/m^2, of a shape, a fluid volume or the
 // particles. Lead is about 1.1e4.
-#define M2_MAX_DENSITY 1.0e6f
+#define M2_DENSITY_LIMIT 1.0e6f
 
 // The magnitude range of a gear or pulley ratio.
-#define M2_MIN_RATIO 1.0e-3f
-#define M2_MAX_RATIO 1.0e3f
+#define M2_MIN_RATIO   1.0e-3f
+#define M2_RATIO_LIMIT 1.0e3f
 
 // A dynamic body's mass, in kg, and its rotational inertia about its
 // center of mass, in kg m^2 (0 for a body that does not rotate). Mass
 // data summed from shapes is clamped into these ranges.
-#define M2_MIN_MASS    1.0e-9f
-#define M2_MAX_MASS    1.0e12f
-#define M2_MIN_INERTIA 1.0e-12f
-#define M2_MAX_INERTIA 1.0e24f
+#define M2_MIN_MASS      1.0e-9f
+#define M2_MASS_LIMIT    1.0e12f
+#define M2_MIN_INERTIA   1.0e-12f
+#define M2_INERTIA_LIMIT 1.0e24f
 
 // The largest force per axis, in N, and torque, in N m: one call, a
 // body's accumulated load and a motor's budget.
-#define M2_MAX_FORCE 1.0e20f
+#define M2_FORCE_LIMIT 1.0e20f
 
 // The largest impulse per axis, in N s (or N m s): one call, and every
 // impulse a joint row or contact point accumulates.
 #define M2_IMPULSE_LIMIT 1.0e15f
 
 // The range of a step's or a target's time step, in seconds.
-#define M2_MIN_TIME_STEP 1.0e-6f
-#define M2_MAX_TIME_STEP 10.0f
+#define M2_MIN_STEP   1.0e-6f
+#define M2_STEP_LIMIT 10.0f
 
 // The largest magnitude of a joint angle, in radians: limits, offsets,
 // a ratchet's phase and tooth; and the smallest tooth, 6283 to a turn.
-#define M2_MAX_ANGLE         1.0e5f
+#define M2_ANGLE_LIMIT       1.0e5f
 #define M2_MIN_RATCHET_TOOTH 1.0e-3f
+
+// The smallest particle radius, in meters: four times the linear slop, so
+// the particles' skin laws keep their meaning.
+#define M2_MIN_PARTICLE_RADIUS 0.02f
 
 // The largest separation per axis between two world points that a joint
 // takes in, in meters, and the largest joint length or translation.
 // World positions are 64-bit and unbounded; a joint whose bodies are
 // farther apart takes them as this far apart.
-#define M2_JOINT_REACH 1.0e9
+#define M2_REACH_LIMIT 1.0e9
 
 #ifdef __cplusplus
 }

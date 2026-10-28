@@ -30,13 +30,18 @@ m2PrismaticJointDef m2DefaultPrismaticJointDef(void)
 
 // The def contract: finite values, non-negative gains and budgets,
 // ordered ranges.
-static bool DefValid(const m2PrismaticJointDef* def)
+static m2Result DefCheck(const m2PrismaticJointDef* def)
 {
-    return m2LocalVec2(def->localAnchorA) && m2LocalVec2(def->localAnchorB) &&
-           m2LocalVec2(def->localAxisA) && m2ValidRate(def->constraintHertz) &&
-           m2ValidCoefficient(def->constraintDampingRatio) && m2ValidSpeed(def->motorSpeed) &&
-           m2ValidMaxForce(def->maxMotorForce) && m2ValidReach(def->lowerTranslation) &&
-           m2ValidReach(def->upperTranslation) && def->lowerTranslation <= def->upperTranslation;
+    m2Result result =
+        m2BothChecks(m2CheckLocalVec2(def->localAnchorA), m2CheckLocalVec2(def->localAnchorB));
+    result = m2BothChecks(result, m2CheckLocalVec2(def->localAxisA));
+    result = m2BothChecks(result, m2CheckRate(def->constraintHertz));
+    result = m2BothChecks(result, m2CheckCoefficient(def->constraintDampingRatio));
+    result = m2BothChecks(result, m2CheckSpeed(def->motorSpeed));
+    result = m2BothChecks(result, m2CheckMaxForce(def->maxMotorForce));
+    result = m2BothChecks(result, m2CheckReach(def->lowerTranslation));
+    result = m2BothChecks(result, m2CheckReach(def->upperTranslation));
+    return m2BothChecks(result, m2CheckValid(!(def->lowerTranslation > def->upperTranslation)));
 }
 
 // The create record holds the def's fields and zero bytes between them:
@@ -76,9 +81,14 @@ static M2_NOINLINE m2Result CreatePrismaticJointWorker(m2World* world,
     {
         return writer;
     }
-    if (def == NULL || def->internalValue != M2_PJOINT_COOKIE || !DefValid(def))
+    if (def == NULL || def->internalValue != M2_PJOINT_COOKIE)
     {
         return m2Refuse(world, m2_errorInvalid);
+    }
+    m2Result checked = DefCheck(def);
+    if (checked != m2_success)
+    {
+        return m2Refuse(world, checked);
     }
     int32_t bodyA = m2BodySlot(world, def->bodyIdA);
     int32_t bodyB = m2BodySlot(world, def->bodyIdB);
