@@ -394,9 +394,9 @@ static void TestJointEdges(void)
     m2RatchetJointDef ratchet = m2DefaultRatchetJointDef();
     ratchet.bodyIdA = a;
     ratchet.bodyIdB = b;
-    ratchet.ratchet = -M2_MIN_RATCHET_TOOTH;
+    ratchet.toothAngle = -M2_MIN_RATCHET_TOOTH;
     CHECK(NewRatchetJoint(world, &ratchet).index1 != 0, "the smallest ratchet tooth is accepted");
-    ratchet.ratchet = nextafterf(M2_MIN_RATCHET_TOOTH, 0.0f);
+    ratchet.toothAngle = nextafterf(M2_MIN_RATCHET_TOOTH, 0.0f);
     misuse = Misuse(world);
     m2JointId refused = {7, 7};
     CHECK(m2CreateRatchetJoint(world, &ratchet, &refused) == m2_errorLimit && refused.index1 == 0 &&

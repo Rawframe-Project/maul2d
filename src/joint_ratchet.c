@@ -23,7 +23,7 @@ m2RatchetJointDef m2DefaultRatchetJointDef(void)
 {
     m2RatchetJointDef def;
     memset(&def, 0, sizeof(def));
-    def.ratchet = 0.5f;
+    def.toothAngle = 0.5f;
     def.internalValue = M2_RTJOINT_COOKIE;
     return def;
 }
@@ -37,7 +37,7 @@ m2RatchetJointDef m2DefaultRatchetJointDef(void)
 // ordered ranges.
 static m2Result DefCheck(const m2RatchetJointDef* def)
 {
-    return m2BothChecks(m2CheckRatchetTooth(def->ratchet), m2CheckAngle(def->phase));
+    return m2BothChecks(m2CheckRatchetTooth(def->toothAngle), m2CheckAngle(def->phase));
 }
 
 // The create record holds the def's fields and zero bytes between them:
@@ -47,7 +47,7 @@ static void RecordRatchetJointDef(m2RatchetJointDef* out, const m2RatchetJointDe
 {
     out->bodyIdA = def->bodyIdA;
     out->bodyIdB = def->bodyIdB;
-    out->ratchet = def->ratchet;
+    out->toothAngle = def->toothAngle;
     out->phase = def->phase;
     out->userData = def->userData;
     out->enableConnectedCollision = def->enableConnectedCollision;
@@ -94,7 +94,7 @@ static M2_NOINLINE m2Result CreateRatchetJointWorker(m2World* world, const m2Rat
     m2Vec2 zero = {0.0f, 0.0f};
     m2JointId jointId = m2FinishJoint(world, index, (uint8_t)m2_ratchetJoint, bodyA, bodyB, zero,
                                       zero, 0.0f, 0.0f, 0.0f);
-    world->joints.jointLength[index] = def->ratchet;
+    world->joints.jointLength[index] = def->toothAngle;
     world->joints.jointRefAngle[index] = def->phase;
     m2Rot qA = world->bodies.transforms[bodyA].q;
     m2Rot qB = world->bodies.transforms[bodyB].q;
@@ -103,7 +103,7 @@ static M2_NOINLINE m2Result CreateRatchetJointWorker(m2World* world, const m2Rat
     world->joints.jointUpper[index] = 0.0f; // accumulated relative angle
     // Engage the tooth at or behind the angle at creation.
     world->joints.jointLower[index] =
-        floorf((0.0f - def->phase) / def->ratchet) * def->ratchet + def->phase;
+        floorf((0.0f - def->phase) / def->toothAngle) * def->toothAngle + def->phase;
     world->joints.jointUserData[index] = def->userData;
     world->joints.jointCollide[index] = def->enableConnectedCollision ? 1 : 0;
     if (def->enableConnectedCollision == false)
@@ -130,16 +130,16 @@ m2Result m2CreateRatchetJoint(m2World* world, const m2RatchetJointDef* def, m2Jo
     return result;
 }
 
-static M2_NOINLINE float RatchetJointGetRatchetWorker(const m2World* world, m2JointId jointId)
+static M2_NOINLINE float RatchetJointGetToothAngleWorker(const m2World* world, m2JointId jointId)
 {
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_ratchetJoint);
     return index >= 0 ? world->joints.jointLength[index] : 0.0f;
 }
 
-float m2RatchetJoint_GetRatchet(const m2World* world, m2JointId jointId)
+float m2RatchetJoint_GetToothAngle(const m2World* world, m2JointId jointId)
 {
     uint64_t env = m2FloatEnvEnter();
-    float result = RatchetJointGetRatchetWorker(world, jointId);
+    float result = RatchetJointGetToothAngleWorker(world, jointId);
     m2FloatEnvLeave(env);
     return result;
 }

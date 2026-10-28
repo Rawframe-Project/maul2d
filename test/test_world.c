@@ -720,7 +720,7 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             m2RatchetJointDef jd = m2DefaultRatchetJointDef();
             jd.bodyIdA = a;
             jd.bodyIdB = b;
-            jd.ratchet = m2RatchetJoint_GetRatchet(source, id);
+            jd.toothAngle = m2RatchetJoint_GetToothAngle(source, id);
             jd.phase = m2RatchetJoint_GetPhase(source, id);
             jd.enableConnectedCollision = m2Joint_IsConnectedCollisionEnabled(source, id);
             made = NewRatchetJoint(mirror, &jd);
@@ -989,7 +989,7 @@ static void TestMirrorRebuild(void)
     m2RatchetJointDef pawl = m2DefaultRatchetJointDef();
     pawl.bodyIdA = boxB;
     pawl.bodyIdB = boxD;
-    pawl.ratchet = 0.4f;
+    pawl.toothAngle = 0.4f;
     pawl.phase = 0.1f;
     NewRatchetJoint(world, &pawl);
     m2PulleyJointDef hoist = m2DefaultPulleyJointDef();

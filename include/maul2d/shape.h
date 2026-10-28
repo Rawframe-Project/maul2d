@@ -940,7 +940,7 @@ extern "C"
     } m2MoverPlane;
 
 /// Planes past this count take no part in m2SolveMover.
-#define M2_MOVER_PLANES 16
+#define M2_MAX_MOVER_PLANES 16
 
     /// The result of m2SolveMover.
     typedef struct m2MoverMove
@@ -975,7 +975,7 @@ extern "C"
     ///
     /// @param wish    The translation the character wants.
     /// @param planes  The planes from m2World_CollideMover.
-    /// @param count   The number of planes; only the first M2_MOVER_PLANES
+    /// @param count   The number of planes; only the first M2_MAX_MOVER_PLANES
     ///                take part.
     /// @return The translation to apply and the planes that stopped part of
     ///         the wish.
