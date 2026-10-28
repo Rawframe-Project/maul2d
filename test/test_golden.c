@@ -214,7 +214,7 @@ static void BuildStack(m2World* world)
         jd.localAxisA = (m2Vec2){0.0f, 1.0f};
         jd.enableMotor = true;
         jd.motorSpeed = -6.0f;
-        jd.maxMotorTorque = 8.0f;
+        jd.maxMotorEffort = 8.0f;
         NewWheelJoint(world, &jd);
     }
 
@@ -226,7 +226,7 @@ static void BuildStack(m2World* world)
     pd.localAxisA = (m2Vec2){0.0f, 1.0f};
     pd.enableMotor = true;
     pd.motorSpeed = 1.5f;
-    pd.maxMotorForce = 400.0f;
+    pd.maxMotorEffort = 400.0f;
     pd.enableLimit = true;
     pd.lowerTranslation = 0.0f;
     pd.upperTranslation = 4.0f;

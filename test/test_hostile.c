@@ -245,7 +245,7 @@ static void TestMachineryResurrection(void)
         {
             rj.enableMotor = true;
             rj.motorSpeed = 2.0f;
-            rj.maxMotorTorque = 50.0f;
+            rj.maxMotorEffort = 50.0f;
         }
         pins[i] = NewRevoluteJoint(world, &rj);
     }
@@ -326,7 +326,7 @@ static void TestRatchetMotorWar(void)
         rj.bodyIdB = wheel;
         rj.enableMotor = true;
         rj.motorSpeed = 3.0f;
-        rj.maxMotorTorque = 40.0f;
+        rj.maxMotorEffort = 40.0f;
         m2JointId pin = NewRevoluteJoint(world, &rj);
         m2RatchetJointDef rd = m2DefaultRatchetJointDef();
         rd.bodyIdA = post;
@@ -673,7 +673,7 @@ static void TestParameterChannels(void)
 
     uint64_t misuse = m2World_GetCounters(world).misuse;
     m2Joint_SetMotorSpeed(world, pin, NAN);
-    m2Joint_SetMaxMotor(world, pin, -1.0f);
+    m2Joint_SetMaxMotorEffort(world, pin, -1.0f);
     m2Joint_SetLimits(world, pin, 1.0f, -1.0f);
     m2DistanceJoint_SetLength(world, pin, 2.0f); // a revolute has no length
     m2Shape_SetFriction(world, shape, INFINITY);
@@ -1560,7 +1560,7 @@ static void TestReactionAllTypes(void)
     rj.localAnchorB = (m2Vec2){-1.0f, 0.0f};
     rj.enableMotor = true;
     rj.motorSpeed = 0.0f;
-    rj.maxMotorTorque = 100.0f;
+    rj.maxMotorEffort = 100.0f;
     m2JointId shoulder = NewRevoluteJoint(world, &rj);
 
     for (int32_t i = 0; i < 120; ++i)

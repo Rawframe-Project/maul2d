@@ -274,7 +274,7 @@ static void TestLongLevers(void)
     hinge.springDampingRatio = M2_COEFFICIENT_LIMIT;
     hinge.enableMotor = true;
     hinge.motorSpeed = M2_SPEED_LIMIT;
-    hinge.maxMotorTorque = M2_FORCE_LIMIT;
+    hinge.maxMotorEffort = M2_FORCE_LIMIT;
     hinge.enableLimit = true;
     hinge.lowerAngle = -M2_ANGLE_LIMIT;
     hinge.upperAngle = -M2_ANGLE_LIMIT;
@@ -290,7 +290,7 @@ static void TestLongLevers(void)
     slider.upperTranslation = (float)M2_REACH_LIMIT;
     slider.enableMotor = true;
     slider.motorSpeed = -M2_SPEED_LIMIT;
-    slider.maxMotorForce = M2_FORCE_LIMIT;
+    slider.maxMotorEffort = M2_FORCE_LIMIT;
     (void)Keep(&s, NewPrismaticJoint(s.world, &slider));
 
     m2DistanceJointDef rope = m2DefaultDistanceJointDef();
@@ -309,7 +309,7 @@ static void TestLongLevers(void)
     wheel.springHertz = M2_RATE_LIMIT;
     wheel.enableMotor = true;
     wheel.motorSpeed = M2_SPEED_LIMIT;
-    wheel.maxMotorTorque = M2_FORCE_LIMIT;
+    wheel.maxMotorEffort = M2_FORCE_LIMIT;
     (void)Keep(&s, NewWheelJoint(s.world, &wheel));
 
     m2WeldJointDef weld = m2DefaultWeldJointDef();

@@ -106,7 +106,7 @@ static void RunSession(m2World* world, uint8_t* journal, int64_t capacity, int64
     press.localAxisA = (m2Vec2){0.0f, 1.0f};
     press.enableMotor = true;
     press.motorSpeed = -0.5f;
-    press.maxMotorForce = 20.0f;
+    press.maxMotorEffort = 20.0f;
     press.enableLimit = true;
     press.lowerTranslation = -0.8f;
     press.upperTranslation = 0.3f;
@@ -129,7 +129,7 @@ static void RunSession(m2World* world, uint8_t* journal, int64_t capacity, int64
     ride.bodyIdB = bob;
     ride.enableMotor = true;
     ride.motorSpeed = 2.0f;
-    ride.maxMotorTorque = 5.0f;
+    ride.maxMotorEffort = 5.0f;
     NewWheelJoint(world, &ride);
 
     for (int32_t i = 0; i < 45; ++i)
@@ -656,7 +656,7 @@ static void FilledRevoluteJointDef(m2RevoluteJointDef* to, const m2RevoluteJoint
     to->enableSpring = from->enableSpring;
     to->enableMotor = from->enableMotor;
     to->motorSpeed = from->motorSpeed;
-    to->maxMotorTorque = from->maxMotorTorque;
+    to->maxMotorEffort = from->maxMotorEffort;
     to->enableLimit = from->enableLimit;
     to->lowerAngle = from->lowerAngle;
     to->upperAngle = from->upperAngle;
@@ -678,7 +678,7 @@ static void FilledPrismaticJointDef(m2PrismaticJointDef* to, const m2PrismaticJo
     to->constraintDampingRatio = from->constraintDampingRatio;
     to->enableMotor = from->enableMotor;
     to->motorSpeed = from->motorSpeed;
-    to->maxMotorForce = from->maxMotorForce;
+    to->maxMotorEffort = from->maxMotorEffort;
     to->enableLimit = from->enableLimit;
     to->lowerTranslation = from->lowerTranslation;
     to->upperTranslation = from->upperTranslation;
@@ -716,7 +716,7 @@ static void FilledWheelJointDef(m2WheelJointDef* to, const m2WheelJointDef* from
     to->springDampingRatio = from->springDampingRatio;
     to->enableMotor = from->enableMotor;
     to->motorSpeed = from->motorSpeed;
-    to->maxMotorTorque = from->maxMotorTorque;
+    to->maxMotorEffort = from->maxMotorEffort;
     to->enableLimit = from->enableLimit;
     to->lowerTranslation = from->lowerTranslation;
     to->upperTranslation = from->upperTranslation;

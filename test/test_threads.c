@@ -107,7 +107,7 @@ static m2World* BuildBusyScene(int32_t workerCount)
         ride.upperTranslation = 0.2f;
         ride.enableMotor = true;
         ride.motorSpeed = -12.0f;
-        ride.maxMotorTorque = 20.0f;
+        ride.maxMotorEffort = 20.0f;
         NewWheelJoint(world, &ride);
     }
 

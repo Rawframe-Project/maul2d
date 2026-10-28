@@ -755,7 +755,7 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.linearOffset = m2MotorJoint_GetLinearOffset(source, id);
             jd.angularOffset = m2MotorJoint_GetAngularOffset(source, id);
             jd.maxForce = m2MotorJoint_GetMaxForce(source, id);
-            jd.maxTorque = m2Joint_GetMaxMotor(source, id);
+            jd.maxTorque = m2Joint_GetMaxMotorEffort(source, id);
             jd.correctionFactor = m2MotorJoint_GetCorrectionFactor(source, id);
             jd.enableConnectedCollision = m2Joint_IsConnectedCollisionEnabled(source, id);
             made = NewMotorJoint(mirror, &jd);
@@ -801,7 +801,7 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.enableSpring = m2Joint_IsSpringEnabled(source, id);
             jd.enableMotor = m2Joint_IsMotorEnabled(source, id);
             jd.motorSpeed = m2Joint_GetMotorSpeed(source, id);
-            jd.maxMotorTorque = m2Joint_GetMaxMotor(source, id);
+            jd.maxMotorEffort = m2Joint_GetMaxMotorEffort(source, id);
             jd.enableLimit = m2Joint_IsLimitEnabled(source, id);
             m2Joint_GetLimits(source, id, &jd.lowerAngle, &jd.upperAngle);
             jd.enableConnectedCollision = m2Joint_IsConnectedCollisionEnabled(source, id);
@@ -819,7 +819,7 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.constraintDampingRatio = m2Joint_GetConstraintDampingRatio(source, id);
             jd.enableMotor = m2Joint_IsMotorEnabled(source, id);
             jd.motorSpeed = m2Joint_GetMotorSpeed(source, id);
-            jd.maxMotorForce = m2Joint_GetMaxMotor(source, id);
+            jd.maxMotorEffort = m2Joint_GetMaxMotorEffort(source, id);
             jd.enableLimit = m2Joint_IsLimitEnabled(source, id);
             m2Joint_GetLimits(source, id, &jd.lowerTranslation, &jd.upperTranslation);
             jd.enableConnectedCollision = m2Joint_IsConnectedCollisionEnabled(source, id);
@@ -852,7 +852,7 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             jd.springDampingRatio = m2Joint_GetSpringDampingRatio(source, id);
             jd.enableMotor = m2Joint_IsMotorEnabled(source, id);
             jd.motorSpeed = m2Joint_GetMotorSpeed(source, id);
-            jd.maxMotorTorque = m2Joint_GetMaxMotor(source, id);
+            jd.maxMotorEffort = m2Joint_GetMaxMotorEffort(source, id);
             jd.enableLimit = m2Joint_IsLimitEnabled(source, id);
             m2Joint_GetLimits(source, id, &jd.lowerTranslation, &jd.upperTranslation);
             jd.enableConnectedCollision = m2Joint_IsConnectedCollisionEnabled(source, id);
@@ -962,7 +962,7 @@ static void TestMirrorRebuild(void)
     rj.bodyIdB = boxB;
     rj.enableMotor = true;
     rj.motorSpeed = 1.2f;
-    rj.maxMotorTorque = 20.0f;
+    rj.maxMotorEffort = 20.0f;
     rj.enableLimit = true;
     rj.lowerAngle = -0.5f;
     rj.upperAngle = 0.7f;
@@ -973,7 +973,7 @@ static void TestMirrorRebuild(void)
     pj.localAxisA = (m2Vec2){0.0f, 1.0f};
     pj.enableMotor = true;
     pj.motorSpeed = -0.5f;
-    pj.maxMotorForce = 30.0f;
+    pj.maxMotorEffort = 30.0f;
     pj.enableLimit = true;
     pj.lowerTranslation = -1.0f;
     pj.upperTranslation = 2.0f;
@@ -1035,7 +1035,7 @@ static void TestMirrorRebuild(void)
     whj.springDampingRatio = 0.7f;
     whj.enableMotor = true;
     whj.motorSpeed = 4.0f;
-    whj.maxMotorTorque = 15.0f;
+    whj.maxMotorEffort = 15.0f;
     whj.enableLimit = true;
     whj.lowerTranslation = -0.3f;
     whj.upperTranslation = 0.3f;
@@ -3503,7 +3503,7 @@ static void ChangeMotorSpeed(const HashScene* s)
 }
 static void ChangeMaxMotor(const HashScene* s)
 {
-    m2Joint_SetMaxMotor(s->world, s->revolute, 5.0f);
+    m2Joint_SetMaxMotorEffort(s->world, s->revolute, 5.0f);
 }
 static void ChangeRevoluteSpring(const HashScene* s)
 {

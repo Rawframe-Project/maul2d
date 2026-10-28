@@ -463,20 +463,20 @@ void m2Joint_SetMotorSpeed(m2World* world, m2JointId jointId, float speed)
     m2FloatEnvLeave(env);
 }
 
-static M2_NOINLINE void JointSetMaxMotorWorker(m2World* world, m2JointId jointId,
-                                               float maxTorqueOrForce)
+static M2_NOINLINE void JointSetMaxMotorEffortWorker(m2World* world, m2JointId jointId,
+                                                     float maxEffort)
 {
     if (m2CheckWriter(world) != m2_success)
     {
         return;
     }
-    m2SetJointParamInternal(world, jointId, m2_jointParamMaxMotor, maxTorqueOrForce);
+    m2SetJointParamInternal(world, jointId, m2_jointParamMaxMotor, maxEffort);
 }
 
-void m2Joint_SetMaxMotor(m2World* world, m2JointId jointId, float maxTorqueOrForce)
+void m2Joint_SetMaxMotorEffort(m2World* world, m2JointId jointId, float maxEffort)
 {
     uint64_t env = m2FloatEnvEnter();
-    JointSetMaxMotorWorker(world, jointId, maxTorqueOrForce);
+    JointSetMaxMotorEffortWorker(world, jointId, maxEffort);
     m2FloatEnvLeave(env);
 }
 

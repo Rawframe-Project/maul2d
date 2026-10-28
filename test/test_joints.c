@@ -427,7 +427,7 @@ static void TestRevoluteMotor(void)
     jd.bodyIdB = wheel;
     jd.enableMotor = true;
     jd.motorSpeed = 4.0f;
-    jd.maxMotorTorque = 50.0f;
+    jd.maxMotorEffort = 50.0f;
     NewRevoluteJoint(world, &jd);
 
     m2RevoluteJointDef weak = m2DefaultRevoluteJointDef();
@@ -435,7 +435,7 @@ static void TestRevoluteMotor(void)
     weak.bodyIdB = starvedWheel;
     weak.enableMotor = true;
     weak.motorSpeed = 4.0f;
-    weak.maxMotorTorque = 0.0001f;
+    weak.maxMotorEffort = 0.0001f;
     NewRevoluteJoint(world, &weak);
 
     for (int32_t i = 0; i < 120; ++i)
@@ -564,7 +564,7 @@ static void TestPrismaticMotor(void)
     jd.localAxisA = (m2Vec2){0.0f, 1.0f};
     jd.enableMotor = true;
     jd.motorSpeed = 1.5f;
-    jd.maxMotorForce = 50.0f;
+    jd.maxMotorEffort = 50.0f;
     jd.enableLimit = true;
     jd.lowerTranslation = -0.5f;
     jd.upperTranslation = 2.0f;
@@ -733,7 +733,7 @@ static void TestWheelCar(void)
         wd.upperTranslation = 0.2f;
         wd.enableMotor = true;
         wd.motorSpeed = -10.0f; // clockwise spin rolls the car +x
-        wd.maxMotorTorque = 15.0f;
+        wd.maxMotorEffort = 15.0f;
         NewWheelJoint(world, &wd);
     }
 
@@ -772,7 +772,7 @@ static void TestJointRuntimeTuning(void)
     jd.bodyIdB = wheel;
     jd.enableMotor = true;
     jd.motorSpeed = 3.0f;
-    jd.maxMotorTorque = 50.0f;
+    jd.maxMotorEffort = 50.0f;
     m2JointId motor = NewRevoluteJoint(world, &jd);
 
     for (int32_t i = 0; i < 90; ++i)
@@ -1618,7 +1618,7 @@ static void TestMotorAndLimitCallsNeedTheirJoint(void)
     m2Joint_EnableLimit(world, ratchet, true);
     m2Joint_EnableMotor(world, ratchet, true);
     m2Joint_SetMotorSpeed(world, ratchet, -4.0f);
-    m2Joint_SetMaxMotor(world, ratchet, 100.0f);
+    m2Joint_SetMaxMotorEffort(world, ratchet, 100.0f);
     CHECK(m2World_GetCounters(world).misuse == misuse + 5, "each call on a ratchet counts");
     float lower = 1.0f;
     float upper = 1.0f;
@@ -1659,9 +1659,9 @@ static void TestMotorAndLimitCallsNeedTheirJoint(void)
     m2Joint_SetLimits(hinges, hinge, -1.0f, 1.0f);
     m2Joint_EnableLimit(hinges, hinge, true);
     m2Joint_SetMotorSpeed(hinges, hinge, 2.0f);
-    m2Joint_SetMaxMotor(hinges, motor, 50.0f);
+    m2Joint_SetMaxMotorEffort(hinges, motor, 50.0f);
     CHECK(m2World_GetCounters(hinges).misuse == misuse, "a hinge and a motor joint take them");
-    CHECK(m2Joint_GetMaxMotor(hinges, motor) == 50.0f,
+    CHECK(m2Joint_GetMaxMotorEffort(hinges, motor) == 50.0f,
           "the motor joint's torque budget reads back");
     m2DestroyWorld(hinges);
     m2DestroyWorld(twin);
@@ -1702,7 +1702,7 @@ static void TestGearJoint(void)
         {
             rj.enableMotor = true;
             rj.motorSpeed = 3.0f;
-            rj.maxMotorTorque = 50.0f;
+            rj.maxMotorEffort = 50.0f;
         }
         pins[i] = NewRevoluteJoint(world, &rj);
     }
@@ -2176,7 +2176,7 @@ static bool FarJoint(m2World* world, m2JointType type, m2BodyId a, m2BodyId b)
         def.springHertz = 2.0f;
         def.enableMotor = true;
         def.motorSpeed = 1.0f;
-        def.maxMotorTorque = 10.0f;
+        def.maxMotorEffort = 10.0f;
         def.enableLimit = true;
         def.lowerAngle = -0.5f;
         def.upperAngle = 0.5f;
@@ -2190,7 +2190,7 @@ static bool FarJoint(m2World* world, m2JointType type, m2BodyId a, m2BodyId b)
         def.bodyIdB = b;
         def.enableMotor = true;
         def.motorSpeed = 1.0f;
-        def.maxMotorForce = 10.0f;
+        def.maxMotorEffort = 10.0f;
         def.enableLimit = true;
         def.lowerTranslation = -1.0f;
         def.upperTranslation = 1.0f;
@@ -2216,7 +2216,7 @@ static bool FarJoint(m2World* world, m2JointType type, m2BodyId a, m2BodyId b)
         def.springHertz = 4.0f;
         def.enableMotor = true;
         def.motorSpeed = 1.0f;
-        def.maxMotorTorque = 10.0f;
+        def.maxMotorEffort = 10.0f;
         def.enableLimit = true;
         def.lowerTranslation = -1.0f;
         def.upperTranslation = 1.0f;
