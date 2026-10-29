@@ -542,9 +542,9 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API m2Circle m2Shape_GetCircle(const m2World* world, m2ShapeId shapeId);
+    M2_API m2Circle m2CircleShape_GetCircle(const m2World* world, m2ShapeId shapeId);
 
-    /// Reads a capsule shape's geometry, as m2Shape_GetCircle does.
+    /// Reads a capsule shape's geometry, as m2CircleShape_GetCircle does.
     ///
     /// @param world    The world.
     /// @param shapeId  The shape; a stale id or a shape of another type
@@ -553,9 +553,9 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API m2Capsule m2Shape_GetCapsule(const m2World* world, m2ShapeId shapeId);
+    M2_API m2Capsule m2CapsuleShape_GetCapsule(const m2World* world, m2ShapeId shapeId);
 
-    /// Reads a polygon shape's geometry, as m2Shape_GetCircle does.
+    /// Reads a polygon shape's geometry, as m2CircleShape_GetCircle does.
     ///
     /// @param world    The world.
     /// @param shapeId  The shape; a stale id or a shape of another type
@@ -564,9 +564,9 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API m2Polygon m2Shape_GetPolygon(const m2World* world, m2ShapeId shapeId);
+    M2_API m2Polygon m2PolygonShape_GetPolygon(const m2World* world, m2ShapeId shapeId);
 
-    /// Reads a segment shape's geometry, as m2Shape_GetCircle does.
+    /// Reads a segment shape's geometry, as m2CircleShape_GetCircle does.
     ///
     /// @param world    The world.
     /// @param shapeId  The shape; a stale id or a shape of another type
@@ -575,9 +575,9 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API m2Segment m2Shape_GetSegment(const m2World* world, m2ShapeId shapeId);
+    M2_API m2Segment m2SegmentShape_GetSegment(const m2World* world, m2ShapeId shapeId);
 
-    /// Reads a chain link's geometry and ghosts, as m2Shape_GetCircle does.
+    /// Reads a chain link's geometry and ghosts, as m2CircleShape_GetCircle does.
     ///
     /// @param world    The world.
     /// @param shapeId  The link; a stale id or a shape of another type
@@ -586,7 +586,8 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API m2ChainSegment m2Shape_GetChainSegment(const m2World* world, m2ShapeId shapeId);
+    M2_API m2ChainSegment m2ChainSegmentShape_GetChainSegment(const m2World* world,
+                                                              m2ShapeId shapeId);
 
     /// Reads a shape's density.
     ///

@@ -81,15 +81,16 @@ void m2Shape_GetFilter(const m2World* world, m2ShapeId shapeId, uint64_t* catego
         return world->shapes.shapeGeometry[index].field;                                           \
     }
 
-M2_GEOMETRY_GETTER(m2Shape_GetCircle, m2Circle, circle, m2_circleShape)
+M2_GEOMETRY_GETTER(m2CircleShape_GetCircle, m2Circle, circle, m2_circleShape)
 
-M2_GEOMETRY_GETTER(m2Shape_GetCapsule, m2Capsule, capsule, m2_capsuleShape)
+M2_GEOMETRY_GETTER(m2CapsuleShape_GetCapsule, m2Capsule, capsule, m2_capsuleShape)
 
-M2_GEOMETRY_GETTER(m2Shape_GetPolygon, m2Polygon, polygon, m2_polygonShape)
+M2_GEOMETRY_GETTER(m2PolygonShape_GetPolygon, m2Polygon, polygon, m2_polygonShape)
 
-M2_GEOMETRY_GETTER(m2Shape_GetSegment, m2Segment, segment, m2_segmentShape)
+M2_GEOMETRY_GETTER(m2SegmentShape_GetSegment, m2Segment, segment, m2_segmentShape)
 
-M2_GEOMETRY_GETTER(m2Shape_GetChainSegment, m2ChainSegment, chainSegment, m2_chainSegmentShape)
+M2_GEOMETRY_GETTER(m2ChainSegmentShape_GetChainSegment, m2ChainSegment, chainSegment,
+                   m2_chainSegmentShape)
 
 #undef M2_GEOMETRY_GETTER
 

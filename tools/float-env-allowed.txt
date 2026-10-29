@@ -89,8 +89,8 @@ stored values read back as they are (M2_BODY_GETTER and M2_GEOMETRY_GETTER):
     m2Body_GetPosition
     m2Body_GetRotation
     m2Body_GetTransform
-    m2Shape_GetCapsule
-    m2Shape_GetChainSegment
-    m2Shape_GetCircle
-    m2Shape_GetPolygon
-    m2Shape_GetSegment
+    m2CapsuleShape_GetCapsule
+    m2ChainSegmentShape_GetChainSegment
+    m2CircleShape_GetCircle
+    m2PolygonShape_GetPolygon
+    m2SegmentShape_GetSegment

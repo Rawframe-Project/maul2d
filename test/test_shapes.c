@@ -175,15 +175,15 @@ static void TestGeometryReadback(void)
     m2Polygon poly = m2MakeBox(0.6f, 0.2f);
     m2ShapeId polyShape = NewPolygonShape(world, body, &sd, &poly);
 
-    m2Circle rc = m2Shape_GetCircle(world, circleShape);
+    m2Circle rc = m2CircleShape_GetCircle(world, circleShape);
     CHECK(rc.center.x == circle.center.x && rc.center.y == circle.center.y &&
               rc.radius == circle.radius,
           "circle reads back exactly");
-    m2Capsule rcap = m2Shape_GetCapsule(world, capsuleShape);
+    m2Capsule rcap = m2CapsuleShape_GetCapsule(world, capsuleShape);
     CHECK(rcap.point1.x == capsule.point1.x && rcap.point2.x == capsule.point2.x &&
               rcap.radius == capsule.radius,
           "capsule reads back exactly");
-    m2Polygon rp = m2Shape_GetPolygon(world, polyShape);
+    m2Polygon rp = m2PolygonShape_GetPolygon(world, polyShape);
     bool polySame = rp.count == poly.count;
     for (int32_t i = 0; polySame && i < rp.count; ++i)
     {
@@ -223,7 +223,7 @@ static void TestGeometryReadback(void)
         ascending = ascending && (i == 0 || links[i - 1].index1 < links[i].index1);
     }
     CHECK(allSegments && ascending, "all links are segments, ascending");
-    m2ChainSegment mid = m2Shape_GetChainSegment(world, links[1]);
+    m2ChainSegment mid = m2ChainSegmentShape_GetChainSegment(world, links[1]);
     CHECK(mid.segment.point1.x == 2.0f && mid.segment.point2.x == 0.0f && mid.ghost1.x == 4.0f &&
               mid.ghost2.x == -2.0f,
           "the middle link's points echo the polyline");
@@ -434,10 +434,10 @@ static void TestPolygonNormalsAreTheWorlds(void)
     m2ShapeId shape = m2_nullShapeId;
     CHECK(m2CreatePolygonShape(world, body, &shapeDef, &given, &shape) == m2_success,
           "a polygon with the caller's normals is created");
-    m2Polygon kept = m2Shape_GetPolygon(world, shape);
+    m2Polygon kept = m2PolygonShape_GetPolygon(world, shape);
     CHECK(memcmp(&kept, &built, sizeof(kept)) == 0, "the world keeps its own normals");
     m2Shape_SetPolygon(world, shape, &given);
-    kept = m2Shape_GetPolygon(world, shape);
+    kept = m2PolygonShape_GetPolygon(world, shape);
     CHECK(memcmp(&kept, &built, sizeof(kept)) == 0, "and keeps them when the polygon is set");
     m2DestroyWorld(world);
 }
