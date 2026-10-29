@@ -8,29 +8,47 @@ snapshot and journal formats.
 
 ## [0.8.0](https://github.com/Rawframe-Project/maul2d/compare/v0.7.0...v0.8.0) (2026-10-29)
 
-
-### ⚠ BREAKING CHANGES
-
-* **api:** the shape geometry getters are renamed, old to new: m2Shape_GetCircle to m2CircleShape_GetCircle, m2Shape_GetCapsule to m2CapsuleShape_GetCapsule, m2Shape_GetPolygon to m2PolygonShape_GetPolygon, m2Shape_GetSegment to m2SegmentShape_GetSegment, and m2Shape_GetChainSegment to m2ChainSegmentShape_GetChainSegment.
-* **api:** public names follow the family naming rule, old to new:
-    - m2World_ShatterBody to m2Body_Shatter;
-    - m2World_SnapshotSize to m2World_GetSnapshotSize;
-    - m2TaskFn, m2EnqueueTaskFn and m2FinishTaskFn to m2TaskFunction,
-    m2EnqueueTaskFunction and m2FinishTaskFunction;
-    - m2ResultName to m2GetResultName;
-    - m2CpuSupportsBackend to m2IsCpuBackendSupported;
-    - m2Body_SetEnabled to m2Body_Enable, and m2BodyDef.isEnabled to enable;
-    - m2Body_SetBullet to m2Body_EnableBullet, m2Body_IsBullet to
-    m2Body_IsBulletEnabled, and m2BodyDef.isBullet to enableBullet.
-    The arrays the list calls fill gain Out (ids to idsOut, hits to hitsOut,
-    planes to planesOut, overlaps to overlapsOut, data to dataOut, pieces to
-    piecesOut, results to idsOut, buffer to bufferOut), which changes no
-    call.
+This release renames the API by the Maul family's naming rule, which maul3d follows too. Every change is a rename, so a program builds again once it uses the new names below, and nothing it computes changes.
 
 ### Changed
 
-* **api:** name calls, hooks and outputs by the family rule ([#159](https://github.com/Rawframe-Project/maul2d/issues/159)) ([179a480](https://github.com/Rawframe-Project/maul2d/commit/179a48039e16cf41c2ff346adb8b59b735392807))
-* **api:** name the shape geometry getters by their shape type ([#162](https://github.com/Rawframe-Project/maul2d/issues/162)) ([985a063](https://github.com/Rawframe-Project/maul2d/commit/985a063e7d773145c55f9f94d9d79e0339ab3978))
+- **Breaking:** these are renamed, with their parameters and meaning unchanged ([#159](https://github.com/Rawframe-Project/maul2d/pull/159)):
+
+  | Old name | New name |
+  |---|---|
+  | `m2World_ShatterBody` | `m2Body_Shatter` |
+  | `m2World_SnapshotSize` | `m2World_GetSnapshotSize` |
+  | `m2TaskFn` | `m2TaskFunction` |
+  | `m2EnqueueTaskFn` | `m2EnqueueTaskFunction` |
+  | `m2FinishTaskFn` | `m2FinishTaskFunction` |
+  | `m2ResultName` | `m2GetResultName` |
+  | `m2CpuSupportsBackend` | `m2IsCpuBackendSupported` |
+
+  The `m2WorldDef` fields `enqueueTask` and `finishTask` keep their names.
+- **Breaking:** the body switches are named as in maul3d ([#159](https://github.com/Rawframe-Project/maul2d/pull/159)). A body switched on and off as a whole is `m2Body_Enable` and `m2Body_IsEnabled`, and a bullet is a part switched on and off, `m2Body_EnableBullet` and `m2Body_IsBulletEnabled`:
+
+  | Old name | New name |
+  |---|---|
+  | `m2Body_SetEnabled` | `m2Body_Enable` |
+  | `m2BodyDef.isEnabled` | `m2BodyDef.enable` |
+  | `m2Body_SetBullet` | `m2Body_EnableBullet` |
+  | `m2Body_IsBullet` | `m2Body_IsBulletEnabled` |
+  | `m2BodyDef.isBullet` | `m2BodyDef.enableBullet` |
+
+  `m2Body_IsEnabled` keeps its name.
+- **Breaking:** the shape geometry getters each read one shape type and refuse every other, so they name it ([#162](https://github.com/Rawframe-Project/maul2d/pull/162)):
+
+  | Old name | New name |
+  |---|---|
+  | `m2Shape_GetCircle` | `m2CircleShape_GetCircle` |
+  | `m2Shape_GetCapsule` | `m2CapsuleShape_GetCapsule` |
+  | `m2Shape_GetPolygon` | `m2PolygonShape_GetPolygon` |
+  | `m2Shape_GetSegment` | `m2SegmentShape_GetSegment` |
+  | `m2Shape_GetChainSegment` | `m2ChainSegmentShape_GetChainSegment` |
+
+  `m2Shape_SetCircle` and the other geometry setters keep their names: they take a shape of any type and change it.
+- The arrays the list calls fill are named with `Out` in the headers (`idsOut`, `hitsOut`, `planesOut`, `overlapsOut`, `dataOut`, `piecesOut`, and `bufferOut` for `m2World_Snapshot`). No call changes.
+- Results and formats: the same calls, renamed, step to the same bits as on 0.7.0, and no golden value moves. The snapshot (version 7) and journal tape (version 8) formats are unchanged, but as before 1.0.0, 0.8.0 reads only its own snapshots and tapes and refuses 0.7.0's with `m2_errorVersion`.
 
 ## [0.7.0](https://github.com/Rawframe-Project/maul2d/compare/v0.6.0...v0.7.0) (2026-10-28)
 
