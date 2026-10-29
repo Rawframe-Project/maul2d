@@ -544,10 +544,10 @@ static M2_NOINLINE int32_t ShapeGetSensorOverlapsWorker(const m2World* world,
 }
 
 int32_t m2Shape_GetSensorOverlaps(const m2World* world, m2ShapeId sensorShapeId,
-                                  m2ShapeId* overlaps, int32_t capacity)
+                                  m2ShapeId* overlapsOut, int32_t capacity)
 {
     uint64_t env = m2FloatEnvEnter();
-    int32_t result = ShapeGetSensorOverlapsWorker(world, sensorShapeId, overlaps, capacity);
+    int32_t result = ShapeGetSensorOverlapsWorker(world, sensorShapeId, overlapsOut, capacity);
     m2FloatEnvLeave(env);
     return result;
 }
@@ -599,10 +599,10 @@ static M2_NOINLINE int32_t WorldGetContactDataWorker(const m2World* world, m2Con
     return total;
 }
 
-int32_t m2World_GetContactData(const m2World* world, m2ContactData* data, int32_t capacity)
+int32_t m2World_GetContactData(const m2World* world, m2ContactData* dataOut, int32_t capacity)
 {
     uint64_t env = m2FloatEnvEnter();
-    int32_t result = WorldGetContactDataWorker(world, data, capacity);
+    int32_t result = WorldGetContactDataWorker(world, dataOut, capacity);
     m2FloatEnvLeave(env);
     return result;
 }

@@ -287,7 +287,7 @@ static void BuildContacts(m2World* world)
     {
         m2BodyDef bd = m2DefaultBodyDef();
         bd.type = m2_dynamicBody;
-        bd.isBullet = i % 2 == 0;
+        bd.enableBullet = i % 2 == 0;
         bd.position = (m2Pos2){2.0, 1.0 + 1.2 * (double)i};
         bd.linearVelocity = (m2Vec2){300.0f, 0.0f};
         bd.gravityScale = 0.0f;
@@ -503,7 +503,7 @@ static void SceneRollback(void)
     {
         m2World_Step(world, DT, 4);
     }
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     uint8_t* snapshot = malloc((size_t)size);
     uint8_t* again = malloc((size_t)size);
     CHECK(Snapshot(world, snapshot, size) == size, "ROLLBACK: the snapshot writes");

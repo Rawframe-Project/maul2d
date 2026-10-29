@@ -58,7 +58,7 @@ static void TestRollbackIdentity(void)
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
 
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* snapA = malloc((size_t)size);
     void* snapB = malloc((size_t)size);
     CHECK(Snapshot(world, snapA, size) == size, "snapshot A");
@@ -309,7 +309,7 @@ static void TestTeleport(void)
         RayClosest(world, (m2Pos2){100.0, 2.0}, (m2Vec2){0.0f, -6.0f}, m2DefaultQueryFilter());
     CHECK(hit.hit, "queries see the teleported body at once");
 
-    CHECK(m2World_GetJournalBaseSize(world) == 24 + m2World_SnapshotSize(world),
+    CHECK(m2World_GetJournalBaseSize(world) == 24 + m2World_GetSnapshotSize(world),
           "journal base size is header plus snapshot");
 
     m2DestroyWorld(world);
@@ -619,7 +619,7 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
         bd.linearVelocity = m2Body_GetLinearVelocity(source, bodies[i]);
         bd.angularVelocity = m2Body_GetAngularVelocity(source, bodies[i]);
         bd.gravityScale = m2Body_GetGravityScale(source, bodies[i]);
-        bd.isBullet = m2Body_IsBullet(source, bodies[i]);
+        bd.enableBullet = m2Body_IsBulletEnabled(source, bodies[i]);
         bd.userData = m2Body_GetUserData(source, bodies[i]);
         bd.dominance = m2Body_GetDominance(source, bodies[i]);
         mirrored[i] = NewBody(mirror, &bd);
@@ -910,7 +910,7 @@ static void TestMirrorRebuild(void)
     ad.linearVelocity = (m2Vec2){1.5f, 2.0f};
     ad.angularVelocity = 3.0f;
     ad.gravityScale = 0.7f;
-    ad.isBullet = true;
+    ad.enableBullet = true;
     ad.userData = 21;
     ad.dominance = 2;
     m2BodyId boxA = NewBody(world, &ad);
@@ -1223,7 +1223,7 @@ static void TestDormancyMassAndExplosions(void)
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(!m2Body_IsAwake(world, rider), "the rider sleeps on the pedestal");
-    m2Body_SetEnabled(world, pedestal, false);
+    m2Body_Enable(world, pedestal, false);
     CHECK(!m2Body_IsEnabled(world, pedestal), "dormancy reads back");
     for (int32_t i = 0; i < 90; ++i)
     {
@@ -1233,7 +1233,7 @@ static void TestDormancyMassAndExplosions(void)
     CastResult probe =
         RayClosest(world, (m2Pos2){0.0, 5.0}, (m2Vec2){0.0f, -4.0f}, m2DefaultQueryFilter());
     CHECK(!probe.hit, "a dormant body is invisible to queries");
-    m2Body_SetEnabled(world, pedestal, true);
+    m2Body_Enable(world, pedestal, true);
     probe = RayClosest(world, (m2Pos2){0.0, 5.0}, (m2Vec2){0.0f, -4.5f}, m2DefaultQueryFilter());
     CHECK(probe.hit, "and reappears where it stood");
 
@@ -1431,8 +1431,8 @@ static void TestLeftoverBasket(void)
     CHECK(m2Body_IsAwake(world, box), "and it wakes on demand");
 
     // Runtime flags and data.
-    m2Body_SetBullet(world, box, true);
-    CHECK(m2Body_IsBullet(world, box), "bullet flag flips at runtime");
+    m2Body_EnableBullet(world, box, true);
+    CHECK(m2Body_IsBulletEnabled(world, box), "bullet flag flips at runtime");
     m2Body_SetUserData(world, box, 777);
     m2Shape_SetUserData(world, boxShape, 888);
     CHECK(m2Body_GetUserData(world, box) == 777 && m2Shape_GetUserData(world, boxShape) == 888,
@@ -1832,7 +1832,7 @@ static void TestDefsMatchWhatARestoreAccepts(void)
               fabsf(diagonal.c - 0.70710678f) < 1.0e-6f && diagonal.c == diagonal.s,
           "a huge rotation keeps its direction");
 
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     uint8_t* first = (uint8_t*)malloc((size_t)size);
     uint8_t* second = (uint8_t*)malloc((size_t)size);
     CHECK(first != NULL && second != NULL, "snapshot buffers");
@@ -1859,7 +1859,7 @@ static void TestRestoreRefusesANonUnitRotation(void)
     m2BodyId body = NewBody(world, &bodyDef);
     m2Transform xf = {m2Body_GetPosition(world, body), m2Body_GetRotation(world, body)};
 
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     uint8_t* bytes = (uint8_t*)malloc((size_t)size);
     CHECK(bytes != NULL && Snapshot(world, bytes, size) == size, "the world snapshots");
     int32_t at = -1;
@@ -1966,7 +1966,7 @@ static void Intrude(Intruder* in)
     in->stepsSeen = m2World_GetStepCount(in->world); // readers stay open
 }
 
-static void* IntrudingEnqueue(m2TaskFn* task, int32_t itemCount, int32_t minRange,
+static void* IntrudingEnqueue(m2TaskFunction* task, int32_t itemCount, int32_t minRange,
                               void* taskContext, void* userContext)
 {
     (void)minRange;
@@ -2160,8 +2160,8 @@ typedef struct Peeker
     int32_t calls;
 } Peeker;
 
-static void* PeekingEnqueue(m2TaskFn* task, int32_t itemCount, int32_t minRange, void* taskContext,
-                            void* userContext)
+static void* PeekingEnqueue(m2TaskFunction* task, int32_t itemCount, int32_t minRange,
+                            void* taskContext, void* userContext)
 {
     (void)minRange;
     Peeker* peek = (Peeker*)userContext;
@@ -2296,7 +2296,7 @@ static void TestCorruptInputIsNotMisuse(void)
     bd.type = m2_dynamicBody;
     m2BodyId box = NewBody(world, &bd);
 
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     uint8_t* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "a snapshot is taken");
     int64_t capacity = m2World_GetJournalBaseSize(world) + 256;
@@ -2448,8 +2448,8 @@ static void TestStaleIdsCountInEveryCall(void)
 
     uint64_t misuse = m2World_GetCounters(world).misuse;
     m2Body_SetAwake(world, body, true);
-    m2Body_SetEnabled(world, body, false);
-    m2Body_SetEnabled(world, body, true);
+    m2Body_Enable(world, body, false);
+    m2Body_Enable(world, body, true);
     CHECK(!m2Body_IsEnabled(world, body), "a stale body is not enabled");
     CHECK(m2Body_GetLinearDamping(world, body) == 0.0f, "nor damped");
     CHECK(m2Body_GetAngularDamping(world, body) == 0.0f, "in either way");
@@ -2672,7 +2672,7 @@ static void TestFluidVolume(void)
     hs.density = 5.0f;
     NewPolygonShape(world, heavy, &hs, &box);
 
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
     Snapshot(world, snap, size);
 
@@ -2760,7 +2760,7 @@ static void TestShatterBody(void)
     m2Polygon box = m2MakeBox(0.5f, 0.5f);
     NewPolygonShape(world, crate, &sd, &box);
 
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
     Snapshot(world, snap, size);
 
@@ -2775,7 +2775,7 @@ static void TestShatterBody(void)
     }
     m2BodyId out[4];
     int32_t made = 0;
-    CHECK(m2World_ShatterBody(world, crate, shards, 4, out, 4, &made) == m2_success,
+    CHECK(m2Body_Shatter(world, crate, shards, 4, out, 4, &made) == m2_success,
           "the crate shatters");
     CHECK(made == 4, "into four");
     CHECK(!m2Body_IsValid(world, crate), "the parent is gone");
@@ -2846,39 +2846,37 @@ static void TestShatterBody(void)
     uint64_t misuseBefore = m2World_GetCounters(small).misuse;
     m2BodyId kept[2] = {lone, lone};
     int32_t count = 7;
-    CHECK(m2World_ShatterBody(small, lone, shards, 4, kept, 2, &count) == m2_errorCapacity,
+    CHECK(m2Body_Shatter(small, lone, shards, 4, kept, 2, &count) == m2_errorCapacity,
           "a full world refuses with m2_errorCapacity");
     CHECK(count == 0 && kept[0].index1 == 0 && kept[1].index1 == 0, "and clears the outputs");
     CHECK(m2World_GetCounters(small).misuse == misuseBefore, "a full pool is not misuse");
     m2Polygon bent = shards[0];
     bent.count = M2_MAX_POLYGON_VERTICES + 1;
-    CHECK(m2World_ShatterBody(small, lone, &bent, 1, NULL, 0, &count) == m2_errorLimit,
+    CHECK(m2Body_Shatter(small, lone, &bent, 1, NULL, 0, &count) == m2_errorLimit,
           "a piece past M2_MAX_POLYGON_VERTICES refuses with m2_errorLimit");
     CHECK(m2World_GetCounters(small).misuse == misuseBefore + 1, "as misuse");
     bent = shards[0];
     bent.vertices[1] = bent.vertices[0];
-    CHECK(m2World_ShatterBody(small, lone, &bent, 1, NULL, 0, &count) == m2_errorInvalid,
+    CHECK(m2Body_Shatter(small, lone, &bent, 1, NULL, 0, &count) == m2_errorInvalid,
           "a degenerate piece refuses with m2_errorInvalid");
     misuseBefore += 1;
     CHECK(m2World_GetCounters(small).misuse == misuseBefore + 1, "as misuse");
     CHECK(m2World_Hash(small) == before, "a refusal moves no bits");
     m2BodyDef fixed = m2DefaultBodyDef();
     m2BodyId wall = NewBody(small, &fixed);
-    CHECK(m2World_ShatterBody(small, wall, shards, 1, NULL, 0, &count) == m2_errorInvalid,
+    CHECK(m2Body_Shatter(small, wall, shards, 1, NULL, 0, &count) == m2_errorInvalid,
           "a static body does not shatter");
     DestroyBody(small, wall);
     before = m2World_Hash(small); // the wall moved the body pool on
-    CHECK(m2World_ShatterBody(small, wall, shards, 1, NULL, 0, &count) == m2_errorStale,
+    CHECK(m2Body_Shatter(small, wall, shards, 1, NULL, 0, &count) == m2_errorStale,
           "a stale body is m2_errorStale");
-    CHECK(m2World_ShatterBody(small, lone, shards, 1, NULL, 0, NULL) == m2_errorInvalid,
+    CHECK(m2Body_Shatter(small, lone, shards, 1, NULL, 0, NULL) == m2_errorInvalid,
           "and so is a missing count");
     count = 7;
-    CHECK(m2World_ShatterBody(small, lone, shards, 1, NULL, -1, &count) == m2_errorInvalid &&
-              count == 0,
+    CHECK(m2Body_Shatter(small, lone, shards, 1, NULL, -1, &count) == m2_errorInvalid && count == 0,
           "a negative capacity is refused and clears the count");
     count = 7;
-    CHECK(m2World_ShatterBody(small, lone, shards, 1, NULL, 2, &count) == m2_errorInvalid &&
-              count == 0,
+    CHECK(m2Body_Shatter(small, lone, shards, 1, NULL, 2, &count) == m2_errorInvalid && count == 0,
           "a null bodiesOut with room is refused and clears the count");
     CHECK(m2World_GetCounters(small).misuse == misuseBefore + 6, "each a misuse");
     CHECK(m2Body_IsValid(small, lone), "the refused parent is untouched");
@@ -3032,7 +3030,7 @@ static void TestMotionLocks(void)
         }
         m2Body_SetMotionLocks(w, b,
                               (m2MotionLocks){true, true, false}); // lock both linear axes now
-        int64_t size = m2World_SnapshotSize(w);
+        int64_t size = m2World_GetSnapshotSize(w);
         void* snap = malloc((size_t)size);
         CHECK(Snapshot(w, snap, size) == size, "the snapshot fits");
         for (int32_t i = 0; i < 30; ++i)
@@ -3121,7 +3119,7 @@ static void TestWind(void)
         {
             m2World_Step(w, 1.0f / 60.0f, 4);
         }
-        int64_t size = m2World_SnapshotSize(w);
+        int64_t size = m2World_GetSnapshotSize(w);
         void* snap = malloc((size_t)size);
         CHECK(Snapshot(w, snap, size) == size, "the snapshot fits");
         for (int32_t i = 0; i < 30; ++i)
@@ -3208,7 +3206,7 @@ static void TestSetMassDataChecksEveryField(void)
     // masses and inertias either set and round-trip, or are refused.
     const float extremes[] = {1e-30f, 1e-20f, 1.0f, 1e30f, 1e38f, 3e38f, FLT_MAX};
     const int32_t extremeCount = (int32_t)(sizeof(extremes) / sizeof(extremes[0]));
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* snapshot = malloc((size_t)size);
     for (int32_t i = 0; i < extremeCount && snapshot != NULL; ++i)
     {
@@ -3290,7 +3288,7 @@ static void TestCentersAtTheBoundRestore(void)
         CHECK(center.x <= M2_LOCAL_LIMIT && center.y >= -M2_LOCAL_LIMIT,
               "the center stays within M2_LOCAL_LIMIT");
     }
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* snapshot = malloc((size_t)size);
     CHECK(snapshot != NULL && Snapshot(world, snapshot, size) == size &&
               Restore(world, snapshot, size),

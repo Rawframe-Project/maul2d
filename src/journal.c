@@ -129,7 +129,7 @@ void m2JournalRecordChain(m2World* world, m2BodyId bodyId, const m2ChainDef* def
 
 static M2_NOINLINE int64_t WorldGetJournalBaseSizeWorker(const m2World* world)
 {
-    return world != NULL ? (int64_t)sizeof(m2JournalHeader) + m2World_SnapshotSize(world) : 0;
+    return world != NULL ? (int64_t)sizeof(m2JournalHeader) + m2World_GetSnapshotSize(world) : 0;
 }
 
 int64_t m2World_GetJournalBaseSize(const m2World* world)
@@ -155,7 +155,7 @@ static M2_NOINLINE m2Result WorldStartJournalWorker(m2World* world, void* buffer
     {
         return m2Refuse(world, m2_errorState);
     }
-    int64_t snapshotSize = m2World_SnapshotSize(world);
+    int64_t snapshotSize = m2World_GetSnapshotSize(world);
     if (capacity < (int64_t)sizeof(m2JournalHeader) + snapshotSize)
     {
         return m2Refuse(world, m2_errorCapacity);
@@ -314,7 +314,7 @@ static M2_NOINLINE m2Result WorldReplayJournalWorker(m2World* world, const void*
     // Atomic: the world takes the whole tape or none of it. A snapshot
     // taken first backs out a replay that fails part way, so a corrupt
     // or truncated tape never leaves a half-built world behind.
-    int64_t backupSize = m2World_SnapshotSize(world);
+    int64_t backupSize = m2World_GetSnapshotSize(world);
     void* backup = m2WorldAlloc(world, (size_t)backupSize);
     if (backup == NULL)
     {

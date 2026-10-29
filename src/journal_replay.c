@@ -42,13 +42,13 @@ static bool ApplyDestroyBody(m2ReplayCursor* r, const m2OpPayload* p)
 
 static bool ApplyDisableBody(m2ReplayCursor* r, const m2OpPayload* p)
 {
-    m2Body_SetEnabled(r->world, p->bodyId, false);
+    m2Body_Enable(r->world, p->bodyId, false);
     return true;
 }
 
 static bool ApplyEnableBody(m2ReplayCursor* r, const m2OpPayload* p)
 {
-    m2Body_SetEnabled(r->world, p->bodyId, true);
+    m2Body_Enable(r->world, p->bodyId, true);
     return true;
 }
 
@@ -127,7 +127,7 @@ static bool ApplySetAwake(m2ReplayCursor* r, const m2OpPayload* p)
 
 static bool ApplySetBullet(m2ReplayCursor* r, const m2OpPayload* p)
 {
-    m2Body_SetBullet(r->world, p->bodyByte.body, p->bodyByte.value != 0);
+    m2Body_EnableBullet(r->world, p->bodyByte.body, p->bodyByte.value != 0);
     return true;
 }
 
@@ -486,7 +486,7 @@ static bool ApplyShatterBody(m2ReplayCursor* r, const m2OpPayload* p)
     m2BodyId first[1] = {m2_nullBodyId};
     int32_t made = 0;
     m2Result shattered =
-        m2World_ShatterBody(r->world, op->body, pieces, op->pieceCount, first, 1, &made);
+        m2Body_Shatter(r->world, op->body, pieces, op->pieceCount, first, 1, &made);
     m2WorldFree(r->world, pieces, (size_t)pieceBytes);
     return shattered == m2_success && made == op->pieceCount &&
            first[0].index1 == (uint32_t)op->expectedFirst;
@@ -505,8 +505,8 @@ static const uint16_t s_bodyBools[] = {M2_AT(m2OpCreateBody, def.motionLocks.lin
                                        M2_AT(m2OpCreateBody, def.motionLocks.linearY),
                                        M2_AT(m2OpCreateBody, def.motionLocks.angularZ),
                                        M2_AT(m2OpCreateBody, def.enableSleep),
-                                       M2_AT(m2OpCreateBody, def.isEnabled),
-                                       M2_AT(m2OpCreateBody, def.isBullet)};
+                                       M2_AT(m2OpCreateBody, def.enable),
+                                       M2_AT(m2OpCreateBody, def.enableBullet)};
 static const uint16_t s_shapeBools[] = {M2_AT(m2OpCreateShape, def.isSensor)};
 static const uint16_t s_distanceBools[] = {
     M2_AT(m2OpCreateDistanceJoint, def.enableSpring),

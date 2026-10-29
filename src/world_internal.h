@@ -60,7 +60,7 @@ typedef struct m2Bodies
     uint8_t* asleep;        // sleep flag (snapshot + hashed: the sleep law)
     float* sleepTimes;      // seconds under tolerance (snapshot + hashed)
     uint8_t* sleepStreak;   // step-ends asleep, saturating at 2 (snapshot state)
-    uint8_t* bullets;       // isBullet flag (snapshot + hashed)
+    uint8_t* bullets;       // enableBullet flag (snapshot + hashed)
     uint32_t* generations;
     int32_t* freeQueue;
     int32_t freeHead;
@@ -370,9 +370,9 @@ typedef struct m2World
     uint8_t* restoreMarks;
 
     // Host hooks and diagnostics (never snapshot state).
-    m2Allocator allocator;        // the def's, or the C library's; kept for the world's life
-    m2EnqueueTaskFn* enqueueTask; // host executor; both NULL =
-    m2FinishTaskFn* finishTask;   // serial; never snapshot state
+    m2Allocator allocator;              // the def's, or the C library's; kept for the world's life
+    m2EnqueueTaskFunction* enqueueTask; // host executor; both NULL =
+    m2FinishTaskFunction* finishTask;   // serial; never snapshot state
     void* userTaskContext;
     m2Profile profile; // diagnostics only (never walked/hashed)
     // Cumulative misuse, accessed only atomically (m2Refuse, m2MisuseCount);

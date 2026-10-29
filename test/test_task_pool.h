@@ -21,7 +21,7 @@
 
 typedef struct TpRange
 {
-    m2TaskFn* task;
+    m2TaskFunction* task;
     void* taskContext;
     int32_t start;
     int32_t end;
@@ -56,7 +56,7 @@ static void* TpMain(void* arg)
 }
 #endif
 
-static void* TpEnqueue(m2TaskFn* task, int32_t itemCount, int32_t minRange, void* taskContext,
+static void* TpEnqueue(m2TaskFunction* task, int32_t itemCount, int32_t minRange, void* taskContext,
                        void* userContext)
 {
     static TpTask taskSlot; // one in-flight task: the library's contract

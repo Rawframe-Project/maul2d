@@ -12,7 +12,7 @@
 // shares.
 typedef struct TaskCall
 {
-    m2TaskFn* fn;
+    m2TaskFunction* fn;
     void* context;
 } TaskCall;
 
@@ -56,7 +56,8 @@ static M2_NOINLINE void Finish(const m2World* world, void* task)
     m2FloatHostLeave(host);
 }
 
-void m2RunParallel(m2World* world, m2TaskFn* fn, void* ctx, int32_t itemCount, int32_t minRange)
+void m2RunParallel(m2World* world, m2TaskFunction* fn, void* ctx, int32_t itemCount,
+                   int32_t minRange)
 {
     if (itemCount <= 0)
     {

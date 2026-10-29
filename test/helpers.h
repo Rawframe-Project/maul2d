@@ -278,8 +278,7 @@ static inline int32_t ShatterBody(m2World* world, m2BodyId bodyId, const m2Polyg
                                   int32_t pieceCount, m2BodyId* bodiesOut, int32_t capacity)
 {
     int32_t made = 0;
-    m2Result result =
-        m2World_ShatterBody(world, bodyId, pieces, pieceCount, bodiesOut, capacity, &made);
+    m2Result result = m2Body_Shatter(world, bodyId, pieces, pieceCount, bodiesOut, capacity, &made);
     (void)result;
     return made;
 }

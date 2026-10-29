@@ -91,7 +91,7 @@ static Scene MakeSceneAfter(int32_t steps)
     {
         m2World_Step(scene.world, 1.0f / 60.0f, 4);
     }
-    scene.size = m2World_SnapshotSize(scene.world);
+    scene.size = m2World_GetSnapshotSize(scene.world);
     scene.valid = (uint8_t*)malloc((size_t)scene.size);
     CHECK(scene.valid != NULL && Snapshot(scene.world, scene.valid, scene.size) == scene.size,
           "the scene snapshots");
@@ -884,7 +884,7 @@ static Scene MakeJointScene(void)
     {
         m2World_Step(w, 1.0f / 60.0f, 4);
     }
-    scene.size = m2World_SnapshotSize(w);
+    scene.size = m2World_GetSnapshotSize(w);
     scene.valid = (uint8_t*)malloc((size_t)scene.size);
     CHECK(scene.valid != NULL && Snapshot(w, scene.valid, scene.size) == scene.size,
           "the joint scene snapshots");
@@ -1067,7 +1067,7 @@ static void AwakeBoxMoved(const Scene* scene, uint8_t* block)
 // The world's own snapshot restores onto the same hash.
 static bool RoundTripsAlone(m2World* world)
 {
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* bytes = malloc((size_t)size);
     if (bytes == NULL)
     {
@@ -1119,7 +1119,7 @@ static void TestRestingBoxes(void)
     m2World* world = CrawlWorld((m2Vec2){0.04f, 0.0f}, &box);
     m2World_Step(world, M2_STEP_LIMIT, 1);
     CHECK(!m2Body_IsAwake(world, box), "the crawling box falls asleep in one long step");
-    Scene sleeping = {world, NULL, m2World_SnapshotSize(world), 0, {0}, box, {0}, {0}};
+    Scene sleeping = {world, NULL, m2World_GetSnapshotSize(world), 0, {0}, box, {0}, {0}};
     sleeping.valid = (uint8_t*)malloc((size_t)sleeping.size);
     CHECK(sleeping.valid != NULL && Snapshot(world, sleeping.valid, sleeping.size) == sleeping.size,
           "the sleeping world snapshots");
@@ -1252,7 +1252,7 @@ static Scene MakeJellyScene(void)
     CHECK(w->particles.particleAlive[0] == 0 && w->particles.particleSpringCount > 0 &&
               w->particles.particleTriadCount > 0,
           "the jelly keeps springs and triads around a dead slot 0");
-    scene.size = m2World_SnapshotSize(w);
+    scene.size = m2World_GetSnapshotSize(w);
     scene.valid = (uint8_t*)malloc((size_t)scene.size);
     CHECK(scene.valid != NULL && Snapshot(w, scene.valid, scene.size) == scene.size,
           "the jelly snapshots");
@@ -1547,7 +1547,7 @@ static void SpendPool(const SpentPool* pool)
 static void RestoreSpentPool(const SpentPool* pool, const void* freeQueue, const void* freeHead,
                              const void* freeCount)
 {
-    int64_t size = m2World_SnapshotSize(pool->world);
+    int64_t size = m2World_GetSnapshotSize(pool->world);
     uint8_t* bytes = (uint8_t*)malloc((size_t)size);
     uint8_t* edited = (uint8_t*)malloc((size_t)size);
     CHECK(bytes != NULL && edited != NULL && Snapshot(pool->world, bytes, size) == size,
@@ -1733,7 +1733,7 @@ static LinkScene MakeLinkScene(float radius)
     CHECK(scene.world->particles.particleSpringCount > 0 &&
               scene.world->particles.particleTriadCount > 0,
           "with springs and triads");
-    scene.size = m2World_SnapshotSize(scene.world);
+    scene.size = m2World_GetSnapshotSize(scene.world);
     scene.bytes = (uint8_t*)malloc((size_t)scene.size);
     CHECK(scene.bytes != NULL && Snapshot(scene.world, scene.bytes, scene.size) == scene.size,
           "the world snapshots");
@@ -1819,7 +1819,7 @@ static void TestRestoreKeepsTheParticleRadius(void)
           "a snapshot from a world of another particle radius is refused");
     def.particleRadius = 0.1f;
     m2World* same = NewWorld(&def);
-    int64_t emptySize = m2World_SnapshotSize(same);
+    int64_t emptySize = m2World_GetSnapshotSize(same);
     uint8_t* empty = (uint8_t*)malloc((size_t)emptySize);
     CHECK(empty != NULL && Snapshot(same, empty, emptySize) == emptySize,
           "an empty world snapshots");

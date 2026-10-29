@@ -354,7 +354,7 @@ int32_t m2World_GetParticleCount(const m2World* world)
     return world != NULL ? world->particles.particleCount : 0;
 }
 
-int32_t m2World_GetParticles(const m2World* world, m2ParticleId* ids, int32_t capacity)
+int32_t m2World_GetParticles(const m2World* world, m2ParticleId* idsOut, int32_t capacity)
 {
     if (world == NULL)
     {
@@ -367,9 +367,10 @@ int32_t m2World_GetParticles(const m2World* world, m2ParticleId* ids, int32_t ca
         {
             continue;
         }
-        if (ids != NULL && total < capacity)
+        if (idsOut != NULL && total < capacity)
         {
-            ids[total] = (m2ParticleId){(uint32_t)(i + 1), world->particles.particleGenerations[i]};
+            idsOut[total] =
+                (m2ParticleId){(uint32_t)(i + 1), world->particles.particleGenerations[i]};
         }
         total += 1;
     }
@@ -648,11 +649,11 @@ static M2_NOINLINE int32_t WorldOverlapParticlesAabbWorker(const m2World* world,
     return total;
 }
 
-int32_t m2World_OverlapParticlesAabb(const m2World* world, m2WorldAabb box, m2ParticleId* ids,
+int32_t m2World_OverlapParticlesAabb(const m2World* world, m2WorldAabb box, m2ParticleId* idsOut,
                                      int32_t capacity)
 {
     uint64_t env = m2FloatEnvEnter();
-    int32_t result = WorldOverlapParticlesAabbWorker(world, box, ids, capacity);
+    int32_t result = WorldOverlapParticlesAabbWorker(world, box, idsOut, capacity);
     m2FloatEnvLeave(env);
     return result;
 }

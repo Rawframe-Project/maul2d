@@ -844,15 +844,15 @@ static M2_NOINLINE int32_t WorldGetBodiesWorker(const m2World* world, m2BodyId* 
     return total;
 }
 
-int32_t m2World_GetBodies(const m2World* world, m2BodyId* ids, int32_t capacity)
+int32_t m2World_GetBodies(const m2World* world, m2BodyId* idsOut, int32_t capacity)
 {
     uint64_t env = m2FloatEnvEnter();
-    int32_t result = WorldGetBodiesWorker(world, ids, capacity);
+    int32_t result = WorldGetBodiesWorker(world, idsOut, capacity);
     m2FloatEnvLeave(env);
     return result;
 }
 
-int32_t m2World_GetJoints(const m2World* world, m2JointId* ids, int32_t capacity)
+int32_t m2World_GetJoints(const m2World* world, m2JointId* idsOut, int32_t capacity)
 {
     if (world == NULL)
     {
@@ -865,17 +865,17 @@ int32_t m2World_GetJoints(const m2World* world, m2JointId* ids, int32_t capacity
         {
             continue;
         }
-        if (ids != NULL && total < capacity)
+        if (idsOut != NULL && total < capacity)
         {
             m2JointId id = {(uint32_t)(i + 1), world->joints.jointGenerations[i]};
-            ids[total] = id;
+            idsOut[total] = id;
         }
         total += 1;
     }
     return total;
 }
 
-int32_t m2World_GetChains(const m2World* world, m2ChainId* ids, int32_t capacity)
+int32_t m2World_GetChains(const m2World* world, m2ChainId* idsOut, int32_t capacity)
 {
     if (world == NULL)
     {
@@ -888,10 +888,10 @@ int32_t m2World_GetChains(const m2World* world, m2ChainId* ids, int32_t capacity
         {
             continue;
         }
-        if (ids != NULL && total < capacity)
+        if (idsOut != NULL && total < capacity)
         {
             m2ChainId id = {(uint32_t)(i + 1), world->chains.chainGenerations[i]};
-            ids[total] = id;
+            idsOut[total] = id;
         }
         total += 1;
     }

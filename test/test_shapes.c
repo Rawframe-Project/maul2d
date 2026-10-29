@@ -162,7 +162,7 @@ static void TestGeometryReadback(void)
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){0.0, 4.0};
-    bd.isBullet = true;
+    bd.enableBullet = true;
     bd.gravityScale = 0.5f;
     m2BodyId body = NewBody(world, &bd);
     m2ShapeDef sd = m2DefaultShapeDef();
@@ -197,7 +197,7 @@ static void TestGeometryReadback(void)
     // read back as set.
     m2Vec2 com = m2Body_GetLocalCenter(world, body);
     CHECK(com.x != 0.0f, "offset shapes move the local center");
-    CHECK(m2Body_IsBullet(world, body), "bullet flag reads back");
+    CHECK(m2Body_IsBulletEnabled(world, body), "bullet flag reads back");
     CHECK(m2Body_GetGravityScale(world, body) == 0.5f, "gravity scale reads back");
 
     // Chain links: enumerable per chain, each one a chain segment,

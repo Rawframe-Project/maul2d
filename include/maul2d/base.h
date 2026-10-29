@@ -155,7 +155,7 @@ extern "C"
     /// @return A static, NUL-terminated string such as "m2_errorCapacity".
     /// @par Thread safety
     /// Safe from any thread.
-    M2_API const char* m2ResultName(m2Result result);
+    M2_API const char* m2GetResultName(m2Result result);
 
     /// Returns the SIMD backend the library was compiled for: "avx2",
     /// "neon" or "scalar". Every backend produces the same bits; this only
@@ -176,7 +176,7 @@ extern "C"
     /// @return 1 when the CPU can run this library, 0 when it cannot.
     /// @par Thread safety
     /// Safe from any thread.
-    M2_API int32_t m2CpuSupportsBackend(void);
+    M2_API int32_t m2IsCpuBackendSupported(void);
 
     /// The 64-bit hash every determinism check is built on: eight bytes a
     /// round, xored in, multiplied by an odd constant and folded, the

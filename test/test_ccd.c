@@ -26,14 +26,14 @@ static void AddWall(m2World* world, double x, float halfThickness, float halfHei
     NewPolygonShape(world, wall, &sd, &slabShape);
 }
 
-static m2BodyId FireBall(m2World* world, double x, float speed, bool isBullet)
+static m2BodyId FireBall(m2World* world, double x, float speed, bool enableBullet)
 {
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){x, 0.0};
     bd.linearVelocity = (m2Vec2){speed, 0.0f};
     bd.gravityScale = 0.0f;
-    bd.isBullet = isBullet;
+    bd.enableBullet = enableBullet;
     m2BodyId ball = NewBody(world, &bd);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Circle circle = {{0.0f, 0.0f}, 0.1f};
@@ -133,7 +133,7 @@ static void TestCcdRollback(void)
 
     m2World_Step(world, 1.0f / 60.0f, 4); // bullet mid-flight
 
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "snapshot");
     uint64_t hashes[30];
@@ -224,7 +224,7 @@ static void TestSegmentBulletStops(void)
     bd.type = m2_dynamicBody;
     bd.position = (m2Pos2){-10.0, 0.0};
     bd.linearVelocity = (m2Vec2){600.0f, 0.0f};
-    bd.isBullet = true;
+    bd.enableBullet = true;
     m2BodyId bullet = NewBody(world, &bd);
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Segment rod = {{0.0f, -0.5f}, {0.0f, 0.5f}};

@@ -129,8 +129,7 @@ static void TestOutlineAndShatter(void)
     // Later, when the wall breaks:
     m2BodyId fragments[8];
     int32_t fragmentCount = 0;
-    m2Result broke =
-        m2World_ShatterBody(world, wall, pieces, pieceCount, fragments, 8, &fragmentCount);
+    m2Result broke = m2Body_Shatter(world, wall, pieces, pieceCount, fragments, 8, &fragmentCount);
 
     CHECK(whole && pieceCount >= 2, "the L outline becomes convex pieces on the wall");
     CHECK(broke == m2_success && fragmentCount == pieceCount,
@@ -236,7 +235,7 @@ static void TestRollbackFrame(void)
     m2BodyId ball = DropBall(world, 2.0);
     CHECK(DropBall(twin, 2.0).index1 != 0 && ball.index1 != 0, "with a ball each");
 
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* frame = malloc((size_t)size);
     int64_t written = 0;
     bool saved = frame != NULL && m2World_Snapshot(world, frame, size, &written) == m2_success;

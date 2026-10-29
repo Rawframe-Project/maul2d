@@ -15,7 +15,7 @@ Step the world at a fixed `dt`, never tied to the frame rate. For presentation, 
 Snapshot every confirmed frame. When a late input arrives, restore, apply the corrected inputs and step again to the present. The re-simulation lands on the bits the original would have reached, so a divergence can only come from the game's own input handling.
 
 ```c
-int64_t size = m2World_SnapshotSize(world);
+int64_t size = m2World_GetSnapshotSize(world);
 void* frame = malloc((size_t)size);
 int64_t written = 0;
 bool saved = frame != NULL && m2World_Snapshot(world, frame, size, &written) == m2_success;

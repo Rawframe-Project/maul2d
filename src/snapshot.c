@@ -91,15 +91,15 @@ bool m2SnapshotFits(const m2World* world)
     return SnapshotBytes(world) < INT64_MAX;
 }
 
-static M2_NOINLINE int64_t WorldSnapshotSizeWorker(const m2World* world)
+static M2_NOINLINE int64_t WorldGetSnapshotSizeWorker(const m2World* world)
 {
     return world != NULL ? SnapshotBytes(world) : 0;
 }
 
-int64_t m2World_SnapshotSize(const m2World* world)
+int64_t m2World_GetSnapshotSize(const m2World* world)
 {
     uint64_t env = m2FloatEnvEnter();
-    int64_t result = WorldSnapshotSizeWorker(world);
+    int64_t result = WorldGetSnapshotSizeWorker(world);
     m2FloatEnvLeave(env);
     return result;
 }
@@ -143,10 +143,11 @@ static M2_NOINLINE m2Result WorldSnapshotWorker(const m2World* world, void* buff
     return m2_success;
 }
 
-m2Result m2World_Snapshot(const m2World* world, void* buffer, int64_t capacity, int64_t* bytesOut)
+m2Result m2World_Snapshot(const m2World* world, void* bufferOut, int64_t capacity,
+                          int64_t* bytesOut)
 {
     uint64_t env = m2FloatEnvEnter();
-    m2Result result = WorldSnapshotWorker(world, buffer, capacity, bytesOut);
+    m2Result result = WorldSnapshotWorker(world, bufferOut, capacity, bytesOut);
     m2FloatEnvLeave(env);
     return result;
 }

@@ -14,7 +14,7 @@ static void Require(m2Result result, const char* what)
 {
     if (result != m2_success)
     {
-        fprintf(stderr, "%s: %s\n", what, m2ResultName(result));
+        fprintf(stderr, "%s: %s\n", what, m2GetResultName(result));
         exit(1);
     }
 }
@@ -59,7 +59,7 @@ int main(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
     if (snap == NULL)
     {

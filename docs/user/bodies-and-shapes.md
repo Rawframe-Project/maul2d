@@ -24,7 +24,7 @@ A body with a higher dominance (`m2Body_SetDominance`) cannot be pushed by a low
 
 ## Dormant bodies and mass
 
-`m2Body_SetEnabled(world, body, false)` takes a body out of the simulation without destroying it: its contacts end, whatever rested on it wakes, queries stop seeing it, and its joints wait. `m2Body_SetEnabled(world, body, true)` puts it back where it stood.
+`m2Body_Enable(world, body, false)` takes a body out of the simulation without destroying it: its contacts end, whatever rested on it wakes, queries stop seeing it, and its joints wait. `m2Body_Enable(world, body, true)` puts it back where it stood.
 
 A dynamic body's mass comes from its shapes' densities. `m2Body_SetMassData` overrides it until a shape change, a fixed-rotation change or `m2Body_ApplyMassFromShapes` computes it from the shapes again. The override takes a mass from `M2_MIN_MASS` to `M2_MASS_LIMIT` (1e-9 to 1e12 kg), a center within `M2_LOCAL_LIMIT`, and `centralInertia`, the rotational inertia about that center, which is either 0, which makes a body that cannot turn, or from `M2_MIN_INERTIA` to `M2_INERTIA_LIMIT` (1e-12 to 1e24 kg m^2). The inertia is about the center, as most formulas give it (a disc's is m r^2 / 2), so a small one beside a far center is kept as given. Anything else is refused and counts one misuse, a mass of `FLT_MAX` and a central inertia of `FLT_MAX` among them. Mass summed from shapes is clamped into the same ranges, and `m2Body_GetMassData` reads back what the body kept ([Limits](limits.md)).
 
@@ -48,7 +48,7 @@ A chain is terrain bodies cannot snag on: a run of one-sided segments whose seam
 
 `m2ComputeHull` turns a loose point cloud into a convex polygon, welding near points and refusing degenerate input. `m2DecomposeOutline` goes further: a simple counter-clockwise outline of up to `M2_MAX_OUTLINE_POINTS` (64) points, a sprite's silhouette, becomes convex pieces of at most 8 vertices that keep its area; a longer outline is refused with `m2_errorLimit`. A clockwise outline, one that is not simple (it crosses itself, a vertex comes within 0.005 m of another edge, a vertex repeats, or an edge folds back), or one so thin that no piece passes validation is refused with `m2_errorInvalid`.
 
-`m2World_ShatterBody` breaks a dynamic body into one new body per piece. Each piece carries the parent's velocity at its own center of mass and the material of the parent's first shape, and the whole break is one journaled operation, so it replays and rolls back like anything else. When the pools cannot seat every piece, it returns `m2_errorCapacity` and nothing changes.
+`m2Body_Shatter` breaks a dynamic body into one new body per piece. Each piece carries the parent's velocity at its own center of mass and the material of the parent's first shape, and the whole break is one journaled operation, so it replays and rolls back like anything else. When the pools cannot seat every piece, it returns `m2_errorCapacity` and nothing changes.
 
 ```c
 m2Vec2 outline[6] = {{-2.0f, 0.0f}, {2.0f, 0.0f}, {2.0f, 1.0f},
@@ -66,8 +66,7 @@ for (int32_t i = 0; whole && i < pieceCount; ++i)
 // Later, when the wall breaks:
 m2BodyId fragments[8];
 int32_t fragmentCount = 0;
-m2Result broke =
-    m2World_ShatterBody(world, wall, pieces, pieceCount, fragments, 8, &fragmentCount);
+m2Result broke = m2Body_Shatter(world, wall, pieces, pieceCount, fragments, 8, &fragmentCount);
 ```
 
 ## Explosions

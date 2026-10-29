@@ -28,13 +28,13 @@ extern "C"
     typedef struct m2World m2World;
 
     /// A range job: run items [startIndex, endIndex).
-    typedef void m2TaskFn(int32_t startIndex, int32_t endIndex, void* taskContext);
+    typedef void m2TaskFunction(int32_t startIndex, int32_t endIndex, void* taskContext);
     /// Splits [0, itemCount) into subranges of at least minRange and runs
     /// task over them on the host's scheduler; the return value is handed
     /// to finishTask, which waits until all of them are done.
-    typedef void* m2EnqueueTaskFn(m2TaskFn* task, int32_t itemCount, int32_t minRange,
-                                  void* taskContext, void* userContext);
-    typedef void m2FinishTaskFn(void* userTask, void* userContext);
+    typedef void* m2EnqueueTaskFunction(m2TaskFunction* task, int32_t itemCount, int32_t minRange,
+                                        void* taskContext, void* userContext);
+    typedef void m2FinishTaskFunction(void* userTask, void* userContext);
 
     /// The def of a world. Initialize it with m2DefaultWorldDef.
     typedef struct m2WorldDef
@@ -79,8 +79,8 @@ extern "C"
         /// when every subrange is done. Both null, the default, runs the
         /// work serially on the calling thread. Any executor and any split
         /// give the same bits.
-        m2EnqueueTaskFn* enqueueTask;
-        m2FinishTaskFn* finishTask;
+        m2EnqueueTaskFunction* enqueueTask;
+        m2FinishTaskFunction* finishTask;
         void* userTaskContext;
         /// The allocator the world takes all its memory from, kept for its
         /// lifetime. Zeroed, it is the C library's. Set both functions or
@@ -432,22 +432,22 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API int64_t m2World_SnapshotSize(const m2World* world);
+    M2_API int64_t m2World_GetSnapshotSize(const m2World* world);
 
     /// Writes the whole simulation state into caller memory.
     ///
-    /// @param world     The world.
-    /// @param buffer    Receives the snapshot.
-    /// @param capacity  The length of buffer, in bytes.
-    /// @param bytesOut  Receives the bytes written; with m2_errorCapacity,
-    ///                  the size needed; 0 on any other failure.
+    /// @param world      The world.
+    /// @param bufferOut  Receives the snapshot.
+    /// @param capacity   The length of bufferOut, in bytes.
+    /// @param bytesOut   Receives the bytes written; with m2_errorCapacity,
+    ///                   the size needed; 0 on any other failure.
     /// @return m2_success; m2_errorInvalid for a null argument;
     ///         m2_errorCapacity when capacity is below
-    ///         m2World_SnapshotSize, with nothing written.
+    ///         m2World_GetSnapshotSize, with nothing written.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_NODISCARD M2_API m2Result m2World_Snapshot(const m2World* world, void* buffer,
+    M2_NODISCARD M2_API m2Result m2World_Snapshot(const m2World* world, void* bufferOut,
                                                   int64_t capacity, int64_t* bytesOut);
 
     /// Restores a snapshot of a world with the same shape: the same

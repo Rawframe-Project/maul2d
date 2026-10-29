@@ -369,7 +369,8 @@ void m2Chain_SetRestitution(m2World* world, m2ChainId chainId, float restitution
     m2FloatEnvLeave(env);
 }
 
-int32_t m2Chain_GetShapes(const m2World* world, m2ChainId chainId, m2ShapeId* ids, int32_t capacity)
+int32_t m2Chain_GetShapes(const m2World* world, m2ChainId chainId, m2ShapeId* idsOut,
+                          int32_t capacity)
 {
     int32_t chainIndex = world != NULL ? ChainSlot(world, chainId) : -1;
     if (chainIndex < 0)
@@ -384,9 +385,9 @@ int32_t m2Chain_GetShapes(const m2World* world, m2ChainId chainId, m2ShapeId* id
         {
             continue;
         }
-        if (ids != NULL && total < capacity)
+        if (idsOut != NULL && total < capacity)
         {
-            ids[total] = m2MakeShapeId(world, i);
+            idsOut[total] = m2MakeShapeId(world, i);
         }
         total += 1;
     }

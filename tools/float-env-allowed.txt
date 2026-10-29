@@ -28,11 +28,11 @@ defs filled with constants:
     m2DefaultWorldDefValues
 
 the build, the CPU, result names and the integer hash:
-    m2CpuSupportsBackend
+    m2GetResultName
     m2GetSimdBackend
     m2GetVersion
     m2Hash64
-    m2ResultName
+    m2IsCpuBackendSupported
 
 validity, types, flags, ids and user data:
     m2Body_GetDominance
@@ -41,7 +41,7 @@ validity, types, flags, ids and user data:
     m2Body_GetType
     m2Body_GetUserData
     m2Body_IsAwake
-    m2Body_IsBullet
+    m2Body_IsBulletEnabled
     m2Body_IsEnabled
     m2Body_IsSleepEnabled
     m2Body_IsValid

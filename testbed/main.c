@@ -1169,7 +1169,7 @@ int main(void)
             def.particleCapacity = 2048; // the water scene pours into this
             world = NewWorld(&def);
             free(ring);
-            ringEntry = m2World_SnapshotSize(world);
+            ringEntry = m2World_GetSnapshotSize(world);
 #ifdef __EMSCRIPTEN__
             // Browsers get a slimmer rewind ring; the desktop
             // keeps its quarter gigabyte of history.

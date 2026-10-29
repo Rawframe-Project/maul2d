@@ -152,7 +152,7 @@ static void TestDistanceRope(void)
         {
             m2World_Step(w, 1.0f / 60.0f, 4);
         }
-        int64_t size = m2World_SnapshotSize(w);
+        int64_t size = m2World_GetSnapshotSize(w);
         void* snap = malloc((size_t)size);
         CHECK(Snapshot(w, snap, size) == size, "rope snapshot fits");
         for (int32_t i = 0; i < 60; ++i)
@@ -249,7 +249,7 @@ static void TestMotorSpring(void)
         {
             m2World_Step(w, 1.0f / 60.0f, 4);
         }
-        int64_t size = m2World_SnapshotSize(w);
+        int64_t size = m2World_GetSnapshotSize(w);
         void* snap = malloc((size_t)size);
         CHECK(Snapshot(w, snap, size) == size, "spring motor snapshot fits");
         for (int32_t i = 0; i < 60; ++i)
@@ -379,7 +379,7 @@ static void TestJointRollback(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4); // mid-swing, impulses loaded
     }
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "snapshot");
     uint64_t hashes[60];
@@ -1864,7 +1864,7 @@ static void TestBreakRollback(void)
     m2JointId rope = NewDistanceJoint(world, &jd);
     m2Joint_SetBreakLimits(world, rope, 30.0f, 0.0f);
 
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "snapshot before the snap");
 
@@ -1958,7 +1958,7 @@ static void TestPrismaticStressStability(void)
             CHECK(v.x == v.x && v.y == v.y && av == av, "the stressed slider stays finite");
             if (i == snapAt)
             {
-                size = m2World_SnapshotSize(world);
+                size = m2World_GetSnapshotSize(world);
                 snap = malloc((size_t)size);
                 Snapshot(world, snap, size);
             }
@@ -2017,7 +2017,7 @@ static void TestJointAdjacency(void)
     CHECK(JointIndices(world, spokes[2], got, 8) == 1 && got[0] == joints[2].index1,
           "each spoke lists its own joint");
 
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "snapshot taken");
 
@@ -2130,7 +2130,7 @@ static void TestLocalAnchorsAreBounded(void)
     CHECK(m2CreateMouseJoint(world, &mouse, &joint) == m2_success,
           "one at M2_LOCAL_LIMIT is created");
     misuse += 1;
-    int64_t size = m2World_SnapshotSize(world);
+    int64_t size = m2World_GetSnapshotSize(world);
     void* snapshot = malloc((size_t)size);
     CHECK(snapshot != NULL && Snapshot(world, snapshot, size) == size &&
               Restore(world, snapshot, size),
