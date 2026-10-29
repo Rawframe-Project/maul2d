@@ -360,20 +360,21 @@ static void TestVersionAndResultNames(void)
     CHECK(version.major == M2_VERSION_MAJOR && version.minor == M2_VERSION_MINOR &&
               version.patch == M2_VERSION_PATCH,
           "the linked version is the headers' version");
-    CHECK(strcmp(m2ResultName(m2_success), "m2_success") == 0, "success has its name");
-    CHECK(strcmp(m2ResultName(m2_errorInvalid), "m2_errorInvalid") == 0, "invalid has its name");
-    CHECK(strcmp(m2ResultName(m2_errorCapacity), "m2_errorCapacity") == 0, "capacity has its name");
-    CHECK(strcmp(m2ResultName(m2_errorStale), "m2_errorStale") == 0, "stale has its name");
-    CHECK(strcmp(m2ResultName(m2_errorUnsupported), "m2_errorUnsupported") == 0,
+    CHECK(strcmp(m2GetResultName(m2_success), "m2_success") == 0, "success has its name");
+    CHECK(strcmp(m2GetResultName(m2_errorInvalid), "m2_errorInvalid") == 0, "invalid has its name");
+    CHECK(strcmp(m2GetResultName(m2_errorCapacity), "m2_errorCapacity") == 0,
+          "capacity has its name");
+    CHECK(strcmp(m2GetResultName(m2_errorStale), "m2_errorStale") == 0, "stale has its name");
+    CHECK(strcmp(m2GetResultName(m2_errorUnsupported), "m2_errorUnsupported") == 0,
           "unsupported has its name");
-    CHECK(strcmp(m2ResultName(m2_errorState), "m2_errorState") == 0, "state has its name");
-    CHECK(strcmp(m2ResultName(m2_errorVersion), "m2_errorVersion") == 0, "version has its name");
-    CHECK(strcmp(m2ResultName(m2_errorFormat), "m2_errorFormat") == 0, "format has its name");
-    CHECK(strcmp(m2ResultName(m2_errorLimit), "m2_errorLimit") == 0, "limit has its name");
-    CHECK(strcmp(m2ResultName(m2_errorBusy), "m2_errorBusy") == 0, "busy has its name");
+    CHECK(strcmp(m2GetResultName(m2_errorState), "m2_errorState") == 0, "state has its name");
+    CHECK(strcmp(m2GetResultName(m2_errorVersion), "m2_errorVersion") == 0, "version has its name");
+    CHECK(strcmp(m2GetResultName(m2_errorFormat), "m2_errorFormat") == 0, "format has its name");
+    CHECK(strcmp(m2GetResultName(m2_errorLimit), "m2_errorLimit") == 0, "limit has its name");
+    CHECK(strcmp(m2GetResultName(m2_errorBusy), "m2_errorBusy") == 0, "busy has its name");
     CHECK(m2_errorFormat == -8 && m2_errorLimit == -9 && m2_errorBusy == -10,
           "the family's shared values");
-    CHECK(strcmp(m2ResultName(-5), "unknown m2Result") == 0, "an unused value is named unknown");
+    CHECK(strcmp(m2GetResultName(-5), "unknown m2Result") == 0, "an unused value is named unknown");
 }
 
 static void TestSimdBackend(void)
@@ -386,12 +387,12 @@ static void TestSimdBackend(void)
     int known = strcmp(backend, "avx2") == 0 || strcmp(backend, "neon") == 0 ||
                 strcmp(backend, "scalar") == 0;
     CHECK(known, "m2GetSimdBackend must name a known backend");
-    CHECK(m2CpuSupportsBackend() == 1, "this CPU must support the backend it is running");
+    CHECK(m2IsCpuBackendSupported() == 1, "this CPU must support the backend it is running");
     // A world was creatable in the other suites, which means the create-time
     // guard passed; confirm it is idempotent and does not disturb creation.
     m2WorldDef def = m2DefaultWorldDef();
     m2World* world = NewWorld(&def);
-    CHECK(m2CpuSupportsBackend() == 1, "the backend check is stable across calls");
+    CHECK(m2IsCpuBackendSupported() == 1, "the backend check is stable across calls");
     m2DestroyWorld(world);
 }
 

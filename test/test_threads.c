@@ -118,7 +118,7 @@ static void FireBullet(m2World* world, int32_t step)
 {
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
-    bd.isBullet = true;
+    bd.enableBullet = true;
     bd.position = (m2Pos2){5.5e5 + 25.0, 2.0 + 0.5 * (double)(step % 3)};
     bd.linearVelocity = (m2Vec2){-90.0f, 0.0f};
     m2BodyId bullet = NewBody(world, &bd);

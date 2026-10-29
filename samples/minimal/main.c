@@ -14,7 +14,7 @@ static void Require(m2Result result, const char* what)
 {
     if (result != m2_success)
     {
-        fprintf(stderr, "%s: %s\n", what, m2ResultName(result));
+        fprintf(stderr, "%s: %s\n", what, m2GetResultName(result));
         exit(1);
     }
 }

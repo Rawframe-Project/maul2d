@@ -60,7 +60,7 @@ typedef struct m2Bodies
     uint8_t* asleep;        // sleep flag (snapshot + hashed: the sleep law)
     float* sleepTimes;      // seconds under tolerance (snapshot + hashed)
     uint8_t* sleepStreak;   // step-ends asleep, saturating at 2 (snapshot state)
-    uint8_t* bullets;       // isBullet flag (snapshot + hashed)
+    uint8_t* bullets;       // enableBullet flag (snapshot + hashed)
     uint32_t* generations;
     int32_t* freeQueue;
     int32_t freeHead;

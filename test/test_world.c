@@ -619,7 +619,7 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
         bd.linearVelocity = m2Body_GetLinearVelocity(source, bodies[i]);
         bd.angularVelocity = m2Body_GetAngularVelocity(source, bodies[i]);
         bd.gravityScale = m2Body_GetGravityScale(source, bodies[i]);
-        bd.isBullet = m2Body_IsBullet(source, bodies[i]);
+        bd.enableBullet = m2Body_IsBulletEnabled(source, bodies[i]);
         bd.userData = m2Body_GetUserData(source, bodies[i]);
         bd.dominance = m2Body_GetDominance(source, bodies[i]);
         mirrored[i] = NewBody(mirror, &bd);
@@ -910,7 +910,7 @@ static void TestMirrorRebuild(void)
     ad.linearVelocity = (m2Vec2){1.5f, 2.0f};
     ad.angularVelocity = 3.0f;
     ad.gravityScale = 0.7f;
-    ad.isBullet = true;
+    ad.enableBullet = true;
     ad.userData = 21;
     ad.dominance = 2;
     m2BodyId boxA = NewBody(world, &ad);
@@ -1223,7 +1223,7 @@ static void TestDormancyMassAndExplosions(void)
         m2World_Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(!m2Body_IsAwake(world, rider), "the rider sleeps on the pedestal");
-    m2Body_SetEnabled(world, pedestal, false);
+    m2Body_Enable(world, pedestal, false);
     CHECK(!m2Body_IsEnabled(world, pedestal), "dormancy reads back");
     for (int32_t i = 0; i < 90; ++i)
     {
@@ -1233,7 +1233,7 @@ static void TestDormancyMassAndExplosions(void)
     CastResult probe =
         RayClosest(world, (m2Pos2){0.0, 5.0}, (m2Vec2){0.0f, -4.0f}, m2DefaultQueryFilter());
     CHECK(!probe.hit, "a dormant body is invisible to queries");
-    m2Body_SetEnabled(world, pedestal, true);
+    m2Body_Enable(world, pedestal, true);
     probe = RayClosest(world, (m2Pos2){0.0, 5.0}, (m2Vec2){0.0f, -4.5f}, m2DefaultQueryFilter());
     CHECK(probe.hit, "and reappears where it stood");
 
@@ -1431,8 +1431,8 @@ static void TestLeftoverBasket(void)
     CHECK(m2Body_IsAwake(world, box), "and it wakes on demand");
 
     // Runtime flags and data.
-    m2Body_SetBullet(world, box, true);
-    CHECK(m2Body_IsBullet(world, box), "bullet flag flips at runtime");
+    m2Body_EnableBullet(world, box, true);
+    CHECK(m2Body_IsBulletEnabled(world, box), "bullet flag flips at runtime");
     m2Body_SetUserData(world, box, 777);
     m2Shape_SetUserData(world, boxShape, 888);
     CHECK(m2Body_GetUserData(world, box) == 777 && m2Shape_GetUserData(world, boxShape) == 888,
@@ -2448,8 +2448,8 @@ static void TestStaleIdsCountInEveryCall(void)
 
     uint64_t misuse = m2World_GetCounters(world).misuse;
     m2Body_SetAwake(world, body, true);
-    m2Body_SetEnabled(world, body, false);
-    m2Body_SetEnabled(world, body, true);
+    m2Body_Enable(world, body, false);
+    m2Body_Enable(world, body, true);
     CHECK(!m2Body_IsEnabled(world, body), "a stale body is not enabled");
     CHECK(m2Body_GetLinearDamping(world, body) == 0.0f, "nor damped");
     CHECK(m2Body_GetAngularDamping(world, body) == 0.0f, "in either way");

@@ -36,7 +36,7 @@ m2BodyDef m2DefaultBodyDef(void)
     def.rotation = (m2Rot){1.0f, 0.0f};
     def.gravityScale = 1.0f;
     def.enableSleep = true;
-    def.isEnabled = true;
+    def.enable = true;
     def.internalValue = M2_BODY_COOKIE;
     return def;
 }
@@ -86,9 +86,9 @@ static void RecordBodyDef(m2BodyDef* out, const m2BodyDef* def)
     out->motionLocks.linearY = def->motionLocks.linearY;
     out->motionLocks.angularZ = def->motionLocks.angularZ;
     out->enableSleep = def->enableSleep;
-    out->isEnabled = def->isEnabled;
+    out->enable = def->enable;
     out->dominance = def->dominance;
-    out->isBullet = def->isBullet;
+    out->enableBullet = def->enableBullet;
     out->userData = def->userData;
     out->internalValue = def->internalValue;
 }
@@ -142,7 +142,7 @@ static M2_NOINLINE m2Result CreateBodyWorker(m2World* world, const m2BodyDef* de
     world->bodies.sleepEnables[index] = def->enableSleep ? 1 : 0;
     world->bodies.forces[index] = (m2Vec2){0.0f, 0.0f};
     world->bodies.torques[index] = 0.0f;
-    world->bodies.disabled[index] = def->isEnabled ? 0 : 1;
+    world->bodies.disabled[index] = def->enable ? 0 : 1;
     world->bodies.dominances[index] = def->dominance;
     world->bodies.userData[index] = def->userData;
     world->bodies.types[index] = (uint8_t)def->type;
@@ -155,7 +155,7 @@ static M2_NOINLINE m2Result CreateBodyWorker(m2World* world, const m2BodyDef* de
     world->bodies.asleep[index] = 0;
     world->bodies.sleepTimes[index] = 0.0f;
     world->bodies.sleepStreak[index] = 0;
-    world->bodies.bullets[index] = def->isBullet ? 1 : 0;
+    world->bodies.bullets[index] = def->enableBullet ? 1 : 0;
     if (index + 1 > world->bodies.maxBodyIndex)
     {
         world->bodies.maxBodyIndex = index + 1;
@@ -678,7 +678,7 @@ static M2_NOINLINE void BodySetBulletWorker(m2World* world, m2BodyId bodyId, boo
     world->bodies.bullets[index] = next;
 }
 
-void m2Body_SetBullet(m2World* world, m2BodyId bodyId, bool flag)
+void m2Body_EnableBullet(m2World* world, m2BodyId bodyId, bool flag)
 {
     uint64_t env = m2FloatEnvEnter();
     BodySetBulletWorker(world, bodyId, flag);
@@ -764,7 +764,7 @@ static M2_NOINLINE void BodySetEnabledWorker(m2World* world, m2BodyId bodyId, bo
     }
 }
 
-void m2Body_SetEnabled(m2World* world, m2BodyId bodyId, bool flag)
+void m2Body_Enable(m2World* world, m2BodyId bodyId, bool flag)
 {
     uint64_t env = m2FloatEnvEnter();
     BodySetEnabledWorker(world, bodyId, flag);

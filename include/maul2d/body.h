@@ -61,9 +61,9 @@ extern "C"
         float angularDamping;
         m2MotionLocks motionLocks;   // angularZ: never rotates, infinite inertia
         bool enableSleep;            // false: this body never sleeps
-        bool isEnabled;              // false: created dormant, outside the simulation
+        bool enable;                 // false: created dormant, outside the simulation
         int8_t dominance;            // the higher side of a contact cannot be pushed
-        bool isBullet;               // continuous collision against non-bullets
+        bool enableBullet;           // continuous collision against non-bullets
         M2_ALIGN8 uint64_t userData; // opaque, kept through snapshots and journals
         int32_t internalValue;       // the cookie m2DefaultBodyDef sets
     } m2BodyDef;
@@ -214,7 +214,7 @@ extern "C"
     /// @param flag    True for a bullet.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
-    M2_API void m2Body_SetBullet(m2World* world, m2BodyId bodyId, bool flag);
+    M2_API void m2Body_EnableBullet(m2World* world, m2BodyId bodyId, bool flag);
 
     /// Sets a body's opaque game data, kept through snapshots and journals.
     /// A stale id counts one misuse. Journaled.
@@ -332,7 +332,7 @@ extern "C"
     /// @param flag    True to enable it, false to disable it.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
-    M2_API void m2Body_SetEnabled(m2World* world, m2BodyId bodyId, bool flag);
+    M2_API void m2Body_Enable(m2World* world, m2BodyId bodyId, bool flag);
 
     /// Tells whether a body takes part in the simulation.
     ///
@@ -362,7 +362,7 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API bool m2Body_IsBullet(const m2World* world, m2BodyId bodyId);
+    M2_API bool m2Body_IsBulletEnabled(const m2World* world, m2BodyId bodyId);
 
     /// Reads a body's gravity scale.
     ///

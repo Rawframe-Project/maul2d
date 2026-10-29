@@ -179,8 +179,8 @@ static void RunSession(m2World* world, uint8_t* journal, int64_t capacity, int64
     grip.target = (m2Pos2){2.0, 1.0};
     m2JointId gripper = NewMouseJoint(world, &grip);
     m2MouseJoint_SetTarget(world, gripper, (m2Pos2){3.0, 2.0}); // op 34
-    m2Body_SetEnabled(world, ram, false);                       // op 35
-    m2Body_SetEnabled(world, ram, true);                        // op 36
+    m2Body_Enable(world, ram, false);                           // op 35
+    m2Body_Enable(world, ram, true);                            // op 36
     m2MassData heavier = m2Body_GetMassData(world, bob);
     heavier.mass *= 2.0f;
     heavier.centralInertia *= 2.0f;
@@ -210,7 +210,7 @@ static void RunSession(m2World* world, uint8_t* journal, int64_t capacity, int64
     m2Body_ApplyLinearImpulse(world, bob, (m2Vec2){0.5f, 0.2f}); // op 43
     m2Body_SetAwake(world, bob, false);                          // op 44
     m2Body_SetAwake(world, bob, true);
-    m2Body_SetBullet(world, bob, true);            // op 45
+    m2Body_EnableBullet(world, bob, true);         // op 45
     m2Shape_SetDensity(world, reshapeShape, 1.5f); // op 46
     m2Body_SetUserData(world, bob, 999);           // op 47
     m2Body_SetDominance(world, bob, 3);            // op 50
@@ -503,7 +503,7 @@ static void ExpectByteRefused(m2World* world, const uint8_t* tape, int64_t bytes
 
 // A record's bool flags hold 0 or 1; any other byte is refused before the
 // payload is read, since reading it as a bool is undefined. fuzz_journal
-// found a body def whose isEnabled byte was 29.
+// found a body def whose enable byte was 29.
 static void TestTapeBoolsAreZeroOrOne(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
@@ -521,8 +521,8 @@ static void TestTapeBoolsAreZeroOrOne(void)
     CHECK(StartJournal(world, tape, capacity), "the journal starts again");
     m2BodyId body = NewBody(world, &bodyDef);
     int64_t bytes = StopJournal(world);
-    const size_t bodyBools[] = {offsetof(m2BodyDef, enableSleep), offsetof(m2BodyDef, isEnabled),
-                                offsetof(m2BodyDef, isBullet),
+    const size_t bodyBools[] = {offsetof(m2BodyDef, enableSleep), offsetof(m2BodyDef, enable),
+                                offsetof(m2BodyDef, enableBullet),
                                 offsetof(m2BodyDef, motionLocks.angularZ)};
     for (size_t i = 0; i < sizeof(bodyBools) / sizeof(bodyBools[0]); ++i)
     {
@@ -560,9 +560,9 @@ static void FilledBodyDef(m2BodyDef* to, const m2BodyDef* from, uint8_t fill)
     to->angularDamping = from->angularDamping;
     to->motionLocks = from->motionLocks;
     to->enableSleep = from->enableSleep;
-    to->isEnabled = from->isEnabled;
+    to->enable = from->enable;
     to->dominance = from->dominance;
-    to->isBullet = from->isBullet;
+    to->enableBullet = from->enableBullet;
     to->userData = from->userData;
     to->internalValue = from->internalValue;
 }

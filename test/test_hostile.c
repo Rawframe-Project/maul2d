@@ -1122,7 +1122,7 @@ static void TestSetTypeEdges(void)
     // A bullet that turns static mid-flight simply stops mattering.
     m2BodyDef bulletDef = m2DefaultBodyDef();
     bulletDef.type = m2_dynamicBody;
-    bulletDef.isBullet = true;
+    bulletDef.enableBullet = true;
     bulletDef.position = (m2Pos2){-8.0, 2.0};
     bulletDef.linearVelocity = (m2Vec2){60.0f, 0.0f};
     m2BodyId bullet = NewBody(world, &bulletDef);
@@ -1333,7 +1333,7 @@ static void TestBulletThroughOneWayChain(void)
 
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
-    bd.isBullet = true;
+    bd.enableBullet = true;
     bd.position = (m2Pos2){0.5, -6.0};
     bd.linearVelocity = (m2Vec2){0.0f, 80.0f}; // straight up through the ghost side
     m2BodyId riser = NewBody(world, &bd);

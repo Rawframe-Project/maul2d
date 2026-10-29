@@ -359,7 +359,7 @@ m2Vec2 m2Body_GetLocalCenter(const m2World* world, m2BodyId bodyId)
     return result;
 }
 
-bool m2Body_IsBullet(const m2World* world, m2BodyId bodyId)
+bool m2Body_IsBulletEnabled(const m2World* world, m2BodyId bodyId)
 {
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0)

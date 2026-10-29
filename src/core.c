@@ -12,7 +12,7 @@ m2Version m2GetVersion(void)
     return (m2Version){M2_VERSION_MAJOR, M2_VERSION_MINOR, M2_VERSION_PATCH};
 }
 
-const char* m2ResultName(m2Result result)
+const char* m2GetResultName(m2Result result)
 {
     switch (result)
     {

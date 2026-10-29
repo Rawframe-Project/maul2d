@@ -256,7 +256,7 @@ static void DoRandomOp(m2World* world)
         bd.position = (m2Pos2){px, py};
         if (bd.type == m2_dynamicBody)
         {
-            bd.isBullet = Pick(7) == 0;
+            bd.enableBullet = Pick(7) == 0;
             bd.gravityScale = 0.5f + (float)Pick(11) * 0.1f;
             float vx = (float)((int32_t)Pick(9) - 4);
             float vy = (float)((int32_t)Pick(9) - 4);
@@ -655,11 +655,11 @@ static void DoRandomOp(m2World* world)
         {
             if (Pick(2) == 0)
             {
-                m2Body_SetEnabled(world, body, false);
+                m2Body_Enable(world, body, false);
             }
             else
             {
-                m2Body_SetEnabled(world, body, true);
+                m2Body_Enable(world, body, true);
             }
         }
         return;

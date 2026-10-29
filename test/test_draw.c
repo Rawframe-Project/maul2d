@@ -189,7 +189,7 @@ static void TestShapeCounts(void)
 
     m2BodyDef bulletDef = m2DefaultBodyDef();
     bulletDef.type = m2_dynamicBody;
-    bulletDef.isBullet = true;
+    bulletDef.enableBullet = true;
     bulletDef.position = (m2Pos2){12.0, 5.0};
     m2BodyId bulletBody = NewBody(world, &bulletDef);
     m2Polygon bbox = m2MakeBox(0.3f, 0.3f);
@@ -469,7 +469,7 @@ static void TestContactsAndAABBs(void)
     m2BodyId ghost = AddBody(world, m2_dynamicBody, 5.0, 5.0);
     m2Polygon gb = m2MakeBox(0.3f, 0.3f);
     NewPolygonShape(world, ghost, &sd, &gb);
-    m2Body_SetEnabled(world, ghost, false);
+    m2Body_Enable(world, ghost, false);
 
     Rec ra = {0};
     m2DebugDraw da = FullDraw(&ra);
