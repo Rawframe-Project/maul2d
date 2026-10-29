@@ -643,22 +643,22 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             sd.userData = m2Shape_GetUserData(source, shapes[s]);
             if (type == m2_circleShape)
             {
-                m2Circle g = m2Shape_GetCircle(source, shapes[s]);
+                m2Circle g = m2CircleShape_GetCircle(source, shapes[s]);
                 NewCircleShape(mirror, mirrored[i], &sd, &g);
             }
             else if (type == m2_capsuleShape)
             {
-                m2Capsule g = m2Shape_GetCapsule(source, shapes[s]);
+                m2Capsule g = m2CapsuleShape_GetCapsule(source, shapes[s]);
                 NewCapsuleShape(mirror, mirrored[i], &sd, &g);
             }
             else if (type == m2_polygonShape)
             {
-                m2Polygon g = m2Shape_GetPolygon(source, shapes[s]);
+                m2Polygon g = m2PolygonShape_GetPolygon(source, shapes[s]);
                 NewPolygonShape(mirror, mirrored[i], &sd, &g);
             }
             else
             {
-                m2Segment g = m2Shape_GetSegment(source, shapes[s]);
+                m2Segment g = m2SegmentShape_GetSegment(source, shapes[s]);
                 NewSegmentShape(mirror, mirrored[i], &sd, &g);
             }
         }
@@ -679,12 +679,13 @@ static m2World* MirrorWorld(m2World* source, const m2WorldDef* def)
             // Open-chain polyline from the links: leading ghost, each
             // link's first point, trailing point, trailing ghost.
             m2Vec2 pts[16];
-            m2ChainSegment firstLink = m2Shape_GetChainSegment(source, links[0]);
-            m2ChainSegment lastLink = m2Shape_GetChainSegment(source, links[linkCount - 1]);
+            m2ChainSegment firstLink = m2ChainSegmentShape_GetChainSegment(source, links[0]);
+            m2ChainSegment lastLink =
+                m2ChainSegmentShape_GetChainSegment(source, links[linkCount - 1]);
             pts[0] = firstLink.ghost1;
             for (int32_t k = 0; k < linkCount; ++k)
             {
-                pts[k + 1] = m2Shape_GetChainSegment(source, links[k]).segment.point1;
+                pts[k + 1] = m2ChainSegmentShape_GetChainSegment(source, links[k]).segment.point1;
             }
             pts[linkCount + 1] = lastLink.segment.point2;
             pts[linkCount + 2] = lastLink.ghost2;
@@ -1365,7 +1366,8 @@ static void TestSmallBasket(void)
     CHECK(!m2Body_IsAwake(world, crate), "the crate sleeps at the slab's edge");
     m2Polygon stub = m2MakeBox(1.0f, 0.5f);
     m2Shape_SetPolygon(world, ground, &stub);
-    CHECK(m2Shape_GetPolygon(world, ground).count == 4, "geometry reads back after the swap");
+    CHECK(m2PolygonShape_GetPolygon(world, ground).count == 4,
+          "geometry reads back after the swap");
     for (int32_t i = 0; i < 120; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
