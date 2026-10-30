@@ -19,6 +19,10 @@
 #define M2_JOINT_HARD_RANGE  8u  // distance: a finite length range is active
 #define M2_JOINT_ROPE        16u // distance: spring enabled (stored with the joint)
 #define M2_JOINT_FREE_LENGTH 32u // distance: zero-stiffness spring, skip the rest row
+// Every bit above; a restore refuses any other.
+#define M2_JOINT_FLAGS                                                                             \
+    (M2_JOINT_MOTOR | M2_JOINT_LIMIT | M2_JOINT_SPRING | M2_JOINT_HARD_RANGE | M2_JOINT_ROPE |     \
+     M2_JOINT_FREE_LENGTH)
 
 // Slot lookups: the live slot of a joint id, or -1. The typed lookup
 // also demands a joint type and refuses (world may be NULL) on a miss.

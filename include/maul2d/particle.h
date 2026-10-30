@@ -62,7 +62,7 @@ extern "C"
     {
         m2Pos2 position;       // world space; for a fill, where the polygon's frame sits
         m2Vec2 velocity;       // m/s, within M2_SPEED_LIMIT per axis
-        m2ParticleFlags flags; // m2_*Particle values, ored together
+        m2ParticleFlags flags; // m2_*Particle values, ored together; no other bit
         int32_t internalValue; // the cookie m2DefaultParticleDef sets
     } m2ParticleDef;
 
@@ -83,8 +83,9 @@ extern "C"
     /// @param particleOut  Receives the particle; the null id on failure.
     /// @return m2_success; m2_errorInvalid when the world, def or
     ///         particleOut is null, def was not initialized by
-    ///         m2DefaultParticleDef or a value of it is NaN or not finite
-    ///         where it has no bound;
+    ///         m2DefaultParticleDef, a value of it is NaN or not finite
+    ///         where it has no bound, or its flags hold a bit no
+    ///         m2_*Particle flag has;
     ///         m2_errorLimit for a velocity past M2_SPEED_LIMIT;
     ///         m2_errorCapacity when the pool is full, a pool of 0 included,
     ///         which counts no misuse; m2_errorBusy from host code the world
@@ -234,8 +235,9 @@ extern "C"
     ///         the polygon was full, a pool of 0 included, which counts no
     ///         misuse and counts once in m2Counters.particleCreatesRefused;
     ///         m2_errorInvalid when an argument is null, def was not
-    ///         initialized by m2DefaultParticleDef, a value of it is NaN or
-    ///         the polygon is not one a shape would take;
+    ///         initialized by m2DefaultParticleDef, a value of it is NaN,
+    ///         its flags hold a bit no m2_*Particle flag has, or the
+    ///         polygon is not one a shape would take;
     ///         m2_errorLimit for a velocity or a polygon past its published
     ///         bound, or a polygon wider than M2_MAX_FILL_COLUMNS strides;
     ///         m2_errorBusy from host code the world is running.

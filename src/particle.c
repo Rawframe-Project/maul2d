@@ -46,7 +46,9 @@ static m2Result ParticleDefCheck(const m2ParticleDef* def)
     {
         return m2_errorInvalid;
     }
-    return m2BothChecks(m2CheckValid(m2FinitePos2(def->position)), m2CheckVelocity(def->velocity));
+    bool flags = (def->flags & ~M2_PARTICLE_FLAGS) == 0;
+    return m2BothChecks(m2CheckValid(m2FinitePos2(def->position) && flags),
+                        m2CheckVelocity(def->velocity));
 }
 
 static M2_NOINLINE m2Result CreateParticleWorker(m2World* world, const m2ParticleDef* def,
