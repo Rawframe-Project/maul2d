@@ -699,8 +699,10 @@ extern "C"
     /// @param world         The world.
     /// @param jointId       A distance joint; another type or a stale id
     ///                      writes zeros and counts one misuse.
-    /// @param minLengthOut  Receives the shortest length, meters; may be null.
-    /// @param maxLengthOut  Receives the longest length, meters; may be null.
+    /// @param minLengthOut  Receives the shortest length, meters; 0 on
+    ///                      failure. May be null.
+    /// @param maxLengthOut  Receives the longest length, meters; 0 on
+    ///                      failure. May be null.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
@@ -938,9 +940,9 @@ extern "C"
     ///
     /// @param world     The world.
     /// @param jointId   A revolute, prismatic or wheel joint; another type
-    ///                  or a stale id writes zeros.
-    /// @param lowerOut  Receives the lower limit; may be null.
-    /// @param upperOut  Receives the upper limit; may be null.
+    ///                  or a stale id writes zeros and counts one misuse.
+    /// @param lowerOut  Receives the lower limit; 0 on failure. May be null.
+    /// @param upperOut  Receives the upper limit; 0 on failure. May be null.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
@@ -950,9 +952,12 @@ extern "C"
     /// Reads the break limits m2Joint_SetBreakLimits sets.
     ///
     /// @param world         The world.
-    /// @param jointId       The joint; a stale id writes zeros.
-    /// @param maxForceOut   Receives the force threshold; may be null.
-    /// @param maxTorqueOut  Receives the torque threshold; may be null.
+    /// @param jointId       The joint; a stale id writes zeros and counts
+    ///                      one misuse.
+    /// @param maxForceOut   Receives the force threshold; 0 on failure. May
+    ///                      be null.
+    /// @param maxTorqueOut  Receives the torque threshold; 0 on failure. May
+    ///                      be null.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
