@@ -473,7 +473,7 @@ static void TestChainCutShort(void)
     int64_t capacity = m2World_GetJournalBaseSize(world) + 4096;
     uint8_t* tape = (uint8_t*)malloc((size_t)capacity);
     CHECK(tape != NULL && StartJournal(world, tape, capacity), "the journal starts");
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     m2Vec2 pts[7] = {{6.0f, 0.0f},  {4.0f, 0.0f},  {2.0f, 0.0f}, {0.0f, 0.0f},
                      {-2.0f, 0.0f}, {-4.0f, 0.0f}, {-6.0f, 0.0f}};
     m2ChainDef chain = m2DefaultChainDef();
@@ -483,7 +483,7 @@ static void TestChainCutShort(void)
     CHECK(m2CreateChain(world, ground, &chain, &made) == m2_errorCapacity &&
               m2Chain_IsValid(world, made) && m2Chain_GetSegmentCount(world, made) == 3,
           "a chain the pool cuts short keeps its three segments and says so");
-    CHECK(m2World_GetCounters(world).misuse == misuse, "counting no misuse");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse, "counting no misuse");
     int64_t bytes = StopJournal(world);
     CHECK(bytes > 0 && ReplayJournal(replayed, tape, bytes) &&
               m2World_Hash(replayed) == m2World_Hash(world),

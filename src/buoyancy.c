@@ -281,9 +281,9 @@ static M2_NOINLINE m2Result CreateWaterVolumeWorker(m2World* world, const m2Wate
     int32_t index = world->volumes.wvFreeQueue[world->volumes.wvFreeHead];
     world->volumes.wvFreeHead = (world->volumes.wvFreeHead + 1) % world->volumes.wvCapacity;
     world->volumes.wvFreeCount -= 1;
-    if (index + 1 > world->volumes.maxFvIndex)
+    if (index + 1 > world->volumes.maxWvIndex)
     {
-        world->volumes.maxFvIndex = index + 1;
+        world->volumes.maxWvIndex = index + 1;
     }
     world->volumes.wvLower[index] = def->bounds.lowerBound;
     world->volumes.wvUpper[index] = def->bounds.upperBound;
@@ -316,7 +316,7 @@ m2Result m2CreateWaterVolume(m2World* world, const m2WaterVolumeDef* def,
     return result;
 }
 
-static int32_t FvSlot(const m2World* world, m2WaterVolumeId id)
+static int32_t WvSlot(const m2World* world, m2WaterVolumeId id)
 {
     int32_t index = (int32_t)id.index1 - 1;
     if (world == NULL || index < 0 || index >= world->volumes.wvCapacity ||
@@ -334,7 +334,7 @@ static M2_NOINLINE m2Result DestroyWaterVolumeWorker(m2World* world, m2WaterVolu
     {
         return writer;
     }
-    int32_t index = FvSlot(world, volumeId);
+    int32_t index = WvSlot(world, volumeId);
     if (index < 0)
     {
         return m2Refuse(world, m2_errorStale);
@@ -368,7 +368,7 @@ m2Result m2DestroyWaterVolume(m2World* world, m2WaterVolumeId volumeId)
 
 bool m2WaterVolume_IsValid(const m2World* world, m2WaterVolumeId volumeId)
 {
-    return FvSlot(world, volumeId) >= 0;
+    return WvSlot(world, volumeId) >= 0;
 }
 
 static M2_NOINLINE void WaterVolumeSetSurfaceWorker(m2World* world, m2WaterVolumeId volumeId,
@@ -378,7 +378,7 @@ static M2_NOINLINE void WaterVolumeSetSurfaceWorker(m2World* world, m2WaterVolum
     {
         return;
     }
-    int32_t index = FvSlot(world, volumeId);
+    int32_t index = WvSlot(world, volumeId);
     if (index < 0 || !m2FiniteD(surface))
     {
         m2Refuse(world, m2_errorInvalid);
@@ -386,11 +386,11 @@ static M2_NOINLINE void WaterVolumeSetSurfaceWorker(m2World* world, m2WaterVolum
     }
     if (world->recorder.journalActive != 0)
     {
-        m2OpFluidSurface record;
+        m2OpWaterSurface record;
         memset(&record, 0, sizeof(record));
         record.id = volumeId;
         record.surface = surface;
-        m2JournalRecord(world, m2_opSetFluidSurface, &record, (int32_t)sizeof(record));
+        m2JournalRecord(world, m2_opSetWaterSurface, &record, (int32_t)sizeof(record));
     }
     world->volumes.wvSurface[index] = surface;
 }
@@ -405,7 +405,7 @@ void m2WaterVolume_SetSurface(m2World* world, m2WaterVolumeId volumeId, double s
 static M2_NOINLINE double WaterVolumeGetSurfaceWorker(const m2World* world,
                                                       m2WaterVolumeId volumeId)
 {
-    int32_t index = FvSlot(world, volumeId);
+    int32_t index = WvSlot(world, volumeId);
     if (index < 0)
     {
         m2Refuse(world, m2_errorInvalid);
@@ -424,7 +424,7 @@ double m2WaterVolume_GetSurface(const m2World* world, m2WaterVolumeId volumeId)
 
 uint64_t m2WaterVolume_GetUserData(const m2World* world, m2WaterVolumeId volumeId)
 {
-    int32_t index = FvSlot(world, volumeId);
+    int32_t index = WvSlot(world, volumeId);
     if (index < 0)
     {
         m2Refuse(world, m2_errorInvalid);
@@ -509,7 +509,7 @@ void m2ApplyWaterVolumes(m2World* world, float dt)
     {
         return;
     }
-    for (int32_t v = 0; v < world->volumes.maxFvIndex; ++v)
+    for (int32_t v = 0; v < world->volumes.maxWvIndex; ++v)
     {
         for (int32_t b = 0; world->volumes.wvAlive[v] != 0 && b < world->bodies.maxBodyIndex; ++b)
         {

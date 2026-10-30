@@ -348,7 +348,7 @@ static const m2StateArray s_state[] = {
                             waterVolume),
     M2_STATE_INLINE_CHECKED(volumes.wvRetiredCount, M2_STATE_SNAPSHOT | M2_STATE_FLUIDS, count,
                             waterVolume),
-    M2_STATE_INLINE_CHECKED(volumes.maxFvIndex, M2_STATE_SNAPSHOT | M2_STATE_FLUIDS, count,
+    M2_STATE_INLINE_CHECKED(volumes.maxWvIndex, M2_STATE_SNAPSHOT | M2_STATE_FLUIDS, count,
                             waterVolume),
 
     // Scratch and derived arrays: allocated with the world, never walked.
@@ -701,7 +701,7 @@ static m2HashSlots HashSlots(const m2World* world, uint8_t extent)
         return (m2HashSlots){world->particles.particleAlive, world->particles.maxParticleIndex,
                              m2_hashParticles};
     case m2_extent_waterVolume:
-        return (m2HashSlots){world->volumes.wvAlive, world->volumes.maxFvIndex, m2_hashVolumes};
+        return (m2HashSlots){world->volumes.wvAlive, world->volumes.maxWvIndex, m2_hashVolumes};
     case m2_extent_pair:
         return (m2HashSlots){NULL, world->contacts.pairCount, m2_hashContacts};
     case m2_extent_particleSpring:

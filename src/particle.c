@@ -71,7 +71,7 @@ static M2_NOINLINE m2Result CreateParticleWorker(m2World* world, const m2Particl
     {
         // A full pool is a runtime fact, not misuse: pace emitters
         // off m2World_GetParticleCount; the counter keeps the score.
-        world->particles.particlePoolFullCount += 1;
+        world->particles.particleCreatesRefused += 1;
         return m2Refuse(world, m2_errorCapacity);
     }
     int32_t index = world->particles.particleFreeQueue[world->particles.particleFreeHead];
@@ -586,7 +586,7 @@ static M2_NOINLINE m2Result CreateParticlesInPolygonWorker(m2World* world, const
     if (world->particles.particleCapacity == 0)
     {
         // A pool of 0 is full; stop before the unchecked radius sizes a lattice.
-        world->particles.particlePoolFullCount += 1;
+        world->particles.particleCreatesRefused += 1;
         return m2Refuse(world, m2_errorCapacity);
     }
     m2Polygon region = m2CanonicalPolygon(polygon);

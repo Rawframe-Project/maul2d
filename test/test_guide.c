@@ -200,7 +200,7 @@ static void TestExpiringDrop(void)
     def.particleCapacity = 16;
     m2World* world = FloorWorld(&def);
     CHECK(world != NULL, "the world builds");
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
 
     m2ParticleDef dropDef = m2DefaultParticleDef();
     dropDef.position = (m2Pos2){0.0, 2.0};
@@ -221,7 +221,7 @@ static void TestExpiringDrop(void)
     CHECK(created == m2_success, "the drop is created");
     CHECK(!stillThere, "and expires on its own");
     CHECK(m2Particle_GetPosition(world, drop).x == 0.0, "its id reads as zero");
-    CHECK(m2World_GetCounters(world).misuse == misuse, "without counting misuse");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse, "without counting misuse");
     m2DestroyWorld(world);
 }
 
@@ -297,9 +297,9 @@ static void TestMisuseWatch(void)
     uint64_t lastMisuse = 0;
 
     m2Counters counters = m2World_GetCounters(world);
-    if (counters.misuse > lastMisuse)
+    if (counters.misuseCount > lastMisuse)
     {
-        lastMisuse = counters.misuse; // log the frame: some call this frame was a bug
+        lastMisuse = counters.misuseCount; // log the frame: some call this frame was a bug
     }
 
     CHECK(lastMisuse == 1, "the stale call shows in the counter");

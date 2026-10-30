@@ -511,11 +511,11 @@ static void ExpectRefused(m2World* world, const uint8_t* bytes, int64_t size, bo
                           m2Result expected, const char* what)
 {
     uint64_t hash = m2World_Hash(world);
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     m2Result result =
         tape ? m2World_ReplayJournal(world, bytes, size) : m2World_Restore(world, bytes, size);
     CHECK(result == expected, what);
-    CHECK(m2World_Hash(world) == hash && m2World_GetCounters(world).misuse == misuse,
+    CHECK(m2World_Hash(world) == hash && m2World_GetCounters(world).misuseCount == misuse,
           "refused state bytes change nothing and count nothing");
 }
 
@@ -671,28 +671,30 @@ static void TestParameterChannels(void)
     rj.bodyIdB = box;
     m2JointId pin = NewRevoluteJoint(world, &rj);
 
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     m2Joint_SetMotorSpeed(world, pin, NAN);
     m2Joint_SetMaxMotorEffort(world, pin, -1.0f);
     m2Joint_SetLimits(world, pin, 1.0f, -1.0f);
     m2DistanceJoint_SetLength(world, pin, 2.0f); // a revolute has no length
     m2Shape_SetFriction(world, shape, INFINITY);
     m2Body_SetGravityScale(world, box, NAN);
-    CHECK(m2World_GetCounters(world).misuse == misuse + 6, "each hostile parameter refuses once");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 6,
+          "each hostile parameter refuses once");
 
     m2Joint_SetLimits(world, pin, -1.0f, 1.0f);
     m2Shape_SetFriction(world, shape, 0.3f);
     m2Body_SetGravityScale(world, box, 0.5f);
-    CHECK(m2World_GetCounters(world).misuse == misuse + 6, "honest parameters pass");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 6, "honest parameters pass");
 
     m2Body_SetLinearDamping(world, box, 0.5f);
     m2Body_SetAngularDamping(world, box, 0.5f);
-    misuse = m2World_GetCounters(world).misuse;
+    misuse = m2World_GetCounters(world).misuseCount;
     m2Body_SetLinearDamping(world, box, -1.0f);
     m2Body_SetLinearDamping(world, box, -INFINITY);
     m2Body_SetAngularDamping(world, box, -1.0f);
     m2Body_SetAngularDamping(world, box, -INFINITY);
-    CHECK(m2World_GetCounters(world).misuse == misuse + 4, "each negative damping counts once");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 4,
+          "each negative damping counts once");
     CHECK(m2Body_GetLinearDamping(world, box) == 0.5f &&
               m2Body_GetAngularDamping(world, box) == 0.5f,
           "a negative damping changes nothing");
@@ -723,11 +725,12 @@ static void TestParameterChannels(void)
           "a tape for another world shape is a malformed tape");
     m2DestroyWorld(elsewhere);
 
-    misuse = m2World_GetCounters(world).misuse;
+    misuse = m2World_GetCounters(world).misuseCount;
     DestroyJoint(world, pin);
     DestroyJoint(world, pin);
     m2Joint_SetMotorSpeed(world, pin, 1.0f);
-    CHECK(m2World_GetCounters(world).misuse == misuse + 2, "stale joint calls refuse and count");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 2,
+          "stale joint calls refuse and count");
     m2DestroyWorld(world);
 }
 
@@ -748,7 +751,7 @@ static void TestHostileQueries(void)
     m2ShapeId ids[4];
     m2CastHit hits[4];
 
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     m2Polygon huge = m2MakeBox(0.5f, 0.5f);
     huge.count = 1000;
     CHECK(!PolygonClosest(world, &huge, pose, down, filter).hit,
@@ -774,12 +777,12 @@ static void TestHostileQueries(void)
     CHECK(m2World_OverlapAabb(world, (m2WorldAabb){{(double)NAN, 0.0}, {1.0, 1.0}}, filter, ids,
                               4) == 0,
           "a NaN box overlaps nothing");
-    CHECK(m2World_GetCounters(world).misuse == misuse + 9, "every hostile query refuses once");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 9, "every hostile query refuses once");
 
     CHECK(CircleClosest(world, &ball, pose, down, filter).hit, "an honest cast still hits");
-    uint64_t beforeTeleport = m2World_GetCounters(world).misuse;
+    uint64_t beforeTeleport = m2World_GetCounters(world).misuseCount;
     m2Body_SetTransform(world, box, (m2Pos2){1.0, 0.0}, (m2Rot){2.0f, 0.0f});
-    CHECK(m2World_GetCounters(world).misuse == beforeTeleport + 1,
+    CHECK(m2World_GetCounters(world).misuseCount == beforeTeleport + 1,
           "a teleport with a sheared rotation is refused");
     m2Body_SetLinearVelocity(world, box, (m2Vec2){INFINITY, 0.0f});
     CHECK(m2Body_GetLinearVelocity(world, box).x == 0.0f, "an infinite velocity never lands");
@@ -801,7 +804,7 @@ static void TestHostileJointDefs(void)
     m2BodyDef gd = m2DefaultBodyDef();
     m2BodyId ground = NewBody(world, &gd);
     m2BodyId box = AddBox(world, 0.0, 2.0);
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
 
     m2RevoluteJointDef rj = m2DefaultRevoluteJointDef();
     rj.bodyIdA = ground;
@@ -830,7 +833,7 @@ static void TestHostileJointDefs(void)
     sj.bodyIdB = box;
     sj.target = (m2Pos2){(double)INFINITY, 0.0};
     CHECK(NewMouseJoint(world, &sj).index1 == 0, "an infinite target is refused");
-    CHECK(m2World_GetCounters(world).misuse == misuse + 5, "each refusal counts once");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 5, "each refusal counts once");
 
     rj.lowerAngle = -1.0f;
     rj.upperAngle = 1.0f;
@@ -1297,7 +1300,7 @@ static void TestKinematicSensorHibernation(void)
     CHECK(m2Shape_GetSensorOverlaps(world, zoneId, inside, 2) == 1,
           "the resting guard still shows in the roll call");
     m2Profile profile = m2World_GetProfile(world);
-    CHECK(profile.contactsMs == 0.0f && profile.solveMs == 0.0f,
+    CHECK(profile.narrowphase == 0.0f && profile.solve == 0.0f,
           "a resting guard does not hold the world out of hibernation");
 
     m2Body_SetLinearVelocity(world, guard, (m2Vec2){4.0f, 0.0f});
@@ -1739,12 +1742,12 @@ static void TestSizesPastMemory(void)
     m2World* world = NewWorld(&def);
     uint8_t byte = 0;
     int64_t past = (int64_t)SIZE_MAX + 1;
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     CHECK(m2World_StartJournal(world, &byte, past) == m2_errorInvalid,
           "a capacity past SIZE_MAX starts no journal");
     CHECK(m2World_ReplayJournal(world, &byte, past) == m2_errorInvalid,
           "a size past SIZE_MAX replays nothing");
-    CHECK(m2World_GetCounters(world).misuse == misuse + 2, "each counting one misuse");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 2, "each counting one misuse");
     m2DestroyWorld(world);
 #endif
 }

@@ -279,7 +279,7 @@ static bool CheckFluidPools(m2World* world, const uint8_t* in)
                               false,
                               0,
                               InlineI32(world, in, &world->volumes.wvRetiredCount),
-                              InlineI32(world, in, &world->volumes.maxFvIndex)};
+                              InlineI32(world, in, &world->volumes.maxWvIndex)};
         if (CheckPool(marks, &volumes) < 0)
         {
             return false;

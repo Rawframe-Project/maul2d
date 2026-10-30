@@ -467,9 +467,9 @@ M2_PIN_SIZE(m2OpCreateWaterVolume, 88);
 M2_PIN_AT(m2OpCreateWaterVolume, def, 0);
 M2_PIN_AT(m2OpCreateWaterVolume, expected, 80);
 
-M2_PIN_SIZE(m2OpFluidSurface, 16);
-M2_PIN_AT(m2OpFluidSurface, id, 0);
-M2_PIN_AT(m2OpFluidSurface, surface, 8);
+M2_PIN_SIZE(m2OpWaterSurface, 16);
+M2_PIN_AT(m2OpWaterSurface, id, 0);
+M2_PIN_AT(m2OpWaterSurface, surface, 8);
 
 M2_PIN_SIZE(m2OpShatterHeader, 16);
 M2_PIN_AT(m2OpShatterHeader, body, 0);

@@ -1195,9 +1195,9 @@ static void TestDistanceSpringToggleReadsBack(void)
     glue.bodyIdA = m2Joint_GetBodyA(rodWorld, plain);
     glue.bodyIdB = m2Joint_GetBodyB(rodWorld, plain);
     m2JointId weld = NewWeldJoint(rodWorld, &glue);
-    uint64_t misuse = m2World_GetCounters(rodWorld).misuse;
+    uint64_t misuse = m2World_GetCounters(rodWorld).misuseCount;
     CHECK(!m2Joint_IsSpringEnabled(rodWorld, weld), "a weld has no spring switch");
-    CHECK(m2World_GetCounters(rodWorld).misuse == misuse + 1, "and asking counts one misuse");
+    CHECK(m2World_GetCounters(rodWorld).misuseCount == misuse + 1, "and asking counts one misuse");
     m2DestroyWorld(rodWorld);
     m2DestroyWorld(twin);
     m2DestroyWorld(world);
@@ -1256,9 +1256,9 @@ static void TestDistanceRange(void)
     float hi = 0.0f;
     m2DistanceJoint_GetLengthRange(world, ropes[1], &lo, &hi);
     CHECK(lo == 0.5f && hi == 1.5f, "the range reads back");
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     m2Joint_GetLimits(world, ropes[1], &lo, &hi);
-    CHECK(lo == 0.0f && hi == 0.0f && m2World_GetCounters(world).misuse == misuse + 1,
+    CHECK(lo == 0.0f && hi == 0.0f && m2World_GetCounters(world).misuseCount == misuse + 1,
           "a distance joint has no limits to read, only its range");
 
     // Runtime: reel the free one in the same way.
@@ -1613,13 +1613,13 @@ static void TestMotorAndLimitCallsNeedTheirJoint(void)
     m2BodyId twinWheel;
     m2World* twin = RatchetScene(&twinRatchet, &twinWheel);
 
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     m2Joint_SetLimits(world, ratchet, -10.0f, 10.0f);
     m2Joint_EnableLimit(world, ratchet, true);
     m2Joint_EnableMotor(world, ratchet, true);
     m2Joint_SetMotorSpeed(world, ratchet, -4.0f);
     m2Joint_SetMaxMotorEffort(world, ratchet, 100.0f);
-    CHECK(m2World_GetCounters(world).misuse == misuse + 5, "each call on a ratchet counts");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 5, "each call on a ratchet counts");
     float lower = 1.0f;
     float upper = 1.0f;
     m2Joint_GetLimits(world, ratchet, &lower, &upper);
@@ -1629,7 +1629,7 @@ static void TestMotorAndLimitCallsNeedTheirJoint(void)
     upper = 1.0f;
     m2DistanceJoint_GetLengthRange(world, ratchet, &lower, &upper);
     CHECK(lower == 0.0f && upper == 0.0f, "nor a length range");
-    CHECK(m2World_GetCounters(world).misuse == misuse + 8, "and the reads count too");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 8, "and the reads count too");
 
     for (int32_t i = 0; i < 120; ++i)
     {
@@ -1655,12 +1655,12 @@ static void TestMotorAndLimitCallsNeedTheirJoint(void)
     md.bodyIdA = base;
     md.bodyIdB = arm;
     m2JointId motor = NewMotorJoint(hinges, &md);
-    misuse = m2World_GetCounters(hinges).misuse;
+    misuse = m2World_GetCounters(hinges).misuseCount;
     m2Joint_SetLimits(hinges, hinge, -1.0f, 1.0f);
     m2Joint_EnableLimit(hinges, hinge, true);
     m2Joint_SetMotorSpeed(hinges, hinge, 2.0f);
     m2Joint_SetMaxMotorEffort(hinges, motor, 50.0f);
-    CHECK(m2World_GetCounters(hinges).misuse == misuse, "a hinge and a motor joint take them");
+    CHECK(m2World_GetCounters(hinges).misuseCount == misuse, "a hinge and a motor joint take them");
     CHECK(m2Joint_GetMaxMotorEffort(hinges, motor) == 50.0f,
           "the motor joint's torque budget reads back");
     m2DestroyWorld(hinges);
@@ -2075,7 +2075,7 @@ static void TestLocalAnchorsAreBounded(void)
     m2BodyId b = AddBall(world, 2.0, 0.0, 0.5f);
     const m2Vec2 beyond = {0.0f, 2.0f * M2_LOCAL_LIMIT};
     m2JointId joint = m2_nullJointId;
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
 
     m2DistanceJointDef distance = m2DefaultDistanceJointDef();
     distance.bodyIdA = a;
@@ -2115,7 +2115,7 @@ static void TestLocalAnchorsAreBounded(void)
               m2CreatePulleyJoint(world, &pulley, &joint) == m2_errorLimit &&
               m2CreateMotorJoint(world, &motor, &joint) == m2_errorLimit,
           "every joint def past M2_LOCAL_LIMIT is refused");
-    CHECK(m2World_GetCounters(world).misuse == misuse + 7, "each refusal counts one misuse");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 7, "each refusal counts one misuse");
 
     // The mouse joint's grab point is where the target lies in B's frame:
     // a target past M2_LOCAL_LIMIT from B would make an anchor no snapshot
@@ -2126,12 +2126,12 @@ static void TestLocalAnchorsAreBounded(void)
     mouse.bodyIdB = b;
     mouse.target = (m2Pos2){2.0 + 2.0 * (double)M2_LOCAL_LIMIT, 0.0};
     CHECK(m2CreateMouseJoint(world, &mouse, &joint) == m2_errorLimit &&
-              m2World_GetCounters(world).misuse == misuse + 7,
+              m2World_GetCounters(world).misuseCount == misuse + 7,
           "a mouse target past M2_LOCAL_LIMIT from its body is refused and counts no misuse");
     m2Body_SetTransform(world, b, (m2Pos2){2.0, 0.0}, (m2Rot){0.0f, 1.0f});
     mouse.target = (m2Pos2){1.0e300, 0.0};
     CHECK(m2CreateMouseJoint(world, &mouse, &joint) == m2_errorLimit &&
-              m2World_GetCounters(world).misuse == misuse + 7,
+              m2World_GetCounters(world).misuseCount == misuse + 7,
           "so is one past any float from a body turned a quarter");
     m2Body_SetTransform(world, b, (m2Pos2){2.0, 0.0}, (m2Rot){1.0f, 0.0f});
     mouse.target = (m2Pos2){2.0 + (double)M2_LOCAL_LIMIT, 0.0};
@@ -2148,7 +2148,7 @@ static void TestLocalAnchorsAreBounded(void)
     m2JointId mover = NewMotorJoint(world, &motor);
     m2MotorJoint_SetOffsets(world, mover, beyond, 0.0f);
     m2Vec2 kept = m2MotorJoint_GetLinearOffset(world, mover);
-    CHECK(m2World_GetCounters(world).misuse == misuse + 8 && kept.x == 1.0f && kept.y == 0.0f,
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 8 && kept.x == 1.0f && kept.y == 0.0f,
           "a motor offset past M2_LOCAL_LIMIT changes nothing and counts one misuse");
     m2DestroyWorld(world);
 }
@@ -2747,12 +2747,12 @@ static void TestJointSwitches(void)
     fj.bodyIdA = pedestal;
     fj.bodyIdB = crate;
     m2JointId pact = NewFilterJoint(world, &fj);
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     m2Joint_EnableConnectedCollision(world, pact, true);
     m2Joint_EnableSpring(world, pact, true);
     CHECK(!m2Joint_IsConnectedCollisionEnabled(world, pact) &&
               !m2Joint_IsSpringEnabled(world, pact) &&
-              m2World_GetCounters(world).misuse == misuse + 3,
+              m2World_GetCounters(world).misuseCount == misuse + 3,
           "a filter joint refuses both switches and has no spring, each a misuse");
     CHECK(m2World_Validate(world), "the world stays valid");
     m2DestroyWorld(world);

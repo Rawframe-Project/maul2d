@@ -154,10 +154,11 @@ static void ExpectRefused(const Scene* scene, Edit edit, const char* what)
     memcpy(bytes, scene->valid, (size_t)scene->size);
     edit(scene, bytes + scene->headerBytes);
     uint64_t hash = m2World_Hash(scene->world);
-    uint64_t misuse = m2World_GetCounters(scene->world).misuse;
+    uint64_t misuse = m2World_GetCounters(scene->world).misuseCount;
     m2Result result = m2World_Restore(scene->world, bytes, scene->size);
     CHECK(result == m2_errorFormat, what);
-    CHECK(m2World_Hash(scene->world) == hash && m2World_GetCounters(scene->world).misuse == misuse,
+    CHECK(m2World_Hash(scene->world) == hash &&
+              m2World_GetCounters(scene->world).misuseCount == misuse,
           "a refused snapshot changes nothing and counts nothing");
     free(bytes);
 }
@@ -682,9 +683,9 @@ static m2Result RestoreWithFloat(const Scene* scene, const void* field, size_t a
     }
     memcpy(bytes, scene->valid, (size_t)scene->size);
     memcpy(At(scene, bytes + scene->headerBytes, field) + at, &value, sizeof(value));
-    uint64_t misuse = m2World_GetCounters(scene->world).misuse;
+    uint64_t misuse = m2World_GetCounters(scene->world).misuseCount;
     m2Result result = m2World_Restore(scene->world, bytes, scene->size);
-    CHECK(m2World_GetCounters(scene->world).misuse == misuse, "a restore counts no misuse");
+    CHECK(m2World_GetCounters(scene->world).misuseCount == misuse, "a restore counts no misuse");
     CHECK(Restore(scene->world, scene->valid, scene->size), "the valid snapshot restores again");
     free(bytes);
     return result;
@@ -1795,7 +1796,7 @@ static void TestLinkShapesInRange(void)
     CHECK(m2World_Restore(world, scene.bytes, scene.size) == m2_errorFormat,
           "a triad corner past one stride is refused");
     memcpy(corners + sizeof(float), &corner, sizeof(corner));
-    CHECK(m2World_Hash(world) == hash && m2World_GetCounters(world).misuse == 0,
+    CHECK(m2World_Hash(world) == hash && m2World_GetCounters(world).misuseCount == 0,
           "and the refusals change nothing, counting no misuse");
     CHECK(Restore(world, scene.bytes, scene.size), "the snapshot as written restores");
     free(scene.bytes);
@@ -1825,7 +1826,7 @@ static void TestRestoreKeepsTheParticleRadius(void)
     CHECK(m2World_Restore(narrower, empty, emptySize) == m2_errorFormat,
           "and is refused there too, holding no particle");
     free(empty);
-    CHECK(m2World_Hash(narrower) == hash && m2World_GetCounters(narrower).misuse == 0,
+    CHECK(m2World_Hash(narrower) == hash && m2World_GetCounters(narrower).misuseCount == 0,
           "changing nothing and counting no misuse");
     CHECK(Restore(same, scene.bytes, scene.size) && m2World_Hash(same) == m2World_Hash(scene.world),
           "and restores into a world of its own radius");

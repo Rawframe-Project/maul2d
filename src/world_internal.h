@@ -202,7 +202,7 @@ typedef struct m2Particles
     m2Vec2* particlePairNormal;
     int32_t particlePairCapacity; // 12 per particle of capacity
     int32_t particlePairCount;
-    int32_t particlePairOverflow;  // deterministic truncation counter
+    int32_t particlePairsDropped;  // deterministic truncation counter
     float* particleWeights;        // step-transient dimensionless density
     float* particleAccumulation;   // step-transient pressure accumulator
     m2Vec2* particleAccumulation2; // step-transient tensile normals
@@ -233,15 +233,15 @@ typedef struct m2Particles
     int32_t* particleBodyStageDrops; // per-particle candidates beyond 4
     int32_t particleBodyCapacity;    // 4 per particle of capacity
     int32_t particleBodyCount;
-    int32_t particleBodyOverflow;
-    uint64_t particlePoolFullCount; // cumulative quiet-full refusals
+    int32_t particleBodyContactsDropped;
+    uint64_t particleCreatesRefused; // cumulative quiet-full refusals
 } m2Particles;
 
 // Water volumes: particle-free water regions (snapshot state).
 typedef struct m2WaterVolumes
 {
     int32_t wvCapacity;
-    int32_t maxFvIndex;
+    int32_t maxWvIndex;
     m2Pos2* wvLower;
     m2Pos2* wvUpper;
     double* wvSurface;
@@ -285,7 +285,7 @@ typedef struct m2Contacts
     int32_t oldPairCount;        // step-transient
     uint64_t* oldPairScratch;    // step-transient
     uint64_t* pairMergeScratch;  // step-transient: the merged pair list before it lands
-    int32_t pairOverflow;        // candidate pairs dropped by the last update (table full)
+    int32_t pairsDropped;        // candidate pairs dropped by the last update (table full)
     m2Manifold* manifoldScratch; // step-transient
 } m2Contacts;
 
@@ -386,7 +386,7 @@ typedef struct m2World
 // Refuses a caller's call against a world and returns the reason, so a
 // status function can return it directly. Misuse (an invalid argument, a
 // stale id, a call while the world is busy) counts one in
-// m2Counters.misuse; a full pool is a runtime fact and counts nothing.
+// m2Counters.misuseCount; a full pool is a runtime fact and counts nothing.
 // Untrusted bytes refused by a restore or a replay are not misuse either:
 // those paths return their status without calling this, and a value a
 // tape's op refuses while the world replays counts nothing. world may be

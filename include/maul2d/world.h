@@ -123,7 +123,7 @@ extern "C"
     /// therefore makes n * 2^32 objects over a world's life, snapshots
     /// included; then its creates return m2_errorCapacity.
     ///
-    /// MISUSE. m2Counters.misuse counts the bugs of the calling code: an
+    /// MISUSE. m2Counters.misuseCount counts the bugs of the calling code: an
     /// argument a correct program never passes, a stale id, a writer called
     /// from host code the world is running. Untrusted input is not misuse:
     /// a snapshot or journal tape that fails its checks, and a value one of
@@ -338,39 +338,39 @@ extern "C"
     /// several readers at once.
     M2_API void m2World_Draw(const m2World* world, const m2DebugDraw* draw);
 
-    /// Wall-clock times of the last step. They are not deterministic and
-    /// never enter a snapshot or a hash.
+    /// Wall-clock times of the last step's phases, each in milliseconds.
+    /// They are not deterministic and never enter a snapshot or a hash.
     typedef struct m2Profile
     {
-        float stepMs;     // the whole m2World_Step
-        float pairsMs;    // broadphase and pair update
-        float contactsMs; // narrowphase manifolds
-        float solveMs;    // solver, continuous collision included
-        float sleepMs;    // islands and sleep accounting
+        float step;        // the whole m2World_Step
+        float broadphase;  // broadphase and pair update
+        float narrowphase; // narrowphase manifolds
+        float solve;       // solver, continuous collision included
+        float sleep;       // islands and sleep accounting
     } m2Profile;
 
     /// Counts derived from world state, so they are deterministic.
     typedef struct m2Counters
     {
-        int32_t bodies;
-        int32_t awakeBodies;
-        int32_t shapes;
-        int32_t joints;
-        int32_t pairs;
-        int32_t touchingPairs;
-        int32_t constraints;         // solved last step
-        int32_t graphColors;         // colors used last step
-        int32_t overflowConstraints; // in the serial bucket last step
+        int32_t bodyCount;
+        int32_t awakeCount; // enabled, awake dynamic bodies
+        int32_t shapeCount;
+        int32_t jointCount;
+        int32_t contactCount;    // live broadphase pairs
+        int32_t touchingCount;   // pairs whose shapes touch
+        int32_t constraintCount; // solved last step
+        int32_t colorCount;      // solver graph colors used last step
+        int32_t overflowCount;   // constraints in the serial bucket last step
         M2_ALIGN8 uint64_t stepCount;
         // Counted in every build. Poll them once per frame and alarm on
         // growth: there is no per-call callback, so healthy calls pay
         // nothing for the diagnosis. The three counts of drops stop at
         // INT32_MAX.
-        int32_t pairOverflow;                // body pairs dropped last step (pair table full)
-        int32_t particlePairOverflow;        // particle pairs dropped last step (budget)
-        int32_t particleBodyOverflow;        // particle body contacts dropped last step
-        M2_ALIGN8 uint64_t particlePoolFull; // creates refused by a full pool, cumulative
-        M2_ALIGN8 uint64_t misuse;           // calls refused as misuse, cumulative
+        int32_t pairsDropped;                      // body pairs dropped last step (pair table full)
+        int32_t particlePairsDropped;              // particle pairs dropped last step (budget)
+        int32_t particleBodyContactsDropped;       // particle body contacts dropped last step
+        M2_ALIGN8 uint64_t particleCreatesRefused; // creates refused by a full pool, cumulative
+        M2_ALIGN8 uint64_t misuseCount;            // calls refused as misuse, cumulative
     } m2Counters;
 
     /// Sums the kinetic energy of the awake dynamic bodies, in f64 and in

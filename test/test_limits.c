@@ -25,7 +25,7 @@ static float Past(float edge)
 
 static uint64_t Misuse(const m2World* world)
 {
-    return m2World_GetCounters(world).misuse;
+    return m2World_GetCounters(world).misuseCount;
 }
 
 // The edge lands and reads back; one float past it is refused, counted

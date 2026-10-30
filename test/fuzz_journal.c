@@ -121,9 +121,9 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     }
 
     uint64_t hash = m2World_Hash(s_world);
-    uint64_t misuse = m2World_GetCounters(s_world).misuse;
+    uint64_t misuse = m2World_GetCounters(s_world).misuseCount;
     m2Result result = m2World_ReplayJournal(s_world, bytes, count);
-    if (m2World_GetCounters(s_world).misuse != misuse)
+    if (m2World_GetCounters(s_world).misuseCount != misuse)
     {
         FuzzFail("untrusted tape bytes count no misuse");
     }

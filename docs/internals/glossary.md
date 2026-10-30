@@ -30,7 +30,7 @@
 
 **Manifold.** The contact points, normal and separations between two touching shapes.
 
-**Misuse.** A call a correct program never makes: an invalid argument, a stale id, a writer called from host code. Counted in `m2Counters.misuse`. Untrusted bytes and full pools are not misuse.
+**Misuse.** A call a correct program never makes: an invalid argument, a stale id, a writer called from host code. Counted in `m2Counters.misuseCount`. Untrusted bytes and full pools are not misuse.
 
 **Mover.** The character kit: `m2World_CollideMover`, `m2SolveMover` and `m2ClipMoverVelocity`, for a capsule the game moves itself.
 
