@@ -8,7 +8,7 @@
 
 #include <string.h>
 
-uint64_t m2Hash64(uint64_t seed, const void* data, int32_t byteCount)
+uint64_t m2Hash64(uint64_t seed, const void* data, int64_t byteCount)
 {
     // Eight bytes a round: each word, read in the host's byte order like
     // every value the hash covers, is xored into the state, the state is
@@ -18,7 +18,7 @@ uint64_t m2Hash64(uint64_t seed, const void* data, int32_t byteCount)
     // are frozen: the hash feeds the determinism gates.
     const uint8_t* bytes = (const uint8_t*)data;
     uint64_t hash = seed;
-    int32_t i = 0;
+    int64_t i = 0;
     for (; i + 8 <= byteCount; i += 8)
     {
         uint64_t word;

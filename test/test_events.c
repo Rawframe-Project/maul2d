@@ -154,9 +154,10 @@ static void TestRestoreClearsAndReplays(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
         m2ContactEvents ev = m2World_GetContactEvents(world);
-        streamA =
-            m2Hash64(streamA, ev.beginEvents, ev.beginCount * (int32_t)sizeof(m2ContactBeginEvent));
-        streamA = m2Hash64(streamA, ev.endEvents, ev.endCount * (int32_t)sizeof(m2ContactEndEvent));
+        streamA = m2Hash64(streamA, ev.beginEvents,
+                           (int64_t)ev.beginCount * (int64_t)sizeof(m2ContactBeginEvent));
+        streamA = m2Hash64(streamA, ev.endEvents,
+                           (int64_t)ev.endCount * (int64_t)sizeof(m2ContactEndEvent));
     }
 
     CHECK(Restore(world, snap, size), "restore");
@@ -168,9 +169,10 @@ static void TestRestoreClearsAndReplays(void)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
         m2ContactEvents ev = m2World_GetContactEvents(world);
-        streamB =
-            m2Hash64(streamB, ev.beginEvents, ev.beginCount * (int32_t)sizeof(m2ContactBeginEvent));
-        streamB = m2Hash64(streamB, ev.endEvents, ev.endCount * (int32_t)sizeof(m2ContactEndEvent));
+        streamB = m2Hash64(streamB, ev.beginEvents,
+                           (int64_t)ev.beginCount * (int64_t)sizeof(m2ContactBeginEvent));
+        streamB = m2Hash64(streamB, ev.endEvents,
+                           (int64_t)ev.endCount * (int64_t)sizeof(m2ContactEndEvent));
     }
     CHECK(streamA == streamB, "re-simulation re-emits the identical event stream");
 

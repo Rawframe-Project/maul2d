@@ -33,7 +33,9 @@ static uint64_t HashPool(const m2HashPool* pool, uint64_t h)
     }
     // Generations below the high-water mark, live and free: a freed slot's
     // generation is the one its next object takes.
-    return m2Hash64(h, pool->generations, pool->maxIndex * (int32_t)sizeof(uint32_t));
+    // The product is taken in 64 bits, since four bytes a slot overflow 32
+    // bits past 536,870,911 slots.
+    return m2Hash64(h, pool->generations, (int64_t)pool->maxIndex * (int64_t)sizeof(uint32_t));
 }
 
 uint64_t m2HashPools(const m2World* world, m2HashPart part, uint64_t h)

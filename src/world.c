@@ -201,7 +201,7 @@ static M2_NOINLINE m2Result CreateWorldWorker(const m2WorldDef* def, m2World** w
     // Before any solver kernel runs, make sure this CPU can execute the
     // backend the binary was built for: a typed refusal beats a bare
     // illegal-instruction trap on pre-Haswell hardware.
-    if (m2CheckCpu(NULL) == 0)
+    if (!m2CheckCpu(NULL))
     {
         return m2_errorUnsupported;
     }

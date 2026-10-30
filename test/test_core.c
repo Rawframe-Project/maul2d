@@ -387,12 +387,12 @@ static void TestSimdBackend(void)
     int known = strcmp(backend, "avx2") == 0 || strcmp(backend, "neon") == 0 ||
                 strcmp(backend, "scalar") == 0;
     CHECK(known, "m2GetSimdBackend must name a known backend");
-    CHECK(m2IsCpuBackendSupported() == 1, "this CPU must support the backend it is running");
+    CHECK(m2IsCpuBackendSupported(), "this CPU must support the backend it is running");
     // A world was creatable in the other suites, which means the create-time
     // guard passed; confirm it is idempotent and does not disturb creation.
     m2WorldDef def = m2DefaultWorldDef();
     m2World* world = NewWorld(&def);
-    CHECK(m2IsCpuBackendSupported() == 1, "the backend check is stable across calls");
+    CHECK(m2IsCpuBackendSupported(), "the backend check is stable across calls");
     m2DestroyWorld(world);
 }
 

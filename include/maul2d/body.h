@@ -22,12 +22,17 @@ extern "C"
         m2Pos2 upperBound;
     } m2WorldAabb;
 
-    typedef enum m2BodyType
+    /// How a body moves: one of the m2_*Body constants. The type has a
+    /// fixed width, unlike a C enum's, so a def holding it has one layout
+    /// in every compiler, C and C++.
+    typedef int32_t m2BodyType;
+
+    enum
     {
         m2_staticBody = 0,
         m2_kinematicBody = 1,
         m2_dynamicBody = 2,
-    } m2BodyType;
+    };
 
     /// A body of a world: a 1-based slot and a generation.
     typedef struct m2BodyId
