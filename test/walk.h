@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // The seeded API walk: random sessions over the whole public API
-// (creates, destroys, setters, chains, joints, particles, fluid volumes,
+// (creates, destroys, setters, chains, joints, particles, water volumes,
 // teleports, type flips), each checked for the three promises:
 //   1. a journal of the walk replays onto the recorded hash,
 //   2. snapshot, a divergent future and restore return the exact bits,
@@ -836,7 +836,7 @@ static m2WorldDef WalkWorldDef(int32_t workerCount)
     def.shapeCapacity = 32;
     def.jointCapacity = 8;
     def.particleCapacity = 128; // the walks drive water too
-    def.fluidVolumeCapacity = 2;
+    def.waterVolumeCapacity = 2;
     s_walkWorkers = workerCount;
     if (workerCount > 1)
     {
@@ -868,12 +868,11 @@ static uint64_t RunScenario(uint64_t seed, uint8_t* journal, int32_t journalCapa
     NewPolygonShape(world, floor, &fs, &slab);
 
     // A pool the chaos falls into, so buoyancy rides every promise.
-    m2FluidVolumeDef pool = m2DefaultFluidVolumeDef();
-    pool.regionLower = (m2Pos2){-14.0, -3.0};
-    pool.regionUpper = (m2Pos2){14.0, 2.0};
+    m2WaterVolumeDef pool = m2DefaultWaterVolumeDef();
+    pool.bounds = (m2WorldAabb){{-14.0, -3.0}, {14.0, 2.0}};
     pool.surface = 0.0;
     pool.flow = (m2Vec2){0.3f, 0.0f};
-    NewFluidVolume(world, &pool);
+    NewWaterVolume(world, &pool);
 
     for (int32_t i = 0; i < 300; ++i)
     {

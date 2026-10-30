@@ -1,6 +1,6 @@
 # Fluids
 
-Maul2D has two kinds of water. A particle pool simulates liquid, sand and jelly particle by particle; a fluid volume is a region of buoyant water with no particles at all. Both are world state: snapshots, the journal and the hash cover them like everything else.
+Maul2D has two kinds of water. A particle pool simulates liquid, sand and jelly particle by particle; a water volume is a region of buoyant water with no particles at all. Both are world state: snapshots, the journal and the hash cover them like everything else.
 
 ## Particle pools
 
@@ -42,10 +42,10 @@ Sensors are invisible to particles, and one-way chains hold them only on their s
 
 Two speed facts are part of the contract. No particle moves more than one diameter per step, which keeps neighbors findable. The neighbor and body-contact builds run on the task hooks when the pool is large enough to gain from it (a few thousand particles), and any worker count gives the same bits; the force passes stay serial, because each reads the velocities the one before it left. A pool of fifteen hundred particles steps in well under a millisecond either way.
 
-## Fluid volumes
+## Water volumes
 
-Where a pool would be more than a scene needs, a fluid volume is the cheap answer: an axis-aligned region and a horizontal surface (`m2CreateFluidVolume`). Volumes have their own pool, sized by the world def's `fluidVolumeCapacity`; when it is full, or sized 0, the call refuses with `m2_errorCapacity`, counting no misuse. Every awake dynamic body whose origin lies in the region feels buoyancy on the part of each shape below the surface (exact for circles and polygons, a bounding-box fraction for capsules and segments), linear and angular drag, and an optional flow current. Light bodies float, dense ones sink, and a flow carries what drifts in. `m2FluidVolume_SetSurface` moves the waterline for a rising tide or a draining tank. The forces go into the ordinary accumulators, so a body that settles at the surface simply sleeps there.
+Where a pool would be more than a scene needs, a water volume is the cheap answer: an axis-aligned region and a horizontal surface (`m2CreateWaterVolume`). Volumes have their own pool, sized by the world def's `waterVolumeCapacity`; when it is full, or sized 0, the call refuses with `m2_errorCapacity`, counting no misuse. Every awake dynamic body whose origin lies in the region feels buoyancy on the part of each shape below the surface (exact for circles and polygons, a bounding-box fraction for capsules and segments), linear and angular drag, and an optional flow current. Light bodies float, dense ones sink, and a flow carries what drifts in. `m2WaterVolume_SetSurface` moves the waterline for a rising tide or a draining tank. The forces go into the ordinary accumulators, so a body that settles at the surface simply sleeps there.
 
 ## Wind
 
-`m2World_SetWind` sets an air velocity and a drag coefficient for the whole world: every awake dynamic body is pulled toward the wind's speed in proportion to its area. Unlike gravity, wind wakes no sleeper, because wind is meant to gust. Regional wind is a fluid volume of density 0 with a flow.
+`m2World_SetWind` sets an air velocity and a drag coefficient for the whole world: every awake dynamic body is pulled toward the wind's speed in proportion to its area. Unlike gravity, wind wakes no sleeper, because wind is meant to gust. Regional wind is a water volume of density 0 with a flow.

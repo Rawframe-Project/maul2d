@@ -1055,7 +1055,7 @@ static void TestCrowdedCrossingStops(void)
 static void TestDeadIdsStayDead(void)
 {
     m2WorldDef def = FluidWorldDef(1);
-    def.fluidVolumeCapacity = 1;
+    def.waterVolumeCapacity = 1;
     m2World* world = NewWorld(&def);
     m2ParticleId first = EmitParticle(world, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f}, 0);
     CHECK(DestroyParticle(world, first) == m2_success, "the first particle goes");
@@ -1068,17 +1068,16 @@ static void TestDeadIdsStayDead(void)
     }
     CHECK(revived == 0, "a held particle id never names a later particle");
 
-    m2FluidVolumeDef pool = m2DefaultFluidVolumeDef();
-    pool.regionLower = (m2Pos2){-1.0, -1.0};
-    pool.regionUpper = (m2Pos2){1.0, 1.0};
-    m2FluidVolumeId tank = NewFluidVolume(world, &pool);
-    CHECK(DestroyFluidVolume(world, tank) == m2_success, "the first volume goes");
+    m2WaterVolumeDef pool = m2DefaultWaterVolumeDef();
+    pool.bounds = (m2WorldAabb){{-1.0, -1.0}, {1.0, 1.0}};
+    m2WaterVolumeId tank = NewWaterVolume(world, &pool);
+    CHECK(DestroyWaterVolume(world, tank) == m2_success, "the first volume goes");
     revived = 0;
     for (int32_t i = 0; i < 65537; ++i)
     {
-        m2FluidVolumeId next = NewFluidVolume(world, &pool);
-        revived += m2FluidVolume_IsValid(world, tank) ? 1 : 0;
-        CHECK(DestroyFluidVolume(world, next) == m2_success, "each later volume goes");
+        m2WaterVolumeId next = NewWaterVolume(world, &pool);
+        revived += m2WaterVolume_IsValid(world, tank) ? 1 : 0;
+        CHECK(DestroyWaterVolume(world, next) == m2_success, "each later volume goes");
     }
     CHECK(revived == 0, "a held volume id never names a later volume");
     m2DestroyWorld(world);
@@ -1236,9 +1235,9 @@ static void TestZeroPoolsAreFull(void)
     CHECK(m2CreateParticlesInPolygon(world, &particleDef, &box, &count) == m2_errorCapacity &&
               count == 0,
           "and so is a fill");
-    m2FluidVolumeDef volumeDef = m2DefaultFluidVolumeDef();
-    m2FluidVolumeId volume = {7, 7};
-    CHECK(m2CreateFluidVolume(world, &volumeDef, &volume) == m2_errorCapacity && volume.index1 == 0,
+    m2WaterVolumeDef volumeDef = m2DefaultWaterVolumeDef();
+    m2WaterVolumeId volume = {7, 7};
+    CHECK(m2CreateWaterVolume(world, &volumeDef, &volume) == m2_errorCapacity && volume.index1 == 0,
           "a volume in a world with a pool of 0 is m2_errorCapacity");
     m2Counters counters = m2World_GetCounters(world);
     CHECK(counters.misuse == misuse && counters.particlePoolFull == 2,

@@ -25,7 +25,7 @@ static m2WorldDef TestDef(void)
     def.shapeCapacity = 64;
     def.jointCapacity = 32;
     def.particleCapacity = 64;   // the parade drives the particle ops too
-    def.fluidVolumeCapacity = 4; // and the buoyancy ops
+    def.waterVolumeCapacity = 4; // and the buoyancy ops
     return def;
 }
 
@@ -257,12 +257,11 @@ static void RunSession(m2World* world, uint8_t* journal, int64_t capacity, int64
     ShatterBody(world, ram, shardPair, 2, NULL, 0); // op 58 (ram is dynamic; its gear dies with it)
     m2Particle_SetLifetime(world, drop2, 0.5f);     // op 59
     m2Particle_SetUserData(world, drop2, 777);      // op 60
-    m2FluidVolumeDef poolDef = m2DefaultFluidVolumeDef();
-    poolDef.regionLower = (m2Pos2){-5.0, -5.0};
-    poolDef.regionUpper = (m2Pos2){5.0, 5.0};
+    m2WaterVolumeDef poolDef = m2DefaultWaterVolumeDef();
+    poolDef.bounds = (m2WorldAabb){{-5.0, -5.0}, {5.0, 5.0}};
     poolDef.surface = -1.0;
-    m2FluidVolumeId pool = NewFluidVolume(world, &poolDef); // op 61
-    m2FluidVolume_SetSurface(world, pool, 0.5);             // op 63
+    m2WaterVolumeId pool = NewWaterVolume(world, &poolDef); // op 61
+    m2WaterVolume_SetSurface(world, pool, 0.5);             // op 63
     m2BodyDef drd = m2DefaultBodyDef();
     drd.position = (m2Pos2){-4.0, 6.0};
     m2BodyId drHook = NewBody(world, &drd);
@@ -597,11 +596,10 @@ static void FilledChainDef(m2ChainDef* to, const m2ChainDef* from, uint8_t fill)
     to->internalValue = from->internalValue;
 }
 
-static void FilledFluidVolumeDef(m2FluidVolumeDef* to, const m2FluidVolumeDef* from, uint8_t fill)
+static void FilledWaterVolumeDef(m2WaterVolumeDef* to, const m2WaterVolumeDef* from, uint8_t fill)
 {
     memset(to, fill, sizeof(*to));
-    to->regionLower = from->regionLower;
-    to->regionUpper = from->regionUpper;
+    to->bounds = from->bounds;
     to->surface = from->surface;
     to->density = from->density;
     to->linearDrag = from->linearDrag;
@@ -823,7 +821,7 @@ static m2World* NewDefWorld(void)
     worldDef.bodyCapacity = 8;
     worldDef.shapeCapacity = 16;
     worldDef.jointCapacity = 16;
-    worldDef.fluidVolumeCapacity = 2;
+    worldDef.waterVolumeCapacity = 2;
     worldDef.particleCapacity = 64;
     return NewWorld(&worldDef);
 }
@@ -884,11 +882,11 @@ static uint8_t* TapeOfFilledDefs(uint8_t fill, int64_t* bytesOut, uint64_t* hash
     m2ChainDef chainDef;
     FilledChainDef(&chainDef, &chainValues, fill);
     CHECK(m2Chain_IsValid(world, NewChain(world, ground, &chainDef)), "a chain creates");
-    m2FluidVolumeDef volumeValues = m2DefaultFluidVolumeDef();
-    m2FluidVolumeDef volumeDef;
-    FilledFluidVolumeDef(&volumeDef, &volumeValues, fill);
-    CHECK(m2FluidVolume_IsValid(world, NewFluidVolume(world, &volumeDef)),
-          "a fluid volume creates");
+    m2WaterVolumeDef volumeValues = m2DefaultWaterVolumeDef();
+    m2WaterVolumeDef volumeDef;
+    FilledWaterVolumeDef(&volumeDef, &volumeValues, fill);
+    CHECK(m2WaterVolume_IsValid(world, NewWaterVolume(world, &volumeDef)),
+          "a water volume creates");
     m2ExplosionDef explosionValues = m2DefaultExplosionDef();
     m2ExplosionDef explosionDef;
     FilledExplosionDef(&explosionDef, &explosionValues, fill);

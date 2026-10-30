@@ -54,7 +54,7 @@ static Scene MakeSceneAfter(int32_t steps)
     def.shapeCapacity = 16;
     def.jointCapacity = 4;
     def.particleCapacity = 8;
-    def.fluidVolumeCapacity = 1; // none made, so its slot keeps its zeros
+    def.waterVolumeCapacity = 1; // none made, so its slot keeps its zeros
     scene.world = NewWorld(&def);
     m2BodyDef groundDef = m2DefaultBodyDef();
     scene.ground = NewBody(scene.world, &groundDef);
@@ -759,10 +759,10 @@ static void TestShapeAndParticleBounds(const Scene* scene)
                 (Bound){"tangent speed", &w->shapes.shapeTangentSpeed, shape, M2_SPEED_LIMIT});
     ExpectLower(scene,
                 (Bound){"particle velocity", &w->particles.particleVelocities, 0, -M2_SPEED_LIMIT});
-    ExpectUpper(scene, (Bound){"volume density", &w->volumes.fvDensity, 0, M2_DENSITY_LIMIT});
-    ExpectUpper(scene, (Bound){"volume drag", &w->volumes.fvLinearDrag, 0, M2_RATE_LIMIT});
-    ExpectLower(scene, (Bound){"volume spin drag", &w->volumes.fvAngularDrag, 0, 0.0f});
-    ExpectUpper(scene, (Bound){"volume flow", &w->volumes.fvFlow, 4, M2_SPEED_LIMIT});
+    ExpectUpper(scene, (Bound){"volume density", &w->volumes.wvDensity, 0, M2_DENSITY_LIMIT});
+    ExpectUpper(scene, (Bound){"volume drag", &w->volumes.wvLinearDrag, 0, M2_RATE_LIMIT});
+    ExpectLower(scene, (Bound){"volume spin drag", &w->volumes.wvAngularDrag, 0, 0.0f});
+    ExpectUpper(scene, (Bound){"volume flow", &w->volumes.wvFlow, 4, M2_SPEED_LIMIT});
 }
 
 // The joint channels every kind keeps the same way, on the pin in slot 0,
@@ -1479,11 +1479,10 @@ static bool ParticleValid(const m2World* world, uint32_t index1, uint32_t genera
 
 static m2Result CreateVolumeIn(m2World* world, uint32_t* index1, uint32_t* generation)
 {
-    m2FluidVolumeDef def = m2DefaultFluidVolumeDef();
-    def.regionLower = (m2Pos2){-1.0, -1.0};
-    def.regionUpper = (m2Pos2){1.0, 1.0};
-    m2FluidVolumeId id = {0, 0};
-    m2Result result = m2CreateFluidVolume(world, &def, &id);
+    m2WaterVolumeDef def = m2DefaultWaterVolumeDef();
+    def.bounds = (m2WorldAabb){{-1.0, -1.0}, {1.0, 1.0}};
+    m2WaterVolumeId id = {0, 0};
+    m2Result result = m2CreateWaterVolume(world, &def, &id);
     *index1 = id.index1;
     *generation = id.generation;
     return result;
@@ -1491,12 +1490,12 @@ static m2Result CreateVolumeIn(m2World* world, uint32_t* index1, uint32_t* gener
 
 static m2Result DestroyVolumeIn(m2World* world, uint32_t index1, uint32_t generation)
 {
-    return m2DestroyFluidVolume(world, (m2FluidVolumeId){index1, generation});
+    return m2DestroyWaterVolume(world, (m2WaterVolumeId){index1, generation});
 }
 
 static bool VolumeValid(const m2World* world, uint32_t index1, uint32_t generation)
 {
-    return m2FluidVolume_IsValid(world, (m2FluidVolumeId){index1, generation});
+    return m2WaterVolume_IsValid(world, (m2WaterVolumeId){index1, generation});
 }
 
 enum
@@ -1592,7 +1591,7 @@ static m2World* SpentWorld(int32_t bodies, int32_t shapes, int32_t joints, int32
     def.shapeCapacity = shapes;
     def.jointCapacity = joints;
     def.particleCapacity = particles;
-    def.fluidVolumeCapacity = volumes;
+    def.waterVolumeCapacity = volumes;
     return NewWorld(&def);
 }
 
@@ -1668,12 +1667,12 @@ static void TestSpentSlotsRetire(void)
     m2DestroyWorld(w);
 
     w = SpentWorld(1, 1, 1, 0, n);
-    SpentPool volumes = {w,          w->volumes.fvGenerations, &w->volumes.fvRetiredCount,
+    SpentPool volumes = {w,          w->volumes.wvGenerations, &w->volumes.wvRetiredCount,
                          n,          CreateVolumeIn,           DestroyVolumeIn,
                          VolumeValid};
     SpendPool(&volumes);
-    RestoreSpentPool(&volumes, &w->volumes.fvFreeQueue, &w->volumes.fvFreeHead,
-                     &w->volumes.fvFreeCount);
+    RestoreSpentPool(&volumes, &w->volumes.wvFreeQueue, &w->volumes.wvFreeHead,
+                     &w->volumes.wvFreeCount);
     m2DestroyWorld(w);
 }
 

@@ -55,7 +55,7 @@ extern "C"
         /// and rollback stays safe at any point in history. Its parameters
         /// are fixed here like every other physics setting.
         int32_t particleCapacity;    // 0: no fluids
-        int32_t fluidVolumeCapacity; // 0: no buoyancy volumes
+        int32_t waterVolumeCapacity; // 0: no buoyancy volumes
         float particleRadius;        // meters, M2_MIN_PARTICLE_RADIUS to M2_LOCAL_LIMIT
         float particleDensity;       // kg/m^2; a particle weighs M2_MIN_MASS or more
         float particleGravityScale;  // within M2_GRAVITY_SCALE_LIMIT
@@ -229,7 +229,7 @@ extern "C"
     /// -linearDrag * shapeArea * (bodyVelocity - windVelocity), added like
     /// gravity, so larger bodies catch more wind and everything drifts
     /// toward the wind's speed. Unlike gravity it wakes no sleeper, since
-    /// wind is meant to gust. Regional wind is a fluid volume of density 0.
+    /// wind is meant to gust. Regional wind is a water volume of density 0.
     /// A velocity beyond M2_SPEED_LIMIT on either axis or a drag outside 0 to
     /// M2_RATE_LIMIT counts one misuse. Journaled.
     ///
@@ -485,7 +485,7 @@ extern "C"
 
     /// Hashes every piece of state the step reads and a call can change:
     /// the world's gravity, wind, sleeping switch and step count; every
-    /// live body, shape, chain, joint, particle and fluid volume, each
+    /// live body, shape, chain, joint, particle and water volume, each
     /// field keyed by its slot (pose, velocities, forces, mass data,
     /// damping, gravity scale, locks, dominance, sleep and enable state;
     /// geometry, materials, filter and sensor flag; joint anchors,
@@ -534,7 +534,7 @@ extern "C"
         M2_ALIGN8 uint64_t contacts;  // pairs, their touching flags and manifolds
         M2_ALIGN8 uint64_t joints;    // joint settings and impulses, and the joint id pool
         M2_ALIGN8 uint64_t particles; // particles and the jelly nets, and the particle id pool
-        M2_ALIGN8 uint64_t volumes;   // fluid volumes and their id pool
+        M2_ALIGN8 uint64_t volumes;   // water volumes and their id pool
     } m2WorldHashParts;
 
     /// Hashes each part of the world. Compare two runs part by part each
@@ -549,14 +549,14 @@ extern "C"
     /// several readers at once.
     M2_API m2WorldHashParts m2World_GetHashParts(const m2World* world);
 
-    /// A fluid volume of a world: a 1-based slot and a generation.
-    typedef struct m2FluidVolumeId
+    /// A water volume of a world: a 1-based slot and a generation.
+    typedef struct m2WaterVolumeId
     {
         uint32_t index1; // 1-based slot, 0 = null
         uint32_t generation;
-    } m2FluidVolumeId;
+    } m2WaterVolumeId;
 
-    static const m2FluidVolumeId m2_nullFluidVolumeId = {0, 0};
+    static const m2WaterVolumeId m2_nullWaterVolumeId = {0, 0};
 
     /// Water without particles: an axis-aligned region and a horizontal
     /// surface. Every awake dynamic body whose origin lies in the region
@@ -564,31 +564,30 @@ extern "C"
     /// for circles and polygons, a box fraction for capsules and
     /// segments), linear and angular drag, and the flow. Far cheaper than a
     /// particle pool where one would be overkill.
-    typedef struct m2FluidVolumeDef
+    typedef struct m2WaterVolumeDef
     {
-        m2Pos2 regionLower; // the region, world space
-        m2Pos2 regionUpper;
+        m2WorldAabb bounds;       // the region, world space
         M2_ALIGN8 double surface; // the waterline, world y
         float density;            // buoyant force per submerged area; 0 to M2_DENSITY_LIMIT
         float linearDrag;         // velocity damping per submerged area; 0 to M2_RATE_LIMIT
         float angularDrag;        // spin damping; 0 to M2_RATE_LIMIT
         m2Vec2 flow;              // the current, m/s, within M2_SPEED_LIMIT per axis
         M2_ALIGN8 uint64_t userData;
-        int32_t internalValue; // the cookie m2DefaultFluidVolumeDef sets
-    } m2FluidVolumeDef;
+        int32_t internalValue; // the cookie m2DefaultWaterVolumeDef sets
+    } m2WaterVolumeDef;
 
-    /// Returns a fluid volume def: density 2, linear drag 1, angular drag
+    /// Returns a water volume def: density 2, linear drag 1, angular drag
     /// 0.5, no flow, an empty region at the origin.
     ///
-    /// @return The default def; set the region and the surface.
+    /// @return The default def; set the bounds and the surface.
     /// @par Thread safety
     /// Safe from any thread.
-    M2_API m2FluidVolumeDef m2DefaultFluidVolumeDef(void);
+    M2_API m2WaterVolumeDef m2DefaultWaterVolumeDef(void);
 
-    /// Creates a fluid volume. Journaled.
+    /// Creates a water volume. Journaled.
     ///
     /// @param world      The world.
-    /// @param def        The volume, from m2DefaultFluidVolumeDef.
+    /// @param def        The volume, from m2DefaultWaterVolumeDef.
     /// @param volumeOut  Receives the volume; the null id on failure.
     /// @return m2_success; m2_errorInvalid for a bad def or a null
     ///         argument; m2_errorLimit for a value past its published
@@ -597,10 +596,10 @@ extern "C"
     ///         host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
-    M2_NODISCARD M2_API m2Result m2CreateFluidVolume(m2World* world, const m2FluidVolumeDef* def,
-                                                     m2FluidVolumeId* volumeOut);
+    M2_NODISCARD M2_API m2Result m2CreateWaterVolume(m2World* world, const m2WaterVolumeDef* def,
+                                                     m2WaterVolumeId* volumeOut);
 
-    /// Destroys a fluid volume. Journaled.
+    /// Destroys a water volume. Journaled.
     ///
     /// @param world     The world.
     /// @param volumeId  The volume.
@@ -609,7 +608,7 @@ extern "C"
     ///         m2_errorBusy from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
-    M2_NODISCARD M2_API m2Result m2DestroyFluidVolume(m2World* world, m2FluidVolumeId volumeId);
+    M2_NODISCARD M2_API m2Result m2DestroyWaterVolume(m2World* world, m2WaterVolumeId volumeId);
 
     /// Tells whether a volume id names a live volume. Counts no misuse.
     ///
@@ -619,7 +618,7 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API bool m2FluidVolume_IsValid(const m2World* world, m2FluidVolumeId volumeId);
+    M2_API bool m2WaterVolume_IsValid(const m2World* world, m2WaterVolumeId volumeId);
 
     /// Moves a volume's waterline: a rising tide, a draining tank. A stale
     /// id or a non-finite surface counts one misuse. Journaled.
@@ -629,7 +628,7 @@ extern "C"
     /// @param surface   The new waterline, world y.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
-    M2_API void m2FluidVolume_SetSurface(m2World* world, m2FluidVolumeId volumeId, double surface);
+    M2_API void m2WaterVolume_SetSurface(m2World* world, m2WaterVolumeId volumeId, double surface);
 
     /// Reads a volume's waterline.
     ///
@@ -639,7 +638,7 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API double m2FluidVolume_GetSurface(const m2World* world, m2FluidVolumeId volumeId);
+    M2_API double m2WaterVolume_GetSurface(const m2World* world, m2WaterVolumeId volumeId);
 
     /// Reads a volume's game data.
     ///
@@ -649,7 +648,7 @@ extern "C"
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API uint64_t m2FluidVolume_GetUserData(const m2World* world, m2FluidVolumeId volumeId);
+    M2_API uint64_t m2WaterVolume_GetUserData(const m2World* world, m2WaterVolumeId volumeId);
 
     /// Returns a journal tape's fixed cost: its header and the snapshot it
     /// embeds. Size a tape as this plus room for the operations.

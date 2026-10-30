@@ -237,26 +237,26 @@ typedef struct m2Particles
     uint64_t particlePoolFullCount; // cumulative quiet-full refusals
 } m2Particles;
 
-// Fluid volumes: particle-free water regions (snapshot state).
-typedef struct m2FluidVolumes
+// Water volumes: particle-free water regions (snapshot state).
+typedef struct m2WaterVolumes
 {
-    int32_t fvCapacity;
+    int32_t wvCapacity;
     int32_t maxFvIndex;
-    m2Pos2* fvLower;
-    m2Pos2* fvUpper;
-    double* fvSurface;
-    float* fvDensity;
-    float* fvLinearDrag;
-    float* fvAngularDrag;
-    m2Vec2* fvFlow;
-    uint64_t* fvUserData;
-    uint8_t* fvAlive;
-    uint32_t* fvGenerations;
-    int32_t* fvFreeQueue;
-    int32_t fvFreeHead;
-    int32_t fvFreeCount;
-    int32_t fvRetiredCount;
-} m2FluidVolumes;
+    m2Pos2* wvLower;
+    m2Pos2* wvUpper;
+    double* wvSurface;
+    float* wvDensity;
+    float* wvLinearDrag;
+    float* wvAngularDrag;
+    m2Vec2* wvFlow;
+    uint64_t* wvUserData;
+    uint8_t* wvAlive;
+    uint32_t* wvGenerations;
+    int32_t* wvFreeQueue;
+    int32_t wvFreeHead;
+    int32_t wvFreeCount;
+    int32_t wvRetiredCount;
+} m2WaterVolumes;
 
 // Broadphase: one tree per body type whose leaves are shape proxies,
 // and the move buffer the next pair update consumes.
@@ -357,7 +357,7 @@ typedef struct m2World
     m2Joints joints;
     m2Chains chains;
     m2Particles particles;
-    m2FluidVolumes volumes;
+    m2WaterVolumes volumes;
     m2Broadphase broadphase;
     m2Contacts contacts;
     m2SolverScratch solver;

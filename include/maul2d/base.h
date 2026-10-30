@@ -231,7 +231,7 @@ extern "C"
 // particle strength.
 #define M2_COEFFICIENT_LIMIT 1.0e3f
 
-// The largest density, in kg/m^2, of a shape, a fluid volume or the
+// The largest density, in kg/m^2, of a shape, a water volume or the
 // particles. Lead is about 1.1e4.
 #define M2_DENSITY_LIMIT 1.0e6f
 

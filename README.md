@@ -21,7 +21,7 @@ result = m2World_Restore(world, buffer, written); // resimulate from here, bit f
 - **Rigid bodies**: circles, capsules, rounded polygons, segments and one-way chain terrain; static, kinematic and dynamic bodies; forces, damping, motion locks, dominance, conveyors and explosions.
 - **A soft-step solver** with speculative contacts, warm starting and graph-colored SIMD solving. Parallel work runs on the program's own task system; the engine starts no threads.
 - **Eleven joint types**: distance, revolute, prismatic, weld, wheel, motor, mouse, filter, gear, pulley and ratchet, with motors, limits, springs, run-time tuning and breaking.
-- **Particle fluids**: water, viscosity, surface tension, powder and jelly, coupled both ways with bodies; fluid volumes for buoyancy without particles.
+- **Particle fluids**: water, viscosity, surface tension, powder and jelly, coupled both ways with bodies; water volumes for buoyancy without particles.
 - **Continuous collision**, island sleeping, and contact, sensor and joint events with strict begin and end pairing.
 - **Queries**: rays, shape casts and overlaps, closest and all hits, a character mover kit, and particle region queries, exact far from the origin.
 - **Geometry tools**: convex hulls from point clouds, convex decomposition of outlines, and shattering bodies along them.

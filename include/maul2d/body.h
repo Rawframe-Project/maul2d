@@ -14,14 +14,6 @@ extern "C"
 {
 #endif
 
-    /// A box in world space, its corners 64-bit positions: what a body or
-    /// shape covers, and the region a box query looks in.
-    typedef struct m2WorldAabb
-    {
-        m2Pos2 lowerBound;
-        m2Pos2 upperBound;
-    } m2WorldAabb;
-
     /// How a body moves: one of the m2_*Body constants. The type has a
     /// fixed width, unlike a C enum's, so a def holding it has one layout
     /// in every compiler, C and C++.

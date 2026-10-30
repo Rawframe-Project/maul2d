@@ -48,7 +48,7 @@ static void WorldCapacities(const m2World* world, int32_t capacities[6])
     capacities[1] = world->shapes.shapeCapacity;
     capacities[2] = world->joints.jointCapacity;
     capacities[3] = world->particles.particleCapacity;
-    capacities[4] = world->volumes.fvCapacity;
+    capacities[4] = world->volumes.wvCapacity;
     capacities[5] = world->contacts.pairCapacity;
 }
 

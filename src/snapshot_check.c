@@ -132,7 +132,7 @@ static int32_t CheckPool(uint8_t* marks, const Pool* pool)
     }
     // Each count is checked against the capacity before this, but their sum
     // reaches three times a capacity no checked product bounds (bodies,
-    // joints, fluid volumes), so the sums are taken in 64 bits.
+    // joints, water volumes), so the sums are taken in 64 bits.
     int32_t cursors = pool->capacity > 0 ? pool->capacity : 1;
     if (!InPool(pool->head, cursors) || pool->count < 0 || exhausted != pool->retired ||
         (int64_t)live + pool->count + pool->retired != pool->capacity ||
@@ -244,7 +244,7 @@ static bool CheckParticleLinks(const m2World* world, const uint8_t* in)
            LinkShapesInRange(world, in);
 }
 
-// The particle and fluid volume pools, which exist only in worlds that
+// The particle and water volume pools, which exist only in worlds that
 // have them.
 static bool CheckFluidPools(m2World* world, const uint8_t* in)
 {
@@ -268,17 +268,17 @@ static bool CheckFluidPools(m2World* world, const uint8_t* in)
             return false;
         }
     }
-    if (world->volumes.fvCapacity > 0)
+    if (world->volumes.wvCapacity > 0)
     {
-        const Pool volumes = {M2_IN(volumes.fvAlive),
-                              M2_IN(volumes.fvGenerations),
-                              M2_IN(volumes.fvFreeQueue),
-                              world->volumes.fvCapacity,
-                              InlineI32(world, in, &world->volumes.fvFreeHead),
-                              InlineI32(world, in, &world->volumes.fvFreeCount),
+        const Pool volumes = {M2_IN(volumes.wvAlive),
+                              M2_IN(volumes.wvGenerations),
+                              M2_IN(volumes.wvFreeQueue),
+                              world->volumes.wvCapacity,
+                              InlineI32(world, in, &world->volumes.wvFreeHead),
+                              InlineI32(world, in, &world->volumes.wvFreeCount),
                               false,
                               0,
-                              InlineI32(world, in, &world->volumes.fvRetiredCount),
+                              InlineI32(world, in, &world->volumes.wvRetiredCount),
                               InlineI32(world, in, &world->volumes.maxFvIndex)};
         if (CheckPool(marks, &volumes) < 0)
         {

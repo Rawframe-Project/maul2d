@@ -18,7 +18,7 @@ typedef enum m2HashPart
     m2_hashContacts,  // pairs and manifolds
     m2_hashJoints,    // joints and their pool
     m2_hashParticles, // particles, springs and triads, and their pool
-    m2_hashVolumes,   // fluid volumes and their pool
+    m2_hashVolumes,   // water volumes and their pool
     m2_hashAll,       // every part, folded in table order
 } m2HashPart;
 

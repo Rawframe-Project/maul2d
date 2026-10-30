@@ -84,8 +84,8 @@ enum
     m2_opShatterBody = 58, // variable length: m2OpShatterHeader + polygons
     m2_opSetParticleLifetime = 59,
     m2_opSetParticleUserData = 60,
-    m2_opCreateFluidVolume = 61,
-    m2_opDestroyFluidVolume = 62,
+    m2_opCreateWaterVolume = 61,
+    m2_opDestroyWaterVolume = 62,
     m2_opSetFluidSurface = 63,
     m2_opSetWind = 64,
     m2_opCount
@@ -354,15 +354,15 @@ typedef struct m2OpParticleUserData
     M2_ALIGN8 uint64_t userData;
 } m2OpParticleUserData;
 
-typedef struct m2OpCreateFluidVolume
+typedef struct m2OpCreateWaterVolume
 {
-    m2FluidVolumeDef def;
-    m2FluidVolumeId expected;
-} m2OpCreateFluidVolume;
+    m2WaterVolumeDef def;
+    m2WaterVolumeId expected;
+} m2OpCreateWaterVolume;
 
 typedef struct m2OpFluidSurface
 {
-    m2FluidVolumeId id;
+    m2WaterVolumeId id;
     M2_ALIGN8 double surface;
 } m2OpFluidSurface;
 
@@ -431,7 +431,7 @@ typedef union m2OpPayload
     m2OpParticleVec particleVec;
     m2OpParticleFloat particleFloat;
     m2OpParticleUserData particleUserData;
-    m2OpCreateFluidVolume createFluidVolume;
+    m2OpCreateWaterVolume createWaterVolume;
     m2OpFluidSurface fluidSurface;
     m2OpShatterHeader shatterHeader;
     m2OpFlag flag;
@@ -443,7 +443,7 @@ typedef union m2OpPayload
     m2ChainId chainId;
     m2JointId jointId;
     m2ParticleId particleId;
-    m2FluidVolumeId fluidVolumeId;
+    m2WaterVolumeId waterVolumeId;
     int64_t restoreSize;
 } m2OpPayload;
 
