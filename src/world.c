@@ -262,12 +262,23 @@ static M2_NOINLINE void DestroyWorldWorker(m2World* world)
     {
         return;
     }
-    // The frees are host code, and nothing may change a world being
-    // destroyed: its writers refuse from here on.
+    // The frees are host code, and a free hook may read the world back.
+    // The pools are freed from a copy, and the world first becomes an
+    // empty one: every capacity, extent and count 0, every pool null and
+    // every tree empty. A reader the hook calls finds every id stale and
+    // every list empty, never a pool already freed. Nothing may change a
+    // world being destroyed: its writers refuse from here on.
+    m2World pools = *world;
+    memset(world, 0, sizeof(*world));
+    for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
+    {
+        world->broadphase.trees[t].root = M2_NULL_NODE;
+        world->broadphase.trees[t].freeList = M2_NULL_NODE;
+    }
+    world->allocator = pools.allocator;
     m2EnterHostCode(world);
-    m2Allocator allocator = world->allocator;
-    m2StateFree(world);
-    m2Free(&allocator, world, sizeof(m2World));
+    m2StateFree(&pools);
+    m2Free(&pools.allocator, world, sizeof(m2World));
 }
 
 void m2DestroyWorld(m2World* world)

@@ -230,6 +230,178 @@ static void TestWorldAllocator(void)
     CHECK(refused == NULL, "and leaves the null world");
 }
 
+// A world being destroyed, read back by the free hook at one of its frees.
+typedef struct Reader
+{
+    m2World* world;
+    int32_t frees;
+    int32_t readAt; // the free that reads the world; 0 never
+    int32_t wrong;  // reads that did not find an empty world
+    m2BodyId body;
+    m2ShapeId shape;
+    m2JointId joint;
+    m2ChainId chain;
+    m2ParticleId particle;
+    m2WaterVolumeId volume;
+    int32_t drawn;
+} Reader;
+
+static void ReaderPolygon(const m2Vec2* localVertices, int32_t count, m2Pos2 origin, m2Rot rotation,
+                          uint32_t color, void* context)
+{
+    (void)localVertices, (void)count, (void)origin, (void)rotation, (void)color;
+    ((Reader*)context)->drawn += 1;
+}
+
+static void ReaderCircle(m2Pos2 center, float radius, m2Rot rotation, uint32_t color, void* context)
+{
+    (void)center, (void)radius, (void)rotation, (void)color;
+    ((Reader*)context)->drawn += 1;
+}
+
+static void ReaderCapsule(m2Pos2 p1, m2Pos2 p2, float radius, uint32_t color, void* context)
+{
+    (void)p1, (void)p2, (void)radius, (void)color;
+    ((Reader*)context)->drawn += 1;
+}
+
+static void ReaderSegment(m2Pos2 p1, m2Pos2 p2, uint32_t color, void* context)
+{
+    (void)p1, (void)p2, (void)color;
+    ((Reader*)context)->drawn += 1;
+}
+
+static void ReaderPoint(m2Pos2 p, float size, uint32_t color, void* context)
+{
+    (void)p, (void)size, (void)color;
+    ((Reader*)context)->drawn += 1;
+}
+
+// Every kind of reader on the world the hook is freeing: each id is stale
+// and each list empty.
+static void ReadBack(Reader* r)
+{
+    const m2World* w = r->world;
+    bool stale =
+        !m2Body_IsValid(w, r->body) && m2Body_GetMass(w, r->body) == 0.0f &&
+        !m2Shape_IsValid(w, r->shape) && m2Shape_GetAabb(w, r->shape).upperBound.x == 0.0 &&
+        !m2Joint_IsValid(w, r->joint) && m2Joint_GetReactionForce(w, r->joint) == 0.0f &&
+        m2DistanceJoint_GetLength(w, r->joint) == 0.0f && !m2Chain_IsValid(w, r->chain) &&
+        !m2Particle_IsValid(w, r->particle) && m2Particle_GetPosition(w, r->particle).x == 0.0 &&
+        !m2WaterVolume_IsValid(w, r->volume) && m2WaterVolume_GetSurface(w, r->volume) == 0.0;
+    m2Counters counters = m2World_GetCounters(w);
+    bool empty = counters.bodyCount == 0 && counters.shapeCount == 0 && counters.jointCount == 0 &&
+                 counters.contactCount == 0 && m2World_GetParticleCount(w) == 0 &&
+                 m2World_GetKineticEnergy(w) == 0.0 &&
+                 m2World_GetContactEvents(w).beginCount == 0 &&
+                 m2World_GetContactData(w, NULL, 0) == 0;
+    m2QueryFilter filter = m2DefaultQueryFilter();
+    m2WorldAabb box = {{-100.0, -100.0}, {100.0, 100.0}};
+    m2CastHit hit;
+    m2CastHit hits[4];
+    m2ShapeId ids[4];
+    m2ParticleId particles[4];
+    m2MoverPlane planes[4];
+    m2Capsule mover = {{0.0f, -0.5f}, {0.0f, 0.5f}, 0.25f};
+    m2Transform origin = {{0.0, 1.0}, {1.0f, 0.0f}};
+    empty =
+        empty && m2World_OverlapAabb(w, box, filter, ids, 4) == 0 &&
+        !m2World_CastRayClosest(w, (m2Pos2){-50.0, 1.0}, (m2Vec2){100.0f, 0.0f}, filter, &hit) &&
+        m2World_CastRayAll(w, (m2Pos2){-50.0, 1.0}, (m2Vec2){100.0f, 0.0f}, filter, hits, 4) == 0 &&
+        m2World_OverlapParticlesAabb(w, box, particles, 4) == 0 &&
+        m2World_CollideMover(w, &mover, origin, filter, planes, 4) == 0;
+    // Readers that answer about the whole world: none may touch a pool.
+    (void)m2World_Hash(w);
+    (void)m2World_Validate(w);
+    (void)m2World_GetSnapshotSize(w);
+    (void)m2World_GetJournalBaseSize(w);
+    (void)m2World_GetMemoryUsage(w);
+    m2DebugDraw draw = {ReaderPolygon, ReaderCircle, ReaderCapsule, ReaderSegment,
+                        ReaderPoint,   true,         true,          true,
+                        true,          true,         1.0f,          r};
+    r->drawn = 0;
+    m2World_Draw(w, &draw);
+    empty = empty && r->drawn == 0;
+    r->wrong += stale && empty ? 0 : 1;
+}
+
+static void ReaderFree(void* memory, size_t size, size_t alignment, void* context)
+{
+    (void)size, (void)alignment;
+    Reader* r = (Reader*)context;
+    r->frees += 1;
+    if (r->frees == r->readAt)
+    {
+        ReadBack(r);
+    }
+    free(memory);
+}
+
+static void* ReaderAlloc(size_t size, size_t alignment, void* context)
+{
+    (void)alignment, (void)context;
+    return malloc(size);
+}
+
+// One object of every kind, stepped once, in a world whose frees r counts.
+static void BuildReadWorld(Reader* r)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 8;
+    def.shapeCapacity = 16;
+    def.particleCapacity = 8;
+    def.waterVolumeCapacity = 1;
+    def.allocator.alloc = ReaderAlloc;
+    def.allocator.free = ReaderFree;
+    def.allocator.context = r;
+    r->world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(r->world, &bd);
+    m2Vec2 points[4] = {{-5.0f, 0.0f}, {-2.0f, 0.0f}, {2.0f, 0.0f}, {5.0f, 0.0f}};
+    m2ChainDef cd = m2DefaultChainDef();
+    cd.points = points;
+    cd.count = 4;
+    r->chain = NewChain(r->world, ground, &cd);
+    bd.type = m2_dynamicBody;
+    bd.position = (m2Pos2){0.0, 0.5};
+    r->body = NewBody(r->world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Circle circle = {{0.0f, 0.0f}, 0.5f};
+    r->shape = NewCircleShape(r->world, r->body, &sd, &circle);
+    m2DistanceJointDef jd = m2DefaultDistanceJointDef();
+    jd.bodyIdA = ground;
+    jd.bodyIdB = r->body;
+    CHECK(m2CreateDistanceJoint(r->world, &jd, &r->joint) == m2_success, "the joint creates");
+    r->particle = EmitParticle(r->world, (m2Pos2){1.0, 2.0}, (m2Vec2){0.0f, 0.0f}, 0);
+    m2WaterVolumeDef vd = m2DefaultWaterVolumeDef();
+    vd.bounds = (m2WorldAabb){{-5.0, -1.0}, {5.0, 1.0}};
+    vd.surface = 0.5;
+    r->volume = NewWaterVolume(r->world, &vd);
+    m2World_Step(r->world, 1.0f / 60.0f, 4);
+}
+
+static void TestDestroyedWorldReadsEmpty(void)
+{
+    // A free hook is host code the world runs, and it may read the world
+    // back while m2DestroyWorld frees it: at every free, every reader
+    // finds an empty world, every id stale, and touches no freed pool.
+    Reader count = {0};
+    BuildReadWorld(&count);
+    m2DestroyWorld(count.world);
+    CHECK(count.frees > 10, "the world frees its pools one by one");
+    int32_t wrong = 0;
+    for (int32_t at = 1; at <= count.frees; ++at)
+    {
+        Reader r = {0};
+        r.readAt = at;
+        BuildReadWorld(&r);
+        m2DestroyWorld(r.world);
+        wrong += r.wrong;
+        CHECK(r.frees == count.frees, "every world frees the same blocks");
+    }
+    CHECK(wrong == 0, "at every free the world reads empty");
+}
+
 // The snapshot bytes of a world of shapeCapacity shapes and one body and
 // one joint.
 static int64_t ShapeWorldSnapshot(int32_t shapeCapacity)
@@ -360,6 +532,7 @@ int main(void)
     printf("maul2d %d.%d.%d (%s backend)\n", version.major, version.minor, version.patch,
            m2GetSimdBackend());
     TestWorldAllocator();
+    TestDestroyedWorldReadsEmpty();
     TestWorldSnapshotBound();
     TestWorldDefChecks();
     TestVersionAndResultNames();
