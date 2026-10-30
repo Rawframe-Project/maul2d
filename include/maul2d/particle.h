@@ -81,9 +81,10 @@ extern "C"
     /// @param world        The world.
     /// @param def          The particle, from m2DefaultParticleDef.
     /// @param particleOut  Receives the particle; the null id on failure.
-    /// @return m2_success; m2_errorInvalid when def or particleOut is
-    ///         null, def was not initialized by m2DefaultParticleDef or a
-    ///         value of it is NaN or not finite where it has no bound;
+    /// @return m2_success; m2_errorInvalid when the world, def or
+    ///         particleOut is null, def was not initialized by
+    ///         m2DefaultParticleDef or a value of it is NaN or not finite
+    ///         where it has no bound;
     ///         m2_errorLimit for a velocity past M2_SPEED_LIMIT;
     ///         m2_errorCapacity when the pool is full, a pool of 0 included,
     ///         which counts no misuse; m2_errorBusy from host code the world
@@ -99,7 +100,8 @@ extern "C"
     ///
     /// @param world       The world.
     /// @param particleId  The particle.
-    /// @return m2_success; m2_errorStale when it is already gone, which
+    /// @return m2_success; m2_errorInvalid for a null world;
+    ///         m2_errorStale when it is already gone, which
     ///         counts no misuse; m2_errorBusy from host code the world is
     ///         running.
     /// @par Thread safety

@@ -24,7 +24,7 @@ Every public name follows these rules, so a new one is decided by them rather th
 
 ## Ids and misuse
 
-A correct program never uses an id after destroying its object, so a stale id is misuse: it counts one in `m2Counters.misuse`, a getter returns the zeroed value, a setter changes nothing, and a call with a status returns `m2_errorStale`. Joints break on their own, but every break is reported in the joint event stream, so a program that reads its events never holds a broken joint's id unknowingly; joints follow the same rule.
+A correct program never uses an id after destroying its object, so a stale id is misuse: it counts one in `m2Counters.misuse`, a getter returns the value its header gives for one (zero, or the identity for a rotation), a setter changes nothing, and a call with a status returns `m2_errorStale`. Joints break on their own, but every break is reported in the joint event stream, so a program that reads its events never holds a broken joint's id unknowingly; joints follow the same rule.
 
 Particles are the exception. A particle with a lifetime dies at the end of a step with no event, so a correct program can hold the id of a particle that is gone. A stale particle id counts nothing in any call: getters return zero, setters change nothing, and `m2DestroyParticle` returns `m2_errorStale`. `m2Particle_IsValid` tells the program.
 
