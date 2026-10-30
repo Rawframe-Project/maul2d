@@ -184,7 +184,10 @@ extern "C"
     M2_NODISCARD M2_API m2Result m2CreateWorld(const m2WorldDef* def, m2World** worldOut);
 
     /// Destroys a world and everything in it, and returns its memory to its
-    /// allocator. Ids into it become meaningless.
+    /// allocator. Ids into it become meaningless. The world empties before
+    /// its first free: the allocator's free hook may read it back and finds
+    /// every id stale and every list empty, and every writer it calls is
+    /// refused as busy.
     ///
     /// @param world  The world; null does nothing.
     /// @par Thread safety
