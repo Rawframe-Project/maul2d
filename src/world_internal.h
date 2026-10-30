@@ -387,6 +387,7 @@ typedef struct m2World
     int64_t memoryBytes; // persistent footprint, from create
     volatile long busy;  // host code running: a step's tasks, debug draws; atomic access only
     uint8_t replaying;   // applying a journal tape: refusals outside host code count no misuse
+    uint8_t tapeRefused; // a tape operation was refused while replaying: the tape fails
 } m2World;
 
 // Refuses a caller's call against a world and returns the reason, so a
@@ -398,6 +399,11 @@ typedef struct m2World
 // tape's op refuses while the world replays counts nothing. world may be
 // NULL, which counts nothing.
 m2Result m2Refuse(const m2World* world, m2Result reason);
+
+// A refusal that is never misuse, as a dead particle's id is not: it
+// counts nothing, but on a replay's own path it fails the tape as
+// m2Refuse's refusals do.
+m2Result m2RefuseUncounted(const m2World* world, m2Result reason);
 uint64_t m2MisuseCount(const m2World* world);
 
 // Adds drops to one of m2Counters' dropped pair or contact counts, which

@@ -36,12 +36,36 @@ int32_t m2RefuseList(const m2World* world, void* items, int32_t capacity, size_t
     return 0;
 }
 
+// Whether a refusal is on a replay's own path: the tape's data at fault,
+// not the caller's code. Host code the replay runs (a task hook, the
+// allocator) is the caller's.
+static bool TapeDriven(const m2World* world)
+{
+    return world != NULL && world->replaying != 0 && HostCodeDepth(world) == 0;
+}
+
+// A writer records itself only after its checks pass, so a tape operation
+// refused on replay is a tape the recording never wrote: the replay fails
+// with m2_errorFormat even where the call returns void. A fill cut short by
+// a full pool is recorded as such, so a full pool alone does not fail it.
+static void MarkTapeRefused(const m2World* world, m2Result reason)
+{
+    if (TapeDriven(world) && reason != m2_errorCapacity)
+    {
+        ((m2World*)world)->tapeRefused = 1;
+    }
+}
+
+m2Result m2RefuseUncounted(const m2World* world, m2Result reason)
+{
+    MarkTapeRefused(world, reason);
+    return reason;
+}
+
 m2Result m2Refuse(const m2World* world, m2Result reason)
 {
-    // A refusal on a replay's own path is the tape's data at fault, not the
-    // caller's code; host code the replay runs (a task hook, the allocator)
-    // is the caller's and still counts.
-    bool tapeDriven = world != NULL && world->replaying != 0 && HostCodeDepth(world) == 0;
+    bool tapeDriven = TapeDriven(world);
+    MarkTapeRefused(world, reason);
     // A full pool and bytes from outside are no misuse of the API.
     bool misuse =
         world != NULL && reason != m2_errorCapacity && reason != m2_errorFormat && !tapeDriven;

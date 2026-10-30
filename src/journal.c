@@ -285,9 +285,14 @@ static m2Result ReplayOps(m2World* world, const uint8_t* data, int64_t size)
         }
         memcpy(&payload, data + cursor.offset, (size_t)command->payloadSize);
         cursor.offset += command->payloadSize;
+        world->tapeRefused = 0;
         if (!command->apply(&cursor, &payload))
         {
             return cursor.failure;
+        }
+        if (world->tapeRefused != 0)
+        {
+            return m2_errorFormat; // a void call the tape's values made refuse
         }
     }
     return m2_success;

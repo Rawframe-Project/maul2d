@@ -1965,8 +1965,9 @@ static void TestSubstepCap(void)
     }
     m2World* replica = NewWorld(&def);
     misuse = m2World_GetCounters(replica).misuseCount;
-    (void)m2World_ReplayJournal(replica, tape, bytes);
-    CHECK(m2World_GetStepCount(replica) == 1, "the tape's oversized step is skipped");
+    CHECK(m2World_ReplayJournal(replica, tape, bytes) == m2_errorFormat &&
+              m2World_GetStepCount(replica) == 0,
+          "the tape's oversized step refuses the whole tape");
     CHECK(m2World_GetCounters(replica).misuseCount == misuse, "and counts nothing");
     m2DestroyWorld(replica);
     free(tape);

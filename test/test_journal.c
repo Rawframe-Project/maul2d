@@ -13,6 +13,7 @@
 #include "maul2d/base.h"
 #include "maul2d/maul2d.h"
 
+#include <math.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -445,6 +446,87 @@ static void TestReplayIsAtomic(void)
 
     m2DestroyWorld(target);
     free(tape);
+}
+
+// Replays tape with the 4-byte word at offset (from the tape's start)
+// replaced by value, after checking it held expected: the call it feeds
+// refuses, so the tape is refused, changes nothing and counts nothing,
+// even where the call returns void.
+static void ExpectWordRefused(m2World* world, const uint8_t* tape, int64_t bytes, int64_t offset,
+                              const void* expected, const void* value, const char* what)
+{
+    uint8_t* edited = (uint8_t*)malloc((size_t)bytes);
+    CHECK(edited != NULL, "a copy of the tape");
+    if (edited == NULL)
+    {
+        return;
+    }
+    memcpy(edited, tape, (size_t)bytes);
+    CHECK(memcmp(edited + offset, expected, 4) == 0, "the record holds the value at its offset");
+    memcpy(edited + offset, value, 4);
+    uint64_t hash = m2World_Hash(world);
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+    CHECK(m2World_ReplayJournal(world, edited, bytes) == m2_errorFormat, what);
+    CHECK(m2World_Hash(world) == hash && m2World_GetCounters(world).misuseCount == misuse,
+          "a refused tape changes nothing and counts nothing");
+    free(edited);
+}
+
+static void ExpectFloatRefused(m2World* world, const uint8_t* tape, int64_t bytes, int64_t offset,
+                               float expected, float value, const char* what)
+{
+    ExpectWordRefused(world, tape, bytes, offset, &expected, &value, what);
+}
+
+// A void writer records itself only after its checks pass, so a tape
+// whose value that writer refuses is not one a recording wrote: a
+// velocity set to NaN, a step of no time, a particle id that names no live
+// particle. None replays as a skipped op; the whole tape is refused.
+static void TestRefusedVoidOpsFailTheTape(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.particleCapacity = 4;
+    m2World* world = NewWorld(&def);
+    m2BodyDef bodyDef = m2DefaultBodyDef();
+    bodyDef.type = m2_dynamicBody;
+    m2BodyId body = NewBody(world, &bodyDef);
+    int64_t capacity = m2World_GetJournalBaseSize(world) + 4096;
+    uint8_t* tape = (uint8_t*)malloc((size_t)capacity);
+
+    // The record: an op byte, the body's id, then the velocity.
+    CHECK(tape != NULL && StartJournal(world, tape, capacity), "the journal starts");
+    int64_t recordStart = m2World_GetJournalBaseSize(world);
+    m2Body_SetLinearVelocity(world, body, (m2Vec2){1.5f, 0.0f});
+    int64_t bytes = StopJournal(world);
+    CHECK(ReplayJournal(world, tape, bytes), "the recorded tape replays");
+    ExpectFloatRefused(world, tape, bytes, recordStart + 1 + (int64_t)sizeof(m2BodyId), 1.5f, NAN,
+                       "a velocity set to NaN on a tape is refused");
+
+    // The record: an op byte, then the step's dt.
+    CHECK(StartJournal(world, tape, capacity), "the journal starts again");
+    recordStart = m2World_GetJournalBaseSize(world);
+    m2World_Step(world, 0.25f, 1);
+    bytes = StopJournal(world);
+    CHECK(ReplayJournal(world, tape, bytes), "the recorded step replays");
+    ExpectFloatRefused(world, tape, bytes, recordStart + 1, 0.25f, 0.0f,
+                       "a step of no time on a tape is refused");
+
+    // The record: an op byte, the particle's id (slot, then generation),
+    // then the velocity. A dead particle's setters count nothing, but a
+    // recording never writes one, so a tape that names one is refused.
+    m2ParticleId particle = EmitParticle(world, (m2Pos2){0.0, 5.0}, (m2Vec2){0.0f, 0.0f}, 0);
+    CHECK(StartJournal(world, tape, capacity), "the journal starts a third time");
+    recordStart = m2World_GetJournalBaseSize(world);
+    m2Particle_SetVelocity(world, particle, (m2Vec2){0.5f, 0.0f});
+    bytes = StopJournal(world);
+    CHECK(ReplayJournal(world, tape, bytes), "the recorded particle velocity replays");
+    uint32_t generation = particle.generation;
+    uint32_t stale = generation + 1u;
+    ExpectWordRefused(world, tape, bytes, recordStart + 1 + (int64_t)sizeof(uint32_t), &generation,
+                      &stale, "a particle velocity for no live particle on a tape is refused");
+    free(tape);
+    m2DestroyWorld(world);
 }
 
 static void TestRestoreRefusesBadCounters(void)
@@ -1087,6 +1169,7 @@ int main(void)
     TestTapeKindsAreRefused();
     TestDefPaddingStaysOffTheTape();
     TestReplayIsAtomic();
+    TestRefusedVoidOpsFailTheTape();
     TestRestoreRefusesBadCounters();
     TestRollbackWhileRecording();
     TestRecordReplay();
