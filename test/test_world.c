@@ -1943,7 +1943,8 @@ static void TestSubstepCap(void)
 
 // Host code a world runs, a task hook or a debug draw callback, tries to
 // change the world it serves. Every writer refuses: a status writer with
-// m2_errorBusy, a void writer by counting one misuse.
+// m2_errorBusy, a void writer by counting one misuse. A busy shatter leaves
+// the bodies it was given, which the host may be filling.
 typedef struct Intruder
 {
     m2World* world;
@@ -1952,6 +1953,9 @@ typedef struct Intruder
     m2Result created;
     m2Result destroyed;
     m2Result restored;
+    m2Result shattered;
+    m2BodyId pieces[2];
+    int32_t pieceCount;
     uint64_t stepsSeen;
 } Intruder;
 
@@ -1963,6 +1967,9 @@ static void Intrude(Intruder* in)
     in->destroyed = m2DestroyBody(in->world, in->body);
     uint8_t snapshot[16] = {0};
     in->restored = m2World_Restore(in->world, snapshot, (int32_t)sizeof(snapshot));
+    m2Polygon piece = m2MakeBox(0.25f, 0.25f);
+    in->pieceCount = 7;
+    in->shattered = m2Body_Shatter(in->world, in->body, &piece, 1, in->pieces, 2, &in->pieceCount);
     m2Body_SetLinearVelocity(in->world, in->body, (m2Vec2){5.0f, 0.0f});
     m2World_Step(in->world, 1.0f / 60.0f, 1);
     in->stepsSeen = m2World_GetStepCount(in->world); // readers stay open
@@ -2001,7 +2008,9 @@ static void IntrudingDraw(m2Pos2 p1, m2Pos2 p2, uint32_t color, void* context)
 
 static void TestHostCodeCannotWrite(void)
 {
-    Intruder in = {NULL, m2_nullBodyId, 0, m2_success, m2_success, m2_success, 0};
+    m2BodyId kept = {77, 7};
+    Intruder in = {NULL,       m2_nullBodyId, 0, m2_success, m2_success, m2_success,
+                   m2_success, {kept, kept},  0, 0};
     m2WorldDef def = m2DefaultWorldDef();
     def.enqueueTask = IntrudingEnqueue;
     def.finishTask = IntrudingFinish;
@@ -2026,8 +2035,12 @@ static void TestHostCodeCannotWrite(void)
     CHECK(in.created == m2_errorBusy, "a create inside a task refuses with m2_errorBusy");
     CHECK(in.destroyed == m2_errorBusy, "so does a destroy");
     CHECK(in.restored == m2_errorBusy, "and a restore, before it reads the bytes");
+    CHECK(in.shattered == m2_errorBusy && in.pieceCount == 0, "and a shatter, which makes none");
+    CHECK(in.pieces[0].index1 == kept.index1 && in.pieces[0].generation == kept.generation &&
+              in.pieces[1].index1 == kept.index1 && in.pieces[1].generation == kept.generation,
+          "leaving the bodies it was given as they were");
     CHECK(in.stepsSeen == 0, "a nested step does not run, and readers still answer");
-    CHECK(m2World_GetCounters(in.world).misuse == misuse + 5,
+    CHECK(m2World_GetCounters(in.world).misuse == misuse + 6,
           "each refusal, the void ones too, counts one misuse");
     CHECK(m2Body_IsValid(in.world, in.body), "the body survived its destroy");
     CHECK(m2Body_GetLinearVelocity(in.world, in.body).x < 1.0f, "the velocity never landed");

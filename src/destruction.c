@@ -211,11 +211,13 @@ static M2_NOINLINE m2Result BodyShatterWorker(m2World* world, m2BodyId bodyId,
     {
         return m2Refuse(world, m2_errorInvalid);
     }
-    for (int32_t i = 0; i < capacity; ++i)
+    // A busy refusal leaves bodiesOut: host code the world is running may
+    // be filling it. Every other failure leaves null ids.
+    m2Result writer = m2CheckWriter(world);
+    for (int32_t i = 0; writer != m2_errorBusy && i < capacity; ++i)
     {
         bodiesOut[i] = m2_nullBodyId;
     }
-    m2Result writer = m2CheckWriter(world);
     if (writer != m2_success)
     {
         return writer;
