@@ -134,6 +134,37 @@ static void TestIdSemantics(void)
     m2DestroyWorld(world);
 }
 
+// awakeCount counts enabled, awake dynamic bodies, as maul3d's does:
+// static and kinematic bodies never sleep, so counting them would make a
+// world whose every box sleeps look awake.
+static void TestAwakeCountIsDynamicOnly(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    m2BodyDef groundDef = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(world, &groundDef);
+    m2BodyDef boxDef = m2DefaultBodyDef();
+    boxDef.type = m2_dynamicBody;
+    boxDef.position = (m2Pos2){0.0, 1.0};
+    m2BodyId box = NewBody(world, &boxDef);
+    CHECK(m2Body_IsValid(world, ground) && m2World_GetCounters(world).awakeCount == 1,
+          "a static ground and an awake box count one");
+    m2Body_SetAwake(world, box, false);
+    m2Counters counters = m2World_GetCounters(world);
+    CHECK(counters.bodyCount == 2 && counters.awakeCount == 0,
+          "a static ground and a sleeping box count none");
+
+    boxDef.type = m2_kinematicBody;
+    NewBody(world, &boxDef);
+    CHECK(m2World_GetCounters(world).awakeCount == 0, "nor does a kinematic body");
+    m2Body_SetAwake(world, box, true);
+    m2Body_Enable(world, box, false);
+    CHECK(m2World_GetCounters(world).awakeCount == 0, "nor a disabled dynamic one");
+    m2Body_Enable(world, box, true);
+    CHECK(m2World_GetCounters(world).awakeCount == 1, "enabled again, the box counts");
+    m2DestroyWorld(world);
+}
+
 static void TestCountersAndProfile(void)
 {
     // Counters are state-derived and deterministic; neither they nor the
@@ -167,7 +198,7 @@ static void TestCountersAndProfile(void)
 
     m2Counters counters = m2World_GetCounters(world);
     CHECK(counters.bodyCount == 7 && counters.shapeCount == 7, "body and shape counts");
-    CHECK(counters.awakeCount == 7, "everyone still awake early on");
+    CHECK(counters.awakeCount == 6, "every box still awake early on, the static slab not counted");
     CHECK(counters.jointCount == 0, "no joints in this scene");
     CHECK(counters.touchingCount == 6, "six boxes rest on the slab");
     CHECK(counters.contactCount >= counters.touchingCount,
@@ -3836,6 +3867,7 @@ int main(void)
     TestTeleport();
     TestKineticEnergy();
     TestCountersAndProfile();
+    TestAwakeCountIsDynamicOnly();
     TestRollbackIdentity();
     TestIdSemantics();
     TestDestroyNullWorld();

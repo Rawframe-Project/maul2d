@@ -353,7 +353,7 @@ extern "C"
     typedef struct m2Counters
     {
         int32_t bodyCount;
-        int32_t awakeCount; // awake bodies
+        int32_t awakeCount; // enabled, awake dynamic bodies
         int32_t shapeCount;
         int32_t jointCount;
         int32_t contactCount;    // live broadphase pairs

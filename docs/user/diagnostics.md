@@ -2,7 +2,7 @@
 
 ## Counters
 
-`m2World_GetCounters` reports the world's state (live objects, awake bodies, pairs, solver constraints, graph colors) and the quiet facts a release build cannot assert about. Poll it once per frame and alarm on growth:
+`m2World_GetCounters` reports the world's state (live objects, awake dynamic bodies, pairs, solver constraints, graph colors) and the quiet facts a release build cannot assert about. Poll it once per frame and alarm on growth:
 
 - `misuseCount`: calls the library refused as bugs of the calling code (an argument a correct program never passes, a destroyed object's id, a change made from code the world is running).
 - `particleCreatesRefused`: particle creates refused by a full particle pool.

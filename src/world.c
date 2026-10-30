@@ -795,7 +795,11 @@ m2Counters m2World_GetCounters(const m2World* world)
             continue;
         }
         counters.bodyCount += 1;
-        counters.awakeCount += world->bodies.asleep[i] == 0 ? 1 : 0;
+        // Static and kinematic bodies never sleep, so only an enabled
+        // dynamic body's sleep counts, as in maul3d.
+        bool awake = world->bodies.types[i] == (uint8_t)m2_dynamicBody &&
+                     world->bodies.disabled[i] == 0 && world->bodies.asleep[i] == 0;
+        counters.awakeCount += awake ? 1 : 0;
     }
     for (int32_t i = 0; i < world->shapes.maxShapeIndex; ++i)
     {
