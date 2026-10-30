@@ -73,7 +73,9 @@ jobs:
       # The attestation names this workflow on the default branch, so the files
       # must come from a commit the default branch holds: a tag pushed on any
       # other commit is refused. A release that already has files keeps them;
-      # nothing here replaces a published file. The files are built from the
+      # nothing here replaces a published file, so a run that failed after
+      # attaching some files is re-run only once a maintainer has deleted those
+      # files from the release by hand. The files are built from the
       # commit checked here, never from the tag read again, which could have
       # moved in between.
       - name: A release tag
