@@ -6,7 +6,9 @@
 #
 #   tools/check.sh changed   the files changed against origin/main: the
 #                            family rules, test hygiene, formatting, the
-#                            documentation checks, and the
+#                            documentation checks, clang-tidy with the
+#                            assertions compiled out and live on the
+#                            changed src/*.c files, and the
 #                            linux-clang-20-asan preset (scalar backend,
 #                            assertions and world validation on) for the
 #                            test labels the changes reach. Every
@@ -101,6 +103,22 @@ all_c_files() {
         'testbed/*.[ch]'
 }
 
+# clang-tidy on the files given, as CI's checks job runs it: on the
+# Release preset, where the assertions compile out and a value only an
+# assertion reads is a dead store, and with them live. Each hides
+# findings the other shows.
+tidy() { # files
+    local build
+    for build in Release Debug; do
+        step "clang-tidy, $build, on $# files"
+        cmake --preset linux-clang-20 -B "out/check-tidy-$build" -DCMAKE_BUILD_TYPE=$build \
+            -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DMAUL2D_BUILD_TESTS=OFF -DMAUL2D_BUILD_BENCH=OFF \
+            -DMAUL2D_BUILD_SAMPLES=OFF >/dev/null
+        printf '%s\n' "$@" | xargs -P "$jobs" -n 1 clang-tidy-20 -p "out/check-tidy-$build" --quiet \
+            --warnings-as-errors='*'
+    done
+}
+
 if [ "$tier" = changed ]; then
     base=$(git merge-base HEAD origin/main 2>/dev/null || echo HEAD)
     mapfile -t changed < <({
@@ -118,6 +136,13 @@ if [ "$tier" = changed ]; then
     if [ ${#present[@]} -gt 0 ]; then
         step "clang-format on ${#present[@]} changed files"
         clang-format --dry-run -Werror "${present[@]}"
+    fi
+    # The pr tier's set, git ls-files 'src/*.c', narrowed to the changed
+    # files still present; none runs nothing.
+    sources=()
+    for f in "${present[@]+"${present[@]}"}"; do [[ $f == src/*.c ]] && sources+=("$f"); done
+    if [ ${#sources[@]} -gt 0 ]; then
+        tidy "${sources[@]}"
     fi
     labels=""
     for f in "${changed[@]}"; do labels="$labels $(labels_for "$f")"; done
@@ -140,16 +165,8 @@ source_checks
 step "clang-format on every file"
 all_c_files | xargs clang-format --dry-run -Werror
 
-# As CI's checks job: on the Release preset, where the assertions compile
-# out, and with them live. Each hides findings the other shows.
-for build in Release Debug; do
-    step "clang-tidy, $build"
-    cmake --preset linux-clang-20 -B "out/check-tidy-$build" -DCMAKE_BUILD_TYPE=$build \
-        -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DMAUL2D_BUILD_TESTS=OFF -DMAUL2D_BUILD_BENCH=OFF \
-        -DMAUL2D_BUILD_SAMPLES=OFF >/dev/null
-    git ls-files 'src/*.c' | xargs -P "$jobs" -n 1 clang-tidy-20 -p "out/check-tidy-$build" --quiet \
-        --warnings-as-errors='*'
-done
+mapfile -t sources < <(git ls-files 'src/*.c')
+tidy "${sources[@]}"
 
 step "the documentation site builds"
 python3 tools/build_docs.py
