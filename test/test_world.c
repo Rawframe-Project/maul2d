@@ -2479,7 +2479,11 @@ static void TestStaleIdsCountInEveryCall(void)
     CHECK(m2FluidVolume_GetSurface(world, volume) == 0.0, "a stale volume has no surface");
     CHECK(m2FluidVolume_GetUserData(world, volume) == 0, "nor data");
     CHECK(m2Chain_GetShapes(world, chain, NULL, 0) == 0, "a stale chain has no links");
-    CHECK(m2World_GetCounters(world).misuse == misuse + 17, "each of the 17 calls counts once");
+    m2Vec2 local = m2Body_GetLocalPointVelocity(world, body, (m2Vec2){1.0f, 0.0f});
+    m2Vec2 global = m2Body_GetWorldPointVelocity(world, body, (m2Pos2){1.0, 0.0});
+    CHECK(local.x == 0.0f && local.y == 0.0f && global.x == 0.0f && global.y == 0.0f,
+          "a stale body's points do not move");
+    CHECK(m2World_GetCounters(world).misuse == misuse + 19, "each of the 19 calls counts once");
     m2DestroyWorld(world);
 }
 
