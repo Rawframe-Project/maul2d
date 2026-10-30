@@ -130,18 +130,21 @@ static int32_t CheckPool(uint8_t* marks, const Pool* pool)
             exhausted += 1;
         }
     }
+    // Each count is checked against the capacity before this, but their sum
+    // reaches three times a capacity no checked product bounds (bodies,
+    // joints, fluid volumes), so the sums are taken in 64 bits.
     int32_t cursors = pool->capacity > 0 ? pool->capacity : 1;
     if (!InPool(pool->head, cursors) || pool->count < 0 || exhausted != pool->retired ||
-        live + pool->count + pool->retired != pool->capacity ||
-        (pool->hasTail &&
-         (!InPool(pool->tail, cursors) || pool->tail != (pool->head + pool->count) % cursors)))
+        (int64_t)live + pool->count + pool->retired != pool->capacity ||
+        (pool->hasTail && (!InPool(pool->tail, cursors) ||
+                           pool->tail != ((int64_t)pool->head + pool->count) % cursors)))
     {
         return -1;
     }
     memset(marks, 0, (size_t)pool->capacity);
     for (int32_t k = 0; k < pool->count; ++k)
     {
-        int32_t slot = ReadI32(pool->queue, (pool->head + k) % pool->capacity);
+        int32_t slot = ReadI32(pool->queue, (int32_t)(((int64_t)pool->head + k) % pool->capacity));
         if (!InPool(slot, pool->capacity))
         {
             return -1;
