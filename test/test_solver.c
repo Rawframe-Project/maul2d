@@ -161,7 +161,7 @@ static void TestPyramid(void)
     {
         m2Vec2 v = m2Body_GetLinearVelocity(world, boxes[i]);
         float speed = v.x * v.x + v.y * v.y;
-        maxSpeed = m2MaxF(maxSpeed, speed);
+        maxSpeed = speed > maxSpeed ? speed : maxSpeed;
         double y = m2Body_GetPosition(world, boxes[i]).y;
         CHECK(y == y, "no NaN positions in the pyramid");
         minY = y < minY ? y : minY;

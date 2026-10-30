@@ -2,9 +2,10 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // The engine's own angle functions, for code already inside the
-// floating-point environment: the public m2UnwindAngle, m2MakeRot,
-// m2Atan2, m2NormalizeRot and m2MulRot enter it around these, and the
-// solver's passes call them directly instead of entering again.
+// floating-point environment: the public m2MakeRot, m2Atan2,
+// m2NormalizeRot and m2MulRot enter it around these, and the solver's
+// passes call them directly instead of entering again. m2UnwindAngleWork
+// maps an angle into [-pi, pi] for the joints and the target transform.
 
 #ifndef MAUL2D_SRC_MATH_FUNCTIONS_H
 #define MAUL2D_SRC_MATH_FUNCTIONS_H

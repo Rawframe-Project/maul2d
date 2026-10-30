@@ -3,12 +3,14 @@
 //
 // The angle and rotation functions as inline code for the hot paths (the
 // pose update runs them for every body every substep). The public
-// m2UnwindAngle, m2MakeRot, m2NormalizeRot and m2MulRot are these same
-// functions, so the two can never differ by a bit. Only +, -, *, /,
-// m2AbsF, m2MaxF and the IEEE-exact floorf and sqrtf are used.
+// m2MakeRot, m2NormalizeRot and m2MulRot are these same functions, so the
+// two can never differ by a bit. Only +, -, *, /, m2AbsF, m2MaxF,
+// m2ClampF and the IEEE-exact floorf and sqrtf are used.
 
 #ifndef MAUL2D_SRC_ROTATION_H
 #define MAUL2D_SRC_ROTATION_H
+
+#include "core.h"
 
 #include "maul2d/base.h"
 #include "maul2d/core_math.h"
