@@ -6,7 +6,7 @@
 - [Bodies and shapes](user/bodies-and-shapes.md): moving bodies, sleep, dominance, shapes and materials, filters and sensors, chains, geometry from points, shattering, explosions.
 - [Joints](user/joints.md): the eleven joint types, motors and limits, tuning, breaking.
 - [Events and queries](user/events-and-queries.md): contact, sensor and joint events; rays, sweeps and overlaps; the character mover; walking the world.
-- [Fluids](user/fluids.md): particle pools, behaviors and jelly, particle lifetimes, fluid volumes, wind.
+- [Fluids](user/fluids.md): particle pools, behaviors and jelly, particle lifetimes, water volumes, wind.
 - [Rollback and replay](user/rollback-and-replay.md): fixed steps, snapshots and rollback netcode, the journal, hunting a divergence, bytes from outside, formats.
 - [Diagnostics](user/diagnostics.md): counters, validation, debug drawing, hashes.
 - [Limits](user/limits.md): the range of every number the step multiplies, what is clamped, and why.

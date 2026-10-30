@@ -12,7 +12,7 @@ defs filled with constants:
     m2DefaultDistanceJointDef
     m2DefaultExplosionDef
     m2DefaultFilterJointDef
-    m2DefaultFluidVolumeDef
+    m2DefaultWaterVolumeDef
     m2DefaultGearJointDef
     m2DefaultMotorJointDef
     m2DefaultMouseJointDef
@@ -50,8 +50,8 @@ validity, types, flags, ids and user data:
     m2Chain_GetShapes
     m2Chain_IsLoop
     m2Chain_IsValid
-    m2FluidVolume_GetUserData
-    m2FluidVolume_IsValid
+    m2WaterVolume_GetUserData
+    m2WaterVolume_IsValid
     m2Joint_GetBodyA
     m2Joint_GetBodyB
     m2Joint_GetType

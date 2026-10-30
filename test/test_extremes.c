@@ -93,7 +93,7 @@ static m2World* ExtremeWorld(bool particles)
 {
     m2WorldDef def = m2DefaultWorldDef();
     def.gravity = (m2Vec2){M2_ACCEL_LIMIT, -M2_ACCEL_LIMIT};
-    def.fluidVolumeCapacity = 2;
+    def.waterVolumeCapacity = 2;
     if (particles)
     {
         def.particleCapacity = 64;
@@ -395,15 +395,14 @@ static void TestWaterAndWind(void)
     m2Polygon box = m2MakeBox(M2_LOCAL_LIMIT, M2_LOCAL_LIMIT);
     (void)NewPolygonShape(s.world, slab, &shape, &box);
     m2Body_SetMassData(s.world, slab, (m2MassData){M2_MIN_MASS, {0.0f, 0.0f}, M2_MIN_INERTIA});
-    m2FluidVolumeDef water = m2DefaultFluidVolumeDef();
-    water.regionLower = (m2Pos2){-1.0e6, -1.0e6};
-    water.regionUpper = (m2Pos2){1.0e6, 1.0e6};
+    m2WaterVolumeDef water = m2DefaultWaterVolumeDef();
+    water.bounds = (m2WorldAabb){{-1.0e6, -1.0e6}, {1.0e6, 1.0e6}};
     water.surface = 2.0e4; // through the slab's middle
     water.density = M2_DENSITY_LIMIT;
     water.linearDrag = M2_RATE_LIMIT;
     water.angularDrag = M2_RATE_LIMIT;
     water.flow = (m2Vec2){-M2_SPEED_LIMIT, M2_SPEED_LIMIT};
-    (void)NewFluidVolume(s.world, &water);
+    (void)NewWaterVolume(s.world, &water);
     m2World_SetWind(s.world, (m2Vec2){M2_SPEED_LIMIT, -M2_SPEED_LIMIT}, M2_RATE_LIMIT);
     ExpectFinite(&s, "water and wind");
 }

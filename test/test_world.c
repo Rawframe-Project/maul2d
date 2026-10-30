@@ -7,7 +7,7 @@
 // id), refusals and out-of-memory creation, counters and validation,
 // and the world-level behavior of bodies: teleports, type changes,
 // gravity, wind, explosions, sleep, mass, shatter, dominance, motion
-// locks and fluid volumes.
+// locks and water volumes.
 
 #include "helpers.h"
 #include "test_harness.h"
@@ -1609,7 +1609,7 @@ static void TestCreateWorldOutOfMemory(void)
     def.bodyCapacity = 16;
     def.shapeCapacity = 16;
     def.particleCapacity = 32;
-    def.fluidVolumeCapacity = 2;
+    def.waterVolumeCapacity = 2;
     def.allocator.alloc = FailingAlloc;
     def.allocator.free = FailingFree;
     int32_t refusals = 0;
@@ -2349,7 +2349,7 @@ static void TestStaleIdsInStatusCalls(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
     def.particleCapacity = 4;
-    def.fluidVolumeCapacity = 1;
+    def.waterVolumeCapacity = 1;
     m2World* world = NewWorld(&def);
     m2BodyDef bd = m2DefaultBodyDef();
     m2BodyId body = NewBody(world, &bd);
@@ -2362,8 +2362,8 @@ static void TestStaleIdsInStatusCalls(void)
     jd.bodyIdB = other;
     m2JointId joint = NewDistanceJoint(world, &jd);
     m2ParticleId particle = EmitParticle(world, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f}, 0);
-    m2FluidVolumeDef vd = m2DefaultFluidVolumeDef();
-    m2FluidVolumeId volume = NewFluidVolume(world, &vd);
+    m2WaterVolumeDef vd = m2DefaultWaterVolumeDef();
+    m2WaterVolumeId volume = NewWaterVolume(world, &vd);
 
     CHECK(m2DestroyShape(world, shape) == m2_success, "a live shape destroys");
     CHECK(m2DestroyShape(world, shape) == m2_errorStale, "a stale shape is m2_errorStale");
@@ -2371,8 +2371,8 @@ static void TestStaleIdsInStatusCalls(void)
     CHECK(m2DestroyJoint(world, joint) == m2_errorStale, "a stale joint is m2_errorStale");
     CHECK(m2DestroyParticle(world, particle) == m2_success, "a live particle destroys");
     CHECK(m2DestroyParticle(world, particle) == m2_errorStale, "a stale particle is m2_errorStale");
-    CHECK(m2DestroyFluidVolume(world, volume) == m2_success, "a live volume destroys");
-    CHECK(m2DestroyFluidVolume(world, volume) == m2_errorStale, "a stale volume is m2_errorStale");
+    CHECK(m2DestroyWaterVolume(world, volume) == m2_success, "a live volume destroys");
+    CHECK(m2DestroyWaterVolume(world, volume) == m2_errorStale, "a stale volume is m2_errorStale");
 
     uint64_t misuse = m2World_GetCounters(world).misuse;
     CHECK(m2DestroyBody(world, body) == m2_success, "a live body destroys");
@@ -2439,7 +2439,7 @@ static void TestStaticBodiesHaveNoVelocity(void)
 static void TestStaleIdsCountInEveryCall(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
-    def.fluidVolumeCapacity = 1;
+    def.waterVolumeCapacity = 1;
     m2World* world = NewWorld(&def);
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
@@ -2458,9 +2458,9 @@ static void TestStaleIdsCountInEveryCall(void)
     cd.points = ledge;
     cd.count = 4;
     m2ChainId chain = NewChain(world, other, &cd);
-    m2FluidVolumeDef vd = m2DefaultFluidVolumeDef();
-    m2FluidVolumeId volume = NewFluidVolume(world, &vd);
-    CHECK(m2DestroyFluidVolume(world, volume) == m2_success, "the volume goes");
+    m2WaterVolumeDef vd = m2DefaultWaterVolumeDef();
+    m2WaterVolumeId volume = NewWaterVolume(world, &vd);
+    CHECK(m2DestroyWaterVolume(world, volume) == m2_success, "the volume goes");
     CHECK(m2DestroyJoint(world, joint) == m2_success, "the joint goes");
     CHECK(m2DestroyChain(world, chain) == m2_success, "the chain goes");
     CHECK(m2DestroyBody(world, body) == m2_success, "the body goes, and its sensor with it");
@@ -2480,8 +2480,8 @@ static void TestStaleIdsCountInEveryCall(void)
     CHECK(m2Shape_GetRestitution(world, sensor) == 0.0f, "and restitution");
     CHECK(m2Joint_GetReactionForce(world, joint) == 0.0f, "a stale joint carries no force");
     CHECK(m2Joint_GetReactionTorque(world, joint) == 0.0f, "nor torque");
-    CHECK(m2FluidVolume_GetSurface(world, volume) == 0.0, "a stale volume has no surface");
-    CHECK(m2FluidVolume_GetUserData(world, volume) == 0, "nor data");
+    CHECK(m2WaterVolume_GetSurface(world, volume) == 0.0, "a stale volume has no surface");
+    CHECK(m2WaterVolume_GetUserData(world, volume) == 0, "nor data");
     CHECK(m2Chain_GetShapes(world, chain, NULL, 0) == 0, "a stale chain has no links");
     m2Vec2 local = m2Body_GetLocalPointVelocity(world, body, (m2Vec2){1.0f, 0.0f});
     m2Vec2 global = m2Body_GetWorldPointVelocity(world, body, (m2Pos2){1.0, 0.0});
@@ -2616,16 +2616,15 @@ static void TestFloatingDraft(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
-    def.fluidVolumeCapacity = 2;
+    def.waterVolumeCapacity = 2;
     m2World* world = NewWorld(&def);
-    m2FluidVolumeDef fd = m2DefaultFluidVolumeDef();
-    fd.regionLower = (m2Pos2){-20.0, -20.0};
-    fd.regionUpper = (m2Pos2){20.0, 20.0};
+    m2WaterVolumeDef fd = m2DefaultWaterVolumeDef();
+    fd.bounds = (m2WorldAabb){{-20.0, -20.0}, {20.0, 20.0}};
     fd.surface = 0.0;
     fd.density = 2.0f;
     fd.linearDrag = 3.0f;
     fd.angularDrag = 3.0f;
-    NewFluidVolume(world, &fd);
+    NewWaterVolume(world, &fd);
 
     m2ShapeDef sd = m2DefaultShapeDef();
     sd.density = 1.0f;
@@ -2659,25 +2658,24 @@ static void TestFloatingDraft(void)
     m2DestroyWorld(world);
 }
 
-static void TestFluidVolume(void)
+static void TestWaterVolume(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 8;
     def.shapeCapacity = 8;
     def.jointCapacity = 4;
-    def.fluidVolumeCapacity = 4;
+    def.waterVolumeCapacity = 4;
     m2World* world = NewWorld(&def);
-    m2FluidVolumeDef fd = m2DefaultFluidVolumeDef();
-    fd.regionLower = (m2Pos2){-10.0, -10.0};
-    fd.regionUpper = (m2Pos2){10.0, 10.0};
+    m2WaterVolumeDef fd = m2DefaultWaterVolumeDef();
+    fd.bounds = (m2WorldAabb){{-10.0, -10.0}, {10.0, 10.0}};
     fd.surface = 0.0;
     fd.density = 2.0f;
     fd.linearDrag = 2.0f;
     fd.userData = 42;
-    m2FluidVolumeId vol = NewFluidVolume(world, &fd);
-    CHECK(m2FluidVolume_IsValid(world, vol), "the volume is live");
-    CHECK(m2FluidVolume_GetSurface(world, vol) == 0.0, "the surface reads back");
-    CHECK(m2FluidVolume_GetUserData(world, vol) == 42, "userData reads back");
+    m2WaterVolumeId vol = NewWaterVolume(world, &fd);
+    CHECK(m2WaterVolume_IsValid(world, vol), "the volume is live");
+    CHECK(m2WaterVolume_GetSurface(world, vol) == 0.0, "the surface reads back");
+    CHECK(m2WaterVolume_GetUserData(world, vol) == 42, "userData reads back");
 
     m2Polygon box = m2MakeBox(0.5f, 0.5f);
     m2BodyDef ld = m2DefaultBodyDef();
@@ -2717,8 +2715,8 @@ static void TestFluidVolume(void)
     CHECK(m2World_Hash(world) == future, "buoyancy replays bit for bit after rollback");
 
     // Runtime waterline: drain it below the boxes and they fall.
-    m2FluidVolume_SetSurface(world, vol, -20.0);
-    CHECK(m2FluidVolume_GetSurface(world, vol) == -20.0, "the drained surface reads back");
+    m2WaterVolume_SetSurface(world, vol, -20.0);
+    CHECK(m2WaterVolume_GetSurface(world, vol) == -20.0, "the drained surface reads back");
     double lightBefore = m2Body_GetPosition(world, light).y;
     for (int32_t i = 0; i < 120; ++i)
     {
@@ -2733,11 +2731,10 @@ static void TestFluidVolume(void)
     int32_t cap = 1 << 20;
     void* tape = malloc((size_t)cap);
     StartJournal(rec, tape, cap);
-    m2FluidVolumeDef rfd = m2DefaultFluidVolumeDef();
-    rfd.regionLower = (m2Pos2){-10.0, -10.0};
-    rfd.regionUpper = (m2Pos2){10.0, 10.0};
+    m2WaterVolumeDef rfd = m2DefaultWaterVolumeDef();
+    rfd.bounds = (m2WorldAabb){{-10.0, -10.0}, {10.0, 10.0}};
     rfd.surface = 0.0;
-    m2FluidVolumeId rv = NewFluidVolume(rec, &rfd);
+    m2WaterVolumeId rv = NewWaterVolume(rec, &rfd);
     m2BodyDef rb = m2DefaultBodyDef();
     rb.type = m2_dynamicBody;
     rb.position = (m2Pos2){0.0, -2.0};
@@ -2749,7 +2746,7 @@ static void TestFluidVolume(void)
     {
         m2World_Step(rec, 1.0f / 60.0f, 4);
     }
-    m2FluidVolume_SetSurface(rec, rv, 1.0);
+    m2WaterVolume_SetSurface(rec, rv, 1.0);
     for (int32_t i = 0; i < 60; ++i)
     {
         m2World_Step(rec, 1.0f / 60.0f, 4);
@@ -3324,7 +3321,7 @@ static void TestCentersAtTheBoundRestore(void)
 }
 
 // One of everything a setter can tune: two dynamic bodies on a ground
-// with a chain, joints of each tunable type between them, a fluid volume.
+// with a chain, joints of each tunable type between them, a water volume.
 typedef struct HashScene
 {
     m2World* world;
@@ -3345,7 +3342,7 @@ enum
 {
     HASH_SCENE_PLAIN,
     HASH_SCENE_COLLIDE,     // the revolute joint collides its bodies
-    HASH_SCENE_VOLUME_DRAG, // the fluid volume drags harder
+    HASH_SCENE_VOLUME_DRAG, // the water volume drags harder
 };
 
 static HashScene MakeHashScene(int32_t variant)
@@ -3353,7 +3350,7 @@ static HashScene MakeHashScene(int32_t variant)
     HashScene scene;
     m2WorldDef def = m2DefaultWorldDef();
     def.particleCapacity = 8;
-    def.fluidVolumeCapacity = 2;
+    def.waterVolumeCapacity = 2;
     scene.world = NewWorld(&def);
     m2BodyDef bodyDef = m2DefaultBodyDef();
     scene.ground = NewBody(scene.world, &bodyDef);
@@ -3406,12 +3403,11 @@ static HashScene MakeHashScene(int32_t variant)
     pulley.groundAnchorB = (m2Pos2){1.0, 5.0};
     scene.pulley = NewPulleyJoint(scene.world, &pulley);
 
-    m2FluidVolumeDef volume = m2DefaultFluidVolumeDef();
-    volume.regionLower = (m2Pos2){-10.0, -5.0};
-    volume.regionUpper = (m2Pos2){10.0, 1.0};
+    m2WaterVolumeDef volume = m2DefaultWaterVolumeDef();
+    volume.bounds = (m2WorldAabb){{-10.0, -5.0}, {10.0, 1.0}};
     volume.surface = 1.0;
     volume.linearDrag = variant == HASH_SCENE_VOLUME_DRAG ? 2.0f : 1.0f;
-    NewFluidVolume(scene.world, &volume);
+    NewWaterVolume(scene.world, &volume);
     return scene;
 }
 
@@ -3821,7 +3817,7 @@ int main(void)
     TestRuntimeGravity();
     TestDominance();
     TestShatterBody();
-    TestFluidVolume();
+    TestWaterVolume();
     TestFloatingDraft();
     TestHashParts();
     TestValidateAndCounters();

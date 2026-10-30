@@ -10,6 +10,6 @@ Common builds, each a few calls on top of the other pages.
 
 **Destructible geometry.** Run a sprite's outline through `m2DecomposeOutline` once to get convex pieces, and build the body from them. When it should break, call `m2Body_Shatter` with the same pieces: the body becomes one fragment per piece, each moving with the parent. An `m2World_Explode` at the impact point gives the shove ([Bodies and shapes](bodies-and-shapes.md#geometry-from-points)).
 
-**Water without particles.** Place a fluid volume over the region and set its surface: light bodies float and dense ones sink. Give it a flow for a current, and move the surface for a tide. Reach for a particle pool only when the splash matters ([Fluids](fluids.md)).
+**Water without particles.** Place a water volume over the region and set its surface: light bodies float and dense ones sink. Give it a flow for a current, and move the surface for a tide. Reach for a particle pool only when the splash matters ([Fluids](fluids.md)).
 
 **Lockstep multiplayer.** Every peer runs the same world from the same def and applies the same inputs at the same step. Exchange inputs, not state; compare `m2World_Hash` now and then, and on a mismatch compare `m2World_GetHashParts` to find the subsystem ([Rollback and replay](rollback-and-replay.md)).

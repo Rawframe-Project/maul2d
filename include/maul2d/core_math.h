@@ -48,6 +48,15 @@ extern "C"
         m2Rot q;
     } m2Transform;
 
+    /// A box in world space, its corners 64-bit positions: what a body or
+    /// shape covers, the region a box query looks in, and a water volume's
+    /// region.
+    typedef struct m2WorldAabb
+    {
+        m2Pos2 lowerBound;
+        m2Pos2 upperBound;
+    } m2WorldAabb;
+
     /// Builds a rotation from an angle without calling the C library, so the
     /// bits agree everywhere. Accurate to about 4e-7.
     ///

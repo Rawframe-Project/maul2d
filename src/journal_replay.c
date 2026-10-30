@@ -354,7 +354,7 @@ static bool ApplyMouseTarget(m2ReplayCursor* r, const m2OpPayload* p)
     return true;
 }
 
-// Particles and fluid volumes.
+// Particles and water volumes.
 
 // The particle def a create or fill record describes.
 static m2ParticleDef RecordedParticleDef(m2Pos2 position, m2Vec2 velocity, uint32_t flags)
@@ -406,21 +406,21 @@ static bool ApplySetParticleUserData(m2ReplayCursor* r, const m2OpPayload* p)
     return true;
 }
 
-static bool ApplyCreateFluidVolume(m2ReplayCursor* r, const m2OpPayload* p)
+static bool ApplyCreateWaterVolume(m2ReplayCursor* r, const m2OpPayload* p)
 {
-    m2FluidVolumeId id = m2_nullFluidVolumeId;
-    return m2CreateFluidVolume(r->world, &p->createFluidVolume.def, &id) == m2_success &&
-           id.index1 == p->createFluidVolume.expected.index1;
+    m2WaterVolumeId id = m2_nullWaterVolumeId;
+    return m2CreateWaterVolume(r->world, &p->createWaterVolume.def, &id) == m2_success &&
+           id.index1 == p->createWaterVolume.expected.index1;
 }
 
-static bool ApplyDestroyFluidVolume(m2ReplayCursor* r, const m2OpPayload* p)
+static bool ApplyDestroyWaterVolume(m2ReplayCursor* r, const m2OpPayload* p)
 {
-    return m2DestroyFluidVolume(r->world, p->fluidVolumeId) == m2_success;
+    return m2DestroyWaterVolume(r->world, p->waterVolumeId) == m2_success;
 }
 
 static bool ApplySetFluidSurface(m2ReplayCursor* r, const m2OpPayload* p)
 {
-    m2FluidVolume_SetSurface(r->world, p->fluidSurface.id, p->fluidSurface.surface);
+    m2WaterVolume_SetSurface(r->world, p->fluidSurface.id, p->fluidSurface.surface);
     return true;
 }
 
@@ -603,8 +603,8 @@ static const m2JournalCommand s_commands[m2_opCount] = {
     M2_COMMAND(m2_opShatterBody, m2OpShatterHeader, ApplyShatterBody),
     M2_COMMAND(m2_opSetParticleLifetime, m2OpParticleFloat, ApplySetParticleLifetime),
     M2_COMMAND(m2_opSetParticleUserData, m2OpParticleUserData, ApplySetParticleUserData),
-    M2_COMMAND(m2_opCreateFluidVolume, m2OpCreateFluidVolume, ApplyCreateFluidVolume),
-    M2_COMMAND(m2_opDestroyFluidVolume, m2FluidVolumeId, ApplyDestroyFluidVolume),
+    M2_COMMAND(m2_opCreateWaterVolume, m2OpCreateWaterVolume, ApplyCreateWaterVolume),
+    M2_COMMAND(m2_opDestroyWaterVolume, m2WaterVolumeId, ApplyDestroyWaterVolume),
     M2_COMMAND(m2_opSetFluidSurface, m2OpFluidSurface, ApplySetFluidSurface),
     M2_COMMAND(m2_opSetWind, m2OpSetWind, ApplySetWind),
 };

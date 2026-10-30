@@ -69,9 +69,9 @@ M2_PIN_SIZE(m2ParticleId, 8);
 M2_PIN_AT(m2ParticleId, index1, 0);
 M2_PIN_AT(m2ParticleId, generation, 4);
 
-M2_PIN_SIZE(m2FluidVolumeId, 8);
-M2_PIN_AT(m2FluidVolumeId, index1, 0);
-M2_PIN_AT(m2FluidVolumeId, generation, 4);
+M2_PIN_SIZE(m2WaterVolumeId, 8);
+M2_PIN_AT(m2WaterVolumeId, index1, 0);
+M2_PIN_AT(m2WaterVolumeId, generation, 4);
 
 M2_PIN_SIZE(m2Circle, 12);
 M2_PIN_AT(m2Circle, center, 0);
@@ -176,16 +176,15 @@ M2_PIN_AT(m2ShapeDef, isSensor, 36);
 M2_PIN_AT(m2ShapeDef, userData, 40);
 M2_PIN_AT(m2ShapeDef, internalValue, 48);
 
-M2_PIN_SIZE(m2FluidVolumeDef, 80);
-M2_PIN_AT(m2FluidVolumeDef, regionLower, 0);
-M2_PIN_AT(m2FluidVolumeDef, regionUpper, 16);
-M2_PIN_AT(m2FluidVolumeDef, surface, 32);
-M2_PIN_AT(m2FluidVolumeDef, density, 40);
-M2_PIN_AT(m2FluidVolumeDef, linearDrag, 44);
-M2_PIN_AT(m2FluidVolumeDef, angularDrag, 48);
-M2_PIN_AT(m2FluidVolumeDef, flow, 52);
-M2_PIN_AT(m2FluidVolumeDef, userData, 64);
-M2_PIN_AT(m2FluidVolumeDef, internalValue, 72);
+M2_PIN_SIZE(m2WaterVolumeDef, 80);
+M2_PIN_AT(m2WaterVolumeDef, bounds, 0);
+M2_PIN_AT(m2WaterVolumeDef, surface, 32);
+M2_PIN_AT(m2WaterVolumeDef, density, 40);
+M2_PIN_AT(m2WaterVolumeDef, linearDrag, 44);
+M2_PIN_AT(m2WaterVolumeDef, angularDrag, 48);
+M2_PIN_AT(m2WaterVolumeDef, flow, 52);
+M2_PIN_AT(m2WaterVolumeDef, userData, 64);
+M2_PIN_AT(m2WaterVolumeDef, internalValue, 72);
 
 M2_PIN_SIZE(m2DistanceJointDef, 72);
 M2_PIN_AT(m2DistanceJointDef, bodyIdA, 0);
@@ -464,9 +463,9 @@ M2_PIN_SIZE(m2OpParticleUserData, 16);
 M2_PIN_AT(m2OpParticleUserData, id, 0);
 M2_PIN_AT(m2OpParticleUserData, userData, 8);
 
-M2_PIN_SIZE(m2OpCreateFluidVolume, 88);
-M2_PIN_AT(m2OpCreateFluidVolume, def, 0);
-M2_PIN_AT(m2OpCreateFluidVolume, expected, 80);
+M2_PIN_SIZE(m2OpCreateWaterVolume, 88);
+M2_PIN_AT(m2OpCreateWaterVolume, def, 0);
+M2_PIN_AT(m2OpCreateWaterVolume, expected, 80);
 
 M2_PIN_SIZE(m2OpFluidSurface, 16);
 M2_PIN_AT(m2OpFluidSurface, id, 0);

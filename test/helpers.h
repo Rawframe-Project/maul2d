@@ -94,10 +94,10 @@ M2_TEST_NEW_JOINT(Mouse)
 
 #undef M2_TEST_NEW_JOINT
 
-static inline m2FluidVolumeId NewFluidVolume(m2World* world, const m2FluidVolumeDef* def)
+static inline m2WaterVolumeId NewWaterVolume(m2World* world, const m2WaterVolumeDef* def)
 {
-    m2FluidVolumeId id = m2_nullFluidVolumeId;
-    m2Result result = m2CreateFluidVolume(world, def, &id);
+    m2WaterVolumeId id = m2_nullWaterVolumeId;
+    m2Result result = m2CreateWaterVolume(world, def, &id);
     (void)result;
     return id;
 }
@@ -216,9 +216,9 @@ static inline m2Result DestroyParticle(m2World* world, m2ParticleId id)
     return m2DestroyParticle(world, id);
 }
 
-static inline m2Result DestroyFluidVolume(m2World* world, m2FluidVolumeId id)
+static inline m2Result DestroyWaterVolume(m2World* world, m2WaterVolumeId id)
 {
-    return m2DestroyFluidVolume(world, id);
+    return m2DestroyWaterVolume(world, id);
 }
 
 // A polygon with count 0 when the points do not make one.

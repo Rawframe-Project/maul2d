@@ -39,7 +39,7 @@ m2WorldDef m2DefaultWorldDefValues(void)
     def.shapeCapacity = 2048;
     def.jointCapacity = 256;
     def.particleCapacity = 0;    // fluids are opt-in
-    def.fluidVolumeCapacity = 0; // buoyancy volumes are opt-in
+    def.waterVolumeCapacity = 0; // buoyancy volumes are opt-in
     def.particleRadius = 0.05f;
     def.particleDensity = 1.0f;
     def.particleGravityScale = 1.0f;
@@ -61,7 +61,7 @@ m2WorldDef m2DefaultWorldDefValues(void)
 static m2Result WorldDefCheck(const m2WorldDef* def)
 {
     if (def->bodyCapacity < 1 || def->shapeCapacity < 1 || def->jointCapacity < 1 ||
-        def->fluidVolumeCapacity < 0 || def->particleCapacity < 0 ||
+        def->waterVolumeCapacity < 0 || def->particleCapacity < 0 ||
         (def->allocator.alloc == NULL) != (def->allocator.free == NULL))
     {
         return m2_errorInvalid;
@@ -120,7 +120,7 @@ static bool ApplyWorldDef(m2World* world, const m2WorldDef* def)
     world->bodies.bodyCapacity = def->bodyCapacity;
     world->shapes.shapeCapacity = shapeCap;
     world->joints.jointCapacity = def->jointCapacity;
-    world->volumes.fvCapacity = def->fluidVolumeCapacity;
+    world->volumes.wvCapacity = def->waterVolumeCapacity;
     world->enqueueTask = def->enqueueTask;
     world->finishTask = def->finishTask;
     world->userTaskContext = def->userTaskContext;
@@ -181,13 +181,13 @@ static void SeedFreeLists(m2World* world)
     {
         world->particles.particleFreeQueue[i] = i;
     }
-    for (int32_t i = 0; i < world->volumes.fvCapacity; ++i)
+    for (int32_t i = 0; i < world->volumes.wvCapacity; ++i)
     {
-        world->volumes.fvFreeQueue[i] = i;
+        world->volumes.wvFreeQueue[i] = i;
     }
     world->joints.jointFreeCount = jointCap;
     world->particles.particleFreeCount = world->particles.particleCapacity;
-    world->volumes.fvFreeCount = world->volumes.fvCapacity;
+    world->volumes.wvFreeCount = world->volumes.wvCapacity;
     world->bodies.freeCount = cap;
     world->shapes.shapeFreeCount = shapeCap;
     world->chains.chainFreeCount = shapeCap;
@@ -522,7 +522,7 @@ static void StepWorld(m2World* world, float dt, int32_t substepCount)
     {
         // Buoyancy feeds the force accumulators before the solve, so it
         // integrates alongside gravity and dies with the step.
-        m2ApplyFluidVolumes(world, dt);
+        m2ApplyWaterVolumes(world, dt);
     }
     if (world->windLinearDrag > 0.0f)
     {

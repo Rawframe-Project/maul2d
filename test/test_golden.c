@@ -125,7 +125,7 @@ static m2WorldDef WorldDef(int32_t bodies, int32_t joints, int32_t particles, bo
     def.shapeCapacity = 2 * bodies;
     def.jointCapacity = joints;
     def.particleCapacity = particles;
-    def.fluidVolumeCapacity = 2;
+    def.waterVolumeCapacity = 2;
     if (threaded)
     {
         def.enqueueTask = TpEnqueue;
@@ -444,13 +444,12 @@ static void BuildFluid(m2World* world)
                   m2_springParticle | m2_elasticParticle);
 
     AddStatic(world, 12.0, -0.5, 4.0f, 0.5f);
-    m2FluidVolumeDef pool = m2DefaultFluidVolumeDef();
-    pool.regionLower = (m2Pos2){8.0, 0.0};
-    pool.regionUpper = (m2Pos2){16.0, 4.0};
+    m2WaterVolumeDef pool = m2DefaultWaterVolumeDef();
+    pool.bounds = (m2WorldAabb){{8.0, 0.0}, {16.0, 4.0}};
     pool.surface = 2.0;
     pool.density = 2.0f;
     pool.flow = (m2Vec2){0.4f, 0.0f};
-    NewFluidVolume(world, &pool);
+    NewWaterVolume(world, &pool);
     AddBox(world, 10.0, 3.5, 0.4f);
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;

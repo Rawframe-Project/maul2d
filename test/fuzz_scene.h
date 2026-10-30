@@ -31,7 +31,7 @@ static m2WorldDef FuzzSceneDef(void)
     def.shapeCapacity = 32;
     def.jointCapacity = 8;
     def.particleCapacity = 64;
-    def.fluidVolumeCapacity = 2;
+    def.waterVolumeCapacity = 2;
     return def;
 }
 
@@ -89,11 +89,10 @@ static bool BuildFuzzScene(m2World* world)
     m2Polygon drop = m2MakeBox(0.1f, 0.1f);
     built = built && FillParticles(world, &drop, (m2Pos2){3.0, 1.0}, (m2Vec2){0.0f, 0.0f},
                                    m2_springParticle) > 0;
-    m2FluidVolumeDef pool = m2DefaultFluidVolumeDef();
-    pool.regionLower = (m2Pos2){-4.0, -0.5};
-    pool.regionUpper = (m2Pos2){4.0, 0.5};
+    m2WaterVolumeDef pool = m2DefaultWaterVolumeDef();
+    pool.bounds = (m2WorldAabb){{-4.0, -0.5}, {4.0, 0.5}};
     pool.surface = 0.2;
-    built = built && NewFluidVolume(world, &pool).index1 != 0;
+    built = built && NewWaterVolume(world, &pool).index1 != 0;
 
     for (int32_t i = 0; i < 20; ++i)
     {

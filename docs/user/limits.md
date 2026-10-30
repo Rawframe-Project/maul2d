@@ -6,13 +6,13 @@ Every number the step multiplies has a range, in meters, kilograms and seconds. 
 
 | Constant | Value | What it bounds | Realistic values |
 |---|---|---|---|
-| `M2_SPEED_LIMIT` | 1e5 m/s, rad/s | a body's velocity per axis and its spin, a conveyor's speed, a motor's speed, the wind, a fluid volume's flow, a particle's velocity | a rifle bullet is about 1e3 m/s; the solver caps motion at 400 m/s anyway |
+| `M2_SPEED_LIMIT` | 1e5 m/s, rad/s | a body's velocity per axis and its spin, a conveyor's speed, a motor's speed, the wind, a water volume's flow, a particle's velocity | a rifle bullet is about 1e3 m/s; the solver caps motion at 400 m/s anyway |
 | `M2_ACCEL_LIMIT` | 1e6 m/s^2 | gravity per axis | Earth is 9.8; a game's gravity rarely passes a few thousand |
 | `M2_GRAVITY_SCALE_LIMIT` | 1e3 | a body's or the particles' gravity scale, either sign | 0 to a few |
 | `M2_RATE_LIMIT` | 1e6 1/s | linear and angular damping, wind and fluid drag, a spring's hertz | damping 0 to 10, springs up to a few hundred hertz |
 | `M2_COEFFICIENT_LIMIT` | 1e3 | friction, a damping ratio, a particle strength | friction 0 to 2, damping ratios 0 to 10 |
 | restitution | 0 to 1 | a shape's or a chain's bounce | 0 to 1 |
-| `M2_DENSITY_LIMIT` | 1e6 kg/m^2 | a shape's, a fluid volume's or the particles' density | foam about 30, water 1e3, lead about 1.1e4 |
+| `M2_DENSITY_LIMIT` | 1e6 kg/m^2 | a shape's, a water volume's or the particles' density | foam about 30, water 1e3, lead about 1.1e4 |
 | `M2_MIN_RATIO`, `M2_RATIO_LIMIT` | 1e-3 to 1e3 | a gear's or pulley's ratio, by magnitude | 0.01 to 100 |
 | `M2_MIN_MASS`, `M2_MASS_LIMIT` | 1e-9 to 1e12 kg | a dynamic body's mass; a particle's mass | a 1 g bullet to a 1e8 kg ship |
 | `M2_MIN_INERTIA`, `M2_INERTIA_LIMIT` | 1e-12 to 1e24 kg m^2, or 0 | a dynamic body's rotational inertia about its center of mass; 0 does not rotate | a 5 mm disc at density 1 is about 1e-9 |

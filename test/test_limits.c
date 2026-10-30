@@ -226,13 +226,13 @@ static float GetParticleVelocity(const Channel* c)
     return m2Particle_GetVelocity(c->world, c->particle).y;
 }
 
-// A world with particles and a fluid volume, so every part has its
+// A world with particles and a water volume, so every part has its
 // writers; a box falls on the ground.
 static m2World* LimitsWorld(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
     def.particleCapacity = 16;
-    def.fluidVolumeCapacity = 2;
+    def.waterVolumeCapacity = 2;
     return NewWorld(&def);
 }
 
@@ -425,19 +425,18 @@ static void TestParticleAndVolumeEdges(void)
     c.get = GetParticleVelocity;
     ExpectEdge(&c, -M2_SPEED_LIMIT, "particle velocity");
 
-    m2FluidVolumeDef volume = m2DefaultFluidVolumeDef();
-    volume.regionLower = (m2Pos2){-10.0, -10.0};
-    volume.regionUpper = (m2Pos2){10.0, 0.0};
+    m2WaterVolumeDef volume = m2DefaultWaterVolumeDef();
+    volume.bounds = (m2WorldAabb){{-10.0, -10.0}, {10.0, 0.0}};
     volume.density = M2_DENSITY_LIMIT;
     volume.linearDrag = M2_RATE_LIMIT;
     volume.flow = (m2Vec2){M2_SPEED_LIMIT, -M2_SPEED_LIMIT};
-    CHECK(NewFluidVolume(world, &volume).index1 != 0, "a fluid volume at its edges is accepted");
+    CHECK(NewWaterVolume(world, &volume).index1 != 0, "a water volume at its edges is accepted");
     volume.flow.y = Past(-M2_SPEED_LIMIT);
     uint64_t misuse = Misuse(world);
-    m2FluidVolumeId refused = {7, 7};
-    CHECK(m2CreateFluidVolume(world, &volume, &refused) == m2_errorLimit && refused.index1 == 0 &&
+    m2WaterVolumeId refused = {7, 7};
+    CHECK(m2CreateWaterVolume(world, &volume, &refused) == m2_errorLimit && refused.index1 == 0 &&
               Misuse(world) == misuse + 1,
-          "a fluid volume past the speed bound is refused and counted");
+          "a water volume past the speed bound is refused and counted");
 
     // The particles' mass must be a mass a body could have.
     m2WorldDef def = m2DefaultWorldDef();
