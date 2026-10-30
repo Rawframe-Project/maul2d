@@ -103,7 +103,9 @@ static bool ApplyWorldDef(m2World* world, const m2WorldDef* def)
     int32_t shapeCap = def->shapeCapacity;
     int32_t particleCap = def->particleCapacity;
     m2Particles* p = &world->particles;
-    if (ckd_mul(&world->broadphase.treeNodeCapacity, 2, shapeCap) ||
+    int32_t jointEdges = 0; // a joint's two adjacency edges, one per body
+    if (ckd_mul(&jointEdges, 2, def->jointCapacity) ||
+        ckd_mul(&world->broadphase.treeNodeCapacity, 2, shapeCap) ||
         ckd_mul(&world->contacts.pairCapacity, 8, shapeCap) ||
         ckd_mul(&p->particlePairCapacity, 12, particleCap) ||
         ckd_mul(&p->particleSpringCapacity, 4, particleCap) ||
