@@ -394,6 +394,13 @@ typedef struct m2World
 m2Result m2Refuse(const m2World* world, m2Result reason);
 uint64_t m2MisuseCount(const m2World* world);
 
+// Refuses a list call: zeroes the caller's list over its whole capacity,
+// since a failed call defines none of its items, counts one misuse on a
+// live world as m2Refuse does, and returns the count of 0 the call
+// answers. Zeroed items are null ids. A null list or a capacity of 0 or
+// less has nothing to clear.
+int32_t m2RefuseList(const m2World* world, void* items, int32_t capacity, size_t itemSize);
+
 // Brackets host code the world runs (a step's tasks, a debug draw's
 // callbacks); in between, the world's writers refuse. Readers may draw on
 // several threads at once, so the count is atomic.

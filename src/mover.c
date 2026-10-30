@@ -33,8 +33,7 @@ static M2_NOINLINE int32_t WorldCollideMoverWorker(const m2World* world, const m
     m2DistanceProxy moverLocal = m2CapsuleProxy(mover);
     if (world == NULL || moverLocal.count == 0 || !m2QueryMotionValid(origin, (m2Vec2){0.0f, 0.0f}))
     {
-        m2Refuse(world, m2_errorInvalid);
-        return 0;
+        return m2RefuseList(world, results, capacity, sizeof(*results));
     }
     m2ProxyQuery q = m2MakeProxyQuery(&moverLocal, origin, (m2Vec2){0.0f, 0.0f});
 

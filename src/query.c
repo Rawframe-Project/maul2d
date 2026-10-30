@@ -290,8 +290,7 @@ static M2_NOINLINE int32_t WorldOverlapAabbWorker(const m2World* world, m2WorldA
     if (world == NULL || !m2FinitePos2(lower) || !m2FinitePos2(upper) || upper.x < lower.x ||
         upper.y < lower.y)
     {
-        m2Refuse(world, m2_errorInvalid);
-        return 0;
+        return m2RefuseList(world, results, capacity, sizeof(*results));
     }
 
     m2Aabb aabb = {lower, upper};
@@ -444,8 +443,7 @@ static int32_t OverlapProxy(const m2World* world, const m2DistanceProxy* castLoc
 {
     if (world == NULL || castLocal->count == 0 || !m2QueryMotionValid(pose, (m2Vec2){0.0f, 0.0f}))
     {
-        m2Refuse(world, m2_errorInvalid);
-        return 0;
+        return m2RefuseList(world, ids, capacity, sizeof(*ids));
     }
     m2ProxyQuery q = m2MakeProxyQuery(castLocal, pose, (m2Vec2){0.0f, 0.0f});
     m2Aabb aabb;
@@ -752,8 +750,7 @@ static M2_NOINLINE int32_t WorldCastRayAllWorker(const m2World* world, m2Pos2 or
 {
     if (world == NULL || !m2FinitePos2(origin) || !m2FiniteVec2(translation))
     {
-        m2Refuse(world, m2_errorInvalid);
-        return 0;
+        return m2RefuseList(world, hits, capacity, sizeof(*hits));
     }
     int32_t cap = hits != NULL && capacity > 0 ? capacity : 0;
     int32_t kept = 0;
@@ -867,8 +864,7 @@ static int32_t CastProxyAll(const m2World* world, const m2DistanceProxy* castLoc
 {
     if (world == NULL || castLocal->count == 0 || !m2QueryMotionValid(pose, translation))
     {
-        m2Refuse(world, m2_errorInvalid);
-        return 0;
+        return m2RefuseList(world, hits, capacity, sizeof(*hits));
     }
     m2ProxyQuery q = m2MakeProxyQuery(castLocal, pose, translation);
 

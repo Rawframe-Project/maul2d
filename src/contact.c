@@ -507,15 +507,14 @@ static M2_NOINLINE int32_t ShapeGetSensorOverlapsWorker(const m2World* world,
 {
     if (world == NULL)
     {
-        return 0;
+        return m2RefuseList(world, overlaps, capacity, sizeof(*overlaps));
     }
     int32_t sensor = (int32_t)sensorShapeId.index1 - 1;
     if (sensor < 0 || sensor >= world->shapes.shapeCapacity ||
         world->shapes.shapeAlive[sensor] == 0 ||
         world->shapes.shapeGenerations[sensor] != sensorShapeId.generation)
     {
-        m2Refuse(world, m2_errorInvalid);
-        return 0;
+        return m2RefuseList(world, overlaps, capacity, sizeof(*overlaps));
     }
     if (world->shapes.shapeSensor[sensor] == 0)
     {
@@ -557,7 +556,7 @@ static M2_NOINLINE int32_t WorldGetContactDataWorker(const m2World* world, m2Con
 {
     if (world == NULL)
     {
-        return 0;
+        return m2RefuseList(world, data, capacity, sizeof(*data));
     }
     int32_t total = 0;
     for (int32_t i = 0; i < world->contacts.pairCount; ++i)

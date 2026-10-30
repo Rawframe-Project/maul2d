@@ -436,16 +436,21 @@ extern "C"
     /// several readers at once.
     M2_API int64_t m2World_GetSnapshotSize(const m2World* world);
 
-    /// Writes the whole simulation state into caller memory.
+    /// Writes the whole simulation state into caller memory. A failed
+    /// snapshot zeroes the buffer, so it never holds what looks like part
+    /// of a snapshot: a host that keeps a ring of snapshot buffers sizes
+    /// them with m2World_GetSnapshotSize first, or snapshots into a spare
+    /// buffer and swaps it in on success.
     ///
     /// @param world      The world.
-    /// @param bufferOut  Receives the snapshot.
+    /// @param bufferOut  Receives the snapshot; zeros over the whole
+    ///                   capacity on failure.
     /// @param capacity   The length of bufferOut, in bytes.
     /// @param bytesOut   Receives the bytes written; with m2_errorCapacity,
     ///                   the size needed; 0 on any other failure.
     /// @return m2_success; m2_errorInvalid for a null argument;
     ///         m2_errorCapacity when capacity is below
-    ///         m2World_GetSnapshotSize, with nothing written.
+    ///         m2World_GetSnapshotSize.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.

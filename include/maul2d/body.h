@@ -377,8 +377,8 @@ extern "C"
     /// Lists the world's bodies in ascending slot order.
     ///
     /// @param world     The world.
-    /// @param idsOut    Receives up to capacity bodies; may be null to
-    ///                  measure.
+    /// @param idsOut    Receives up to capacity bodies; zeros over the whole capacity on failure.
+    ///                  May be null to measure.
     /// @param capacity  The length of idsOut.
     /// @return The number of bodies, which may exceed capacity.
     /// @par Thread safety

@@ -31,7 +31,7 @@ A ray (`m2World_CastRayClosest`) or a swept circle, capsule or polygon (`m2World
 
 The overlap queries (`m2World_OverlapAabb`, `m2World_OverlapCircle` and its siblings) list every live shape touching a box (an `m2WorldAabb`, the type `m2Body_ComputeAabb` and `m2Shape_GetAabb` return) or a posed shape, in ascending order; touching within the engine's slop skin counts. Every query takes an `m2QueryFilter` with the same category and mask rule as contacts, and chain segments stay one-sided: a cast that starts on a segment's back side passes through.
 
-A query that fills a caller array returns the true total, which may exceed the array's capacity; a null array with capacity 0 measures.
+A query that fills a caller array returns the true total, which may exceed the array's capacity; a null array with capacity 0 measures. A refused query (a null world, a stale id, a non-finite or inverted box) returns 0 and zeroes the array over its whole capacity, so no item from an earlier call is read as an answer; zeroed ids are null ids.
 
 ## The character mover
 
