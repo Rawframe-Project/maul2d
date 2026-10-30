@@ -1132,6 +1132,54 @@ static void TestParticleDefs(void)
     m2DestroyWorld(world);
 }
 
+// Host code the world runs, here a debug draw callback, fills a polygon
+// with particles. The fill is refused as busy and leaves countOut, which
+// the host may be filling, and creates nothing.
+typedef struct FillIntruder
+{
+    m2World* world;
+    int32_t calls;
+    m2Result filled;
+    int32_t count;
+} FillIntruder;
+
+static void FillWhileDrawing(m2Pos2 p1, m2Pos2 p2, uint32_t color, void* context)
+{
+    (void)p1;
+    (void)p2;
+    (void)color;
+    FillIntruder* in = (FillIntruder*)context;
+    if (in->calls++ == 0)
+    {
+        m2ParticleDef particleDef = m2DefaultParticleDef();
+        m2Polygon tub = m2MakeBox(0.5f, 0.5f);
+        in->filled = m2CreateParticlesInPolygon(in->world, &particleDef, &tub, &in->count);
+    }
+}
+
+static void TestBusyFillKeepsCount(void)
+{
+    m2WorldDef def = FluidWorldDef(4);
+    FillIntruder in = {NewWorld(&def), 0, m2_success, 7};
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon box = m2MakeBox(1.0f, 1.0f);
+    NewPolygonShape(in.world, NewBody(in.world, &bd), &sd, &box);
+
+    uint64_t misuse = m2World_GetCounters(in.world).misuse;
+    m2DebugDraw draw = {0};
+    draw.drawSegment = FillWhileDrawing;
+    draw.drawAabbs = true;
+    draw.context = &in;
+    m2World_Draw(in.world, &draw);
+    CHECK(in.calls > 0 && in.filled == m2_errorBusy, "a fill inside a draw callback is busy");
+    CHECK(in.count == 7, "and leaves countOut as it was");
+    CHECK(m2World_GetCounters(in.world).misuse == misuse + 1 &&
+              m2World_GetParticleCount(in.world) == 0,
+          "the refusal counts one misuse and creates nothing");
+    m2DestroyWorld(in.world);
+}
+
 // A fill the pool cuts short keeps the particles that fit, returns
 // m2_errorCapacity with their count and is recorded: its replay cuts
 // short the same way and reaches the same world.
@@ -1205,6 +1253,7 @@ int main(void)
     TestCappedCandidatesIgnoreTreeHistory();
     TestLifecycle();
     TestParticleDefs();
+    TestBusyFillKeepsCount();
     TestFillCutShortReplays();
     TestFarParticlesStep();
     TestOverflowIsQuiet();

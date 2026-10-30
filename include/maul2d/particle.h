@@ -222,7 +222,8 @@ extern "C"
     ///                  and not a sliver. Its normals are recomputed from
     ///                  its vertices.
     /// @param countOut  Receives the number of particles created; 0 when
-    ///                  the fill is refused.
+    ///                  the fill is refused, except that m2_errorBusy leaves
+    ///                  it as it was.
     /// @return m2_success; m2_errorCapacity when the pool ran out before
     ///         the polygon was full, a pool of 0 included, which counts no
     ///         misuse and counts once in m2Counters.particlePoolFull;

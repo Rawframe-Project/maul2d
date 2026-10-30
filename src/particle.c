@@ -518,18 +518,60 @@ static void PolygonBounds(const m2Polygon* polygon, m2Vec2* lower, m2Vec2* upper
     }
 }
 
+// Fills the region's lattice row by row from the bottom of its bounds and
+// says whether the pool ran out. The whole fill is one journal op with the
+// inner creates suppressed: replay rebuilds the springs and triads from
+// the op.
+static bool FillLattice(m2World* world, FillBatch* batch, const m2Polygon* region, m2Vec2 lower,
+                        m2Vec2 upper, const m2OpFillParticles* op)
+{
+    uint8_t journalWas = world->recorder.journalActive;
+    world->recorder.journalActive = 0;
+    batch->emitted = (int32_t*)world->particles.particleProxies;
+    batch->count = 0;
+    for (int32_t i = 0; i < M2_MAX_FILL_COLUMNS; ++i)
+    {
+        batch->prevRow[i] = -1;
+    }
+    // The row coordinate accumulates stride by stride, since the sum is
+    // part of the result. The fill ends where a row no longer moves it, or
+    // where the pool runs out.
+    bool full = false;
+    bool open = true;
+    float y = lower.y + 0.5f * batch->stride;
+    while (y < upper.y && open)
+    {
+        full = !FillRow(world, batch, region, lower.x, upper.x, y, op);
+        float next = y + batch->stride;
+        open = !full && next > y;
+        y = next;
+    }
+    if ((op->flags & m2_springParticle) != 0)
+    {
+        AddFillSprings(world, batch);
+    }
+    world->recorder.journalActive = journalWas;
+    return full;
+}
+
 // Fill a convex polygon with particles at 0.75 diameters, row-major from
 // the bottom-left of its bounds: a pool in one call.
 static M2_NOINLINE m2Result CreateParticlesInPolygonWorker(m2World* world, const m2ParticleDef* def,
                                                            const m2Polygon* polygon,
                                                            int32_t* countOut)
 {
+    // A busy refusal leaves countOut, which host code the world is running
+    // may be filling; every other failure clears it.
+    m2Result writer = m2CheckWriter(world);
+    if (writer == m2_errorBusy)
+    {
+        return writer;
+    }
     if (countOut == NULL)
     {
         return m2Refuse(world, m2_errorInvalid);
     }
     *countOut = 0;
-    m2Result writer = m2CheckWriter(world);
     if (writer != m2_success)
     {
         return writer;
@@ -570,34 +612,7 @@ static M2_NOINLINE m2Result CreateParticlesInPolygonWorker(m2World* world, const
     op.velocity = def->velocity;
     op.flags = def->flags;
 
-    // The whole fill is one journal op with the inner creates suppressed:
-    // replay rebuilds the springs and triads from the op.
-    uint8_t journalWas = world->recorder.journalActive;
-    world->recorder.journalActive = 0;
-    batch.emitted = (int32_t*)world->particles.particleProxies;
-    batch.count = 0;
-    for (int32_t i = 0; i < M2_MAX_FILL_COLUMNS; ++i)
-    {
-        batch.prevRow[i] = -1;
-    }
-    // The row coordinate accumulates stride by stride, since the sum is
-    // part of the result. The fill ends where a row no longer moves it, or
-    // where the pool runs out.
-    bool full = false;
-    bool open = true;
-    float y = lower.y + 0.5f * batch.stride;
-    while (y < upper.y && open)
-    {
-        full = !FillRow(world, &batch, &region, lower.x, upper.x, y, &op);
-        float next = y + batch.stride;
-        open = !full && next > y;
-        y = next;
-    }
-    if ((def->flags & m2_springParticle) != 0)
-    {
-        AddFillSprings(world, &batch);
-    }
-    world->recorder.journalActive = journalWas;
+    bool full = FillLattice(world, &batch, &region, lower, upper, &op);
     op.expected = batch.count;
     m2JournalRecord(world, m2_opFillParticles, &op, (int32_t)sizeof(op));
     *countOut = batch.count;
