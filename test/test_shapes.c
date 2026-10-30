@@ -508,6 +508,15 @@ static void TestOutlineThatNearlyTouchesIsRefused(void)
     spike[4].y = 0.01f;
     CHECK(m2DecomposeOutline(spike, 7, pieces, 8, &count) == m2_success && count > 1,
           "one twice the slop away decomposes");
+
+    // A simple outline whose one piece fails validation is refused after
+    // the decomposition ran: its pieces are left as they were.
+    m2Vec2 sliver[3] = {{0.0f, 0.0f}, {100.0f, 0.0f}, {100.0f, 0.02f}};
+    pieces[0].count = 99;
+    count = 7;
+    CHECK(m2DecomposeOutline(sliver, 3, pieces, 8, &count) == m2_errorInvalid && count == 7 &&
+              pieces[0].count == 99,
+          "an outline that keeps no piece leaves the pieces and the count as they were");
 }
 
 // A small polygon far from the origin of its body is valid. Its area was
