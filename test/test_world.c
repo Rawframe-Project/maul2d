@@ -3730,9 +3730,63 @@ static void TestHashSeesTheBroadphase(void)
     }
 }
 
+// Counts the allocations a world asks for and refuses any past a small
+// bound, so a test sees how far a create gets without the machine giving
+// up gigabytes.
+typedef struct CountingAllocator
+{
+    int32_t calls;
+    int32_t refused;
+} CountingAllocator;
+
+static void* CountingAlloc(size_t size, size_t alignment, void* context)
+{
+    (void)alignment;
+    CountingAllocator* c = (CountingAllocator*)context;
+    c->calls += 1;
+    if (size > ((size_t)1 << 20))
+    {
+        c->refused += 1;
+        return NULL;
+    }
+    return malloc(size);
+}
+
+static void CountingFree(void* memory, size_t size, size_t alignment, void* context)
+{
+    (void)size;
+    (void)alignment;
+    (void)context;
+    free(memory);
+}
+
+// A joint takes two adjacency edges, so a joint capacity past
+// 1,073,741,823 has an edge count that wraps 32 bits. The def is refused
+// with m2_errorCapacity, as a wrapping shape or particle capacity is,
+// before anything is allocated.
+static void TestJointEdgesThatWrapAreRefused(void)
+{
+    CountingAllocator counter = {0, 0};
+    m2WorldDef def = m2DefaultWorldDef();
+    def.allocator.alloc = CountingAlloc;
+    def.allocator.free = CountingFree;
+    def.allocator.context = &counter;
+    def.jointCapacity = (int32_t)(((uint32_t)1 << 30));
+    m2World* world = NULL;
+    CHECK(m2CreateWorld(&def, &world) == m2_errorCapacity && world == NULL,
+          "a joint capacity whose edges wrap is refused");
+    CHECK(counter.calls == 0, "before anything is allocated");
+
+    def.jointCapacity = (int32_t)(((uint32_t)1 << 30) - 1u);
+    counter.calls = 0;
+    CHECK(m2CreateWorld(&def, &world) == m2_errorCapacity && counter.refused > 0,
+          "one joint fewer reaches the state allocation");
+}
+
 int main(void)
 {
     TestReplayScratchRefusedIsCapacity();
+    TestJointEdgesThatWrapAreRefused();
     TestHashSeesTheBroadphase();
     TestHashCoversEverySetting();
     TestHashKeysSlotsAndPools();
