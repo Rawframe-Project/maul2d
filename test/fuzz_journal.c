@@ -52,7 +52,7 @@ static void RecordTape(void)
     m2World_SetGravity(recorder, (m2Vec2){1.0f, -9.0f});
     for (int32_t i = 0; i < 5; ++i)
     {
-        m2World_Step(recorder, 1.0f / 60.0f, 4);
+        Step(recorder, 1.0f / 60.0f, 4);
     }
     if (!Restore(recorder, snapshot, snapshotSize))
     {
@@ -141,7 +141,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     }
     for (int32_t i = 0; i < 4; ++i)
     {
-        m2World_Step(s_world, 1.0f / 60.0f, 4);
+        Step(s_world, 1.0f / 60.0f, 4);
     }
     if (!m2World_Validate(s_world))
     {

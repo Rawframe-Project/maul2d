@@ -520,7 +520,7 @@ static void TestQueriesAreReadOnly(void)
     }
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
 
     uint64_t before = m2World_Hash(world);
@@ -537,7 +537,7 @@ static void TestQueriesAreReadOnly(void)
     uint64_t hashesA[20];
     for (int32_t i = 0; i < 20; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         hashesA[i] = m2World_Hash(world);
     }
     m2DestroyWorld(world);
@@ -558,7 +558,7 @@ static void TestQueriesAreReadOnly(void)
     }
     for (int32_t i = 0; i < 50; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     uint64_t tail = m2World_Hash(world);
     CHECK(tail == hashesA[19], "trajectory with and without queries is identical");
@@ -631,7 +631,7 @@ static void TestContactData(void)
 
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
 
     m2ContactData data[4];

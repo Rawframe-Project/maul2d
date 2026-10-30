@@ -62,7 +62,7 @@ static void* WorldMain(void* arg)
     m2World* world = BuildWorld(job->seed);
     for (int32_t i = 0; i < job->steps; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     job->hash = m2World_Hash(world);
     m2DestroyWorld(world);
@@ -75,8 +75,8 @@ static void TestParallelWorldsMatchSerial(void)
     m2World* serialB = BuildWorld(2);
     for (int32_t i = 0; i < 300; ++i)
     {
-        m2World_Step(serialA, 1.0f / 60.0f, 4);
-        m2World_Step(serialB, 1.0f / 60.0f, 4);
+        Step(serialA, 1.0f / 60.0f, 4);
+        Step(serialB, 1.0f / 60.0f, 4);
     }
     uint64_t wantA = m2World_Hash(serialA);
     uint64_t wantB = m2World_Hash(serialB);
@@ -149,7 +149,7 @@ static void TestConcurrentReadersMatchSerial(void)
     m2World* world = BuildWorld(3);
     for (int32_t i = 0; i < 120; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     static ReaderJob jobs[READER_THREADS];
     memset(jobs, 0, sizeof(jobs));

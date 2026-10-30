@@ -24,8 +24,7 @@
 
 static bool ApplyStep(m2ReplayCursor* r, const m2OpPayload* p)
 {
-    m2World_Step(r->world, p->step.dt, p->step.substepCount);
-    return true;
+    return m2World_Step(r->world, p->step.dt, p->step.substepCount) == m2_success;
 }
 
 static bool ApplyCreateBody(m2ReplayCursor* r, const m2OpPayload* p)

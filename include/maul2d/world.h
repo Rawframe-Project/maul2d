@@ -407,18 +407,22 @@ extern "C"
 
     /// Advances the simulation. Identical worlds given identical calls
     /// reach identical bits on every supported platform. Feed the same dt
-    /// every step: 1/60 with 4 substeps is the tuned default. A dt outside
-    /// M2_MIN_STEP to M2_STEP_LIMIT, or a substep count below 1 or
-    /// above M2_MAX_SUBSTEPS, changes nothing and counts one misuse.
-    /// Journaled.
+    /// every step: 1/60 with 4 substeps is the tuned default. A refused
+    /// step changes nothing, and every refusal but a null world's counts
+    /// one misuse. Journaled.
     ///
     /// @param world         The world.
     /// @param dt            The step, seconds, from M2_MIN_STEP (1e-6)
     ///                      to M2_STEP_LIMIT (10).
     /// @param substepCount  The solver substeps, 1 to M2_MAX_SUBSTEPS.
+    /// @return m2_success; m2_errorInvalid for a null world, a dt that
+    ///         is NaN or 0 or below, or a substep count below 1;
+    ///         m2_errorLimit for a dt outside M2_MIN_STEP to
+    ///         M2_STEP_LIMIT or a substep count above M2_MAX_SUBSTEPS;
+    ///         m2_errorBusy from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
-    M2_API void m2World_Step(m2World* world, float dt, int32_t substepCount);
+    M2_NODISCARD M2_API m2Result m2World_Step(m2World* world, float dt, int32_t substepCount);
 
     /// Counts the steps taken since creation; a restore brings back the
     /// snapshot's count.

@@ -248,6 +248,11 @@ static inline int32_t DecomposeOutline(const m2Vec2* points, int32_t count, m2Po
     return total;
 }
 
+static inline bool Step(m2World* world, float dt, int32_t substepCount)
+{
+    return m2World_Step(world, dt, substepCount) == m2_success;
+}
+
 // The bytes written, or 0 on any failure.
 static inline int64_t Snapshot(const m2World* world, void* buffer, int64_t capacity)
 {

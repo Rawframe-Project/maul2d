@@ -70,7 +70,7 @@ static void TestThinWall(void)
 
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Body_GetPosition(world, tunneler).x > 1.0, "unflagged ball tunnels the thin wall");
     CHECK(m2Body_GetPosition(world, bullet).x < 0.0, "bullet is stopped by the thin wall");
@@ -93,7 +93,7 @@ static void TestEarliestWallWins(void)
     m2BodyId bullet = FireBall(world, -10.0, 200.0f, true);
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Body_GetPosition(world, bullet).x < 0.0, "bullet stops at the FIRST wall");
 
@@ -112,7 +112,7 @@ static void TestBulletsIgnoreEachOther(void)
     m2BodyId right = FireBall(world, 8.0, -120.0f, true);
     for (int32_t i = 0; i < 20; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     // No sweep between bullets: both cross the middle unhindered.
     CHECK(m2Body_GetPosition(world, left).x > 4.0, "left bullet passes (no bullet-vs-bullet TOI)");
@@ -131,7 +131,7 @@ static void TestCcdRollback(void)
     AddWall(world, 2.0, 0.1f, 4.0f);
     FireBall(world, -12.0, 170.0f, true);
 
-    m2World_Step(world, 1.0f / 60.0f, 4); // bullet mid-flight
+    Step(world, 1.0f / 60.0f, 4); // bullet mid-flight
 
     int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
@@ -139,13 +139,13 @@ static void TestCcdRollback(void)
     uint64_t hashes[30];
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         hashes[i] = m2World_Hash(world);
     }
     CHECK(Restore(world, snap, size), "restore");
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         CHECK(m2World_Hash(world) == hashes[i], "bullet impact replays bit-exactly");
     }
     free(snap);
@@ -176,7 +176,7 @@ static m2World* WallField(int32_t walls, bool reshuffle)
         ids[i] = NewBody(world, &wd);
         NewPolygonShape(world, ids[i], &sd, &slab);
     }
-    m2World_Step(world, 1.0f / 60.0f, 4); // the creation's moved flags clear
+    Step(world, 1.0f / 60.0f, 4); // the creation's moved flags clear
     const m2Rot level = {1.0f, 0.0f};
     for (int32_t i = walls - 1; i >= 0; --i)
     {
@@ -203,8 +203,8 @@ static void TestCappedSweepIgnoresTreeHistory(void)
     bool same = true;
     for (int32_t i = 0; i < 30 && same; ++i)
     {
-        m2World_Step(plain, 1.0f / 60.0f, 4);
-        m2World_Step(reshuffled, 1.0f / 60.0f, 4);
+        Step(plain, 1.0f / 60.0f, 4);
+        Step(reshuffled, 1.0f / 60.0f, 4);
         same = m2World_Hash(plain) == m2World_Hash(reshuffled);
     }
     CHECK(same, "and step on to the same bits");
@@ -233,7 +233,7 @@ static void TestSegmentBulletStops(void)
           "the bullet takes a segment");
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Body_GetPosition(world, bullet).x < 0.0, "a segment bullet stops at a thin wall");
     m2DestroyWorld(world);

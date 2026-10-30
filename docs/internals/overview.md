@@ -38,7 +38,7 @@ The world calls host code in three places: the task hooks during a step, the deb
 
 ## A step
 
-`m2World_Step` checks its arguments, records the step when a journal is running, and runs the step with the host-code count raised:
+`m2World_Step` checks its arguments and returns a status when it refuses, records the step when a journal is running, and runs the step with the host-code count raised:
 
 1. **Collide.** Moved shapes update their broadphase trees, the pair list is rebuilt in key order, and every pair's manifold is computed again from the current positions. Begin and end events are emitted from the difference.
 2. **Fluids and fields.** Particles solve once per step against frozen pairs and age; water volumes and wind add their forces to the same accumulators gravity uses.

@@ -106,7 +106,7 @@ int main(int argc, char** argv)
     int32_t half = steps / 2;
     for (int32_t i = 0; i < half; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
@@ -114,7 +114,7 @@ int main(int argc, char** argv)
 
     for (int32_t i = half; i < steps; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         if (i % 1024 == 0)
         {
             // Periodic finiteness patrol without disturbing anything.
@@ -133,7 +133,7 @@ int main(int argc, char** argv)
     CHECK(Restore(world, snap, size), "the mid-horizon restore lands");
     for (int32_t i = half; i < steps; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     uint64_t second = m2World_Hash(world);
     CHECK(first == second, "the second half replays bit for bit at horizon scale");

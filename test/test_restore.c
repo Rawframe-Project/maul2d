@@ -89,7 +89,7 @@ static Scene MakeSceneAfter(int32_t steps)
     }
     for (int32_t i = 0; i < steps; ++i)
     {
-        m2World_Step(scene.world, 1.0f / 60.0f, 4);
+        Step(scene.world, 1.0f / 60.0f, 4);
     }
     scene.size = m2World_GetSnapshotSize(scene.world);
     scene.valid = (uint8_t*)malloc((size_t)scene.size);
@@ -667,7 +667,7 @@ static void ExpectSteps(const Scene* scene, Edit edit, const char* what)
     bool valid = Restore(scene->world, bytes, scene->size);
     for (int32_t step = 0; step < 10 && valid; ++step)
     {
-        m2World_Step(scene->world, 1.0f / 60.0f, 4);
+        Step(scene->world, 1.0f / 60.0f, 4);
         valid = m2World_Validate(scene->world) && SpeedsInRange(scene->world, scene->boxA) &&
                 SpeedsInRange(scene->world, scene->boxB);
     }
@@ -927,7 +927,7 @@ static Scene MakeJointScene(void)
     NewMouseJoint(w, &mouse);
     for (int32_t i = 0; i < 5; ++i)
     {
-        m2World_Step(w, 1.0f / 60.0f, 4);
+        Step(w, 1.0f / 60.0f, 4);
     }
     scene.size = m2World_GetSnapshotSize(w);
     scene.valid = (uint8_t*)malloc((size_t)scene.size);
@@ -984,7 +984,7 @@ static void TestVanishingSpringsStep(void)
           "the smallest hertz with no damping restores");
     for (int32_t i = 0; i < 4; ++i)
     {
-        m2World_Step(w, 1.0f / 60.0f, 4);
+        Step(w, 1.0f / 60.0f, 4);
     }
     CHECK(m2World_Validate(w), "vanishing springs step into a valid world");
     free(bytes);
@@ -1162,7 +1162,7 @@ static void TestRestingBoxes(void)
     // the box margin, and it falls asleep at the step's end.
     m2BodyId box;
     m2World* world = CrawlWorld((m2Vec2){0.04f, 0.0f}, &box);
-    m2World_Step(world, M2_STEP_LIMIT, 1);
+    Step(world, M2_STEP_LIMIT, 1);
     CHECK(!m2Body_IsAwake(world, box), "the crawling box falls asleep in one long step");
     Scene sleeping = {world, NULL, m2World_GetSnapshotSize(world), 0, {0}, box, {0}, {0}};
     sleeping.valid = (uint8_t*)malloc((size_t)sleeping.size);
@@ -1179,13 +1179,13 @@ static void TestRestingBoxes(void)
     // leaves its sleep streak as it was: one 10 s step carries it 0.4 m
     // and puts it back to sleep, and its boxes must follow.
     world = CrawlWorld((m2Vec2){0.0f, 0.0f}, &box);
-    m2World_Step(world, M2_STEP_LIMIT, 1);
-    m2World_Step(world, 1.0f / 60.0f, 4);
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, M2_STEP_LIMIT, 1);
+    Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     CHECK(!m2Body_IsAwake(world, box) && world->bodies.sleepStreak[box.index1 - 1] == 2,
           "the box has been asleep for two step ends");
     m2Body_SetLinearVelocity(world, box, (m2Vec2){0.04f, 0.0f});
-    m2World_Step(world, M2_STEP_LIMIT, 1);
+    Step(world, M2_STEP_LIMIT, 1);
     CHECK(!m2Body_IsAwake(world, box), "the woken box falls asleep again in one long step");
     CHECK(RoundTripsAlone(world),
           "a box woken and put back to sleep within one step restores its own snapshot");
@@ -1193,7 +1193,7 @@ static void TestRestingBoxes(void)
 
     // Put to sleep by hand right after a step that carried it 1.7 m.
     world = CrawlWorld((m2Vec2){100.0f, 0.0f}, &box);
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     m2Body_SetAwake(world, box, false);
     CHECK(RoundTripsAlone(world), "a body put to sleep by hand restores its own snapshot");
     m2DestroyWorld(world);
@@ -1235,17 +1235,17 @@ static void TestResleptBodyRefreshesItsContacts(void)
     m2BodyId box = NewBody(world, &boxDef);
     m2Polygon square = m2MakeBox(0.5f, 0.5f);
     NewPolygonShape(world, box, &shapeDef, &square);
-    m2World_Step(world, M2_STEP_LIMIT, 1);
-    m2World_Step(world, 1.0f / 60.0f, 4);
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, M2_STEP_LIMIT, 1);
+    Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     CHECK(!m2Body_IsAwake(world, box) && world->bodies.sleepStreak[box.index1 - 1] == 2,
           "the box rests asleep for two step ends");
 
     // Woken, it slides 0.4 m in one 10 s step and falls asleep again.
     m2Body_SetLinearVelocity(world, box, (m2Vec2){0.04f, 0.0f});
-    m2World_Step(world, M2_STEP_LIMIT, 1);
+    Step(world, M2_STEP_LIMIT, 1);
     CHECK(!m2Body_IsAwake(world, box), "the box is asleep again after sliding");
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     double x = m2Body_GetPosition(world, box).x;
     CHECK(world->contacts.pairCount == 1 && x > 0.35, "the box rests on the ground 0.4 m on");
     double anchor = MeanAnchorX(&world->contacts.manifolds[0]);
@@ -1253,11 +1253,11 @@ static void TestResleptBodyRefreshesItsContacts(void)
 
     // Asleep two step ends again, then moved by a teleport, which wakes it,
     // and put back to sleep by hand.
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     CHECK(world->bodies.sleepStreak[box.index1 - 1] == 2, "the box rests asleep again");
     m2Body_SetTransform(world, box, (m2Pos2){x + 0.4, 1.0}, (m2Rot){1.0f, 0.0f});
     m2Body_SetAwake(world, box, false);
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     anchor = MeanAnchorX(&world->contacts.manifolds[0]);
     CHECK(fabs(anchor - (x + 0.4)) < 0.01,
           "the contact points follow a box put to sleep by hand after a move");
@@ -1292,7 +1292,7 @@ static Scene MakeJellyScene(void)
           "the jelly's first particle dies");
     for (int32_t i = 0; i < 5; ++i)
     {
-        m2World_Step(w, 1.0f / 60.0f, 4);
+        Step(w, 1.0f / 60.0f, 4);
     }
     CHECK(w->particles.particleAlive[0] == 0 && w->particles.particleSpringCount > 0 &&
               w->particles.particleTriadCount > 0,
@@ -1813,7 +1813,7 @@ static void TestDistantLinkEndStaysFinite(void)
     CHECK(Restore(world, scene.bytes, scene.size), "a particle at any finite position restores");
     for (int32_t i = 0; i < 4; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2World_Validate(world), "its springs and triads step it on finite");
     free(scene.bytes);

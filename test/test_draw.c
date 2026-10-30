@@ -451,7 +451,7 @@ static void TestContactsAndAABBs(void)
     // Settle enough to make a real touching manifold.
     for (int i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
 
     Rec r = {0};
@@ -498,7 +498,7 @@ static void TestContactForces(void)
     NewPolygonShape(world, box, &sd, &b);
     for (int i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
 
     // Only the force arrows: a resting box pushes on the floor, so each
@@ -547,7 +547,7 @@ static void TestReadOnlyAndRepeatable(void)
     }
     for (int i = 0; i < 40; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
 
     uint64_t before = m2World_Hash(world);

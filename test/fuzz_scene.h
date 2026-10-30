@@ -96,7 +96,7 @@ static bool BuildFuzzScene(m2World* world)
 
     for (int32_t i = 0; i < 20; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     return built;
 }

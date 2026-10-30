@@ -21,12 +21,11 @@ int64_t written = 0;
 bool saved = frame != NULL && m2World_Snapshot(world, frame, size, &written) == m2_success;
 
 m2Body_ApplyLinearImpulse(world, ball, (m2Vec2){3.0f, 0.0f}); // a mispredicted input
-m2World_Step(world, 1.0f / 60.0f, 4);
+bool predicted = m2World_Step(world, 1.0f / 60.0f, 4) == m2_success;
 
-if (saved && m2World_Restore(world, frame, written) == m2_success)
-{
-    m2World_Step(world, 1.0f / 60.0f, 4); // the corrected frame
-}
+// The corrected frame:
+bool corrected = saved && m2World_Restore(world, frame, written) == m2_success &&
+                 m2World_Step(world, 1.0f / 60.0f, 4) == m2_success;
 free(frame);
 ```
 
@@ -41,11 +40,12 @@ int64_t capacity = m2World_GetJournalBaseSize(world) + 64 * 1024;
 void* tape = malloc((size_t)capacity);
 int64_t tapeSize = 0;
 bool recorded = tape != NULL && m2World_StartJournal(world, tape, capacity) == m2_success;
-for (int32_t i = 0; recorded && i < 60; ++i)
+bool stepped = true;
+for (int32_t i = 0; recorded && stepped && i < 60; ++i)
 {
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    stepped = m2World_Step(world, 1.0f / 60.0f, 4) == m2_success;
 }
-recorded = recorded && m2World_StopJournal(world, &tapeSize) == m2_success;
+recorded = recorded && m2World_StopJournal(world, &tapeSize) == m2_success && stepped;
 
 // In another world built from the same def:
 bool same = recorded && m2World_ReplayJournal(replica, tape, tapeSize) == m2_success &&

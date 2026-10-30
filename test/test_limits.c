@@ -579,7 +579,7 @@ static void TestLoadEdges(void)
     m2Body_ApplyForce(world, body, (m2Vec2){M2_FORCE_LIMIT, 0.0f});
     m2Body_ApplyForce(world, body, (m2Vec2){M2_FORCE_LIMIT, 0.0f});
     m2Body_ApplyForce(world, twin, (m2Vec2){M2_FORCE_LIMIT, 0.0f});
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     CHECK(m2Body_GetLinearVelocity(world, body).x == m2Body_GetLinearVelocity(world, twin).x,
           "an accumulated force saturates at M2_FORCE_LIMIT");
     ExpectRestores(world);
@@ -665,7 +665,7 @@ static void TestFarPointsClampTheArm(void)
     m2Body_ApplyForceAtPoint(world, beyond, tiny, (m2Pos2){-1.0e300, centerBeyond.y});
     m2Body_ApplyForceAtPoint(world, reach, tiny,
                              (m2Pos2){centerReach.x - M2_REACH_LIMIT, centerReach.y});
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     wBeyond = m2Body_GetAngularVelocity(world, beyond);
     CHECK(isfinite(wBeyond) && wBeyond == m2Body_GetAngularVelocity(world, reach),
           "a force at a far point turns the body as one at the reach does");
@@ -684,10 +684,11 @@ static void TestTimeStepEdges(void)
     {
         uint64_t steps = m2World_GetStepCount(world);
         uint64_t misuse = Misuse(world);
-        m2World_Step(world, edges[i], 1);
-        m2World_Step(world, past[i], 1);
+        CHECK(m2World_Step(world, edges[i], 1) == m2_success &&
+                  m2World_Step(world, past[i], 1) == m2_errorLimit,
+              "a step at its edge runs and one float past it is past the bound");
         CHECK(m2World_GetStepCount(world) == steps + 1 && Misuse(world) == misuse + 1,
-              "a step at its edge runs and one float past it is refused and counted");
+              "and the refusal changes nothing but one misuse");
 
         m2Pos2 up = {0.0, 2.0};
         CHECK(m2Body_SetTargetTransform(world, lift, up, m2MakeRot(0.0f), edges[i]) == m2_success &&

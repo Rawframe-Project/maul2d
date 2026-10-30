@@ -177,7 +177,7 @@ static void ExpectFinite(Scene* s, const char* what)
             dt = s->steadyDt;
             substeps = 4;
         }
-        m2World_Step(s->world, dt, substeps);
+        Step(s->world, dt, substeps);
         valid = m2World_Validate(s->world) && ImpulsesWithinLimit(s, 1.0f / (dt / (float)substeps));
         if (valid && !RoundTrips(s->world))
         {
@@ -462,7 +462,7 @@ static void TestSaturatedPairs(void)
     bool valid = true;
     for (int32_t step = 0; step < 30 && valid; ++step)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         valid = m2World_Validate(world) && RoundTrips(world);
     }
     CHECK(valid, "joints saturated in every direction restore their own snapshot every step");
@@ -490,7 +490,7 @@ static void TestParticlesAtTheCap(void)
     bool valid = true;
     for (int32_t step = 0; step < 4 && valid; ++step)
     {
-        m2World_Step(world, M2_MIN_STEP, 1);
+        Step(world, M2_MIN_STEP, 1);
         valid = m2World_Validate(world) && RoundTrips(world);
     }
     CHECK(valid, "particles at the speed cap restore their own snapshot every step");

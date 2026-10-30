@@ -69,15 +69,16 @@ bool built =
     m2CreateBody(world, &ballDef, &ball) == m2_success &&
     m2CreateCircleShape(world, ball, &shapeDef, &circle, &ballShape) == m2_success;
 
-for (int32_t i = 0; built && i < 120; ++i)
+bool stepped = built;
+for (int32_t i = 0; stepped && i < 120; ++i)
 {
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    stepped = m2World_Step(world, 1.0f / 60.0f, 4) == m2_success;
 }
 m2Pos2 resting = m2Body_GetPosition(world, ball);
 m2DestroyWorld(world);
 ```
 
-Step at a fixed timestep, always: determinism starts with feeding the same `dt` every step, and 1/60 with 4 substeps is the tuned default. A step takes 1 to `M2_MAX_SUBSTEPS` (64) substeps and a `dt` from `M2_MIN_STEP` to `M2_STEP_LIMIT` (1e-6 to 10 s); anything else changes nothing and counts one misuse ([Limits](limits.md)).
+Step at a fixed timestep, always: determinism starts with feeding the same `dt` every step, and 1/60 with 4 substeps is the tuned default. A step takes 1 to `M2_MAX_SUBSTEPS` (64) substeps and a `dt` from `M2_MIN_STEP` to `M2_STEP_LIMIT` (1e-6 to 10 s); anything else is refused with a status, changes nothing and counts one misuse ([Limits](limits.md)). Check every step's status: a refused step does not advance the frame.
 
 ## The model
 

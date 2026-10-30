@@ -458,16 +458,20 @@ static void RecordProfile(m2World* world, const uint64_t marks[6])
 
 static void StepWorld(m2World* world, float dt, int32_t substepCount);
 
-static M2_NOINLINE void WorldStepWorker(m2World* world, float dt, int32_t substepCount)
+static M2_NOINLINE m2Result WorldStepWorker(m2World* world, float dt, int32_t substepCount)
 {
-    if (m2CheckWriter(world) != m2_success)
+    m2Result writer = m2CheckWriter(world);
+    if (writer != m2_success)
     {
-        return;
+        return writer;
     }
-    if (!m2ValidTimeStep(dt) || substepCount < 1 || substepCount > M2_MAX_SUBSTEPS)
+    // At least one substep; the cap is a published bound.
+    m2Result checked = m2BothChecks(
+        m2CheckTimeStep(dt),
+        m2BothChecks(m2CheckValid(substepCount >= 1), m2CheckCount(substepCount, M2_MAX_SUBSTEPS)));
+    if (checked != m2_success)
     {
-        m2Refuse(world, m2_errorInvalid);
-        return;
+        return m2Refuse(world, checked);
     }
     if (world->recorder.journalActive != 0)
     {
@@ -482,13 +486,15 @@ static M2_NOINLINE void WorldStepWorker(m2World* world, float dt, int32_t subste
     m2EnterHostCode(world);
     StepWorld(world, dt, substepCount);
     m2LeaveHostCode(world);
+    return m2_success;
 }
 
-void m2World_Step(m2World* world, float dt, int32_t substepCount)
+m2Result m2World_Step(m2World* world, float dt, int32_t substepCount)
 {
     uint64_t env = m2FloatEnvEnter();
-    WorldStepWorker(world, dt, substepCount);
+    m2Result result = WorldStepWorker(world, dt, substepCount);
     m2FloatEnvLeave(env);
+    return result;
 }
 
 // The step itself, after the arguments are checked and the step recorded.

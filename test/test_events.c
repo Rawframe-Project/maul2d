@@ -50,7 +50,7 @@ static void TestLifecycleSymmetry(void)
     int32_t beginStep = -1;
     for (int32_t i = 0; i < 120; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         m2ContactEvents ev = m2World_GetContactEvents(world);
         begins += ev.beginCount;
         ends += ev.endCount;
@@ -68,7 +68,7 @@ static void TestLifecycleSymmetry(void)
     m2Body_SetLinearVelocity(world, ball, (m2Vec2){0.0f, 30.0f});
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         m2ContactEvents ev = m2World_GetContactEvents(world);
         begins += ev.beginCount;
         ends += ev.endCount;
@@ -100,7 +100,7 @@ static void TestDestroyBookending(void)
     int32_t begins = 0;
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         begins += m2World_GetContactEvents(world).beginCount;
     }
     CHECK(begins == 1, "box landed");
@@ -108,7 +108,7 @@ static void TestDestroyBookending(void)
     // Destroy BETWEEN steps, while touching.
     uint32_t generationAtDestroy = boxShape.generation;
     DestroyBody(world, box);
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     m2ContactEvents ev = m2World_GetContactEvents(world);
     CHECK(ev.endCount == 1, "destroy-while-touching emits the end event");
     if (ev.endCount == 1)
@@ -152,7 +152,7 @@ static void TestRestoreClearsAndReplays(void)
     uint64_t streamA = M2_HASH_INIT;
     for (int32_t i = 0; i < 90; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         m2ContactEvents ev = m2World_GetContactEvents(world);
         streamA = m2Hash64(streamA, ev.beginEvents,
                            (int64_t)ev.beginCount * (int64_t)sizeof(m2ContactBeginEvent));
@@ -167,7 +167,7 @@ static void TestRestoreClearsAndReplays(void)
     uint64_t streamB = M2_HASH_INIT;
     for (int32_t i = 0; i < 90; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         m2ContactEvents ev = m2World_GetContactEvents(world);
         streamB = m2Hash64(streamB, ev.beginEvents,
                            (int64_t)ev.beginCount * (int64_t)sizeof(m2ContactBeginEvent));
@@ -209,7 +209,7 @@ static void TestDestroyShapeBookends(void)
 
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
 
     // Destroy the touching foot between steps.
@@ -218,7 +218,7 @@ static void TestDestroyShapeBookends(void)
     CHECK(m2Shape_IsValid(world, hatId), "sibling shape lives");
     CHECK(m2Body_IsValid(world, body), "body survives losing a shape");
 
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     m2ContactEvents events = m2World_GetContactEvents(world);
     bool sawEnd = false;
     for (int32_t i = 0; i < events.endCount; ++i)
@@ -258,12 +258,12 @@ static void TestTypeChangeBookends(void)
 
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
 
     m2Body_SetType(world, a, m2_staticBody);
     m2Body_SetType(world, b, m2_staticBody);
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     m2ContactEvents events = m2World_GetContactEvents(world);
     bool sawEnd = false;
     for (int32_t i = 0; i < events.endCount; ++i)
@@ -324,7 +324,7 @@ static void TestSensors(void)
     uint64_t enterStep = 0;
     for (int32_t i = 0; i < 180; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         m2SensorEvents sensor = m2World_GetSensorEvents(world);
         for (int32_t k = 0; k < sensor.beginCount; ++k)
         {
@@ -371,7 +371,7 @@ static void TestSensors(void)
     bool slept = false;
     for (int32_t i = 0; i < 300 && !slept; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         slept = !m2Body_IsAwake(world, parked);
     }
     CHECK(slept, "a body parked inside a sensor still sleeps");
@@ -379,7 +379,7 @@ static void TestSensors(void)
     // For sensors: destroy the park zone while overlapped - the
     // sensor end must be witnessed in the next window.
     DestroyBody(world, parkZoneBody);
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     m2SensorEvents after = m2World_GetSensorEvents(world);
     bool sawDestroyEnd = false;
     for (int32_t k = 0; k < after.endCount; ++k)
@@ -414,7 +414,7 @@ static void TestSensorEventRoles(void)
     m2Polygon area = m2MakeBox(1.0f, 1.0f);
     m2ShapeId zone = NewPolygonShape(world, zoneBody, &zs, &area);
 
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     m2SensorEvents begin = m2World_GetSensorEvents(world);
     CHECK(begin.beginCount == 1 && SameShape(begin.beginEvents[0].sensorShapeId, zone) &&
               SameShape(begin.beginEvents[0].visitorShapeId, visitor) &&
@@ -422,7 +422,7 @@ static void TestSensorEventRoles(void)
           "a sensor of higher index is named as the sensor on its begin");
 
     DestroyBody(world, visitorBody);
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     m2SensorEvents end = m2World_GetSensorEvents(world);
     CHECK(end.endCount == 1 && SameShape(end.endEvents[0].sensorShapeId, zone) &&
               SameShape(end.endEvents[0].visitorShapeId, visitor),
@@ -460,7 +460,7 @@ static void TestBeginEventPayload(void)
     memset(&hit, 0, sizeof(hit));
     for (int32_t i = 0; i < 120 && !sawBegin; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         m2ContactEvents events = m2World_GetContactEvents(world);
         if (events.beginCount > 0)
         {
@@ -514,7 +514,7 @@ static void TestSensorOverlapQuery(void)
     }
     for (int32_t i = 0; i < 5; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
 
     m2ShapeId inside[4];

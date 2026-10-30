@@ -19,9 +19,10 @@ if (created == m2_success)
 {
     m2Particle_SetLifetime(world, drop, 0.5f); // gone half a second from now
 }
-for (int32_t i = 0; i < 60; ++i)
+bool stepped = true;
+for (int32_t i = 0; stepped && i < 60; ++i)
 {
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    stepped = m2World_Step(world, 1.0f / 60.0f, 4) == m2_success;
 }
 bool stillThere = m2Particle_IsValid(world, drop); // false: it expired
 ```

@@ -53,7 +53,7 @@ static void TestLifecycle(void)
     m2Pos2 before = m2Particle_GetPosition(world, ids[7]);
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     m2Pos2 after = m2Particle_GetPosition(world, ids[7]);
     CHECK(after.y < before.y - 0.5, "particles free-fall under gravity");
@@ -85,7 +85,7 @@ static void TestLifecycle(void)
     // dominates, by design).
     m2ParticleId lone = EmitParticle(world, (m2Pos2){20.0, 9.0}, (m2Vec2){0.0f, 0.0f}, 0);
     m2Particle_SetVelocity(world, lone, (m2Vec2){3.0f, 0.0f});
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     CHECK(m2Particle_GetPosition(world, lone).x > 20.04, "a set velocity moves the particle");
 
     m2DestroyWorld(world);
@@ -118,20 +118,20 @@ static void TestRollbackIdentity(void)
     }
     for (int32_t i = 0; i < 10; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "snapshot writes its full size");
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     uint64_t first = m2World_Hash(world);
     CHECK(Restore(world, snap, size), "restore accepts its own bytes");
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     uint64_t second = m2World_Hash(world);
     CHECK(first == second, "the fluid timeline replays bit-exactly after rollback");
@@ -154,7 +154,7 @@ static void TestJournalReplay(void)
     }
     for (int32_t i = 0; i < 20; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     m2Particle_SetVelocity(world, ids[3], (m2Vec2){-2.0f, 1.0f});
     DestroyParticle(world, ids[8]);
@@ -165,7 +165,7 @@ static void TestJournalReplay(void)
                   m2_springParticle | m2_elasticParticle); // op 57
     for (int32_t i = 0; i < 20; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     int64_t used = StopJournal(world);
     CHECK(used > 0, "journal closed with bytes");
@@ -199,7 +199,7 @@ static void TestRelaxation(void)
     float peakSpeed = 0.0f;
     for (int32_t step = 0; step < 120; ++step)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         if (step == 4)
         {
             for (int32_t i = 0; i < 25; ++i)
@@ -234,14 +234,14 @@ static void TestRelaxation(void)
     // diameter lose closing speed in a single step but do not stick.
     m2ParticleId left = EmitParticle(world, (m2Pos2){5.0, 5.0}, (m2Vec2){1.0f, 0.0f}, 0);
     m2ParticleId right = EmitParticle(world, (m2Pos2){5.08, 5.0}, (m2Vec2){-1.0f, 0.0f}, 0);
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     float closing = m2Particle_GetVelocity(world, left).x - m2Particle_GetVelocity(world, right).x;
     CHECK(closing < 1.7f, "damping eats approach speed");
     CHECK(closing > 0.0f, "damping does not reverse the approach by itself");
 
     // The stability law: nothing crosses one diameter per step.
     m2ParticleId bullet = EmitParticle(world, (m2Pos2){3.0, 3.0}, (m2Vec2){1000.0f, 0.0f}, 0);
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     m2Vec2 bv = m2Particle_GetVelocity(world, bullet);
     CHECK(sqrtf(bv.x * bv.x + bv.y * bv.y) <= 6.001f,
           "the velocity limit clamps to one diameter per step");
@@ -260,7 +260,7 @@ static void TestRelaxation(void)
     EmitParticle(shearWorld, (m2Pos2){10.0, 0.06}, (m2Vec2){0.0f, 0.0f}, m2_viscousParticle);
     for (int32_t s = 0; s < 10; ++s)
     {
-        m2World_Step(shearWorld, 1.0f / 60.0f, 4);
+        Step(shearWorld, 1.0f / 60.0f, 4);
     }
     CHECK(m2Particle_GetVelocity(shearWorld, wSlide).x > 0.95f,
           "plain water keeps tangential shear");
@@ -277,7 +277,7 @@ static void TestRelaxation(void)
     m2ParticleId w2 = EmitParticle(shearWorld, (m2Pos2){30.05, 0.0}, (m2Vec2){0.0f, 0.0f}, 0);
     for (int32_t s = 0; s < 90; ++s)
     {
-        m2World_Step(shearWorld, 1.0f / 60.0f, 4);
+        Step(shearWorld, 1.0f / 60.0f, 4);
     }
     double grainGap =
         m2Particle_GetPosition(shearWorld, g2).x - m2Particle_GetPosition(shearWorld, g1).x;
@@ -300,7 +300,7 @@ static void TestPairOverflow(void)
     {
         EmitParticle(world, (m2Pos2){1.0, 1.0}, (m2Vec2){0.0f, 0.0f}, 0);
     }
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     // 64 coincident particles make 2016 pairs, past the pair budget.
     m2Counters c = m2World_GetCounters(world);
     CHECK(c.particlePairsDropped > 0, "the dropped pairs are counted");
@@ -338,7 +338,7 @@ static void TestBasin(void)
     }
     for (int32_t step = 0; step < 360; ++step)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     float lateSpeed = 0.0f;
     double lowest = 1.0e9;
@@ -394,7 +394,7 @@ static void TestWaterChainAndSensor(void)
     m2ParticleId spray = EmitParticle(world, (m2Pos2){0.0, 3.0}, (m2Vec2){0.0f, 5.9f}, 0);
     for (int32_t step = 0; step < 240; ++step)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     for (int32_t i = 0; i < 10; ++i)
     {
@@ -432,7 +432,7 @@ static void TestBuoyancy(void)
     }
     for (int32_t i = 0; i < 240; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
 
     m2Polygon crate = m2MakeBox(0.1f, 0.1f);
@@ -452,7 +452,7 @@ static void TestBuoyancy(void)
     NewPolygonShape(world, heavy, &heavyShape, &crate);
     for (int32_t i = 0; i < 500; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     m2Pos2 lp = m2Body_GetPosition(world, light);
     m2Pos2 hp = m2Body_GetPosition(world, heavy);
@@ -474,7 +474,7 @@ static void TestBuoyancy(void)
     NewPolygonShape(dry, box, &boxShape, &crate);
     for (int32_t i = 0; i < 240; ++i)
     {
-        m2World_Step(dry, 1.0f / 60.0f, 4);
+        Step(dry, 1.0f / 60.0f, 4);
     }
     CHECK(!m2Body_IsAwake(dry, box), "the crate sleeps in the dry basin");
     for (int32_t i = 0; i < 5; ++i)
@@ -483,7 +483,7 @@ static void TestBuoyancy(void)
     }
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(dry, 1.0f / 60.0f, 4);
+        Step(dry, 1.0f / 60.0f, 4);
     }
     CHECK(m2Body_IsAwake(dry, box), "rain wakes the sleeper");
     m2DestroyWorld(dry);
@@ -506,7 +506,7 @@ static void TestSurfaceTension(void)
     m2ParticleId p2 = EmitParticle(world, (m2Pos2){10.08, 0.0}, (m2Vec2){0.0f, 0.0f}, 0);
     for (int32_t s = 0; s < 120; ++s)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     double td = m2Particle_GetPosition(world, t2).x - m2Particle_GetPosition(world, t1).x;
     double pd = m2Particle_GetPosition(world, p2).x - m2Particle_GetPosition(world, p1).x;
@@ -528,7 +528,7 @@ static void TestSurfaceTension(void)
     }
     for (int32_t s = 0; s < 120; ++s)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     m2ParticleId all[64];
     int32_t n = m2World_GetParticles(world, all, 64);
@@ -671,7 +671,7 @@ static void TestJelly(void)
     }
     for (int32_t s = 0; s < 240; ++s)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     double x0 = 1.0e9, x1 = -1.0e9;
     for (int32_t i = 0; i < n; ++i)
@@ -697,7 +697,7 @@ static void TestJelly(void)
     FillParticles(gw, &blob, (m2Pos2){2.0, 0.42}, (m2Vec2){0.0f, 0.0f}, 0);
     for (int32_t s = 0; s < 600; ++s)
     {
-        m2World_Step(gw, 1.0f / 60.0f, 4);
+        Step(gw, 1.0f / 60.0f, 4);
     }
     m2ParticleId all[256];
     int32_t total = m2World_GetParticles(gw, all, 256);
@@ -721,7 +721,7 @@ static void TestJelly(void)
     CHECK(wx1 - wx0 > 8.0, "the water twin runs off across the slab");
     CHECK(jx1 - jx0 < (wx1 - wx0) * 0.5, "the nets at least halve the spread");
 
-    m2World_Step(gw, 1.0f / 60.0f, 4);
+    Step(gw, 1.0f / 60.0f, 4);
     m2DestroyWorld(gw);
 }
 
@@ -770,7 +770,7 @@ static void TestOverlapParticles(void)
           "a box of one point is a query still: it finds the particle on it");
 
     // Read-only law: a query storm moves no bits.
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     uint64_t before = m2World_Hash(world);
     for (int32_t i = 0; i < 50; ++i)
     {
@@ -818,7 +818,7 @@ static void TestFluidThreadingParity(void)
         CHECK(made >= 4096, "the pool clears the threading threshold");
         for (int32_t i = 0; i < 90; ++i)
         {
-            m2World_Step(world, 1.0f / 60.0f, 4);
+            Step(world, 1.0f / 60.0f, 4);
         }
         hashes[run] = m2World_Hash(world);
         m2DestroyWorld(world);
@@ -856,7 +856,7 @@ static void TestLifetimeAndUserData(void)
     Snapshot(world, snap, size);
     for (int32_t i = 0; i < 20; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2World_GetParticleCount(world) == 5, "the mortal half reaped itself on schedule");
     CHECK(!m2Particle_IsValid(world, drops[0]), "an expired drop is gone");
@@ -902,7 +902,7 @@ static void TestFarParticlesStep(void)
     EmitParticle(world, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f}, 0);
     for (int32_t i = 0; i < 4; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2World_Validate(world), "far particles step into a valid world");
     m2DestroyWorld(world);
@@ -916,7 +916,7 @@ static void TestFarParticlesStep(void)
 // in their trees.
 static void Reshuffle(m2World* world, const m2BodyId* ids, int32_t count, int32_t history)
 {
-    m2World_Step(world, 1.0f / 60.0f, 4); // the creation's moved flags clear
+    Step(world, 1.0f / 60.0f, 4); // the creation's moved flags clear
     m2Transform homes[64];
     for (int32_t i = 0; i < count; ++i)
     {
@@ -1014,8 +1014,8 @@ static void TestCappedCandidatesIgnoreTreeHistory(void)
             bool same = true;
             for (int32_t i = 0; i < 30 && same; ++i)
             {
-                m2World_Step(plain, 1.0f / 60.0f, 4);
-                m2World_Step(reshuffled, 1.0f / 60.0f, 4);
+                Step(plain, 1.0f / 60.0f, 4);
+                Step(reshuffled, 1.0f / 60.0f, 4);
                 same = m2World_Hash(plain) == m2World_Hash(reshuffled);
             }
             if (!same)
@@ -1053,7 +1053,7 @@ static void TestCrowdedCrossingStops(void)
     m2ParticleId particle = EmitParticle(world, (m2Pos2){0.0, 0.0}, (m2Vec2){30.0f, 30.0f}, 0);
     for (int32_t i = 0; i < 20; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     m2Pos2 at = m2Particle_GetPosition(world, particle);
     CHECK(at.x + at.y < 0.5, "the particle stops at the wall");
@@ -1219,7 +1219,7 @@ static void TestFillCutShortReplays(void)
     CHECK(after.misuseCount == before.misuseCount &&
               after.particleCreatesRefused == before.particleCreatesRefused + 1,
           "counting no misuse and one full pool");
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     int64_t bytes = StopJournal(world);
     CHECK(bytes > 0 && ReplayJournal(replayed, tape, bytes) &&
               m2World_Hash(replayed) == m2World_Hash(world),

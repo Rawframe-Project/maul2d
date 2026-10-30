@@ -64,7 +64,7 @@ static void TestCollisionFilters(void)
 
     for (int32_t i = 0; i < 90; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Body_GetPosition(world, solid).y > 0.3, "matching filters collide and rest");
     CHECK(m2Body_GetPosition(world, ghost).y < -3.0, "mismatched category falls through");
@@ -118,7 +118,7 @@ static void TestGroupIndex(void)
 
     for (int32_t i = 0; i < 120; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     double y1 = m2Body_GetPosition(world, one).y;
     double y2 = m2Body_GetPosition(world, two).y;
@@ -160,7 +160,7 @@ static void TestChainDestroy(void)
     NewPolygonShape(world, box, &sd, &unit);
     for (int32_t i = 0; i < 240; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(!m2Body_IsAwake(world, box), "box falls asleep on the chain");
 
@@ -176,7 +176,7 @@ static void TestChainDestroy(void)
 
     for (int32_t i = 0; i < 90; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Body_GetPosition(world, box).y < -2.0,
           "sleeper wakes and falls once the ground is gone");
@@ -231,7 +231,7 @@ static void TestChainGround(void)
 
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4); // settle on the chain
+        Step(world, 1.0f / 60.0f, 4); // settle on the chain
     }
     CHECK(m2Body_GetPosition(world, box).y > 0.3, "the box rests on the chain floor");
 
@@ -240,7 +240,7 @@ static void TestChainGround(void)
     float worstVy = 0.0f;
     for (int32_t i = 0; i < 240; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         float vy = m2Body_GetLinearVelocity(world, box).y;
         float mag = vy < 0.0f ? -vy : vy;
         worstVy = mag > worstVy ? mag : worstVy;
@@ -262,14 +262,14 @@ static void TestChainGround(void)
     bool gotAbove = false;
     for (int32_t i = 0; i < 90; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         gotAbove = gotAbove || m2Body_GetPosition(world, riser).y > 1.0;
     }
     CHECK(gotAbove, "from below, the chain is a ghost");
     bool cameBackDown = false;
     for (int32_t i = 0; i < 300 && !cameBackDown; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         cameBackDown = !m2Body_IsAwake(world, riser) && m2Body_GetPosition(world, riser).y > 0.2;
     }
     CHECK(cameBackDown, "from above, it is a floor: the ball lands and sleeps");
@@ -320,7 +320,7 @@ static void TestRuntimeMaterials(void)
             {
                 m2Shape_SetFriction(world, ice, 1.0f); // grip, mid-slide
             }
-            m2World_Step(world, 1.0f / 60.0f, 4);
+            Step(world, 1.0f / 60.0f, 4);
         }
         travel[tuned] = m2Body_GetPosition(world, puck).x - x0;
         m2DestroyWorld(world);
@@ -347,7 +347,7 @@ static void TestRuntimeMaterials(void)
     m2ShapeId ballShape = NewCircleShape(world, ball, &bs, &circle);
     for (int32_t i = 0; i < 90; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4); // dead landing
+        Step(world, 1.0f / 60.0f, 4); // dead landing
     }
     m2Shape_SetRestitution(world, ballShape, 0.9f);
     CHECK(m2Shape_GetRestitution(world, ballShape) == 0.9f, "the getter agrees");
@@ -356,7 +356,7 @@ static void TestRuntimeMaterials(void)
     double peak = 0.0;
     for (int32_t i = 0; i < 90; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         double y = m2Body_GetPosition(world, ball).y;
         peak = y > peak ? y : peak;
     }
@@ -388,14 +388,14 @@ static void TestRuntimeFilter(void)
     NewPolygonShape(world, box, &sd, &unit);
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
 
     m2Shape_SetFilter(world, floorShape, 0x2, 0x2, 0); // box (cat 1) no longer matches
     bool sawEnd = false;
     for (int32_t i = 0; i < 70; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         m2ContactEvents events = m2World_GetContactEvents(world);
         sawEnd = sawEnd || events.endCount > 0;
     }
@@ -434,7 +434,7 @@ static void TestFilterRollback(void)
 
     for (int32_t i = 0; i < 20; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
@@ -442,13 +442,13 @@ static void TestFilterRollback(void)
     uint64_t hashes[60];
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         hashes[i] = m2World_Hash(world);
     }
     CHECK(Restore(world, snap, size), "restore");
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         CHECK(m2World_Hash(world) == hashes[i], "filtered scene replays bit-exactly");
     }
     free(snap);
