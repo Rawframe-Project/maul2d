@@ -34,7 +34,7 @@ env:
 jobs:
   # Whether anything beyond documentation changed; the builds skip when not.
   changes:
-    uses: Rawframe-Project/.github/.github/workflows/changes.yml@89f98d8066ba5deec132332fba9f0b0347aecc01 # v0.0.40
+    uses: Rawframe-Project/.github/.github/workflows/changes.yml@3044ba71d36f3e3eb370b8915ca1b02f337fda8c # v0.0.41
     permissions:
       pull-requests: read
 
@@ -49,10 +49,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: Rawframe-Project/.github/.github/actions/docs-check@89f98d8066ba5deec132332fba9f0b0347aecc01 # v0.0.40
+      - uses: Rawframe-Project/.github/.github/actions/docs-check@3044ba71d36f3e3eb370b8915ca1b02f337fda8c # v0.0.41
 
   zizmor:
-    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@89f98d8066ba5deec132332fba9f0b0347aecc01 # v0.0.40
+    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@3044ba71d36f3e3eb370b8915ca1b02f337fda8c # v0.0.41
     permissions:
       contents: read
 
@@ -152,7 +152,7 @@ jobs:
           - { preset: macos-clang, runner: macos-15 }
           - { preset: windows-clang-cl, runner: windows-2025 }
           - { preset: windows-arm64-clang-cl, runner: windows-11-arm }
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@89f98d8066ba5deec132332fba9f0b0347aecc01 # v0.0.40
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@3044ba71d36f3e3eb370b8915ca1b02f337fda8c # v0.0.41
     permissions:
       contents: read
     with:
@@ -165,7 +165,7 @@ jobs:
   testbed:
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@89f98d8066ba5deec132332fba9f0b0347aecc01 # v0.0.40
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@3044ba71d36f3e3eb370b8915ca1b02f337fda8c # v0.0.41
     permissions:
       contents: read
     with:
@@ -230,11 +230,12 @@ jobs:
   # the API walk, and crashes on a broken promise: 20 seconds on a pull
   # request, 90 on main and 600 at night or on a dispatch, where the walk,
   # whose inputs are slow and distinct, takes 3600. One job per
-  # target, each with its own corpus cache: restored by every run but a
-  # pull request's (the newest of that target's), minimized with
-  # libFuzzer's merge and saved from main when the run found nothing. A
-  # pull request starts from the inputs the targets build. tools/fuzz_target.sh reports a finding
-  # without its input, and no finding, log or corpus is uploaded.
+  # target, each with its own corpus cache: restored by every run, pull
+  # requests included (the newest of that target's), so a change that
+  # breaks a harness's promise fails on its own pull request; minimized
+  # with libFuzzer's merge and saved from main when the run found nothing.
+  # tools/fuzz_target.sh reports a finding without its input, and no
+  # finding, log or corpus is uploaded.
   fuzz:
     needs: changes
     if: needs.changes.outputs.code == 'true'
@@ -260,7 +261,6 @@ jobs:
       # Caches are immutable: each run saves a new entry and the next run
       # restores the latest.
       - name: Restore the corpus
-        if: github.event_name != 'pull_request'
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: out/corpus/${{ matrix.target }}
