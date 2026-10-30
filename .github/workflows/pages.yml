@@ -1,7 +1,8 @@
 # Publishes the documentation site to GitHub Pages: the README, the user
 # documentation, the API reference generated from the headers and the
-# changelog, built by tools/build_docs.py, and the testbed compiled to
-# WebAssembly at testbed/.
+# changelog, built by tools/build_docs.py in the CI image, which has the
+# Python and markdown it takes, as the checks job builds it; and the
+# testbed compiled to WebAssembly at testbed/.
 name: pages
 
 on:
@@ -20,8 +21,10 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+  # The CI image has no Emscripten, so the testbed builds on the runner
+  # with the emsdk action, as the web job in ci.yml does.
+  testbed:
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     permissions:
       contents: read
@@ -29,13 +32,6 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: "3.12"
-      - name: Documentation
-        run: |
-          pip install markdown==3.6
-          python tools/build_docs.py
       - uses: emscripten-core/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984 # v16
       # Single-threaded on purpose: Pages sends no COOP/COEP headers, so
       # SharedArrayBuffer is unavailable in the browser.
@@ -45,16 +41,42 @@ jobs:
             -DMAUL2D_BUILD_TESTS=OFF -DMAUL2D_BUILD_SAMPLES=OFF -DMAUL2D_BUILD_BENCH=OFF \
             -DMAUL2D_BUILD_TOOLS=OFF
           cmake --build out/web-testbed --target testbed -j 4
-          mkdir -p _site/testbed
-          cp out/web-testbed/testbed/testbed.html _site/testbed/index.html
-          cp out/web-testbed/testbed/testbed.js out/web-testbed/testbed/testbed.wasm _site/testbed/
+          mkdir -p out/site-testbed
+          cp out/web-testbed/testbed/testbed.html out/site-testbed/index.html
+          cp out/web-testbed/testbed/testbed.js out/web-testbed/testbed/testbed.wasm out/site-testbed/
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: testbed
+          path: out/site-testbed/
+          if-no-files-found: error
+          retention-days: 1
+
+  build:
+    needs: testbed
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    container:
+      image: ghcr.io/rawframe-project/ci-cpp:2026.10.7@sha256:08c846597243dc000c83d6c008d078a8c3fabf8633d83963d46c0e6d02c2577e
+      options: --init
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Documentation
+        run: python3 tools/build_docs.py
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: testbed
+          path: _site/testbed
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
         with:
           path: _site
 
   deploy:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       pages: write
