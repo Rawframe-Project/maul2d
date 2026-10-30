@@ -87,7 +87,7 @@ jobs:
           [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "not a release tag: $TAG"; exit 1; }
           [ -z "$CREATED" ] || [ "$CREATED" = "$TAG" ] || { echo "release-please created $CREATED, not $TAG"; exit 1; }
           commit=$(gh api "repos/$REPO/commits/refs/tags/$TAG" --jq .sha)
-          held=$(gh api "repos/$REPO/compare/$commit...$DEFAULT" --jq .status)
+          held=$(gh api "repos/$REPO/compare/$commit...refs/heads/$DEFAULT" --jq .status)
           [ "$held" = ahead ] || [ "$held" = identical ] || { echo "$TAG names $commit, which $DEFAULT does not hold"; exit 1; }
           files=$(gh release view "$TAG" -R "$REPO" --json assets --jq '.assets | length')
           [ "$files" = 0 ] || { echo "$TAG already has $files files"; exit 1; }
