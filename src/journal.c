@@ -192,12 +192,18 @@ m2Result m2World_StartJournal(m2World* world, void* buffer, int64_t capacity)
 
 static M2_NOINLINE m2Result WorldStopJournalWorker(m2World* world, int64_t* bytesOut)
 {
+    // A busy refusal leaves bytesOut, which host code the world is running
+    // may be filling; every other failure clears it.
+    m2Result writer = m2CheckWriter(world);
+    if (writer == m2_errorBusy)
+    {
+        return writer;
+    }
     if (bytesOut == NULL)
     {
         return m2Refuse(world, m2_errorInvalid);
     }
     *bytesOut = 0;
-    m2Result writer = m2CheckWriter(world);
     if (writer != m2_success)
     {
         return writer;

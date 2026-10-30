@@ -961,6 +961,55 @@ static void TestDefPaddingStaysOffTheTape(void)
     free(tapeB);
 }
 
+// Host code the world runs, here a debug draw callback, stops the journal
+// the world is recording. The stop is refused as busy and leaves bytesOut,
+// which the host may be filling, and the journal keeps recording.
+typedef struct JournalIntruder
+{
+    m2World* world;
+    int32_t calls;
+    m2Result stopped;
+    int64_t bytes;
+} JournalIntruder;
+
+static void StopJournalWhileDrawing(m2Pos2 p1, m2Pos2 p2, uint32_t color, void* context)
+{
+    (void)p1;
+    (void)p2;
+    (void)color;
+    JournalIntruder* in = (JournalIntruder*)context;
+    if (in->calls++ == 0)
+    {
+        in->stopped = m2World_StopJournal(in->world, &in->bytes);
+    }
+}
+
+static void TestBusyStopKeepsBytes(void)
+{
+    m2WorldDef def = TestDef();
+    JournalIntruder in = {NewWorld(&def), 0, m2_success, 7};
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon box = m2MakeBox(1.0f, 1.0f);
+    NewPolygonShape(in.world, NewBody(in.world, &bd), &sd, &box);
+    int64_t capacity = m2World_GetSnapshotSize(in.world) + 4096;
+    uint8_t* tape = malloc((size_t)capacity);
+    CHECK(tape != NULL && StartJournal(in.world, tape, capacity), "the journal starts");
+
+    uint64_t misuse = m2World_GetCounters(in.world).misuse;
+    m2DebugDraw draw = {0};
+    draw.drawSegment = StopJournalWhileDrawing;
+    draw.drawAabbs = true;
+    draw.context = &in;
+    m2World_Draw(in.world, &draw);
+    CHECK(in.calls > 0 && in.stopped == m2_errorBusy, "a stop inside a draw callback is busy");
+    CHECK(in.bytes == 7, "and leaves bytesOut as it was");
+    CHECK(m2World_GetCounters(in.world).misuse == misuse + 1, "the refusal counts one misuse");
+    CHECK(StopJournal(in.world) > 0, "the journal was still recording");
+    m2DestroyWorld(in.world);
+    free(tape);
+}
+
 int main(void)
 {
     TestTapeBoolsAreZeroOrOne();
@@ -970,6 +1019,7 @@ int main(void)
     TestRollbackWhileRecording();
     TestRecordReplay();
     TestOverflowIsLoud();
+    TestBusyStopKeepsBytes();
 
     if (s_failures > 0)
     {
