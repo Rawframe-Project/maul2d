@@ -16,13 +16,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-static uint32_t FloatBits(float x)
-{
-    uint32_t u;
-    memcpy(&u, &x, sizeof(u));
-    return u;
-}
-
 // --- 1. Accuracy against libm ------------------------------------------------
 
 static void TestAccuracy(void)
@@ -68,15 +61,15 @@ static void TestAccuracy(void)
         }
     }
 
-    // Unwind: range contract + mod-2pi consistency + large-input NaN-freedom.
+    // Angles past [-pi, pi] are unwound first: the rotation still points
+    // where the angle does.
     for (int i = 0; i <= 40000; ++i)
     {
         float angle = -200.0f + 400.0f * (float)i / 40000.0f;
-        float u = m2UnwindAngle(angle);
-        CHECK(u >= -M2_PI && u <= M2_PI, "m2UnwindAngle outside [-pi, pi]");
-        double diff = ((double)angle - (double)u) / (2.0 * 3.14159265358979323846);
-        double frac = fabs(diff - floor(diff + 0.5));
-        CHECK(frac < 1.0e-3, "m2UnwindAngle not congruent mod 2pi");
+        m2Rot q = m2MakeRot(angle);
+        CHECK(fabs((double)q.c - cos((double)angle)) < 1.0e-3 &&
+                  fabs((double)q.s - sin((double)angle)) < 1.0e-3,
+              "m2MakeRot unwinds a wide angle to the same direction");
     }
     // Out-of-range input: the deterministic fallback is finite and unit.
     m2Rot big = m2MakeRot(1.0e30f);
@@ -141,41 +134,6 @@ static void TestNormalizeKeepsDirection(void)
         differ += memcmp(&plain, &got, sizeof(got)) != 0 ? 1 : 0;
     }
     CHECK(differ == 0, "lengths near unit normalize bit for bit as before");
-}
-
-// --- 2b. Pinned min/max semantics ------------------------------
-
-static void TestMinMaxSemantics(void)
-{
-    float pz = 0.0f;
-    float nz = -0.0f;
-
-    // a < b ? a : b, exactly. (+0 < -0) is false, so b comes back.
-    CHECK(FloatBits(m2MinF(pz, nz)) == FloatBits(nz), "m2MinF(+0,-0) must return -0");
-    CHECK(FloatBits(m2MinF(nz, pz)) == FloatBits(pz), "m2MinF(-0,+0) must return +0");
-    CHECK(FloatBits(m2MaxF(pz, nz)) == FloatBits(nz), "m2MaxF(+0,-0) must return -0");
-    CHECK(FloatBits(m2MaxF(nz, pz)) == FloatBits(pz), "m2MaxF(-0,+0) must return +0");
-
-    // NaN never satisfies a comparison, so b comes back unchanged.
-    uint32_t nanBits = 0x7FC00000u;
-    float qnan;
-    memcpy(&qnan, &nanBits, sizeof(qnan));
-    CHECK(FloatBits(m2MinF(qnan, 1.0f)) == FloatBits(1.0f), "m2MinF(NaN,1) must return 1");
-    CHECK(FloatBits(m2MinF(1.0f, qnan)) == nanBits, "m2MinF(1,NaN) must return the NaN");
-    CHECK(FloatBits(m2MaxF(qnan, 1.0f)) == FloatBits(1.0f), "m2MaxF(NaN,1) must return 1");
-    CHECK(FloatBits(m2MaxF(1.0f, qnan)) == nanBits, "m2MaxF(1,NaN) must return the NaN");
-
-    // Clamp inherits the pinned semantics; pin its edge behavior too.
-    CHECK(m2ClampF(0.5f, -1.0f, 1.0f) == 0.5f, "m2ClampF passthrough");
-    CHECK(m2ClampF(-2.0f, -1.0f, 1.0f) == -1.0f, "m2ClampF low");
-    CHECK(m2ClampF(2.0f, -1.0f, 1.0f) == 1.0f, "m2ClampF high");
-    CHECK(m2ClampF(0.0f, 1.0f, -1.0f) == 1.0f, "m2ClampF(lo>hi) resolves to lo by definition");
-
-    // Pinned abs: IEEE sign-clear, bit-verified (MSVC folded the ternary form).
-    CHECK(FloatBits(m2AbsF(nz)) == 0u, "m2AbsF(-0) must be +0 (sign cleared)");
-    CHECK(FloatBits(m2AbsF(-1.5f)) == FloatBits(1.5f), "m2AbsF(-1.5) must be 1.5");
-    CHECK(FloatBits(m2AbsF(qnan)) == (nanBits & 0x7FFFFFFFu),
-          "m2AbsF(NaN) clears only the sign bit");
 }
 
 // --- The world's allocator ---------------------------------------------------
@@ -408,7 +366,6 @@ int main(void)
 
     TestAccuracy();
     TestNormalizeKeepsDirection();
-    TestMinMaxSemantics();
     TestSimdBackend();
 
     if (s_failures > 0)

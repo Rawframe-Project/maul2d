@@ -12,6 +12,13 @@
 #include "maul2d/core_math.h"
 
 #include <stddef.h>
+#include <stdint.h>
+
+#if defined(_MSC_VER) && defined(_M_X64)
+#include <xmmintrin.h>
+#elif defined(_MSC_VER) && defined(_M_ARM64)
+#include <arm_neon.h>
+#endif
 
 // M2_ASSERT states an internal invariant: a state that cannot occur
 // unless the library itself is wrong. Caller input is never asserted; it
@@ -25,6 +32,74 @@
 #else
 #define M2_ASSERT(cond) ((cond) ? (void)0 : __builtin_trap())
 #endif
+
+// Pinned minimum: exactly (a < b ? a : b), in this operand order,
+// including signed zero and NaN behavior. MSVC folds the plain ternary
+// under value numbering (+0/-0 compare equal), so on MSVC x64 this is
+// implemented with scalar MINSS, whose ISA-defined semantics are exactly
+// the pinned form. NEON FMIN has different semantics and must never be
+// used here; GCC/Clang compile the ternary faithfully (CI-verified).
+static inline float m2MinF(float a, float b)
+{
+#if defined(_MSC_VER) && defined(_M_X64)
+    return _mm_cvtss_f32(_mm_min_ss(_mm_set_ss(a), _mm_set_ss(b)));
+#elif defined(_MSC_VER) && defined(_M_ARM64)
+    // The plain ternary got folded away from the pinned zero-sign
+    // semantics (the arm64 cell caught it on its first run), so the
+    // select is explicit NEON: compare into a mask, bit-select the
+    // lanes, never fminnm.
+    float32x2_t va = vdup_n_f32(a);
+    float32x2_t vb = vdup_n_f32(b);
+    return vget_lane_f32(vbsl_f32(vclt_f32(va, vb), va, vb), 0);
+#elif defined(_MSC_VER)
+#error                                                                                             \
+    "MSVC on this target: pinned min/max semantics unproven; implement with verified intrinsics first"
+#else
+    return a < b ? a : b;
+#endif
+}
+
+// Pinned maximum: exactly (a > b ? a : b), in this operand order.
+// See m2MinF for the MSVC note (scalar MAXSS matches the pinned form).
+static inline float m2MaxF(float a, float b)
+{
+#if defined(_MSC_VER) && defined(_M_X64)
+    return _mm_cvtss_f32(_mm_max_ss(_mm_set_ss(a), _mm_set_ss(b)));
+#elif defined(_MSC_VER) && defined(_M_ARM64)
+    // See m2MinF: explicit NEON compare and bit-select.
+    float32x2_t va = vdup_n_f32(a);
+    float32x2_t vb = vdup_n_f32(b);
+    return vget_lane_f32(vbsl_f32(vcgt_f32(va, vb), va, vb), 0);
+#elif defined(_MSC_VER)
+#error                                                                                             \
+    "MSVC on this target: pinned min/max semantics unproven; implement with verified intrinsics first"
+#else
+    return a > b ? a : b;
+#endif
+}
+
+// Absolute value, pinned to IEEE |x| semantics: the sign bit is cleared,
+// so m2AbsF(-0.0f) == +0.0f on every platform. Implemented as a bit mask
+// because a ternary abs is compiler-foldable into divergent signed-zero
+// behavior (MSVC emits a sign mask, GCC/Clang keep the branch: a real
+// cross-cell hash break, caught by the gate).
+static inline float m2AbsF(float a)
+{
+    union
+    {
+        float f;
+        uint32_t u;
+    } bits;
+    bits.f = a;
+    bits.u &= 0x7FFFFFFFu;
+    return bits.f;
+}
+
+// Clamp to [lo, hi] using the pinned min and max.
+static inline float m2ClampF(float a, float lo, float hi)
+{
+    return m2MaxF(lo, m2MinF(a, hi));
+}
 
 // Finite checks for caller input and invariants. NaN compares false
 // and infinity minus infinity is NaN, so x - x == 0 refuses NaN and

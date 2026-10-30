@@ -8,7 +8,10 @@
 // pair of the edge values below runs in every lane position, so a
 // backend that orders signed zeros, propagates the first NaN, quiets a
 // signaling NaN or swaps the operands fails here before it moves a hash.
+// The scalar m2MinF and m2MaxF of src/core.h follow the same law, and
+// m2AbsF clears only the sign bit.
 
+#include "core.h"
 #include "simd.h"
 #include "test_harness.h"
 
@@ -129,6 +132,49 @@ static void TestMinMaxFollowTheTernary(void)
           "with a NaN on either side the second operand comes back");
 }
 
+// The scalar helpers on every pair of edge values. MSVC folds a plain
+// ternary across signed zeros, so its builds use MINSS and MAXSS or NEON
+// compare and select; any of them that strays from the law fails here.
+static void TestScalarHelpersFollowTheTernary(void)
+{
+    int wrong = 0;
+    for (int i = 0; i < EDGE_COUNT; ++i)
+    {
+        for (int j = 0; j < EDGE_COUNT; ++j)
+        {
+            float a = FromBits(k_edges[i]);
+            float b = FromBits(k_edges[j]);
+            if (ToBits(m2MaxF(a, b)) != ToBits(LawMax(a, b)) ||
+                ToBits(m2MinF(a, b)) != ToBits(LawMin(a, b)))
+            {
+                if (wrong++ == 0)
+                {
+                    printf("scalar min or max of (%08x, %08x) strays\n", k_edges[i], k_edges[j]);
+                }
+            }
+        }
+    }
+    CHECK(wrong == 0, "m2MinF and m2MaxF follow the ternary law on every pair");
+
+    CHECK(ToBits(m2MinF(0.0f, -0.0f)) == 0x80000000u && ToBits(m2MinF(-0.0f, 0.0f)) == 0u &&
+              ToBits(m2MaxF(0.0f, -0.0f)) == 0x80000000u && ToBits(m2MaxF(-0.0f, 0.0f)) == 0u,
+          "with both zeros the second operand comes back");
+    float qnan = FromBits(0x7FC00000u);
+    CHECK(ToBits(m2MinF(qnan, 1.0f)) == ToBits(1.0f) && ToBits(m2MinF(1.0f, qnan)) == 0x7FC00000u &&
+              ToBits(m2MaxF(qnan, 1.0f)) == ToBits(1.0f) &&
+              ToBits(m2MaxF(1.0f, qnan)) == 0x7FC00000u,
+          "with a NaN on either side the second operand comes back");
+
+    CHECK(m2ClampF(0.5f, -1.0f, 1.0f) == 0.5f && m2ClampF(-2.0f, -1.0f, 1.0f) == -1.0f &&
+              m2ClampF(2.0f, -1.0f, 1.0f) == 1.0f,
+          "m2ClampF passes a value inside and holds one outside");
+    CHECK(m2ClampF(0.0f, 1.0f, -1.0f) == 1.0f, "m2ClampF with lo above hi gives lo");
+
+    CHECK(ToBits(m2AbsF(-0.0f)) == 0u && ToBits(m2AbsF(-1.5f)) == ToBits(1.5f),
+          "m2AbsF clears the sign bit");
+    CHECK(ToBits(m2AbsF(FromBits(0xFFC12345u))) == 0x7FC12345u, "and only the sign bit of a NaN");
+}
+
 int main(void)
 {
 #if defined(M2_SIMD_AVX2)
@@ -139,5 +185,6 @@ int main(void)
     printf("simd.h backend: scalar\n");
 #endif
     TestMinMaxFollowTheTernary();
+    TestScalarHelpersFollowTheTernary();
     return s_failures == 0 ? 0 : 1;
 }

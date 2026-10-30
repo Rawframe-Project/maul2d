@@ -58,7 +58,7 @@ proxies: dynamic_tree geometry world_internal
 query: distance fpenv world_internal
 query_proxy: query
 ray_cast: query
-rotation:
+rotation: core
 shape: broadphase distance fpenv island journal mass object_ids proxies world_internal
 shape_read: fpenv object_ids shape world_internal
 simd:
