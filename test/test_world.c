@@ -1502,7 +1502,9 @@ static void TestLeftoverBasket(void)
     kd.position = (m2Pos2){20.0, 0.0};
     m2BodyId mover = NewBody(world, &kd);
     NewPolygonShape(world, mover, &sd, &unit);
-    m2Body_SetTargetTransform(world, mover, (m2Pos2){21.0, 0.5}, (m2Rot){1.0f, 0.0f}, 1.0f / 60.0f);
+    CHECK(m2Body_SetTargetTransform(world, mover, (m2Pos2){21.0, 0.5}, (m2Rot){1.0f, 0.0f},
+                                    1.0f / 60.0f) == m2_success,
+          "target transform accepts a reachable pose");
     m2World_Step(world, 1.0f / 60.0f, 4);
     m2Pos2 landed = m2Body_GetPosition(world, mover);
     CHECK(landed.x > 20.9 && landed.x < 21.1 && landed.y > 0.4 && landed.y < 0.6,
@@ -2404,7 +2406,9 @@ static void TestStaticBodiesHaveNoVelocity(void)
     uint64_t misuse = m2World_GetCounters(world).misuse;
     m2Body_SetLinearVelocity(world, wall, (m2Vec2){1.0f, 0.0f});
     m2Body_SetAngularVelocity(world, wall, 1.0f);
-    m2Body_SetTargetTransform(world, wall, (m2Pos2){1.0, 0.0}, (m2Rot){1.0f, 0.0f}, 1.0f / 60.0f);
+    CHECK(m2Body_SetTargetTransform(world, wall, (m2Pos2){1.0, 0.0}, (m2Rot){1.0f, 0.0f},
+                                    1.0f / 60.0f) == m2_errorInvalid,
+          "a target transform on a static body is refused");
     CHECK(m2World_GetCounters(world).misuse == misuse + 3, "each call on a static body counts");
     CHECK(m2Body_GetLinearVelocity(world, wall).x == 0.0f &&
               m2Body_GetAngularVelocity(world, wall) == 0.0f,

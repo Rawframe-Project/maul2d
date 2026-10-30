@@ -92,13 +92,17 @@ static M2_NOINLINE m2Result CreateMouseJointWorker(m2World* world, const m2Mouse
     // The grab point is where the target sits at creation, in B's
     // local frame (the single f64 crossing). It becomes B's anchor, a
     // body-local length, so it stays within M2_LOCAL_LIMIT like any other.
+    // The offset saturates as every world offset does, so a far target is
+    // m2_errorLimit at any rotation of B, never a NaN. It counts no misuse:
+    // how far the target lies from B depends on where the step left B, the
+    // world's state, not on an argument a correct program never passes.
     m2Transform xfB = world->bodies.transforms[bodyB];
-    m2Vec2 rel = {(float)(def->target.x - xfB.p.x), (float)(def->target.y - xfB.p.y)};
+    m2Vec2 rel = {m2WorldOffset(def->target.x - xfB.p.x), m2WorldOffset(def->target.y - xfB.p.y)};
     m2Vec2 grab = {xfB.q.c * rel.x + xfB.q.s * rel.y, -xfB.q.s * rel.x + xfB.q.c * rel.y};
     m2Result grabbed = m2CheckLocalVec2(grab);
     if (grabbed != m2_success)
     {
-        return m2Refuse(world, grabbed);
+        return grabbed;
     }
     int32_t index = m2AllocateJoint(world);
     if (index < 0)

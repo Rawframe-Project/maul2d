@@ -30,6 +30,8 @@ Particles are the exception. A particle with a lifetime dies at the end of a ste
 
 Untrusted bytes are not misuse either. A snapshot or tape that fails its checks, and a value a tape operation refuses while it replays, return `m2_errorFormat`, or `m2_errorVersion` for bytes another release or build wrote, and count nothing; the world marks itself as replaying, and `m2Refuse` skips the count for refusals on the replay's own path. Host code the replay runs (a task hook, the allocator) is the program's, and what it gets wrong counts.
 
+A refusal counts one misuse only for an argument a correct program never passes: a null pointer, a value past a published bound, a call on the wrong kind of object. A refusal a correct program can meet because of the world's state counts nothing, whatever its status: a full pool (`m2_errorCapacity`), a mouse joint's target past `M2_LOCAL_LIMIT` from where its body is, and a target pose too far from where its body is to reach within `M2_SPEED_LIMIT` (both `m2_errorLimit`). A bound an argument passes on its own still counts, the world's fixed settings included: a polygon too wide for the fill lattice at the world's particle radius is the program's own choice of both.
+
 ## Host code
 
 The world calls host code in three places: the task hooks during a step, the debug draw callbacks during `m2World_Draw`, and the allocator. While it runs, an atomic count on the world is raised, and every writer checks it first: every writer counts one misuse and changes nothing, and a writer with a status also returns `m2_errorBusy`. Readers stay open, so a draw callback can ask the world about what it draws. The count is atomic because several readers may draw on separate threads at once.
