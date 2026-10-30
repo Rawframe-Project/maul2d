@@ -437,9 +437,10 @@ static void TestParticleAndVolumeEdges(void)
     CHECK(m2CreateWaterVolume(world, &volume, &refused) == m2_errorLimit && refused.index1 == 0 &&
               Misuse(world) == misuse + 1,
           "a water volume past the speed bound is refused and counted");
-    // A box with a swapped pair of corners holds no point, so its volume
-    // would never act: it is refused and counted on either axis. A box of
-    // one point is accepted, as the default def's is.
+    // A box with a swapped pair of corners holds no point, and a flat one
+    // holds no body's origin but on its edge, so the volume would never
+    // act: both are refused and counted on either axis, the default def's
+    // box of one point included.
     m2WaterVolumeDef inverted = m2DefaultWaterVolumeDef();
     inverted.bounds = (m2WorldAabb){{1.0, -1.0}, {-1.0, 1.0}};
     CHECK(m2CreateWaterVolume(world, &inverted, &refused) == m2_errorInvalid &&
@@ -449,10 +450,22 @@ static void TestParticleAndVolumeEdges(void)
     CHECK(m2CreateWaterVolume(world, &inverted, &refused) == m2_errorInvalid &&
               refused.index1 == 0 && Misuse(world) == misuse + 3,
           "and one inverted in y");
-    inverted.bounds = (m2WorldAabb){{2.0, 2.0}, {2.0, 2.0}};
+    inverted.bounds = (m2WorldAabb){{-1.0, 2.0}, {1.0, 2.0}};
+    CHECK(m2CreateWaterVolume(world, &inverted, &refused) == m2_errorInvalid &&
+              refused.index1 == 0 && Misuse(world) == misuse + 4,
+          "a box flat in y is refused and counted");
+    inverted.bounds = (m2WorldAabb){{2.0, -1.0}, {2.0, 1.0}};
+    CHECK(m2CreateWaterVolume(world, &inverted, &refused) == m2_errorInvalid &&
+              refused.index1 == 0 && Misuse(world) == misuse + 5,
+          "and one flat in x");
+    inverted = m2DefaultWaterVolumeDef();
+    CHECK(m2CreateWaterVolume(world, &inverted, &refused) == m2_errorInvalid &&
+              refused.index1 == 0 && Misuse(world) == misuse + 6,
+          "so is the default def's box of one point, until the bounds are set");
+    inverted.bounds = (m2WorldAabb){{2.0, 2.0}, {2.5, 2.5}};
     CHECK(m2CreateWaterVolume(world, &inverted, &refused) == m2_success && refused.index1 != 0 &&
-              Misuse(world) == misuse + 3,
-          "a box of one point is accepted");
+              Misuse(world) == misuse + 6,
+          "a box with area is accepted");
 
     // The particles' mass must be a mass a body could have.
     m2WorldDef def = m2DefaultWorldDef();

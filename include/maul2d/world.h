@@ -566,7 +566,7 @@ extern "C"
     /// particle pool where one would be overkill.
     typedef struct m2WaterVolumeDef
     {
-        m2WorldAabb bounds;       // the region, world space; lower at or below upper
+        m2WorldAabb bounds;       // the region, world space; upper above lower on both axes
         M2_ALIGN8 double surface; // the waterline, world y
         float density;            // buoyant force per submerged area; 0 to M2_DENSITY_LIMIT
         float linearDrag;         // velocity damping per submerged area; 0 to M2_RATE_LIMIT
@@ -577,7 +577,8 @@ extern "C"
     } m2WaterVolumeDef;
 
     /// Returns a water volume def: density 2, linear drag 1, angular drag
-    /// 0.5, no flow, an empty region at the origin.
+    /// 0.5, no flow, and a box of one point at the origin, which
+    /// m2CreateWaterVolume refuses until the bounds are set.
     ///
     /// @return The default def; set the bounds and the surface.
     /// @par Thread safety
@@ -589,11 +590,12 @@ extern "C"
     /// @param world      The world.
     /// @param def        The volume, from m2DefaultWaterVolumeDef.
     /// @param volumeOut  Receives the volume; the null id on failure.
-    /// @return m2_success; m2_errorInvalid for a bad def, an inverted box
-    ///         among them, or a null argument; m2_errorLimit for a value past its published
-    ///         bound; m2_errorCapacity when the volume pool is full, a pool
-    ///         of 0 included, which counts no misuse; m2_errorBusy from
-    ///         host code the world is running.
+    /// @return m2_success; m2_errorInvalid for a bad def, a box with no
+    ///         area among them (upper at or below lower on either axis,
+    ///         which can never hold a body), or a null argument;
+    ///         m2_errorLimit for a value past its published bound; m2_errorCapacity when the volume
+    ///         pool is full, a pool of 0 included, which counts no misuse; m2_errorBusy from host
+    ///         code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2CreateWaterVolume(m2World* world, const m2WaterVolumeDef* def,
