@@ -388,23 +388,31 @@ void m2Body_SetTransform(m2World* world, m2BodyId bodyId, m2Pos2 position, m2Rot
     m2FloatEnvLeave(env);
 }
 
-static M2_NOINLINE void BodySetTargetTransformWorker(m2World* world, m2BodyId bodyId,
-                                                     m2Pos2 position, m2Rot rotation, float dt)
+static M2_NOINLINE m2Result BodySetTargetTransformWorker(m2World* world, m2BodyId bodyId,
+                                                         m2Pos2 position, m2Rot rotation, float dt)
 {
-    if (m2CheckWriter(world) != m2_success)
+    m2Result writer = m2CheckWriter(world);
+    if (writer != m2_success)
     {
-        return;
+        return writer;
     }
-    int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0 || world->bodies.types[index] == (uint8_t)m2_staticBody || !m2ValidTimeStep(dt) ||
-        !m2FinitePos2(position) || !m2UnitRot(rotation))
+    int32_t index = m2BodySlot(world, bodyId);
+    if (index < 0)
     {
-        m2Refuse(world, m2_errorInvalid);
-        return;
+        return m2Refuse(world, m2_errorStale);
+    }
+    m2Result checked = m2BothChecks(
+        m2CheckTimeStep(dt), m2CheckValid(world->bodies.types[index] != (uint8_t)m2_staticBody &&
+                                          m2FinitePos2(position) && m2UnitRot(rotation)));
+    if (checked != m2_success)
+    {
+        return m2Refuse(world, checked);
     }
     // Velocities that land the pose in one step; applied through the
     // journaled setters, so replays get this for free. A pose too far to
-    // reach within M2_SPEED_LIMIT is refused before either is set.
+    // reach within M2_SPEED_LIMIT is refused before either is set, and
+    // counts no misuse: the distance runs from where the step left the
+    // body, the world's state, not from an argument alone.
     float invDt = 1.0f / dt;
     m2Transform xf = world->bodies.transforms[index];
     m2Vec2 v = {m2WorldOffset(position.x - xf.p.x) * invDt,
@@ -412,17 +420,18 @@ static M2_NOINLINE void BodySetTargetTransformWorker(m2World* world, m2BodyId bo
     float w = m2UnwindAngleWork(m2RelativeJointAngle(xf.q, rotation)) * invDt;
     if (!m2ValidVelocity(v) || !m2ValidSpeed(w))
     {
-        m2Refuse(world, m2_errorInvalid);
-        return;
+        return m2_errorLimit;
     }
     m2Body_SetLinearVelocity(world, bodyId, v);
     m2Body_SetAngularVelocity(world, bodyId, w);
+    return m2_success;
 }
 
-void m2Body_SetTargetTransform(m2World* world, m2BodyId bodyId, m2Pos2 position, m2Rot rotation,
-                               float dt)
+m2Result m2Body_SetTargetTransform(m2World* world, m2BodyId bodyId, m2Pos2 position, m2Rot rotation,
+                                   float dt)
 {
     uint64_t env = m2FloatEnvEnter();
-    BodySetTargetTransformWorker(world, bodyId, position, rotation, dt);
+    m2Result result = BodySetTargetTransformWorker(world, bodyId, position, rotation, dt);
     m2FloatEnvLeave(env);
+    return result;
 }

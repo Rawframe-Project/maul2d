@@ -661,17 +661,23 @@ static void TestTimeStepEdges(void)
         CHECK(m2World_GetStepCount(world) == steps + 1 && Misuse(world) == misuse + 1,
               "a step at its edge runs and one float past it is refused and counted");
 
-        m2Body_SetTargetTransform(world, lift, (m2Pos2){0.0, 2.0}, m2MakeRot(0.0f), edges[i]);
-        m2Body_SetTargetTransform(world, lift, (m2Pos2){0.0, 2.0}, m2MakeRot(0.0f), past[i]);
-        CHECK(Misuse(world) == misuse + 2, "a target's time step past its edge is refused");
+        m2Pos2 up = {0.0, 2.0};
+        CHECK(m2Body_SetTargetTransform(world, lift, up, m2MakeRot(0.0f), edges[i]) == m2_success &&
+                  m2Body_SetTargetTransform(world, lift, up, m2MakeRot(0.0f), past[i]) ==
+                      m2_errorLimit &&
+                  Misuse(world) == misuse + 2,
+              "a target's time step past its edge is refused and counted");
     }
     // A target too far to reach within M2_SPEED_LIMIT in one step is refused
-    // whole: neither velocity changes.
+    // whole: neither velocity changes. The distance runs from where the body
+    // is, the world's state, so the refusal counts no misuse.
     m2Body_SetAngularVelocity(world, lift, 1.0f);
     uint64_t misuse = Misuse(world);
-    m2Body_SetTargetTransform(world, lift, (m2Pos2){1.0e6, 2.0}, m2MakeRot(1.0f), 1.0f);
-    CHECK(Misuse(world) == misuse + 1 && m2Body_GetAngularVelocity(world, lift) == 1.0f,
+    CHECK(m2Body_SetTargetTransform(world, lift, (m2Pos2){1.0e6, 2.0}, m2MakeRot(1.0f), 1.0f) ==
+                  m2_errorLimit &&
+              m2Body_GetAngularVelocity(world, lift) == 1.0f,
           "a target past M2_SPEED_LIMIT is refused before either velocity is set");
+    CHECK(Misuse(world) == misuse, "and counts no misuse");
     ExpectRestores(world);
     m2DestroyWorld(world);
 }

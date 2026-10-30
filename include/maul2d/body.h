@@ -256,8 +256,7 @@ extern "C"
     /// Sets the velocities that carry a body to a target pose in one step
     /// of the given length: the way to drive a kinematic body. It goes
     /// through the journaled velocity setters, so a replay repeats it. A
-    /// stale id, a static body, an invalid argument or a pose too far to
-    /// reach within M2_SPEED_LIMIT changes nothing and counts one misuse.
+    /// refused call changes nothing.
     ///
     /// @param world     The world.
     /// @param bodyId    The body.
@@ -265,10 +264,19 @@ extern "C"
     /// @param rotation  The target rotation, unit length.
     /// @param dt        The step the move takes, from M2_MIN_STEP to
     ///                  M2_STEP_LIMIT.
+    /// @return m2_success; m2_errorInvalid for a null world, a static body,
+    ///         a position that is not finite, a rotation that is not unit
+    ///         length or a dt of 0 or below; m2_errorStale for a stale id;
+    ///         m2_errorLimit for a dt outside M2_MIN_STEP to M2_STEP_LIMIT,
+    ///         and for a pose too far from the body to reach within
+    ///         M2_SPEED_LIMIT, which counts no misuse, since where the body
+    ///         is is the world's state; m2_errorBusy from host code the
+    ///         world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
-    M2_API void m2Body_SetTargetTransform(m2World* world, m2BodyId bodyId, m2Pos2 position,
-                                          m2Rot rotation, float dt);
+    M2_NODISCARD M2_API m2Result m2Body_SetTargetTransform(m2World* world, m2BodyId bodyId,
+                                                           m2Pos2 position, m2Rot rotation,
+                                                           float dt);
 
     /// Reads a body's type.
     ///

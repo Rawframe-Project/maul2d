@@ -2118,18 +2118,25 @@ static void TestLocalAnchorsAreBounded(void)
     CHECK(m2World_GetCounters(world).misuse == misuse + 7, "each refusal counts one misuse");
 
     // The mouse joint's grab point is where the target lies in B's frame:
-    // a target past M2_LOCAL_LIMIT from B would make an anchor no snapshot keeps.
+    // a target past M2_LOCAL_LIMIT from B would make an anchor no snapshot
+    // keeps. How far that is depends on where B is, the world's state, so
+    // the refusal counts no misuse, at any rotation of B.
     m2MouseJointDef mouse = m2DefaultMouseJointDef();
     mouse.bodyIdA = a;
     mouse.bodyIdB = b;
     mouse.target = (m2Pos2){2.0 + 2.0 * (double)M2_LOCAL_LIMIT, 0.0};
     CHECK(m2CreateMouseJoint(world, &mouse, &joint) == m2_errorLimit &&
-              m2World_GetCounters(world).misuse == misuse + 8,
-          "a mouse target past M2_LOCAL_LIMIT from its body is refused");
+              m2World_GetCounters(world).misuse == misuse + 7,
+          "a mouse target past M2_LOCAL_LIMIT from its body is refused and counts no misuse");
+    m2Body_SetTransform(world, b, (m2Pos2){2.0, 0.0}, (m2Rot){0.0f, 1.0f});
+    mouse.target = (m2Pos2){1.0e300, 0.0};
+    CHECK(m2CreateMouseJoint(world, &mouse, &joint) == m2_errorLimit &&
+              m2World_GetCounters(world).misuse == misuse + 7,
+          "so is one past any float from a body turned a quarter");
+    m2Body_SetTransform(world, b, (m2Pos2){2.0, 0.0}, (m2Rot){1.0f, 0.0f});
     mouse.target = (m2Pos2){2.0 + (double)M2_LOCAL_LIMIT, 0.0};
     CHECK(m2CreateMouseJoint(world, &mouse, &joint) == m2_success,
           "one at M2_LOCAL_LIMIT is created");
-    misuse += 1;
     int64_t size = m2World_GetSnapshotSize(world);
     void* snapshot = malloc((size_t)size);
     CHECK(snapshot != NULL && Snapshot(world, snapshot, size) == size &&

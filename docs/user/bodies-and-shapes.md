@@ -8,7 +8,7 @@ Impulses change the velocity at once (`m2Body_ApplyLinearImpulse`, `m2Body_Apply
 
 Linear and angular damping decay velocity as v / (1 + h d) per substep. Gravity scales per body. `m2Body_SetMotionLocks` holds a body still along world x, world y or in rotation, whatever pushes it; the rotation lock also makes the inertia infinite.
 
-`m2Body_SetTransform` teleports a body: it snaps, keeps its velocity, and wakes whatever it touched. A teleport is not a sweep, so nothing stops it from passing through a wall. To move a kinematic body smoothly, `m2Body_SetTargetTransform` sets the velocities that reach a pose in one step. `m2Body_SetType` changes a body's type in place, ending the contacts that no longer apply.
+`m2Body_SetTransform` teleports a body: it snaps, keeps its velocity, and wakes whatever it touched. A teleport is not a sweep, so nothing stops it from passing through a wall. To move a kinematic body smoothly, `m2Body_SetTargetTransform` sets the velocities that reach a pose in one step; a pose too far from the body to reach within `M2_SPEED_LIMIT` in that step returns `m2_errorLimit` and changes nothing. `m2Body_SetType` changes a body's type in place, ending the contacts that no longer apply.
 
 The frame helpers (`m2Body_GetWorldPoint`, `m2Body_GetLocalPoint`, the vector and point-velocity variants) do the pose math in f64.
 

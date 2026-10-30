@@ -482,12 +482,16 @@ extern "C"
     M2_NODISCARD M2_API m2Result m2CreateMotorJoint(m2World* world, const m2MotorJointDef* def,
                                                     m2JointId* jointOut);
 
-    /// Creates a mouse joint, as m2CreateDistanceJoint does.
+    /// Creates a mouse joint, as m2CreateDistanceJoint does. The grab
+    /// point, body B's anchor, is where the target lies in B's frame at
+    /// creation, so it lies within M2_LOCAL_LIMIT like any other anchor.
     ///
     /// @param world     The world.
     /// @param def       The joint, from m2DefaultMouseJointDef.
     /// @param jointOut  Receives the joint; the null id on failure.
-    /// @return As m2CreateDistanceJoint.
+    /// @return As m2CreateDistanceJoint, and m2_errorLimit for a target past
+    ///         M2_LOCAL_LIMIT from B in B's frame, which counts no misuse,
+    ///         since where B is is the world's state.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_NODISCARD M2_API m2Result m2CreateMouseJoint(m2World* world, const m2MouseJointDef* def,
