@@ -676,7 +676,8 @@ extern "C"
     /// it is never cut short silently.
     ///
     /// @param world     The world.
-    /// @param bytesOut  Receives the tape's size; 0 on failure.
+    /// @param bytesOut  Receives the tape's size; 0 on failure, except that
+    ///                  m2_errorBusy leaves it as it was.
     /// @return m2_success; m2_errorInvalid for a null bytesOut;
     ///         m2_errorCapacity when the operations overflowed the buffer;
     ///         m2_errorState when the world was not recording; m2_errorBusy
