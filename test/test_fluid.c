@@ -756,6 +756,13 @@ static void TestOverlapParticles(void)
     total =
         m2World_OverlapParticlesAabb(world, (m2WorldAabb){{50.0, 50.0}, {51.0, 51.0}}, found, 64);
     CHECK(total == 0, "an empty region answers zero");
+    // An inverted box is a swapped pair of corners, refused as the shape
+    // query refuses it: zero, the list cleared, one misuse.
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    found[0] = (m2ParticleId){7, 7};
+    total = m2World_OverlapParticlesAabb(world, (m2WorldAabb){{3.5, 0.5}, {0.5, 3.5}}, found, 64);
+    CHECK(total == 0 && found[0].index1 == 0 && m2World_GetCounters(world).misuse == misuse + 1,
+          "an inverted box answers zero and counts one misuse");
 
     // Read-only law: a query storm moves no bits.
     m2World_Step(world, 1.0f / 60.0f, 4);

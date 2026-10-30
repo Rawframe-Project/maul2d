@@ -256,7 +256,7 @@ extern "C"
     ///                  failure. May be null to measure.
     /// @param capacity  The length of idsOut.
     /// @return The number of particles inside, which may exceed capacity;
-    ///         0 for a non-finite corner, which counts one misuse.
+    ///         0 for a non-finite or inverted box, which counts one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.

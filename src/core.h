@@ -422,6 +422,15 @@ static inline float m2SaturateF(float x, float limit)
     return x < -limit ? -limit : (x > limit ? limit : x);
 }
 
+// A caller box: finite corners, the lower one at or below the upper one
+// on both axes. A box of one point is valid; an inverted one contains no
+// point, so it is a swapped pair of corners.
+static inline bool m2ValidWorldAabb(m2WorldAabb box)
+{
+    return m2FinitePos2(box.lowerBound) && m2FinitePos2(box.upperBound) &&
+           box.lowerBound.x <= box.upperBound.x && box.lowerBound.y <= box.upperBound.y;
+}
+
 // A caller rotation that is stored or used as given must already be a
 // unit rotation (m2MakeRot builds one); anything else would shear.
 static inline bool m2UnitRot(m2Rot q)

@@ -566,7 +566,7 @@ extern "C"
     /// particle pool where one would be overkill.
     typedef struct m2WaterVolumeDef
     {
-        m2WorldAabb bounds;       // the region, world space
+        m2WorldAabb bounds;       // the region, world space; lower at or below upper
         M2_ALIGN8 double surface; // the waterline, world y
         float density;            // buoyant force per submerged area; 0 to M2_DENSITY_LIMIT
         float linearDrag;         // velocity damping per submerged area; 0 to M2_RATE_LIMIT
@@ -589,8 +589,8 @@ extern "C"
     /// @param world      The world.
     /// @param def        The volume, from m2DefaultWaterVolumeDef.
     /// @param volumeOut  Receives the volume; the null id on failure.
-    /// @return m2_success; m2_errorInvalid for a bad def or a null
-    ///         argument; m2_errorLimit for a value past its published
+    /// @return m2_success; m2_errorInvalid for a bad def, an inverted box
+    ///         among them, or a null argument; m2_errorLimit for a value past its published
     ///         bound; m2_errorCapacity when the volume pool is full, a pool
     ///         of 0 included, which counts no misuse; m2_errorBusy from
     ///         host code the world is running.

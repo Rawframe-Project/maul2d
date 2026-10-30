@@ -260,9 +260,7 @@ static M2_NOINLINE m2Result CreateWaterVolumeWorker(m2World* world, const m2Wate
     {
         return m2Refuse(world, m2_errorInvalid);
     }
-    m2Result checked =
-        m2CheckValid(m2FiniteD(def->surface) && m2FinitePos2(def->bounds.lowerBound) &&
-                     m2FinitePos2(def->bounds.upperBound));
+    m2Result checked = m2CheckValid(m2FiniteD(def->surface) && m2ValidWorldAabb(def->bounds));
     checked = m2BothChecks(checked, m2CheckDensity(def->density));
     checked = m2BothChecks(checked, m2CheckRate(def->linearDrag));
     checked = m2BothChecks(checked, m2CheckRate(def->angularDrag));

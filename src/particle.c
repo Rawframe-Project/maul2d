@@ -638,7 +638,7 @@ static M2_NOINLINE int32_t WorldOverlapParticlesAabbWorker(const m2World* world,
 {
     m2Pos2 lower = box.lowerBound;
     m2Pos2 upper = box.upperBound;
-    if (world == NULL || !m2FinitePos2(lower) || !m2FinitePos2(upper))
+    if (world == NULL || !m2ValidWorldAabb(box))
     {
         return m2RefuseList(world, ids, capacity, sizeof(*ids));
     }
