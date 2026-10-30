@@ -420,6 +420,50 @@ static void GroundGeometryBroken(const Scene* scene, uint8_t* block)
     EditGeometry(scene, block, scene->ground, UnfinishedGhost);
 }
 
+// A shape type is an int32_t: below zero names no type.
+static void TypeMinusOne(m2ShapeGeometry* geometry)
+{
+    geometry->type = -1;
+}
+
+static void TypeInt32Min(m2ShapeGeometry* geometry)
+{
+    geometry->type = INT32_MIN;
+}
+
+static void ShapeTypeMinusOne(const Scene* scene, uint8_t* block)
+{
+    EditGeometry(scene, block, scene->boxA, TypeMinusOne);
+}
+
+static void ShapeTypeInt32Min(const Scene* scene, uint8_t* block)
+{
+    EditGeometry(scene, block, scene->boxA, TypeInt32Min);
+}
+
+// Flag words and bytes hold only the bits the library defines.
+static void ParticleFlagUndefined(const Scene* scene, uint8_t* block)
+{
+    uint32_t flags = 0x80000000u;
+    memcpy(At(scene, block, &scene->world->particles.particleFlags), &flags, sizeof(flags));
+}
+
+static void ParticleFlagsAllSet(const Scene* scene, uint8_t* block)
+{
+    uint32_t flags = 0xFFFFFFFFu;
+    memcpy(At(scene, block, &scene->world->particles.particleFlags), &flags, sizeof(flags));
+}
+
+static void JointFlagUndefined(const Scene* scene, uint8_t* block)
+{
+    At(scene, block, &scene->world->joints.jointFlags)[0] |= 0x80u;
+}
+
+static void MotionLockUndefined(const Scene* scene, uint8_t* block)
+{
+    At(scene, block, &scene->world->bodies.motionLocks)[scene->boxA.index1 - 1] |= 0x04u;
+}
+
 // The structural check stands on its own: these edits are refused by it
 // alone, without the per-array checks that also catch them.
 static void BodyTailNegative(const Scene* scene, uint8_t* block)
@@ -1348,6 +1392,12 @@ static void TestHostileStructures(void)
     ExpectRefused(&scene, PairNamesADeadShape, "a pair with a dead shape is refused");
     ExpectRefused(&scene, PolygonNormalLies, "a polygon whose normal lies is refused");
     ExpectRefused(&scene, GroundGeometryBroken, "a broken ground geometry is refused");
+    ExpectRefused(&scene, ShapeTypeMinusOne, "a shape type of -1 is refused");
+    ExpectRefused(&scene, ShapeTypeInt32Min, "a shape type of INT32_MIN is refused");
+    ExpectRefused(&scene, ParticleFlagUndefined, "a particle flag no m2_*Particle has is refused");
+    ExpectRefused(&scene, ParticleFlagsAllSet, "particle flags of all ones are refused");
+    ExpectRefused(&scene, JointFlagUndefined, "a joint flag the library never sets is refused");
+    ExpectRefused(&scene, MotionLockUndefined, "a motion lock bit no lock has is refused");
 
     CHECK(Restore(scene.world, scene.valid, scene.size) && m2World_Validate(scene.world),
           "the valid snapshot still restores");

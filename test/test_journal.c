@@ -14,6 +14,7 @@
 #include "maul2d/maul2d.h"
 
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -498,6 +499,77 @@ static void ExpectByteRefused(m2World* world, const uint8_t* tape, int64_t bytes
     CHECK(m2World_Hash(world) == hash && m2World_GetCounters(world).misuseCount == misuse,
           "a refused tape changes nothing and counts nothing");
     free(edited);
+}
+
+// Replays a tape whose one record, made at the start of a recording, has
+// the int32 at payloadOffset replaced by value; the record held expected
+// there, which checks the offset.
+static void ExpectI32Refused(m2World* world, const uint8_t* tape, int64_t bytes,
+                             int64_t recordStart, size_t payloadOffset, int32_t expected,
+                             int32_t value, const char* what)
+{
+    uint8_t* edited = (uint8_t*)malloc((size_t)bytes);
+    CHECK(edited != NULL, "a copy of the tape");
+    if (edited == NULL)
+    {
+        return;
+    }
+    memcpy(edited, tape, (size_t)bytes);
+    int32_t held = 0;
+    memcpy(&held, edited + recordStart + 1 + (int64_t)payloadOffset, sizeof(held));
+    CHECK(held == expected, "the record holds the field at its offset");
+    memcpy(edited + recordStart + 1 + (int64_t)payloadOffset, &value, sizeof(value));
+    uint64_t hash = m2World_Hash(world);
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+    CHECK(m2World_ReplayJournal(world, edited, bytes) == m2_errorFormat, what);
+    CHECK(m2World_Hash(world) == hash && m2World_GetCounters(world).misuseCount == misuse,
+          "a refused tape changes nothing and counts nothing");
+    free(edited);
+}
+
+// A body def's type and a particle's flags on a tape are refused below
+// zero and past the defined bits, as their creates refuse them.
+static void TestTapeKindsAreRefused(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.particleCapacity = 4;
+    m2World* world = NewWorld(&def);
+    int64_t capacity = m2World_GetJournalBaseSize(world) + 4096;
+    uint8_t* tape = (uint8_t*)malloc((size_t)capacity);
+    CHECK(tape != NULL && StartJournal(world, tape, capacity), "the journal starts");
+    int64_t recordStart = StopJournal(world);
+
+    m2BodyDef bodyDef = m2DefaultBodyDef();
+    bodyDef.type = m2_dynamicBody;
+    CHECK(StartJournal(world, tape, capacity), "the journal starts again");
+    NewBody(world, &bodyDef);
+    int64_t bytes = StopJournal(world);
+    const int32_t negatives[2] = {-1, INT32_MIN};
+    for (int32_t i = 0; i < 2; ++i)
+    {
+        ExpectI32Refused(world, tape, bytes, recordStart, offsetof(m2BodyDef, type), m2_dynamicBody,
+                         negatives[i], "a negative body type on a tape is refused");
+    }
+
+    // The particle record holds the def's position, velocity and flags, in
+    // that order.
+    CHECK(StartJournal(world, tape, capacity), "the journal starts a third time");
+    recordStart = m2World_GetJournalBaseSize(world);
+    m2ParticleDef particleDef = m2DefaultParticleDef();
+    particleDef.flags = m2_tensileParticle;
+    m2ParticleId particle = m2_nullParticleId;
+    CHECK(m2CreateParticle(world, &particleDef, &particle) == m2_success, "the particle creates");
+    bytes = StopJournal(world);
+    size_t flagsAt = sizeof(m2Pos2) + sizeof(m2Vec2);
+    for (int32_t i = 0; i < 2; ++i)
+    {
+        ExpectI32Refused(world, tape, bytes, recordStart, flagsAt, (int32_t)m2_tensileParticle,
+                         negatives[i],
+                         "particle flags past the defined bits on a tape are refused");
+    }
+    free(tape);
+    m2DestroyWorld(world);
 }
 
 // A record's bool flags hold 0 or 1; any other byte is refused before the
@@ -1012,6 +1084,7 @@ static void TestBusyStopKeepsBytes(void)
 int main(void)
 {
     TestTapeBoolsAreZeroOrOne();
+    TestTapeKindsAreRefused();
     TestDefPaddingStaysOffTheTape();
     TestReplayIsAtomic();
     TestRestoreRefusesBadCounters();

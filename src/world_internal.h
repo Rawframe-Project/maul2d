@@ -25,6 +25,12 @@
 // Per-body motion lock bits; the angular lock is fixedRotations.
 #define M2_LOCK_LINEAR_X 1u
 #define M2_LOCK_LINEAR_Y 2u
+#define M2_LOCKS         (M2_LOCK_LINEAR_X | M2_LOCK_LINEAR_Y)
+
+// Every m2_*Particle flag; a def or a restore with any other bit is refused.
+#define M2_PARTICLE_FLAGS                                                                          \
+    ((uint32_t)(m2_tensileParticle | m2_viscousParticle | m2_powderParticle | m2_springParticle |  \
+                m2_elasticParticle))
 
 // A slot names objects under generations 0 to M2_LAST_GENERATION, then
 // retires, so a stale id never names a later object in it.

@@ -225,6 +225,42 @@ static bool LinkShapesInRange(const m2World* world, const uint8_t* in)
     return true;
 }
 
+// Every flag byte or word holds only the bits the library defines: a
+// joint's flags, a body's linear locks and, in a world with particles,
+// each particle's behavior flags.
+static bool CheckFlagBits(const m2World* world, const uint8_t* in)
+{
+    const uint8_t* jointFlags = M2_IN(joints.jointFlags);
+    for (int32_t j = 0; j < world->joints.jointCapacity; ++j)
+    {
+        if ((jointFlags[j] & ~M2_JOINT_FLAGS) != 0)
+        {
+            return false;
+        }
+    }
+    const uint8_t* locks = M2_IN(bodies.motionLocks);
+    for (int32_t b = 0; b < world->bodies.bodyCapacity; ++b)
+    {
+        if ((locks[b] & ~M2_LOCKS) != 0)
+        {
+            return false;
+        }
+    }
+    if (world->particles.particleCapacity == 0)
+    {
+        return true;
+    }
+    const uint8_t* particleFlags = M2_IN(particles.particleFlags);
+    for (int32_t p = 0; p < world->particles.particleCapacity; ++p)
+    {
+        if ((ReadU32(particleFlags, p) & ~M2_PARTICLE_FLAGS) != 0)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 // Springs and triads join live particles only, as a particle's death
 // leaves them: one with a dead end would push that slot's velocity and
 // latch onto the next particle emitted there.
@@ -898,5 +934,5 @@ bool m2SnapshotCheck(m2World* world, const uint8_t* in)
     return CheckPools(world, in) && CheckShapeLists(world, in) && CheckChains(world, in) &&
            CheckJoints(world, in) && CheckGeometry(world, in) && CheckMass(world, in) &&
            CheckTrees(world, in) && CheckMoved(world, in) && CheckPairs(world, in) &&
-           CheckRestingBoxes(world, in);
+           CheckRestingBoxes(world, in) && CheckFlagBits(world, in);
 }

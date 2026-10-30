@@ -14,6 +14,7 @@
 #include "maul2d/maul2d.h"
 
 #include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -1796,8 +1797,62 @@ static void TestChainRefusals(void)
     m2DestroyWorld(world);
 }
 
+// A kind is an int32_t and a flag set a uint32_t, so a caller can pass -1
+// or INT32_MIN: a check that only bounds a kind from above would let them
+// index below a table. Each is refused, counts one misuse and changes
+// nothing; a flag set refuses every bit no m2_*Particle flag has.
+static void TestNegativeKindsAreRefused(void)
+{
+    m2WorldDef worldDef = m2DefaultWorldDef();
+    worldDef.particleCapacity = 16;
+    m2World* world = NewWorld(&worldDef);
+    m2BodyDef dynamicDef = m2DefaultBodyDef();
+    dynamicDef.type = m2_dynamicBody;
+    m2BodyId body = NewBody(world, &dynamicDef);
+    const int32_t negatives[2] = {-1, INT32_MIN};
+    for (int32_t i = 0; i < 2; ++i)
+    {
+        uint64_t misuse = m2World_GetCounters(world).misuseCount;
+        m2BodyDef bodyDef = m2DefaultBodyDef();
+        bodyDef.type = negatives[i];
+        m2BodyId made = {7, 7};
+        CHECK(m2CreateBody(world, &bodyDef, &made) == m2_errorInvalid && made.index1 == 0 &&
+                  m2World_GetCounters(world).misuseCount == misuse + 1,
+              "a negative body type is refused and counted");
+        m2Body_SetType(world, body, negatives[i]);
+        CHECK(m2Body_GetType(world, body) == m2_dynamicBody &&
+                  m2World_GetCounters(world).misuseCount == misuse + 2,
+              "a negative type set on a body changes nothing and counts");
+
+        m2ParticleDef particleDef = m2DefaultParticleDef();
+        particleDef.flags = (m2ParticleFlags)negatives[i];
+        m2ParticleId particle = {7, 7};
+        CHECK(m2CreateParticle(world, &particleDef, &particle) == m2_errorInvalid &&
+                  particle.index1 == 0 && m2World_GetCounters(world).misuseCount == misuse + 3,
+              "a particle with undefined flag bits is refused and counted");
+        m2Polygon box = m2MakeBox(0.1f, 0.1f);
+        int32_t count = 7;
+        CHECK(m2CreateParticlesInPolygon(world, &particleDef, &box, &count) == m2_errorInvalid &&
+                  count == 0 && m2World_GetParticleCount(world) == 0 &&
+                  m2World_GetCounters(world).misuseCount == misuse + 4,
+              "and so is a fill with them");
+    }
+    CHECK(strcmp(m2GetResultName(-1), "m2_errorInvalid") == 0 &&
+              m2GetResultName(INT32_MIN) != NULL && m2GetResultName(INT32_MIN)[0] != '\0',
+          "a result name is found for any int32_t");
+    m2ParticleDef all = m2DefaultParticleDef();
+    all.flags = m2_tensileParticle | m2_viscousParticle | m2_powderParticle | m2_springParticle |
+                m2_elasticParticle;
+    m2ParticleId particle = m2_nullParticleId;
+    CHECK(m2CreateParticle(world, &all, &particle) == m2_success &&
+              m2Particle_IsValid(world, particle),
+          "every defined flag together is accepted");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
+    TestNegativeKindsAreRefused();
     TestSizesPastMemory();
     TestChainRefusals();
     TestJournalDefenses();
