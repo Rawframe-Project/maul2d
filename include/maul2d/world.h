@@ -244,8 +244,10 @@ extern "C"
     /// Reads the global wind.
     ///
     /// @param world          The world; null writes zeros.
-    /// @param velocityOut    Receives the air's velocity; may be null.
-    /// @param linearDragOut  Receives the drag coefficient; may be null.
+    /// @param velocityOut    Receives the air's velocity; (0, 0) for a null
+    ///                       world. May be null.
+    /// @param linearDragOut  Receives the drag coefficient; 0 for a null
+    ///                       world. May be null.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.

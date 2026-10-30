@@ -522,9 +522,10 @@ extern "C"
     /// @param world            The world.
     /// @param shapeId          The shape; a stale id counts one misuse and
     ///                         writes zeros.
-    /// @param categoryBitsOut  Receives the categories; may be null.
-    /// @param maskBitsOut      Receives the mask; may be null.
-    /// @param groupIndexOut    Receives the group; may be null.
+    /// @param categoryBitsOut  Receives the categories; 0 on failure. May be
+    ///                         null.
+    /// @param maskBitsOut      Receives the mask; 0 on failure. May be null.
+    /// @param groupIndexOut    Receives the group; 0 on failure. May be null.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
