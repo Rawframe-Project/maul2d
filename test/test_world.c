@@ -1944,7 +1944,7 @@ static void TestSubstepCap(void)
 // Host code a world runs, a task hook or a debug draw callback, tries to
 // change the world it serves. Every writer refuses: a status writer with
 // m2_errorBusy, a void writer by counting one misuse. A busy shatter leaves
-// the bodies it was given, which the host may be filling.
+// its count, which the host may be filling, and gives null ids.
 typedef struct Intruder
 {
     m2World* world;
@@ -2035,10 +2035,10 @@ static void TestHostCodeCannotWrite(void)
     CHECK(in.created == m2_errorBusy, "a create inside a task refuses with m2_errorBusy");
     CHECK(in.destroyed == m2_errorBusy, "so does a destroy");
     CHECK(in.restored == m2_errorBusy, "and a restore, before it reads the bytes");
-    CHECK(in.shattered == m2_errorBusy && in.pieceCount == 0, "and a shatter, which makes none");
-    CHECK(in.pieces[0].index1 == kept.index1 && in.pieces[0].generation == kept.generation &&
-              in.pieces[1].index1 == kept.index1 && in.pieces[1].generation == kept.generation,
-          "leaving the bodies it was given as they were");
+    CHECK(in.shattered == m2_errorBusy && in.pieceCount == 7,
+          "and a shatter, which leaves its count");
+    CHECK(in.pieces[0].index1 == 0 && in.pieces[1].index1 == 0,
+          "and gives null ids for the bodies it did not make");
     CHECK(in.stepsSeen == 0, "a nested step does not run, and readers still answer");
     CHECK(m2World_GetCounters(in.world).misuse == misuse + 6,
           "each refusal, the void ones too, counts one misuse");
@@ -2885,8 +2885,11 @@ static void TestShatterBody(void)
     before = m2World_Hash(small); // the wall moved the body pool on
     CHECK(m2Body_Shatter(small, wall, shards, 1, NULL, 0, &count) == m2_errorStale,
           "a stale body is m2_errorStale");
-    CHECK(m2Body_Shatter(small, lone, shards, 1, NULL, 0, NULL) == m2_errorInvalid,
-          "and so is a missing count");
+    kept[0] = lone;
+    kept[1] = lone;
+    CHECK(m2Body_Shatter(small, lone, shards, 1, kept, 2, NULL) == m2_errorInvalid &&
+              kept[0].index1 == 0 && kept[1].index1 == 0,
+          "a missing count is m2_errorInvalid, and still clears the bodies");
     count = 7;
     CHECK(m2Body_Shatter(small, lone, shards, 1, NULL, -1, &count) == m2_errorInvalid && count == 0,
           "a negative capacity is refused and clears the count");

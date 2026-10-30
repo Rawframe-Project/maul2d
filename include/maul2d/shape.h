@@ -304,12 +304,12 @@ extern "C"
     ///                    m2DecomposeOutline).
     /// @param pieceCount  The number of pieces, 1 to M2_MAX_SHATTER_PIECES.
     /// @param bodiesOut   Receives up to capacity new bodies, in piece
-    ///                    order; null ids on failure, except that
-    ///                    m2_errorBusy leaves it as it was. May be null
-    ///                    with capacity 0.
+    ///                    order; null ids on failure. May be null with
+    ///                    capacity 0.
     /// @param capacity    The length of bodiesOut, not below 0.
     /// @param countOut    Receives the number of bodies made, which may
-    ///                    exceed capacity; 0 on failure.
+    ///                    exceed capacity; 0 on failure, except that
+    ///                    m2_errorBusy leaves it as it was.
     /// @return m2_success; m2_errorStale for a stale body; m2_errorInvalid
     ///         for a body that is not dynamic, an invalid piece or piece
     ///         count, or a bad output argument; m2_errorLimit for more than

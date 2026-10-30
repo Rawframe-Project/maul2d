@@ -203,6 +203,20 @@ static M2_NOINLINE m2Result BodyShatterWorker(m2World* world, m2BodyId bodyId,
                                               m2BodyId* bodiesOut, int32_t capacity,
                                               int32_t* countOut)
 {
+    // bodiesOut holds the ids of bodies the call makes, so every failure
+    // leaves null ids there, a busy refusal too: no failed call leaves an id
+    // the caller could destroy. A busy refusal leaves the count, which host
+    // code the world is running may be filling; every other failure clears
+    // it.
+    m2Result writer = m2CheckWriter(world);
+    for (int32_t i = 0; bodiesOut != NULL && i < capacity; ++i)
+    {
+        bodiesOut[i] = m2_nullBodyId;
+    }
+    if (writer == m2_errorBusy)
+    {
+        return writer;
+    }
     if (countOut != NULL)
     {
         *countOut = 0;
@@ -210,13 +224,6 @@ static M2_NOINLINE m2Result BodyShatterWorker(m2World* world, m2BodyId bodyId,
     if (countOut == NULL || capacity < 0 || (bodiesOut == NULL && capacity > 0))
     {
         return m2Refuse(world, m2_errorInvalid);
-    }
-    // A busy refusal leaves bodiesOut: host code the world is running may
-    // be filling it. Every other failure leaves null ids.
-    m2Result writer = m2CheckWriter(world);
-    for (int32_t i = 0; writer != m2_errorBusy && i < capacity; ++i)
-    {
-        bodiesOut[i] = m2_nullBodyId;
     }
     if (writer != m2_success)
     {
