@@ -266,7 +266,7 @@ void m2Particle_SetVelocity(m2World* world, m2ParticleId particleId, m2Vec2 velo
     m2FloatEnvLeave(env);
 }
 
-uint32_t m2Particle_GetFlags(const m2World* world, m2ParticleId particleId)
+m2ParticleFlags m2Particle_GetFlags(const m2World* world, m2ParticleId particleId)
 {
     int32_t index = ParticleSlot(world, particleId);
     return index >= 0 ? world->particles.particleFlags[index] : 0;

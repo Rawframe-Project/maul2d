@@ -27,7 +27,7 @@ const char* m2GetSimdBackend(void)
 #endif
 }
 
-int32_t m2IsCpuBackendSupported(void)
+bool m2IsCpuBackendSupported(void)
 {
 #if defined(MAUL2D_BUILT_FOR_AVX2)
     // The AVX2 kernels need AVX2 and FMA3, and the operating system must
@@ -38,7 +38,7 @@ int32_t m2IsCpuBackendSupported(void)
     __cpuid(regs, 0);
     if (regs[0] < 7)
     {
-        return 0; // no leaf 7, so no AVX2
+        return false; // no leaf 7, so no AVX2
     }
     __cpuidex(regs, 1, 0);
     int osxsave = (regs[2] >> 27) & 1;
@@ -46,25 +46,25 @@ int32_t m2IsCpuBackendSupported(void)
     int avx = (regs[2] >> 28) & 1;
     if (!(osxsave && avx && fma))
     {
-        return 0;
+        return false;
     }
     unsigned long long xcr = _xgetbv(0);
     if ((xcr & 0x6) != 0x6)
     {
-        return 0; // the OS has not enabled XMM and YMM state
+        return false; // the OS has not enabled XMM and YMM state
     }
     __cpuidex(regs, 7, 0);
-    return ((regs[1] >> 5) & 1) ? 1 : 0; // leaf 7 EBX bit 5 = AVX2
+    return ((regs[1] >> 5) & 1) != 0; // leaf 7 EBX bit 5 = AVX2
 #else
-    return (__builtin_cpu_supports("avx2") && __builtin_cpu_supports("fma")) ? 1 : 0;
+    return __builtin_cpu_supports("avx2") && __builtin_cpu_supports("fma");
 #endif
 #else
     // NEON is architectural on arm64, and scalar and wasm run anywhere.
-    return 1;
+    return true;
 #endif
 }
 
-int32_t m2CheckCpu(const char** backend)
+bool m2CheckCpu(const char** backend)
 {
     if (backend != NULL)
     {

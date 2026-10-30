@@ -173,10 +173,10 @@ extern "C"
     /// backend with m2_errorUnsupported, so a program can call this first to
     /// choose another path, or build with -DMAUL2D_SIMD=scalar.
     ///
-    /// @return 1 when the CPU can run this library, 0 when it cannot.
+    /// @return Whether the CPU can run this library.
     /// @par Thread safety
     /// Safe from any thread.
-    M2_API int32_t m2IsCpuBackendSupported(void);
+    M2_API bool m2IsCpuBackendSupported(void);
 
     /// The 64-bit hash every determinism check is built on: eight bytes a
     /// round, xored in, multiplied by an odd constant and folded, the
@@ -188,7 +188,7 @@ extern "C"
     /// @return The new running hash.
     /// @par Thread safety
     /// Safe from any thread.
-    M2_API uint64_t m2Hash64(uint64_t seed, const void* data, int32_t byteCount);
+    M2_API uint64_t m2Hash64(uint64_t seed, const void* data, int64_t byteCount);
 
 // The seed of an m2Hash64 chain.
 #define M2_HASH_INIT 0xCBF29CE484222325ull

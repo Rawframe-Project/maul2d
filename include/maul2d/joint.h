@@ -22,7 +22,12 @@ extern "C"
 {
 #endif
 
-    typedef enum m2JointType
+    /// A joint's kind: one of the m2_*Joint constants. The type has a
+    /// fixed width, unlike a C enum's, so it crosses the interface the same
+    /// in every compiler, C and C++.
+    typedef int32_t m2JointType;
+
+    enum
     {
         m2_distanceJoint = 0,
         m2_revoluteJoint = 1,
@@ -35,7 +40,7 @@ extern "C"
         m2_gearJoint = 8,
         m2_pulleyJoint = 9,
         m2_ratchetJoint = 10,
-    } m2JointType;
+    };
 
     /// A joint of a world: a 1-based slot and a generation.
     typedef struct m2JointId

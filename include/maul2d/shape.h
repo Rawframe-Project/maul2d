@@ -85,14 +85,19 @@ extern "C"
         m2Vec2 ghost2;
     } m2ChainSegment;
 
-    typedef enum m2ShapeType
+    /// A shape's geometry kind: one of the m2_*Shape constants. The type
+    /// has a fixed width, unlike a C enum's, so it crosses the interface the
+    /// same in every compiler, C and C++.
+    typedef int32_t m2ShapeType;
+
+    enum
     {
         m2_circleShape = 0,
         m2_capsuleShape = 1,
         m2_polygonShape = 2,
         m2_segmentShape = 3,
         m2_chainSegmentShape = 4,
-    } m2ShapeType;
+    };
 
     /// The def of a shape. Initialize it with m2DefaultShapeDef.
     typedef struct m2ShapeDef

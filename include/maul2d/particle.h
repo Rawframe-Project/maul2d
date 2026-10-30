@@ -42,7 +42,11 @@ extern "C"
     /// droplets bead up and cling instead of spreading. Viscous particles
     /// drag their neighbors (honey, syrup). Powder grains repel when packed
     /// tighter than the rest stride and never cohere (sand, rubble, dust).
-    typedef enum m2ParticleFlags
+    /// The type has a fixed width, unlike a C enum's, so a def holding it
+    /// has one layout in every compiler, C and C++.
+    typedef uint32_t m2ParticleFlags;
+
+    enum
     {
         m2_waterParticle = 0,
         m2_tensileParticle = 1u << 0,
@@ -50,7 +54,7 @@ extern "C"
         m2_powderParticle = 1u << 2,
         m2_springParticle = 1u << 3,  // pairwise springs captured by a fill
         m2_elasticParticle = 1u << 4, // shape-restoring triads captured by a fill
-    } m2ParticleFlags;
+    };
 
     /// The def of a particle, or of every particle of a polygon fill.
     /// Initialize it with m2DefaultParticleDef.
@@ -58,7 +62,7 @@ extern "C"
     {
         m2Pos2 position;       // world space; for a fill, where the polygon's frame sits
         m2Vec2 velocity;       // m/s, within M2_SPEED_LIMIT per axis
-        uint32_t flags;        // m2ParticleFlags values, ored together
+        m2ParticleFlags flags; // m2_*Particle values, ored together
         int32_t internalValue; // the cookie m2DefaultParticleDef sets
     } m2ParticleDef;
 
@@ -127,11 +131,11 @@ extern "C"
     ///
     /// @param world       The world.
     /// @param particleId  The particle.
-    /// @return The m2ParticleFlags it was created with; 0 for a stale id.
+    /// @return The m2_*Particle flags it was created with; 0 for a stale id.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
-    M2_API uint32_t m2Particle_GetFlags(const m2World* world, m2ParticleId particleId);
+    M2_API m2ParticleFlags m2Particle_GetFlags(const m2World* world, m2ParticleId particleId);
 
     /// Gives a particle a lifetime. It counts down by each step's length,
     /// and the particle is destroyed at the end of the step it reaches
