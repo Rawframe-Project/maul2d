@@ -715,8 +715,49 @@ static void TestRayInsideRoundedPolygon(void)
     m2DestroyWorld(world);
 }
 
-// A closest cast says whether it hits and writes only a hit: a miss
-// leaves hitOut as it was, and a null hitOut is refused as a misuse.
+enum
+{
+    CLOSEST_CASTS = 5
+};
+
+// Runs every closest cast from origin along translation, each into its own
+// hit filled first with a pattern no cast writes, and counts the hits.
+static int32_t CastEveryClosest(const m2World* world, m2ShapeId shape, m2Pos2 origin,
+                                m2Vec2 translation, m2CastHit* hits)
+{
+    m2QueryFilter all = m2DefaultQueryFilter();
+    m2Circle ball = {{0.0f, 0.0f}, 0.25f};
+    m2Capsule rod = {{-0.25f, 0.0f}, {0.25f, 0.0f}, 0.1f};
+    m2Polygon chip = m2MakeBox(0.25f, 0.25f);
+    m2Transform pose = {origin, {1.0f, 0.0f}};
+    memset(hits, 0x5A, sizeof(m2CastHit) * CLOSEST_CASTS);
+    int32_t count = 0;
+    count += m2World_CastRayClosest(world, origin, translation, all, &hits[0]) ? 1 : 0;
+    count += m2World_CastCircleClosest(world, &ball, pose, translation, all, &hits[1]) ? 1 : 0;
+    count += m2World_CastCapsuleClosest(world, &rod, pose, translation, all, &hits[2]) ? 1 : 0;
+    count += m2World_CastPolygonClosest(world, &chip, pose, translation, all, &hits[3]) ? 1 : 0;
+    count += m2Shape_CastRay(world, shape, origin, translation, &hits[4]) ? 1 : 0;
+    return count;
+}
+
+// Whether every field of the count hits is zero, with the null shape id.
+static bool HitsZero(const m2CastHit* hits, int32_t count)
+{
+    for (int32_t i = 0; i < count; ++i)
+    {
+        const m2CastHit* h = &hits[i];
+        if (h->shapeId.index1 != 0 || h->shapeId.generation != 0 || h->point.x != 0.0 ||
+            h->point.y != 0.0 || h->normal.x != 0.0f || h->normal.y != 0.0f || h->fraction != 0.0f)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// A closest cast says whether it hits and writes the hit. A miss, a
+// refusal and a null world leave zeros, so a caller never reads an earlier
+// hit as the answer, and a null hitOut is refused as a misuse.
 static void TestCastHitOut(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
@@ -726,33 +767,52 @@ static void TestCastHitOut(void)
     m2ShapeDef sd = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(2.0f, 0.5f);
     m2ShapeId floor = NewPolygonShape(world, ground, &sd, &slab);
+    m2Pos2 above = {0.0, 3.0};
+    m2Vec2 down = {0.0f, -6.0f};
+    m2CastHit hits[CLOSEST_CASTS];
+
+    CHECK(CastEveryClosest(world, floor, above, down, hits) == CLOSEST_CASTS,
+          "every cast that hits says so");
+    bool wrote = true;
+    for (int32_t i = 0; i < CLOSEST_CASTS; ++i)
+    {
+        wrote = wrote && hits[i].shapeId.index1 == floor.index1 && hits[i].normal.y == 1.0f;
+    }
+    CHECK(wrote, "and writes the hit");
+
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    CHECK(CastEveryClosest(world, floor, (m2Pos2){9.0, 3.0}, down, hits) == 0 &&
+              HitsZero(hits, CLOSEST_CASTS),
+          "a miss leaves zeros");
+    CHECK(m2World_GetCounters(world).misuse == misuse, "and counts no misuse");
+
+    CHECK(CastEveryClosest(world, floor, (m2Pos2){(double)NAN, 3.0}, down, hits) == 0 &&
+              HitsZero(hits, CLOSEST_CASTS),
+          "a refused cast leaves zeros");
+    CHECK(m2World_GetCounters(world).misuse == misuse + CLOSEST_CASTS, "each counting one misuse");
+
+    m2ShapeId stale = {floor.index1, floor.generation + 1u};
+    m2CastHit staleHit;
+    memset(&staleHit, 0x5A, sizeof(staleHit));
+    CHECK(!m2Shape_CastRay(world, stale, above, down, &staleHit) && HitsZero(&staleHit, 1),
+          "a cast at a stale shape leaves zeros");
+
+    CHECK(CastEveryClosest(NULL, floor, above, down, hits) == 0 && HitsZero(hits, CLOSEST_CASTS),
+          "a null world leaves zeros");
+
     m2QueryFilter all = m2DefaultQueryFilter();
-    m2CastHit hit = {{0, 0}, {0.0, 0.0}, {0.0f, 0.0f}, 0.0f};
-    CHECK(m2World_CastRayClosest(world, (m2Pos2){0.0, 3.0}, (m2Vec2){0.0f, -6.0f}, all, &hit) &&
-              hit.shapeId.index1 == floor.index1 && hit.normal.y == 1.0f,
-          "a ray that hits says so and writes the hit");
-    // Both filled with one pattern, padding included: a copy by assignment
-    // need not copy padding, so the reference is never assigned.
-    m2CastHit untouched;
-    m2CastHit pattern;
-    memset(&untouched, 0x5A, sizeof(untouched));
-    memset(&pattern, 0x5A, sizeof(pattern));
-    CHECK(!m2World_CastRayClosest(world, (m2Pos2){9.0, 3.0}, (m2Vec2){0.0f, -6.0f}, all,
-                                  &untouched) &&
-              memcmp(&untouched, &pattern, sizeof(untouched)) == 0,
-          "a miss leaves every byte of the hit as it was");
     m2Circle ball = {{0.0f, 0.0f}, 0.25f};
     m2Capsule rod = {{-0.25f, 0.0f}, {0.25f, 0.0f}, 0.1f};
     m2Polygon chip = m2MakeBox(0.25f, 0.25f);
-    m2Transform above = {{0.0, 3.0}, {1.0f, 0.0f}};
-    uint64_t misuse = m2World_GetCounters(world).misuse;
-    CHECK(!m2World_CastRayClosest(world, (m2Pos2){0.0, 3.0}, (m2Vec2){0.0f, -6.0f}, all, NULL) &&
-              !m2World_CastCircleClosest(world, &ball, above, (m2Vec2){0.0f, -6.0f}, all, NULL) &&
-              !m2World_CastCapsuleClosest(world, &rod, above, (m2Vec2){0.0f, -6.0f}, all, NULL) &&
-              !m2World_CastPolygonClosest(world, &chip, above, (m2Vec2){0.0f, -6.0f}, all, NULL) &&
-              !m2Shape_CastRay(world, floor, (m2Pos2){0.0, 3.0}, (m2Vec2){0.0f, -6.0f}, NULL),
+    m2Transform pose = {above, {1.0f, 0.0f}};
+    misuse = m2World_GetCounters(world).misuse;
+    CHECK(!m2World_CastRayClosest(world, above, down, all, NULL) &&
+              !m2World_CastCircleClosest(world, &ball, pose, down, all, NULL) &&
+              !m2World_CastCapsuleClosest(world, &rod, pose, down, all, NULL) &&
+              !m2World_CastPolygonClosest(world, &chip, pose, down, all, NULL) &&
+              !m2Shape_CastRay(world, floor, above, down, NULL),
           "a null hitOut is refused");
-    CHECK(m2World_GetCounters(world).misuse == misuse + 5, "each counting one misuse");
+    CHECK(m2World_GetCounters(world).misuse == misuse + CLOSEST_CASTS, "each counting one misuse");
     m2DestroyWorld(world);
 }
 

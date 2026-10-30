@@ -189,8 +189,8 @@ static M2_NOINLINE bool WorldCastRayClosestWorker(const m2World* world, m2Pos2 o
                                                   m2Vec2 translation, m2QueryFilter filter,
                                                   m2CastHit* hitOut)
 {
-    return hitOut != NULL ? m2DeliverHit(CastRayClosest(world, origin, translation, filter), hitOut)
-                          : m2RefuseCast(world);
+    return m2ClearHit(world, hitOut) &&
+           m2DeliverHit(CastRayClosest(world, origin, translation, filter), hitOut);
 }
 
 bool m2World_CastRayClosest(const m2World* world, m2Pos2 origin, m2Vec2 translation,
@@ -504,9 +504,8 @@ static M2_NOINLINE bool WorldCastCircleClosestWorker(const m2World* world, const
                                                      m2Transform origin, m2Vec2 translation,
                                                      m2QueryFilter filter, m2CastHit* hitOut)
 {
-    return hitOut != NULL
-               ? m2DeliverHit(CastCircleClosest(world, circle, origin, translation, filter), hitOut)
-               : m2RefuseCast(world);
+    return m2ClearHit(world, hitOut) &&
+           m2DeliverHit(CastCircleClosest(world, circle, origin, translation, filter), hitOut);
 }
 
 bool m2World_CastCircleClosest(const m2World* world, const m2Circle* circle, m2Transform origin,
@@ -530,10 +529,8 @@ static M2_NOINLINE bool WorldCastCapsuleClosestWorker(const m2World* world,
                                                       m2Vec2 translation, m2QueryFilter filter,
                                                       m2CastHit* hitOut)
 {
-    return hitOut != NULL
-               ? m2DeliverHit(CastCapsuleClosest(world, capsule, origin, translation, filter),
-                              hitOut)
-               : m2RefuseCast(world);
+    return m2ClearHit(world, hitOut) &&
+           m2DeliverHit(CastCapsuleClosest(world, capsule, origin, translation, filter), hitOut);
 }
 
 bool m2World_CastCapsuleClosest(const m2World* world, const m2Capsule* capsule, m2Transform origin,
@@ -558,10 +555,8 @@ static M2_NOINLINE bool WorldCastPolygonClosestWorker(const m2World* world,
                                                       m2Vec2 translation, m2QueryFilter filter,
                                                       m2CastHit* hitOut)
 {
-    return hitOut != NULL
-               ? m2DeliverHit(CastPolygonClosest(world, polygon, origin, translation, filter),
-                              hitOut)
-               : m2RefuseCast(world);
+    return m2ClearHit(world, hitOut) &&
+           m2DeliverHit(CastPolygonClosest(world, polygon, origin, translation, filter), hitOut);
 }
 
 bool m2World_CastPolygonClosest(const m2World* world, const m2Polygon* polygon, m2Transform origin,
@@ -682,8 +677,8 @@ static m2QueryHit ShapeCastRay(const m2World* world, m2ShapeId shapeId, m2Pos2 o
 static M2_NOINLINE bool ShapeCastRayWorker(const m2World* world, m2ShapeId shapeId, m2Pos2 origin,
                                            m2Vec2 translation, m2CastHit* hitOut)
 {
-    return hitOut != NULL ? m2DeliverHit(ShapeCastRay(world, shapeId, origin, translation), hitOut)
-                          : m2RefuseCast(world);
+    return m2ClearHit(world, hitOut) &&
+           m2DeliverHit(ShapeCastRay(world, shapeId, origin, translation), hitOut);
 }
 
 bool m2Shape_CastRay(const m2World* world, m2ShapeId shapeId, m2Pos2 origin, m2Vec2 translation,
