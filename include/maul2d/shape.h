@@ -829,8 +829,8 @@ extern "C"
     /// @param translation  The ray, origin + t * translation for t in
     ///                     [0, 1].
     /// @param filter       Which shapes the ray sees.
-    /// @param hitOut       Receives the closest hit; left as it was on a
-    ///                     miss.
+    /// @param hitOut       Receives the closest hit; zeros, with the null
+    ///                     shape id, on a miss or a refusal.
     /// @return True on a hit; false on a miss, and for a non-finite argument
     ///         or a null hitOut, which count one misuse.
     /// @par Thread safety
@@ -846,7 +846,8 @@ extern "C"
     /// @param shapeId      The shape; a stale id counts one misuse.
     /// @param origin       The start, in world space.
     /// @param translation  The ray.
-    /// @param hitOut       Receives the hit; left as it was on a miss.
+    /// @param hitOut       Receives the hit; zeros, with the null shape id,
+    ///                     on a miss or a refusal.
     /// @return True on a hit; false on a miss, and for a stale id, a
     ///         non-finite argument or a null hitOut, which count one misuse.
     /// @par Thread safety
@@ -1010,8 +1011,8 @@ extern "C"
     /// @param origin       The circle's pose at the start.
     /// @param translation  The sweep.
     /// @param filter       Which shapes the sweep sees.
-    /// @param hitOut       Receives the closest hit; left as it was on a
-    ///                     miss.
+    /// @param hitOut       Receives the closest hit; zeros, with the null
+    ///                     shape id, on a miss or a refusal.
     /// @return True on a hit; false on a miss, and for an invalid argument or
     ///         a null hitOut, which count one misuse.
     /// @par Thread safety
@@ -1029,8 +1030,8 @@ extern "C"
     /// @param origin       The capsule's pose at the start.
     /// @param translation  The sweep.
     /// @param filter       Which shapes the sweep sees.
-    /// @param hitOut       Receives the closest hit; left as it was on a
-    ///                     miss.
+    /// @param hitOut       Receives the closest hit; zeros, with the null
+    ///                     shape id, on a miss or a refusal.
     /// @return True on a hit; false on a miss, and for an invalid argument or
     ///         a null hitOut, which count one misuse.
     /// @par Thread safety
@@ -1048,8 +1049,8 @@ extern "C"
     /// @param origin       The polygon's pose at the start.
     /// @param translation  The sweep.
     /// @param filter       Which shapes the sweep sees.
-    /// @param hitOut       Receives the closest hit; left as it was on a
-    ///                     miss.
+    /// @param hitOut       Receives the closest hit; zeros, with the null
+    ///                     shape id, on a miss or a refusal.
     /// @return True on a hit; false on a miss, and for an invalid argument or
     ///         a null hitOut, which count one misuse.
     /// @par Thread safety

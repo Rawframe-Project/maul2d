@@ -40,15 +40,25 @@ typedef struct m2QueryHit
     bool hit;
 } m2QueryHit;
 
-// A closest cast with no place for its hit: one misuse, and no hit.
-static inline bool m2RefuseCast(const m2World* world)
+// Zeroes a closest cast's hit before the cast checks anything, so a miss,
+// a refusal and a null world all leave zeros. A null hitOut has no place
+// for the hit: one misuse, and no hit.
+static inline bool m2ClearHit(const m2World* world, m2CastHit* hitOut)
 {
-    m2Refuse(world, m2_errorInvalid);
-    return false;
+    if (hitOut == NULL)
+    {
+        m2Refuse(world, m2_errorInvalid);
+        return false;
+    }
+    hitOut->shapeId = m2_nullShapeId;
+    hitOut->point = (m2Pos2){0.0, 0.0};
+    hitOut->normal = (m2Vec2){0.0f, 0.0f};
+    hitOut->fraction = 0.0f;
+    return true;
 }
 
-// Writes a closest cast's hit, when it has one; leaves hitOut as it was
-// otherwise.
+// Writes a closest cast's hit, when it has one, over the zeros m2ClearHit
+// left.
 static inline bool m2DeliverHit(m2QueryHit result, m2CastHit* hitOut)
 {
     if (result.hit)
