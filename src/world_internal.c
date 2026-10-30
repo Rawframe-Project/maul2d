@@ -42,6 +42,15 @@ m2Result m2Refuse(const m2World* world, m2Result reason)
     // caller's code; host code the replay runs (a task hook, the allocator)
     // is the caller's and still counts.
     bool tapeDriven = world != NULL && world->replaying != 0 && HostCodeDepth(world) == 0;
+    // A writer records itself only after its checks pass, so a tape
+    // operation refused on replay is a tape the recording never wrote: the
+    // replay fails with m2_errorFormat even where the call returns void. A
+    // fill cut short by a full pool is recorded as such, so a full pool
+    // alone does not fail it.
+    if (tapeDriven && reason != m2_errorCapacity)
+    {
+        ((m2World*)world)->tapeRefused = 1;
+    }
     // A full pool and bytes from outside are no misuse of the API.
     bool misuse =
         world != NULL && reason != m2_errorCapacity && reason != m2_errorFormat && !tapeDriven;

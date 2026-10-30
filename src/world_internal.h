@@ -381,6 +381,7 @@ typedef struct m2World
     int64_t memoryBytes; // persistent footprint, from create
     volatile long busy;  // host code running: a step's tasks, debug draws; atomic access only
     uint8_t replaying;   // applying a journal tape: refusals outside host code count no misuse
+    uint8_t tapeRefused; // a tape operation was refused while replaying: the tape fails
 } m2World;
 
 // Refuses a caller's call against a world and returns the reason, so a
