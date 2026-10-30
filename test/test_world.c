@@ -3777,10 +3777,14 @@ static void TestJointEdgesThatWrapAreRefused(void)
           "a joint capacity whose edges wrap is refused");
     CHECK(counter.calls == 0, "before anything is allocated");
 
+    // One joint fewer passes the edge check. A 64-bit build then asks for
+    // the state, which the counting allocator refuses; a 32-bit build
+    // cannot address that world's snapshot and refuses the def before.
     def.jointCapacity = (int32_t)(((uint32_t)1 << 30) - 1u);
-    counter.calls = 0;
-    CHECK(m2CreateWorld(&def, &world) == m2_errorCapacity && counter.refused > 0,
-          "one joint fewer reaches the state allocation");
+    bool wide = sizeof(size_t) > 4;
+    CHECK(m2CreateWorld(&def, &world) == m2_errorCapacity &&
+              (wide ? counter.refused > 0 : counter.calls == 0),
+          "one joint fewer passes the edge check");
 }
 
 int main(void)
