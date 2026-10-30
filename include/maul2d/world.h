@@ -364,7 +364,8 @@ extern "C"
         M2_ALIGN8 uint64_t stepCount;
         // Counted in every build. Poll them once per frame and alarm on
         // growth: there is no per-call callback, so healthy calls pay
-        // nothing for the diagnosis.
+        // nothing for the diagnosis. The three counts of drops stop at
+        // INT32_MAX.
         int32_t pairOverflow;                // body pairs dropped last step (pair table full)
         int32_t particlePairOverflow;        // particle pairs dropped last step (budget)
         int32_t particleBodyOverflow;        // particle body contacts dropped last step

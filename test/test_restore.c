@@ -1872,6 +1872,26 @@ static void TestFailedSnapshotClearsItsBuffer(void)
     m2DestroyWorld(world);
 }
 
+// The counts of dropped pairs and contacts in m2Counters stop at INT32_MAX:
+// a step whose candidates all meet each other drops more than 32 bits
+// count, and wrapping would report a few drops, or a negative number, for
+// the worst overflow. The scene that drops 2^31 pairs takes minutes a
+// step, so this checks the count the three counters share.
+static void TestDropCountsStopAtInt32Max(void)
+{
+    int32_t count = 0;
+    m2CountDrops(&count, 5);
+    CHECK(count == 5, "drops add up");
+    count = INT32_MAX - 1;
+    m2CountDrops(&count, 1);
+    CHECK(count == INT32_MAX, "up to INT32_MAX");
+    m2CountDrops(&count, 1);
+    CHECK(count == INT32_MAX, "and stop there");
+    count = 7;
+    m2CountDrops(&count, (int64_t)1 << 40);
+    CHECK(count == INT32_MAX, "a count past 32 bits stops there too");
+}
+
 int main(void)
 {
     TestHostileStructures();
@@ -1889,6 +1909,7 @@ int main(void)
     TestDistantLinkEndStaysFinite();
     TestLinkShapesInRange();
     TestRestoreKeepsTheParticleRadius();
+    TestDropCountsStopAtInt32Max();
     TestFailedSnapshotClearsItsBuffer();
     if (s_failures > 0)
     {

@@ -394,6 +394,15 @@ typedef struct m2World
 m2Result m2Refuse(const m2World* world, m2Result reason);
 uint64_t m2MisuseCount(const m2World* world);
 
+// Adds drops to one of m2Counters' dropped pair or contact counts, which
+// stops at INT32_MAX instead of wrapping: one step may drop more pairs than
+// 32 bits count, since every candidate may meet every other.
+static inline void m2CountDrops(int32_t* counter, int64_t drops)
+{
+    int64_t total = (int64_t)*counter + drops;
+    *counter = total < INT32_MAX ? (int32_t)total : INT32_MAX;
+}
+
 // Refuses a list call: zeroes the caller's list over its whole capacity,
 // since a failed call defines none of its items, counts one misuse on a
 // live world as m2Refuse does, and returns the count of 0 the call

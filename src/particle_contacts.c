@@ -167,7 +167,7 @@ static void Gather(m2World* world)
     m2Particles* p = &world->particles;
     for (int32_t i = 0; i < p->maxParticleIndex; ++i)
     {
-        p->particleBodyOverflow += p->particleBodyStageDrops[i];
+        m2CountDrops(&p->particleBodyOverflow, p->particleBodyStageDrops[i]);
         for (int32_t k = 0; k < M2_CONTACTS_PER_PARTICLE; ++k)
         {
             int32_t slot = i * M2_CONTACTS_PER_PARTICLE + k;
@@ -178,7 +178,7 @@ static void Gather(m2World* world)
             }
             if (p->particleBodyCount >= p->particleBodyCapacity)
             {
-                p->particleBodyOverflow += 1;
+                m2CountDrops(&p->particleBodyOverflow, 1);
                 continue;
             }
             int32_t out = p->particleBodyCount;

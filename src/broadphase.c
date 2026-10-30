@@ -82,6 +82,7 @@ void m2UpdatePairs(m2World* world)
           CompareI32);
 
     int32_t collected = 0;
+    int64_t dropped = 0; // every moved shape may meet every other: past 32 bits
     for (int32_t m = 0; m < world->broadphase.movedCount; ++m)
     {
         int32_t shapeIndex = world->broadphase.moved[m];
@@ -155,21 +156,19 @@ void m2UpdatePairs(m2World* world)
                 {
                     continue; // connected without enableConnectedCollision
                 }
-                if (collected < world->contacts.pairCapacity)
+                if (collected >= world->contacts.pairCapacity)
                 {
-                    world->contacts.pairScratch[collected] = PairKey(shapeIndex, other);
+                    dropped += 1;
+                    continue;
                 }
+                world->contacts.pairScratch[collected] = PairKey(shapeIndex, other);
                 collected += 1;
             }
         }
     }
     // A full pair table drops the excess candidates, counted loudly in
     // m2Counters.pairOverflow rather than asserted away.
-    if (collected > world->contacts.pairCapacity)
-    {
-        world->contacts.pairOverflow += collected - world->contacts.pairCapacity;
-        collected = world->contacts.pairCapacity;
-    }
+    m2CountDrops(&world->contacts.pairOverflow, dropped);
 
     qsort(world->contacts.pairScratch, (size_t)collected, sizeof(uint64_t), CompareU64);
 
@@ -228,7 +227,7 @@ void m2UpdatePairs(m2World* world)
         }
         else
         {
-            world->contacts.pairOverflow += 1;
+            m2CountDrops(&world->contacts.pairOverflow, 1);
         }
     }
     memcpy(world->contacts.pairKeys, world->contacts.pairMergeScratch,

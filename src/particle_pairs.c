@@ -143,7 +143,7 @@ static void AddPair(m2World* world, int32_t a, int32_t b, float diameter)
     }
     if (p->particlePairCount >= p->particlePairCapacity)
     {
-        p->particlePairOverflow += 1;
+        m2CountDrops(&p->particlePairOverflow, 1);
         return;
     }
     int32_t n = p->particlePairCount;

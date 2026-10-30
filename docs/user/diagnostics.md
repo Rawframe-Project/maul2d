@@ -6,7 +6,7 @@
 
 - `misuse`: calls the library refused as bugs of the calling code (an argument a correct program never passes, a destroyed object's id, a change made from code the world is running).
 - `particlePoolFull`: particle creates refused by a full particle pool.
-- `pairOverflow`, `particlePairOverflow`, `particleBodyOverflow`: pairs and contacts dropped last step because a fixed budget was full.
+- `pairOverflow`, `particlePairOverflow`, `particleBodyOverflow`: pairs and contacts dropped last step because a fixed budget was full. Each stops at `INT32_MAX` instead of wrapping.
 
 ```c
 m2Counters counters = m2World_GetCounters(world);

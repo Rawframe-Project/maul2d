@@ -347,7 +347,9 @@ static M2_NOINLINE m2Result DestroyFluidVolumeWorker(m2World* world, m2FluidVolu
         return m2_success;
     }
     world->volumes.fvGenerations[index] += 1;
-    world->volumes.fvFreeQueue[(world->volumes.fvFreeHead + world->volumes.fvFreeCount) %
+    // In 64 bits: the fluid volume capacity has no bound that keeps head
+    // plus count under 2^31.
+    world->volumes.fvFreeQueue[((int64_t)world->volumes.fvFreeHead + world->volumes.fvFreeCount) %
                                world->volumes.fvCapacity] = index;
     world->volumes.fvFreeCount += 1;
     return m2_success;
