@@ -8,7 +8,7 @@ What verifies a change, locally and in CI, and the time each may take.
 
 | Tier | Runs | Budget |
 |---|---|---|
-| `changed` | The source, module, length, API documentation, snippet, journal record and patch release rules, test hygiene, the organization's documentation check, `clang-format`, and the `linux-clang-20-asan` preset (scalar backend, assertions and world validation on) with the CTest labels the changed files reach. Every preset it configures must label each of its tests. | under 2 minutes |
+| `changed` | The source, module, length, API documentation, snippet, journal record and patch release rules, test hygiene, the organization's documentation check, `clang-format`, clang-tidy with the assertions compiled out and live on the changed `src/*.c` files, and the `linux-clang-20-asan` preset (scalar backend, assertions and world validation on) with the CTest labels the changed files reach. Every preset it configures must label each of its tests. | under 2 minutes |
 | `pr` | Every rule on every file, clang-tidy over `src/` with the assertions compiled out and live, the documentation site, and the `linux-clang-20-asan`, `linux-gcc-14` and `linux-shared` presets. | under 10 minutes |
 | `full` | Also the other Linux presets (ThreadSanitizer, Clang Release), the testbed, the nightly simulation, and each fuzz target for `FUZZ_SECONDS` (default 20). | under 20 minutes |
 
