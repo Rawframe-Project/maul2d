@@ -241,7 +241,8 @@ static M2_NOINLINE void ParticleSetVelocityWorker(m2World* world, m2ParticleId p
     int32_t index = ParticleSlot(world, particleId);
     if (index < 0)
     {
-        return; // expired: changes nothing, counts nothing
+        m2RefuseUncounted(world, m2_errorStale); // expired: changes nothing, counts nothing
+        return;
     }
     if (!m2ValidVelocity(velocity))
     {
@@ -282,7 +283,8 @@ static M2_NOINLINE void ParticleSetLifetimeWorker(m2World* world, m2ParticleId p
     int32_t index = ParticleSlot(world, particleId);
     if (index < 0)
     {
-        return; // expired: changes nothing, counts nothing
+        m2RefuseUncounted(world, m2_errorStale); // expired: changes nothing, counts nothing
+        return;
     }
     if (!m2FiniteF(seconds) || seconds < 0.0f)
     {
@@ -330,7 +332,8 @@ void m2Particle_SetUserData(m2World* world, m2ParticleId particleId, uint64_t us
     int32_t index = ParticleSlot(world, particleId);
     if (index < 0)
     {
-        return; // expired: changes nothing, counts nothing
+        m2RefuseUncounted(world, m2_errorStale); // expired: changes nothing, counts nothing
+        return;
     }
     if (world->recorder.journalActive != 0)
     {

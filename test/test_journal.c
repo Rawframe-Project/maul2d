@@ -447,12 +447,12 @@ static void TestReplayIsAtomic(void)
     free(tape);
 }
 
-// Replays tape with the float at offset (from the tape's start) replaced
-// by value, after checking it held expected: the call it feeds refuses,
-// so the tape is refused, changes nothing and counts nothing, even where
-// the call returns void.
-static void ExpectFloatRefused(m2World* world, const uint8_t* tape, int64_t bytes, int64_t offset,
-                               float expected, float value, const char* what)
+// Replays tape with the 4-byte word at offset (from the tape's start)
+// replaced by value, after checking it held expected: the call it feeds
+// refuses, so the tape is refused, changes nothing and counts nothing,
+// even where the call returns void.
+static void ExpectWordRefused(m2World* world, const uint8_t* tape, int64_t bytes, int64_t offset,
+                              const void* expected, const void* value, const char* what)
 {
     uint8_t* edited = (uint8_t*)malloc((size_t)bytes);
     CHECK(edited != NULL, "a copy of the tape");
@@ -461,10 +461,8 @@ static void ExpectFloatRefused(m2World* world, const uint8_t* tape, int64_t byte
         return;
     }
     memcpy(edited, tape, (size_t)bytes);
-    float held = 0.0f;
-    memcpy(&held, edited + offset, sizeof(held));
-    CHECK(held == expected, "the record holds the value at its offset");
-    memcpy(edited + offset, &value, sizeof(value));
+    CHECK(memcmp(edited + offset, expected, 4) == 0, "the record holds the value at its offset");
+    memcpy(edited + offset, value, 4);
     uint64_t hash = m2World_Hash(world);
     uint64_t misuse = m2World_GetCounters(world).misuseCount;
     CHECK(m2World_ReplayJournal(world, edited, bytes) == m2_errorFormat, what);
@@ -473,14 +471,21 @@ static void ExpectFloatRefused(m2World* world, const uint8_t* tape, int64_t byte
     free(edited);
 }
 
+static void ExpectFloatRefused(m2World* world, const uint8_t* tape, int64_t bytes, int64_t offset,
+                               float expected, float value, const char* what)
+{
+    ExpectWordRefused(world, tape, bytes, offset, &expected, &value, what);
+}
+
 // A void writer records itself only after its checks pass, so a tape
 // whose value that writer refuses is not one a recording wrote: a
-// velocity set to NaN, a step of no time. Neither replays as a skipped
-// op; the whole tape is refused.
+// velocity set to NaN, a step of no time, a particle id that names no live
+// particle. None replays as a skipped op; the whole tape is refused.
 static void TestRefusedVoidOpsFailTheTape(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 4;
+    def.particleCapacity = 4;
     m2World* world = NewWorld(&def);
     m2BodyDef bodyDef = m2DefaultBodyDef();
     bodyDef.type = m2_dynamicBody;
@@ -505,6 +510,20 @@ static void TestRefusedVoidOpsFailTheTape(void)
     CHECK(ReplayJournal(world, tape, bytes), "the recorded step replays");
     ExpectFloatRefused(world, tape, bytes, recordStart + 1, 0.25f, 0.0f,
                        "a step of no time on a tape is refused");
+
+    // The record: an op byte, the particle's id (slot, then generation),
+    // then the velocity. A dead particle's setters count nothing, but a
+    // recording never writes one, so a tape that names one is refused.
+    m2ParticleId particle = EmitParticle(world, (m2Pos2){0.0, 5.0}, (m2Vec2){0.0f, 0.0f}, 0);
+    CHECK(StartJournal(world, tape, capacity), "the journal starts a third time");
+    recordStart = m2World_GetJournalBaseSize(world);
+    m2Particle_SetVelocity(world, particle, (m2Vec2){0.5f, 0.0f});
+    bytes = StopJournal(world);
+    CHECK(ReplayJournal(world, tape, bytes), "the recorded particle velocity replays");
+    uint32_t generation = particle.generation;
+    uint32_t stale = generation + 1u;
+    ExpectWordRefused(world, tape, bytes, recordStart + 1 + (int64_t)sizeof(uint32_t), &generation,
+                      &stale, "a particle velocity for no live particle on a tape is refused");
     free(tape);
     m2DestroyWorld(world);
 }

@@ -393,6 +393,11 @@ typedef struct m2World
 // tape's op refuses while the world replays counts nothing. world may be
 // NULL, which counts nothing.
 m2Result m2Refuse(const m2World* world, m2Result reason);
+
+// A refusal that is never misuse, as a dead particle's id is not: it
+// counts nothing, but on a replay's own path it fails the tape as
+// m2Refuse's refusals do.
+m2Result m2RefuseUncounted(const m2World* world, m2Result reason);
 uint64_t m2MisuseCount(const m2World* world);
 
 // Adds drops to one of m2Counters' dropped pair or contact counts, which
