@@ -604,7 +604,8 @@ extern "C"
     ///
     /// @param world     The world.
     /// @param volumeId  The volume.
-    /// @return m2_success; m2_errorStale when it is already gone;
+    /// @return m2_success; m2_errorInvalid for a null world;
+    ///         m2_errorStale when it is already gone;
     ///         m2_errorBusy from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
@@ -684,7 +685,7 @@ extern "C"
     /// @param world     The world.
     /// @param bytesOut  Receives the tape's size; 0 on failure, except that
     ///                  m2_errorBusy leaves it as it was.
-    /// @return m2_success; m2_errorInvalid for a null bytesOut;
+    /// @return m2_success; m2_errorInvalid for a null world or bytesOut;
     ///         m2_errorCapacity when the operations overflowed the buffer;
     ///         m2_errorState when the world was not recording; m2_errorBusy
     ///         from host code the world is running.

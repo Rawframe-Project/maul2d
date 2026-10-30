@@ -111,7 +111,8 @@ extern "C"
     ///
     /// @param world   The world.
     /// @param bodyId  The body.
-    /// @return m2_success; m2_errorStale when the body is already gone;
+    /// @return m2_success; m2_errorInvalid for a null world;
+    ///         m2_errorStale when the body is already gone;
     ///         m2_errorBusy from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.

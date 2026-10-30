@@ -173,8 +173,9 @@ extern "C"
     ///         shape pool ran out before the last segment (chainOut names
     ///         the shorter chain) or the chain or shape pool has no room at
     ///         all (chainOut is the null id); m2_errorStale for a stale
-    ///         body; m2_errorInvalid for a bad def or a null chainOut;
-    ///         m2_errorLimit for a point or value past its published bound;
+    ///         body; m2_errorInvalid for a null world, a bad def or a null
+    ///         chainOut; m2_errorLimit for a point or value past its
+    ///         published bound;
     ///         m2_errorBusy from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
@@ -186,7 +187,8 @@ extern "C"
     ///
     /// @param world    The world.
     /// @param chainId  The chain.
-    /// @return m2_success; m2_errorStale when the chain is already gone;
+    /// @return m2_success; m2_errorInvalid for a null world;
+    ///         m2_errorStale when the chain is already gone;
     ///         m2_errorBusy from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
@@ -317,8 +319,9 @@ extern "C"
     ///                    m2_errorBusy leaves it as it was.
     /// @return m2_success; m2_errorStale for a stale body; m2_errorInvalid
     ///         for a body that is not dynamic, an invalid piece or piece
-    ///         count, or a bad output argument; m2_errorLimit for more than
-    ///         M2_MAX_SHATTER_PIECES pieces or a piece past its bounds, as
+    ///         count, a null world or a bad output argument; m2_errorLimit
+    ///         for more than M2_MAX_SHATTER_PIECES pieces or a piece past its
+    ///         bounds, as
     ///         m2MakePolygon gives them; m2_errorCapacity when the
     ///         body or shape pool cannot seat every piece, which counts no
     ///         misuse; m2_errorBusy from host code the world is running.
@@ -420,7 +423,8 @@ extern "C"
     ///
     /// @param world    The world.
     /// @param shapeId  The shape.
-    /// @return m2_success; m2_errorStale when the shape is already gone;
+    /// @return m2_success; m2_errorInvalid for a null world;
+    ///         m2_errorStale when the shape is already gone;
     ///         m2_errorBusy from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
