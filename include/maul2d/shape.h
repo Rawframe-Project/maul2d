@@ -279,7 +279,9 @@ extern "C"
     /// @param points     The outline, up to M2_MAX_OUTLINE_POINTS points.
     /// @param count      The number of points.
     /// @param piecesOut  Receives up to capacity pieces; may be null to
-    ///                   measure.
+    ///                   measure. Left as it was on failure: a piece is
+    ///                   written only once it passes validation, and the
+    ///                   call fails only when none does.
     /// @param capacity   The length of piecesOut.
     /// @param countOut   Receives the number of pieces, which may exceed
     ///                   capacity; left as it was on failure.
