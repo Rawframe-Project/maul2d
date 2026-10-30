@@ -30,7 +30,7 @@ if (saved && m2World_Restore(world, frame, written) == m2_success)
 free(frame);
 ```
 
-A snapshot's size is fixed for a world's life, so one buffer per frame of history can be allocated up front. `m2World_Snapshot` with a buffer that is too small returns `m2_errorCapacity` and the size it needs.
+A snapshot's size is fixed for a world's life, so one buffer per frame of history can be allocated up front. `m2World_Snapshot` with a buffer that is too small returns `m2_errorCapacity` and the size it needs. A snapshot that fails leaves the buffer zeroed over its capacity, so an earlier snapshot in it is never taken for the new one.
 
 ## The journal
 

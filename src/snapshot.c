@@ -107,21 +107,34 @@ int64_t m2World_GetSnapshotSize(const m2World* world)
 // The block walk is shared by Snapshot and Restore so the layouts can
 // never drift apart (direction 0 = write, 1 = read).
 
+// A snapshot that fails writes none of its bytes, so it zeroes the
+// caller's buffer over its whole capacity: no bytes of an earlier snapshot
+// are left to read as this one.
+static void ClearSnapshotBuffer(void* buffer, int64_t capacity)
+{
+    if (buffer != NULL && capacity > 0 && m2SizeFitsMemory(capacity))
+    {
+        memset(buffer, 0, (size_t)capacity);
+    }
+}
+
 static M2_NOINLINE m2Result WorldSnapshotWorker(const m2World* world, void* buffer,
                                                 int64_t capacity, int64_t* bytesOut)
 {
-    if (bytesOut == NULL)
+    if (bytesOut == NULL || world == NULL || buffer == NULL)
     {
+        ClearSnapshotBuffer(buffer, capacity);
+        if (bytesOut != NULL)
+        {
+            *bytesOut = 0;
+        }
         return m2Refuse(world, m2_errorInvalid);
     }
     *bytesOut = 0;
-    if (world == NULL || buffer == NULL)
-    {
-        return m2Refuse(world, m2_errorInvalid);
-    }
     int64_t size = SnapshotBytes(world);
     if (capacity < size)
     {
+        ClearSnapshotBuffer(buffer, capacity);
         *bytesOut = size; // the size a buffer must have
         return m2_errorCapacity;
     }

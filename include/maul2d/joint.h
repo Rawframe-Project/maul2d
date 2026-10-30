@@ -1241,8 +1241,8 @@ extern "C"
     /// Lists the world's joints in ascending slot order.
     ///
     /// @param world     The world.
-    /// @param idsOut    Receives up to capacity joints; may be null to
-    ///                  measure.
+    /// @param idsOut    Receives up to capacity joints; zeros over the whole capacity on failure.
+    ///                  May be null to measure.
     /// @param capacity  The length of idsOut.
     /// @return The number of joints, which may exceed capacity.
     /// @par Thread safety
@@ -1254,8 +1254,8 @@ extern "C"
     ///
     /// @param world     The world.
     /// @param bodyId    The body; a stale id counts one misuse.
-    /// @param idsOut    Receives up to capacity joints; may be null to
-    ///                  measure.
+    /// @param idsOut    Receives up to capacity joints; zeros over the whole capacity on failure.
+    ///                  May be null to measure.
     /// @param capacity  The length of idsOut.
     /// @return The number of joints, which may exceed capacity; 0 for a
     ///         stale id.

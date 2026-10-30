@@ -825,7 +825,7 @@ static M2_NOINLINE int32_t WorldGetBodiesWorker(const m2World* world, m2BodyId* 
 {
     if (world == NULL)
     {
-        return 0;
+        return m2RefuseList(world, ids, capacity, sizeof(*ids));
     }
     int32_t total = 0;
     for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
@@ -856,7 +856,7 @@ int32_t m2World_GetJoints(const m2World* world, m2JointId* idsOut, int32_t capac
 {
     if (world == NULL)
     {
-        return 0;
+        return m2RefuseList(world, idsOut, capacity, sizeof(*idsOut));
     }
     int32_t total = 0;
     for (int32_t i = 0; i < world->joints.maxJointIndex; ++i)
@@ -879,7 +879,7 @@ int32_t m2World_GetChains(const m2World* world, m2ChainId* idsOut, int32_t capac
 {
     if (world == NULL)
     {
-        return 0;
+        return m2RefuseList(world, idsOut, capacity, sizeof(*idsOut));
     }
     int32_t total = 0;
     for (int32_t i = 0; i < world->chains.maxChainIndex; ++i)

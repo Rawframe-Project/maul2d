@@ -1836,6 +1836,42 @@ static void TestRestoreKeepsTheParticleRadius(void)
     m2DestroyWorld(scene.world);
 }
 
+// A snapshot that fails writes none of its bytes, so it zeroes the caller's
+// buffer over its whole capacity: an earlier snapshot left in it is never
+// taken for the new one.
+static void TestFailedSnapshotClearsItsBuffer(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    int64_t size = m2World_GetSnapshotSize(world);
+    uint8_t* buffer = (uint8_t*)malloc((size_t)size);
+    CHECK(buffer != NULL, "the buffer is allocated");
+    bool zeroed = true;
+    int64_t bytes = 0;
+
+    memset(buffer, 0x5A, (size_t)size);
+    CHECK(m2World_Snapshot(world, buffer, size - 1, &bytes) == m2_errorCapacity && bytes == size,
+          "a buffer one byte short is refused with the size it needs");
+    for (int64_t i = 0; i < size - 1; ++i)
+    {
+        zeroed = zeroed && buffer[i] == 0;
+    }
+    CHECK(zeroed && buffer[size - 1] == 0x5A, "and zeroed over its capacity alone");
+
+    memset(buffer, 0x5A, (size_t)size);
+    CHECK(m2World_Snapshot(NULL, buffer, size, &bytes) == m2_errorInvalid && bytes == 0,
+          "a null world is refused");
+    CHECK(m2World_Snapshot(world, buffer, size, NULL) == m2_errorInvalid,
+          "and so is a null bytesOut");
+    for (int64_t i = 0; i < size; ++i)
+    {
+        zeroed = zeroed && buffer[i] == 0;
+    }
+    CHECK(zeroed, "each zeroing the buffer");
+    free(buffer);
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
     TestHostileStructures();
@@ -1853,6 +1889,7 @@ int main(void)
     TestDistantLinkEndStaysFinite();
     TestLinkShapesInRange();
     TestRestoreKeepsTheParticleRadius();
+    TestFailedSnapshotClearsItsBuffer();
     if (s_failures > 0)
     {
         printf("%d failure(s)\n", s_failures);

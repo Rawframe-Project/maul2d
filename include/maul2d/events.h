@@ -136,8 +136,8 @@ extern "C"
     /// @param world          The world.
     /// @param sensorShapeId  The sensor. A stale id counts one misuse; a
     ///                       live shape that is not a sensor lists nothing.
-    /// @param overlapsOut    Receives up to capacity shape ids; may be null
-    ///                       to measure.
+    /// @param overlapsOut    Receives up to capacity shape ids; zeros over the whole capacity on
+    ///                       failure. May be null to measure.
     /// @param capacity       The length of overlapsOut.
     /// @return The number of shapes inside, which may exceed capacity.
     /// @par Thread safety
@@ -162,8 +162,8 @@ extern "C"
     /// Sensor overlaps are not contacts and are left out.
     ///
     /// @param world     The world.
-    /// @param dataOut   Receives up to capacity contacts; may be null to
-    ///                  measure.
+    /// @param dataOut   Receives up to capacity contacts; zeros over the whole capacity on failure.
+    ///                  May be null to measure.
     /// @param capacity  The length of dataOut.
     /// @return The number of touching contacts, which may exceed capacity.
     /// @par Thread safety

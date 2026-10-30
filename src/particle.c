@@ -358,7 +358,7 @@ int32_t m2World_GetParticles(const m2World* world, m2ParticleId* idsOut, int32_t
 {
     if (world == NULL)
     {
-        return 0;
+        return m2RefuseList(world, idsOut, capacity, sizeof(*idsOut));
     }
     int32_t total = 0;
     for (int32_t i = 0; i < world->particles.maxParticleIndex; ++i)
@@ -640,8 +640,7 @@ static M2_NOINLINE int32_t WorldOverlapParticlesAabbWorker(const m2World* world,
     m2Pos2 upper = box.upperBound;
     if (world == NULL || !m2FinitePos2(lower) || !m2FinitePos2(upper))
     {
-        m2Refuse(world, m2_errorInvalid);
-        return 0;
+        return m2RefuseList(world, ids, capacity, sizeof(*ids));
     }
     int32_t total = 0;
     for (int32_t i = 0; i < world->particles.maxParticleIndex; ++i)

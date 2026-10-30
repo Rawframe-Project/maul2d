@@ -439,13 +439,14 @@ extern "C"
     /// Writes the whole simulation state into caller memory.
     ///
     /// @param world      The world.
-    /// @param bufferOut  Receives the snapshot.
+    /// @param bufferOut  Receives the snapshot; zeros over the whole
+    ///                   capacity on failure.
     /// @param capacity   The length of bufferOut, in bytes.
     /// @param bytesOut   Receives the bytes written; with m2_errorCapacity,
     ///                   the size needed; 0 on any other failure.
     /// @return m2_success; m2_errorInvalid for a null argument;
     ///         m2_errorCapacity when capacity is below
-    ///         m2World_GetSnapshotSize, with nothing written.
+    ///         m2World_GetSnapshotSize.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.

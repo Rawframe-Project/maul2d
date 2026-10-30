@@ -816,11 +816,147 @@ static void TestCastHitOut(void)
     m2DestroyWorld(world);
 }
 
+enum
+{
+    LIST_CAPACITY = 3
+};
+
+// One array for each read that fills a caller list.
+typedef struct ListArrays
+{
+    m2BodyId bodies[LIST_CAPACITY];
+    m2JointId joints[LIST_CAPACITY];
+    m2JointId bodyJoints[LIST_CAPACITY];
+    m2ChainId chains[LIST_CAPACITY];
+    m2ShapeId bodyShapes[LIST_CAPACITY];
+    m2ShapeId chainShapes[LIST_CAPACITY];
+    m2ShapeId sensed[LIST_CAPACITY];
+    m2ParticleId particles[LIST_CAPACITY];
+    m2ContactData contacts[LIST_CAPACITY];
+    m2ShapeId overlaps[4][LIST_CAPACITY];
+    m2CastHit hits[4][LIST_CAPACITY];
+    m2MoverPlane planes[LIST_CAPACITY];
+    m2ParticleId particlesInBox[LIST_CAPACITY];
+} ListArrays;
+
+// Runs every list read, the queries at `at`, each into its own array
+// filled first with a pattern no read writes.
+static void ReadEveryList(const m2World* world, m2BodyId body, m2ChainId chain, m2ShapeId sensor,
+                          m2Pos2 at, ListArrays* a)
+{
+    memset(a, 0x5A, sizeof(*a));
+    m2QueryFilter all = m2DefaultQueryFilter();
+    m2Circle ball = {{0.0f, 0.0f}, 0.25f};
+    m2Capsule rod = {{-0.25f, 0.0f}, {0.25f, 0.0f}, 0.1f};
+    m2Polygon chip = m2MakeBox(0.25f, 0.25f);
+    m2Transform pose = {at, {1.0f, 0.0f}};
+    m2Vec2 down = {0.0f, -1.0f};
+    m2WorldAabb box = {{at.x - 1.0, at.y - 1.0}, {at.x + 1.0, at.y + 1.0}};
+    (void)m2World_GetBodies(world, a->bodies, LIST_CAPACITY);
+    (void)m2World_GetJoints(world, a->joints, LIST_CAPACITY);
+    (void)m2Body_GetJoints(world, body, a->bodyJoints, LIST_CAPACITY);
+    (void)m2World_GetChains(world, a->chains, LIST_CAPACITY);
+    (void)m2Body_GetShapes(world, body, a->bodyShapes, LIST_CAPACITY);
+    (void)m2Chain_GetShapes(world, chain, a->chainShapes, LIST_CAPACITY);
+    (void)m2Shape_GetSensorOverlaps(world, sensor, a->sensed, LIST_CAPACITY);
+    (void)m2World_GetParticles(world, a->particles, LIST_CAPACITY);
+    (void)m2World_GetContactData(world, a->contacts, LIST_CAPACITY);
+    (void)m2World_OverlapAabb(world, box, all, a->overlaps[0], LIST_CAPACITY);
+    (void)m2World_OverlapCircle(world, &ball, pose, all, a->overlaps[1], LIST_CAPACITY);
+    (void)m2World_OverlapCapsule(world, &rod, pose, all, a->overlaps[2], LIST_CAPACITY);
+    (void)m2World_OverlapPolygon(world, &chip, pose, all, a->overlaps[3], LIST_CAPACITY);
+    (void)m2World_CastRayAll(world, at, down, all, a->hits[0], LIST_CAPACITY);
+    (void)m2World_CastCircleAll(world, &ball, pose, down, all, a->hits[1], LIST_CAPACITY);
+    (void)m2World_CastCapsuleAll(world, &rod, pose, down, all, a->hits[2], LIST_CAPACITY);
+    (void)m2World_CastPolygonAll(world, &chip, pose, down, all, a->hits[3], LIST_CAPACITY);
+    (void)m2World_CollideMover(world, &rod, pose, all, a->planes, LIST_CAPACITY);
+    (void)m2World_OverlapParticlesAabb(world, box, a->particlesInBox, LIST_CAPACITY);
+}
+
+static bool Zeroed(const void* items, size_t bytes)
+{
+    const unsigned char* b = (const unsigned char*)items;
+    for (size_t i = 0; i < bytes; ++i)
+    {
+        if (b[i] != 0)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+#define ZEROED(array) Zeroed((array), sizeof(array))
+
+// How many of the stale id reads' arrays are zeroed.
+static int32_t StaleListsZeroed(const ListArrays* a)
+{
+    return ZEROED(a->bodyJoints) + ZEROED(a->bodyShapes) + ZEROED(a->chainShapes) +
+           ZEROED(a->sensed);
+}
+
+// How many of the queries' arrays are zeroed.
+static int32_t QueryListsZeroed(const ListArrays* a)
+{
+    int32_t zeroed = ZEROED(a->planes) + ZEROED(a->particlesInBox);
+    for (int32_t i = 0; i < 4; ++i)
+    {
+        zeroed += ZEROED(a->overlaps[i]) + ZEROED(a->hits[i]);
+    }
+    return zeroed;
+}
+
+// A refused list read defines none of its items, so it zeroes the caller's
+// array over its whole capacity: an item from an earlier call is never
+// read as an answer, and zeroed ids are null ids.
+static void TestRefusedListsClear(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.particleCapacity = 4;
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2BodyId body = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    sd.isSensor = true;
+    m2Polygon slab = m2MakeBox(2.0f, 0.5f);
+    m2ShapeId sensor = NewPolygonShape(world, body, &sd, &slab);
+    m2Vec2 pts[4] = {{3.0f, 2.0f}, {1.0f, 2.0f}, {-1.0f, 2.0f}, {-3.0f, 2.0f}};
+    m2ChainDef cd = m2DefaultChainDef();
+    cd.points = pts;
+    cd.count = 4;
+    m2ChainId chain = NewChain(world, body, &cd);
+    CHECK(chain.index1 != 0, "the chain is made");
+    m2Pos2 above = {0.0, 3.0};
+    ListArrays a;
+
+    ReadEveryList(NULL, body, chain, sensor, above, &a);
+    CHECK(ZEROED(a.bodies) && ZEROED(a.joints) && ZEROED(a.chains) && ZEROED(a.particles) &&
+              ZEROED(a.contacts) && StaleListsZeroed(&a) == 4 && QueryListsZeroed(&a) == 10,
+          "every list read on a null world zeroes its array");
+
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    m2BodyId staleBody = {body.index1, body.generation + 1u};
+    m2ChainId staleChain = {chain.index1, chain.generation + 1u};
+    m2ShapeId staleSensor = {sensor.index1, sensor.generation + 1u};
+    ReadEveryList(world, staleBody, staleChain, staleSensor, above, &a);
+    CHECK(StaleListsZeroed(&a) == 4, "a read with a stale id zeroes its array");
+    CHECK(m2World_GetCounters(world).misuse == misuse + 4, "each counting one misuse");
+
+    misuse = m2World_GetCounters(world).misuse;
+    ReadEveryList(world, body, chain, sensor, (m2Pos2){(double)NAN, 3.0}, &a);
+    CHECK(QueryListsZeroed(&a) == 10, "a refused query zeroes its array");
+    CHECK(m2World_GetCounters(world).misuse == misuse + 10, "each counting one misuse");
+    CHECK(StaleListsZeroed(&a) == 0 && !ZEROED(a.bodies),
+          "and a read that succeeds writes only the items it defines");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
     TestRayFromTheSurfaceHitsAtZero();
     TestFarAndLongRaysAtRoundShapes();
     TestCastHitOut();
+    TestRefusedListsClear();
     TestRayInsideRoundedPolygon();
     TestAllHitsBeyondSixtyFour();
     TestQueryFilters();

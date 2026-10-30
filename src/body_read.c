@@ -166,8 +166,7 @@ int32_t m2Body_GetJoints(const m2World* world, m2BodyId bodyId, m2JointId* idsOu
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (index < 0)
     {
-        m2Refuse(world, m2_errorInvalid);
-        return 0;
+        return m2RefuseList(world, idsOut, capacity, sizeof(*idsOut));
     }
     int32_t total = 0;
     for (int32_t e = world->joints.bodyJointHead[index]; e != -1;
@@ -394,8 +393,7 @@ int32_t m2Body_GetShapes(const m2World* world, m2BodyId bodyId, m2ShapeId* idsOu
     int32_t bodyIndex = world != NULL ? m2BodySlot(world, bodyId) : -1;
     if (bodyIndex < 0)
     {
-        m2Refuse(world, m2_errorInvalid);
-        return 0;
+        return m2RefuseList(world, idsOut, capacity, sizeof(*idsOut));
     }
     int32_t total = 0;
     for (int32_t i = 0; i < world->shapes.maxShapeIndex; ++i)

@@ -246,8 +246,8 @@ extern "C"
     ///
     /// @param world     The world.
     /// @param box       The box, in world space.
-    /// @param idsOut    Receives up to capacity particles; may be null to
-    ///                  measure.
+    /// @param idsOut    Receives up to capacity particles; zeros over the whole capacity on
+    ///                  failure. May be null to measure.
     /// @param capacity  The length of idsOut.
     /// @return The number of particles inside, which may exceed capacity;
     ///         0 for a non-finite corner, which counts one misuse.
@@ -260,8 +260,8 @@ extern "C"
     /// Lists the live particles in ascending slot order.
     ///
     /// @param world     The world.
-    /// @param idsOut    Receives up to capacity particles; may be null to
-    ///                  measure.
+    /// @param idsOut    Receives up to capacity particles; zeros over the whole capacity on
+    ///                  failure. May be null to measure.
     /// @param capacity  The length of idsOut.
     /// @return The number of particles, which may exceed capacity.
     /// @par Thread safety

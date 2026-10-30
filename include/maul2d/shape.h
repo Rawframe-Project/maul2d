@@ -648,8 +648,8 @@ extern "C"
     ///
     /// @param world     The world.
     /// @param bodyId    The body; a stale id counts one misuse.
-    /// @param idsOut    Receives up to capacity shapes; may be null to
-    ///                  measure.
+    /// @param idsOut    Receives up to capacity shapes; zeros over the whole capacity on failure.
+    ///                  May be null to measure.
     /// @param capacity  The length of idsOut.
     /// @return The number of shapes, which may exceed capacity; 0 for a
     ///         stale id.
@@ -662,8 +662,8 @@ extern "C"
     /// Lists the world's chains in ascending slot order.
     ///
     /// @param world     The world.
-    /// @param idsOut    Receives up to capacity chains; may be null to
-    ///                  measure.
+    /// @param idsOut    Receives up to capacity chains; zeros over the whole capacity on failure.
+    ///                  May be null to measure.
     /// @param capacity  The length of idsOut.
     /// @return The number of chains, which may exceed capacity.
     /// @par Thread safety
@@ -675,8 +675,8 @@ extern "C"
     ///
     /// @param world     The world.
     /// @param chainId   The chain; a stale id counts one misuse.
-    /// @param idsOut    Receives up to capacity shapes; may be null to
-    ///                  measure.
+    /// @param idsOut    Receives up to capacity shapes; zeros over the whole capacity on failure.
+    ///                  May be null to measure.
     /// @param capacity  The length of idsOut.
     /// @return The number of links, which may exceed capacity; 0 for a
     ///         stale id.
@@ -866,8 +866,8 @@ extern "C"
     /// @param origin       The start, in world space.
     /// @param translation  The ray.
     /// @param filter       Which shapes the ray sees.
-    /// @param hitsOut      Receives up to capacity hits; may be null to
-    ///                     measure.
+    /// @param hitsOut      Receives up to capacity hits; zeros over the whole capacity on failure.
+    ///                     May be null to measure.
     /// @param capacity     The length of hitsOut.
     /// @return The number of hits, which may exceed capacity; 0 for a
     ///         non-finite argument, which counts one misuse.
@@ -884,8 +884,8 @@ extern "C"
     /// @param origin       The circle's pose at the start.
     /// @param translation  The sweep.
     /// @param filter       Which shapes the sweep sees.
-    /// @param hitsOut      Receives up to capacity hits; may be null to
-    ///                     measure.
+    /// @param hitsOut      Receives up to capacity hits; zeros over the whole capacity on failure.
+    ///                     May be null to measure.
     /// @param capacity     The length of hitsOut.
     /// @return The number of hits, which may exceed capacity; 0 for an
     ///         invalid argument, which counts one misuse.
@@ -904,8 +904,8 @@ extern "C"
     /// @param origin       The capsule's pose at the start.
     /// @param translation  The sweep.
     /// @param filter       Which shapes the sweep sees.
-    /// @param hitsOut      Receives up to capacity hits; may be null to
-    ///                     measure.
+    /// @param hitsOut      Receives up to capacity hits; zeros over the whole capacity on failure.
+    ///                     May be null to measure.
     /// @param capacity     The length of hitsOut.
     /// @return The number of hits, which may exceed capacity; 0 for an
     ///         invalid argument, which counts one misuse.
@@ -924,8 +924,8 @@ extern "C"
     /// @param origin       The polygon's pose at the start.
     /// @param translation  The sweep.
     /// @param filter       Which shapes the sweep sees.
-    /// @param hitsOut      Receives up to capacity hits; may be null to
-    ///                     measure.
+    /// @param hitsOut      Receives up to capacity hits; zeros over the whole capacity on failure.
+    ///                     May be null to measure.
     /// @param capacity     The length of hitsOut.
     /// @return The number of hits, which may exceed capacity; 0 for an
     ///         invalid argument, which counts one misuse.
@@ -965,8 +965,8 @@ extern "C"
     /// @param mover      The capsule, in its own frame.
     /// @param origin     The capsule's pose.
     /// @param filter     Which shapes the mover sees.
-    /// @param planesOut  Receives up to capacity planes; may be null to
-    ///                   measure.
+    /// @param planesOut  Receives up to capacity planes; zeros over the whole capacity on failure.
+    ///                   May be null to measure.
     /// @param capacity   The length of planesOut.
     /// @return The number of planes, which may exceed capacity; 0 for an
     ///         invalid argument, which counts one misuse.
@@ -1070,8 +1070,8 @@ extern "C"
     /// @param circle    The circle, in its own frame.
     /// @param origin    The circle's pose.
     /// @param filter    Which shapes the query sees.
-    /// @param idsOut    Receives up to capacity shapes; may be null to
-    ///                  measure.
+    /// @param idsOut    Receives up to capacity shapes; zeros over the whole capacity on failure.
+    ///                  May be null to measure.
     /// @param capacity  The length of idsOut.
     /// @return The number of shapes, which may exceed capacity; 0 for an
     ///         invalid argument, which counts one misuse.
@@ -1089,8 +1089,8 @@ extern "C"
     /// @param capsule   The capsule, in its own frame.
     /// @param origin    The capsule's pose.
     /// @param filter    Which shapes the query sees.
-    /// @param idsOut    Receives up to capacity shapes; may be null to
-    ///                  measure.
+    /// @param idsOut    Receives up to capacity shapes; zeros over the whole capacity on failure.
+    ///                  May be null to measure.
     /// @param capacity  The length of idsOut.
     /// @return The number of shapes, which may exceed capacity; 0 for an
     ///         invalid argument, which counts one misuse.
@@ -1108,8 +1108,8 @@ extern "C"
     /// @param polygon   The polygon, in its own frame.
     /// @param origin    The polygon's pose.
     /// @param filter    Which shapes the query sees.
-    /// @param idsOut    Receives up to capacity shapes; may be null to
-    ///                  measure.
+    /// @param idsOut    Receives up to capacity shapes; zeros over the whole capacity on failure.
+    ///                  May be null to measure.
     /// @param capacity  The length of idsOut.
     /// @return The number of shapes, which may exceed capacity; 0 for an
     ///         invalid argument, which counts one misuse.
@@ -1126,8 +1126,8 @@ extern "C"
     /// @param world     The world.
     /// @param box       The box, in world space.
     /// @param filter    Which shapes the query sees.
-    /// @param idsOut    Receives up to capacity shapes; may be null to
-    ///                  measure.
+    /// @param idsOut    Receives up to capacity shapes; zeros over the whole capacity on failure.
+    ///                  May be null to measure.
     /// @param capacity  The length of idsOut.
     /// @return The number of shapes, which may exceed capacity; 0 for a
     ///         non-finite or inverted box, which counts one misuse.

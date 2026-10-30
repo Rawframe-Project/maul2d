@@ -26,6 +26,16 @@ static long HostCodeDepth(const m2World* world)
 #endif
 }
 
+int32_t m2RefuseList(const m2World* world, void* items, int32_t capacity, size_t itemSize)
+{
+    if (items != NULL && capacity > 0)
+    {
+        memset(items, 0, (size_t)capacity * itemSize);
+    }
+    m2Refuse(world, m2_errorInvalid);
+    return 0;
+}
+
 m2Result m2Refuse(const m2World* world, m2Result reason)
 {
     // A refusal on a replay's own path is the tape's data at fault, not the
