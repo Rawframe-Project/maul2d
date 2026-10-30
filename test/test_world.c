@@ -2363,6 +2363,7 @@ static void TestStaleIdsInStatusCalls(void)
     m2JointId joint = NewDistanceJoint(world, &jd);
     m2ParticleId particle = EmitParticle(world, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f}, 0);
     m2WaterVolumeDef vd = m2DefaultWaterVolumeDef();
+    vd.bounds = (m2WorldAabb){{-1.0, -1.0}, {1.0, 1.0}};
     m2WaterVolumeId volume = NewWaterVolume(world, &vd);
 
     CHECK(m2DestroyShape(world, shape) == m2_success, "a live shape destroys");
@@ -2459,6 +2460,7 @@ static void TestStaleIdsCountInEveryCall(void)
     cd.count = 4;
     m2ChainId chain = NewChain(world, other, &cd);
     m2WaterVolumeDef vd = m2DefaultWaterVolumeDef();
+    vd.bounds = (m2WorldAabb){{-1.0, -1.0}, {1.0, 1.0}};
     m2WaterVolumeId volume = NewWaterVolume(world, &vd);
     CHECK(m2DestroyWaterVolume(world, volume) == m2_success, "the volume goes");
     CHECK(m2DestroyJoint(world, joint) == m2_success, "the joint goes");

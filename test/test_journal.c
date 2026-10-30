@@ -883,6 +883,7 @@ static uint8_t* TapeOfFilledDefs(uint8_t fill, int64_t* bytesOut, uint64_t* hash
     FilledChainDef(&chainDef, &chainValues, fill);
     CHECK(m2Chain_IsValid(world, NewChain(world, ground, &chainDef)), "a chain creates");
     m2WaterVolumeDef volumeValues = m2DefaultWaterVolumeDef();
+    volumeValues.bounds = (m2WorldAabb){{-1.0, -1.0}, {1.0, 1.0}};
     m2WaterVolumeDef volumeDef;
     FilledWaterVolumeDef(&volumeDef, &volumeValues, fill);
     CHECK(m2WaterVolume_IsValid(world, NewWaterVolume(world, &volumeDef)),

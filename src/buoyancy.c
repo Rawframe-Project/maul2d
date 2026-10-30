@@ -260,9 +260,12 @@ static M2_NOINLINE m2Result CreateWaterVolumeWorker(m2World* world, const m2Wate
     {
         return m2Refuse(world, m2_errorInvalid);
     }
+    // A box with no area holds no body's origin, so its volume would never
+    // act and only hold a pool slot: upper lies above lower on both axes.
+    m2WorldAabb box = def->bounds;
     m2Result checked =
-        m2CheckValid(m2FiniteD(def->surface) && m2FinitePos2(def->bounds.lowerBound) &&
-                     m2FinitePos2(def->bounds.upperBound));
+        m2CheckValid(m2FiniteD(def->surface) && m2ValidWorldAabb(box) &&
+                     box.lowerBound.x < box.upperBound.x && box.lowerBound.y < box.upperBound.y);
     checked = m2BothChecks(checked, m2CheckDensity(def->density));
     checked = m2BothChecks(checked, m2CheckRate(def->linearDrag));
     checked = m2BothChecks(checked, m2CheckRate(def->angularDrag));

@@ -756,6 +756,16 @@ static void TestOverlapParticles(void)
     total =
         m2World_OverlapParticlesAabb(world, (m2WorldAabb){{50.0, 50.0}, {51.0, 51.0}}, found, 64);
     CHECK(total == 0, "an empty region answers zero");
+    // An inverted box is a swapped pair of corners, refused as the shape
+    // query refuses it: zero, the list cleared, one misuse.
+    uint64_t misuse = m2World_GetCounters(world).misuse;
+    found[0] = (m2ParticleId){7, 7};
+    total = m2World_OverlapParticlesAabb(world, (m2WorldAabb){{3.5, 0.5}, {0.5, 3.5}}, found, 64);
+    CHECK(total == 0 && found[0].index1 == 0 && m2World_GetCounters(world).misuse == misuse + 1,
+          "an inverted box answers zero and counts one misuse");
+    total = m2World_OverlapParticlesAabb(world, (m2WorldAabb){{1.0, 1.0}, {1.0, 1.0}}, found, 64);
+    CHECK(total == 1 && m2World_GetCounters(world).misuse == misuse + 1,
+          "a box of one point is a query still: it finds the particle on it");
 
     // Read-only law: a query storm moves no bits.
     m2World_Step(world, 1.0f / 60.0f, 4);
@@ -1236,6 +1246,7 @@ static void TestZeroPoolsAreFull(void)
               count == 0,
           "and so is a fill");
     m2WaterVolumeDef volumeDef = m2DefaultWaterVolumeDef();
+    volumeDef.bounds = (m2WorldAabb){{-1.0, -1.0}, {1.0, 1.0}};
     m2WaterVolumeId volume = {7, 7};
     CHECK(m2CreateWaterVolume(world, &volumeDef, &volume) == m2_errorCapacity && volume.index1 == 0,
           "a volume in a world with a pool of 0 is m2_errorCapacity");
