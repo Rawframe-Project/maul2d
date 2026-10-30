@@ -17,6 +17,7 @@ on:
         required: false
         default: ""
 
+# Every job sets the least it needs.
 permissions: {}
 
 defaults:
@@ -69,12 +70,24 @@ jobs:
       TAG: ${{ inputs.tag || needs.release-please.outputs.tag }}
     steps:
       # A run that both creates a release and is given another tag takes neither.
+      # The attestation names this workflow on the default branch, so the files
+      # must come from a commit the default branch holds: a tag pushed on any
+      # other commit is refused. A release that already has files keeps them;
+      # nothing here replaces a published file.
       - name: A release tag
         env:
           CREATED: ${{ needs.release-please.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          DEFAULT: ${{ github.event.repository.default_branch }}
         run: |
           [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "not a release tag: $TAG"; exit 1; }
           [ -z "$CREATED" ] || [ "$CREATED" = "$TAG" ] || { echo "release-please created $CREATED, not $TAG"; exit 1; }
+          commit=$(gh api "repos/$REPO/commits/refs/tags/$TAG" --jq .sha)
+          held=$(gh api "repos/$REPO/compare/$commit...$DEFAULT" --jq .status)
+          [ "$held" = ahead ] || [ "$held" = identical ] || { echo "$TAG names $commit, which $DEFAULT does not hold"; exit 1; }
+          files=$(gh release view "$TAG" -R "$REPO" --json assets --jq '.assets | length')
+          [ "$files" = 0 ] || { echo "$TAG already has $files files"; exit 1; }
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The tag itself, never a branch of the same name.
@@ -106,4 +119,4 @@ jobs:
       - name: Attach to the release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$TAG" dist/* --clobber
+        run: gh release upload "$TAG" dist/*
