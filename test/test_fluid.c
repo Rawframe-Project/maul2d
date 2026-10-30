@@ -303,8 +303,8 @@ static void TestPairOverflow(void)
     m2World_Step(world, 1.0f / 60.0f, 4);
     // 64 coincident particles make 2016 pairs, past the pair budget.
     m2Counters c = m2World_GetCounters(world);
-    CHECK(c.particlePairOverflow > 0, "the dropped pairs are counted");
-    CHECK(c.particlePairOverflow < 64 * 63 / 2, "and the budget keeps the rest");
+    CHECK(c.particlePairsDropped > 0, "the dropped pairs are counted");
+    CHECK(c.particlePairsDropped < 64 * 63 / 2, "and the budget keeps the rest");
     m2DestroyWorld(world);
 }
 
@@ -596,13 +596,14 @@ static void TestFillChecksItsPolygon(void)
     m2WorldDef def = FluidWorldDef(64);
     m2World* world = NewWorld(&def);
     m2Polygon distant = FarTriangle();
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     m2ParticleDef particleDef = m2DefaultParticleDef();
     int32_t count = -1;
     CHECK(m2CreateParticlesInPolygon(world, &particleDef, &distant, &count) == m2_errorLimit &&
               count == 0,
           "a polygon past M2_LOCAL_LIMIT fills nothing");
-    CHECK(m2World_GetCounters(world).misuse == misuse + 1 && m2World_GetParticleCount(world) == 0,
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 1 &&
+              m2World_GetParticleCount(world) == 0,
           "and is refused as a misuse");
 
     // The normals are recomputed from the vertices: a box with its normals
@@ -639,7 +640,7 @@ static void TestFillChecksItsPolygon(void)
     uint64_t before = m2World_Hash(fresh);
     CHECK(m2World_ReplayJournal(fresh, tape, bytes) == m2_errorFormat,
           "replay refuses the distant triangle's fill");
-    CHECK(m2World_Hash(fresh) == before && m2World_GetCounters(fresh).misuse == 0,
+    CHECK(m2World_Hash(fresh) == before && m2World_GetCounters(fresh).misuseCount == 0,
           "and changes nothing, counting no misuse");
     m2DestroyWorld(fresh);
     m2DestroyWorld(recorder);
@@ -758,13 +759,14 @@ static void TestOverlapParticles(void)
     CHECK(total == 0, "an empty region answers zero");
     // An inverted box is a swapped pair of corners, refused as the shape
     // query refuses it: zero, the list cleared, one misuse.
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     found[0] = (m2ParticleId){7, 7};
     total = m2World_OverlapParticlesAabb(world, (m2WorldAabb){{3.5, 0.5}, {0.5, 3.5}}, found, 64);
-    CHECK(total == 0 && found[0].index1 == 0 && m2World_GetCounters(world).misuse == misuse + 1,
+    CHECK(total == 0 && found[0].index1 == 0 &&
+              m2World_GetCounters(world).misuseCount == misuse + 1,
           "an inverted box answers zero and counts one misuse");
     total = m2World_OverlapParticlesAabb(world, (m2WorldAabb){{1.0, 1.0}, {1.0, 1.0}}, found, 64);
-    CHECK(total == 1 && m2World_GetCounters(world).misuse == misuse + 1,
+    CHECK(total == 1 && m2World_GetCounters(world).misuseCount == misuse + 1,
           "a box of one point is a query still: it finds the particle on it");
 
     // Read-only law: a query storm moves no bits.
@@ -864,13 +866,13 @@ static void TestLifetimeAndUserData(void)
     // A particle the world reaped leaves its id behind in the program, so
     // a stale particle id is no misuse: every call answers and counts
     // nothing.
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     CHECK(m2Particle_GetPosition(world, drops[0]).x == 0.0, "an expired drop reads as zero");
     m2Particle_SetVelocity(world, drops[0], (m2Vec2){1.0f, 0.0f});
     m2Particle_SetLifetime(world, drops[0], 1.0f);
     m2Particle_SetUserData(world, drops[0], 7);
     CHECK(m2DestroyParticle(world, drops[0]) == m2_errorStale, "destroying it is m2_errorStale");
-    CHECK(m2World_GetCounters(world).misuse == misuse, "and none of it counts as misuse");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse, "and none of it counts as misuse");
 
     // Rollback: the reaped drops return with their data intact.
     CHECK(Restore(world, snap, size), "the pre-reaping snapshot restores");
@@ -1108,7 +1110,7 @@ static void TestParticleDefs(void)
     memset(&unset, 0, sizeof(unset));
     m2ParticleId id = {1, 1};
     int32_t count = -1;
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     CHECK(m2CreateParticle(world, NULL, &id) == m2_errorInvalid && id.index1 == 0,
           "a create without a def is refused");
     CHECK(m2CreateParticle(world, &unset, &id) == m2_errorInvalid && id.index1 == 0,
@@ -1126,7 +1128,8 @@ static void TestParticleDefs(void)
           "and one without a polygon");
     CHECK(m2CreateParticlesInPolygon(world, &particleDef, &tub, NULL) == m2_errorInvalid,
           "and one without countOut");
-    CHECK(m2World_GetCounters(world).misuse == misuse + 7 && m2World_GetParticleCount(world) == 0,
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 7 &&
+              m2World_GetParticleCount(world) == 0,
           "each counting one misuse and creating nothing");
 
     CHECK(m2CreateParticlesInPolygon(world, &particleDef, &tub, &count) == m2_errorCapacity &&
@@ -1137,7 +1140,7 @@ static void TestParticleDefs(void)
           "and one into a full pool creates none");
     CHECK(m2CreateParticle(world, &particleDef, &id) == m2_errorCapacity && id.index1 == 0,
           "a create into a full pool is refused");
-    CHECK(m2World_GetCounters(world).misuse == misuse + 7, "neither counting misuse");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 7, "neither counting misuse");
     m2DestroyWorld(world);
 }
 
@@ -1175,7 +1178,7 @@ static void TestBusyFillKeepsCount(void)
     m2Polygon box = m2MakeBox(1.0f, 1.0f);
     NewPolygonShape(in.world, NewBody(in.world, &bd), &sd, &box);
 
-    uint64_t misuse = m2World_GetCounters(in.world).misuse;
+    uint64_t misuse = m2World_GetCounters(in.world).misuseCount;
     m2DebugDraw draw = {0};
     draw.drawSegment = FillWhileDrawing;
     draw.drawAabbs = true;
@@ -1183,7 +1186,7 @@ static void TestBusyFillKeepsCount(void)
     m2World_Draw(in.world, &draw);
     CHECK(in.calls > 0 && in.filled == m2_errorBusy, "a fill inside a draw callback is busy");
     CHECK(in.count == 7, "and leaves countOut as it was");
-    CHECK(m2World_GetCounters(in.world).misuse == misuse + 1 &&
+    CHECK(m2World_GetCounters(in.world).misuseCount == misuse + 1 &&
               m2World_GetParticleCount(in.world) == 0,
           "the refusal counts one misuse and creates nothing");
     m2DestroyWorld(in.world);
@@ -1213,7 +1216,8 @@ static void TestFillCutShortReplays(void)
               count == 3 && m2World_GetParticleCount(world) == 8,
           "a fill into a nearly full pool creates the 3 that fit and says so");
     m2Counters after = m2World_GetCounters(world);
-    CHECK(after.misuse == before.misuse && after.particlePoolFull == before.particlePoolFull + 1,
+    CHECK(after.misuseCount == before.misuseCount &&
+              after.particleCreatesRefused == before.particleCreatesRefused + 1,
           "counting no misuse and one full pool");
     m2World_Step(world, 1.0f / 60.0f, 4);
     int64_t bytes = StopJournal(world);
@@ -1234,7 +1238,7 @@ static void TestZeroPoolsAreFull(void)
     m2WorldDef def = m2DefaultWorldDef();
     def.particleRadius = NAN;
     m2World* world = NewWorld(&def);
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     m2ParticleDef particleDef = m2DefaultParticleDef();
     m2ParticleId particle = {7, 7};
     CHECK(m2CreateParticle(world, &particleDef, &particle) == m2_errorCapacity &&
@@ -1251,7 +1255,7 @@ static void TestZeroPoolsAreFull(void)
     CHECK(m2CreateWaterVolume(world, &volumeDef, &volume) == m2_errorCapacity && volume.index1 == 0,
           "a volume in a world with a pool of 0 is m2_errorCapacity");
     m2Counters counters = m2World_GetCounters(world);
-    CHECK(counters.misuse == misuse && counters.particlePoolFull == 2,
+    CHECK(counters.misuseCount == misuse && counters.particleCreatesRefused == 2,
           "none counts misuse, and both particle refusals count a full pool");
     m2DestroyWorld(world);
 }

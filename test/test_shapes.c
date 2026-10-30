@@ -459,7 +459,7 @@ static void TestLocalLengthsAreBounded(void)
     m2Circle edge = {{0.0f, 0.0f}, M2_LOCAL_LIMIT};
     CHECK(m2CreateCircleShape(world, body, &shapeDef, &edge, &shape) == m2_success,
           "a circle of radius M2_LOCAL_LIMIT is created");
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     m2Circle wide = {{0.0f, 0.0f}, beyond};
     m2Circle offset = {{beyond, 0.0f}, 1.0f};
     m2Capsule capsule = {{0.0f, 0.0f}, {beyond, 0.0f}, 0.5f};
@@ -474,7 +474,7 @@ static void TestLocalLengthsAreBounded(void)
               m2CreateSegmentShape(world, body, &shapeDef, &segment, &shape) == m2_errorLimit &&
               m2CreatePolygonShape(world, body, &shapeDef, &given, &shape) == m2_errorLimit,
           "every shape past M2_LOCAL_LIMIT is refused");
-    CHECK(m2World_GetCounters(world).misuse == misuse + 5, "each refusal counts one misuse");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 5, "each refusal counts one misuse");
 
     m2Vec2 points[4] = {{-1.0f, 0.0f}, {0.0f, 0.0f}, {beyond, 0.0f}, {beyond + 1.0f, 0.0f}};
     m2ChainDef chainDef = m2DefaultChainDef();

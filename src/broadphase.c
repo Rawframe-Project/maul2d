@@ -72,7 +72,7 @@ static bool MoverSeesTree(const m2World* world, int32_t shapeIndex, int32_t tree
 // NOLINTNEXTLINE(readability-function-cognitive-complexity): rebuild, merge, diff: one pair stash
 void m2UpdatePairs(m2World* world)
 {
-    world->contacts.pairOverflow = 0;
+    world->contacts.pairsDropped = 0;
     if (world->broadphase.movedCount == 0)
     {
         return;
@@ -167,8 +167,8 @@ void m2UpdatePairs(m2World* world)
         }
     }
     // A full pair table drops the excess candidates, counted loudly in
-    // m2Counters.pairOverflow rather than asserted away.
-    m2CountDrops(&world->contacts.pairOverflow, dropped);
+    // m2Counters.pairsDropped rather than asserted away.
+    m2CountDrops(&world->contacts.pairsDropped, dropped);
 
     qsort(world->contacts.pairScratch, (size_t)collected, sizeof(uint64_t), CompareU64);
 
@@ -227,7 +227,7 @@ void m2UpdatePairs(m2World* world)
         }
         else
         {
-            m2CountDrops(&world->contacts.pairOverflow, 1);
+            m2CountDrops(&world->contacts.pairsDropped, 1);
         }
     }
     memcpy(world->contacts.pairKeys, world->contacts.pairMergeScratch,

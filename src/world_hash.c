@@ -61,7 +61,7 @@ uint64_t m2HashPools(const m2World* world, m2HashPart part, uint64_t h)
         {p->particleFreeQueue, p->particleGenerations, p->particleCapacity, p->particleFreeHead,
          p->particleFreeCount, p->maxParticleIndex, p->particleRetiredCount, m2_hashParticles},
         {v->wvFreeQueue, v->wvGenerations, v->wvCapacity, v->wvFreeHead, v->wvFreeCount,
-         v->maxFvIndex, v->wvRetiredCount, m2_hashVolumes},
+         v->maxWvIndex, v->wvRetiredCount, m2_hashVolumes},
     };
     for (size_t i = 0; i < sizeof(pools) / sizeof(pools[0]); ++i)
     {

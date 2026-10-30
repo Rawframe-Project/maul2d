@@ -210,7 +210,7 @@ static void TestColorOverflow(void)
     for (int32_t i = 0; i < 120; ++i)
     {
         m2World_Step(world, 1.0f / 60.0f, 4);
-        int32_t now = m2World_GetCounters(world).overflowConstraints;
+        int32_t now = m2World_GetCounters(world).overflowCount;
         overflow = now > overflow ? now : overflow;
     }
     CHECK(overflow > 0, "the plank's contacts overflow the colors");

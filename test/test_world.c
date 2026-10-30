@@ -166,15 +166,14 @@ static void TestCountersAndProfile(void)
     }
 
     m2Counters counters = m2World_GetCounters(world);
-    CHECK(counters.bodies == 7 && counters.shapes == 7, "body and shape counts");
-    CHECK(counters.awakeBodies == 7, "everyone still awake early on");
-    CHECK(counters.joints == 0, "no joints in this scene");
-    CHECK(counters.touchingPairs == 6, "six boxes rest on the slab");
-    CHECK(counters.pairs >= counters.touchingPairs,
+    CHECK(counters.bodyCount == 7 && counters.shapeCount == 7, "body and shape counts");
+    CHECK(counters.awakeCount == 7, "everyone still awake early on");
+    CHECK(counters.jointCount == 0, "no joints in this scene");
+    CHECK(counters.touchingCount == 6, "six boxes rest on the slab");
+    CHECK(counters.contactCount >= counters.touchingCount,
           "speculative pairs may outnumber touching ones");
-    CHECK(counters.constraints == 6, "one constraint per touching pair");
-    CHECK(counters.graphColors >= 1 && counters.overflowConstraints == 0,
-          "colored without overflow");
+    CHECK(counters.constraintCount == 6, "one constraint per touching pair");
+    CHECK(counters.colorCount >= 1 && counters.overflowCount == 0, "colored without overflow");
     CHECK(counters.stepCount == 10, "step count mirrors the world");
 
     // Diagnostics never touch the simulation: hash before == after.
@@ -1559,13 +1558,13 @@ static void TestValidateAndCounters(void)
         EmitParticle(world, (m2Pos2){(double)i, 5.0}, (m2Vec2){0.0f, 0.0f}, 0);
     }
     m2Counters counters = m2World_GetCounters(world);
-    CHECK(counters.particlePoolFull == 4, "refused emits are on the scoreboard");
+    CHECK(counters.particleCreatesRefused == 4, "refused emits are on the scoreboard");
 
     // Typed-path misuse counts without asserting: a gear getter on a
     // distance joint is quiet in every build, and countable.
     CHECK(m2GearJoint_GetRatio(world, rope) == 0.0f, "the wrong-type getter answers zero");
     counters = m2World_GetCounters(world);
-    CHECK(counters.misuse >= 1, "the wrong-type read is on the scoreboard");
+    CHECK(counters.misuseCount >= 1, "the wrong-type read is on the scoreboard");
     m2DestroyWorld(world);
 }
 
@@ -1804,10 +1803,10 @@ static void TestDefsMatchWhatARestoreAccepts(void)
     for (int32_t field = 0; field < 19; ++field)
     {
         m2BodyDef bodyDef = BadBodyDef(field);
-        uint64_t misuse = m2World_GetCounters(world).misuse;
+        uint64_t misuse = m2World_GetCounters(world).misuseCount;
         m2BodyId body = {7, 7};
         CHECK(m2CreateBody(world, &bodyDef, &body) == BadBodyDefStatus(field) && body.index1 == 0 &&
-                  m2World_GetCounters(world).misuse == misuse + 1,
+                  m2World_GetCounters(world).misuseCount == misuse + 1,
               "a body def with a field out of range is refused and counted");
     }
 
@@ -1878,7 +1877,7 @@ static void TestRestoreRefusesANonUnitRotation(void)
     CHECK(at >= 0, "the transform is in the snapshot");
 
     uint64_t hash = m2World_Hash(world);
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     const m2Rot bad[] = {{0.0f, 0.0f}, {2.0f, 0.0f}, {0.6f, 0.6f}};
     for (size_t k = 0; at >= 0 && k < sizeof(bad) / sizeof(bad[0]); ++k)
     {
@@ -1886,7 +1885,7 @@ static void TestRestoreRefusesANonUnitRotation(void)
         CHECK(m2World_Restore(world, bytes, size) == m2_errorFormat,
               "a rotation that is not of unit length is refused");
     }
-    CHECK(m2World_Hash(world) == hash && m2World_GetCounters(world).misuse == misuse,
+    CHECK(m2World_Hash(world) == hash && m2World_GetCounters(world).misuseCount == misuse,
           "the refusal changes nothing and counts nothing");
     CHECK(m2World_Validate(world), "the world stays valid");
     free(bytes);
@@ -1900,12 +1899,12 @@ static void TestSubstepCap(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
     m2World* world = NewWorld(&def);
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     m2World_Step(world, 1.0f / 60.0f, M2_MAX_SUBSTEPS + 1);
-    CHECK(m2World_GetStepCount(world) == 0 && m2World_GetCounters(world).misuse == misuse + 1,
+    CHECK(m2World_GetStepCount(world) == 0 && m2World_GetCounters(world).misuseCount == misuse + 1,
           "a step above the cap changes nothing and counts one misuse");
     m2World_Step(world, 1.0f / 60.0f, M2_MAX_SUBSTEPS);
-    CHECK(m2World_GetStepCount(world) == 1 && m2World_GetCounters(world).misuse == misuse + 1,
+    CHECK(m2World_GetStepCount(world) == 1 && m2World_GetCounters(world).misuseCount == misuse + 1,
           "a step at the cap runs");
 
     int64_t capacity = m2World_GetJournalBaseSize(world) + 1024;
@@ -1934,10 +1933,10 @@ static void TestSubstepCap(void)
         memcpy(tape + at, &record, sizeof(record)); // the fuzz input's edit
     }
     m2World* replica = NewWorld(&def);
-    misuse = m2World_GetCounters(replica).misuse;
+    misuse = m2World_GetCounters(replica).misuseCount;
     (void)m2World_ReplayJournal(replica, tape, bytes);
     CHECK(m2World_GetStepCount(replica) == 1, "the tape's oversized step is skipped");
-    CHECK(m2World_GetCounters(replica).misuse == misuse, "and counts nothing");
+    CHECK(m2World_GetCounters(replica).misuseCount == misuse, "and counts nothing");
     m2DestroyWorld(replica);
     free(tape);
     m2DestroyWorld(world);
@@ -2031,7 +2030,7 @@ static void TestHostCodeCannotWrite(void)
 
     // The ball rests on the slab, so the step has contacts to solve and
     // hands them to the task hook.
-    uint64_t misuse = m2World_GetCounters(in.world).misuse;
+    uint64_t misuse = m2World_GetCounters(in.world).misuseCount;
     m2World_Step(in.world, 1.0f / 60.0f, 4);
     CHECK(in.calls > 0, "the step ran the task hook");
     CHECK(in.created == m2_errorBusy, "a create inside a task refuses with m2_errorBusy");
@@ -2042,7 +2041,7 @@ static void TestHostCodeCannotWrite(void)
     CHECK(in.pieces[0].index1 == 0 && in.pieces[1].index1 == 0,
           "and gives null ids for the bodies it did not make");
     CHECK(in.stepsSeen == 0, "a nested step does not run, and readers still answer");
-    CHECK(m2World_GetCounters(in.world).misuse == misuse + 6,
+    CHECK(m2World_GetCounters(in.world).misuseCount == misuse + 6,
           "each refusal, the void ones too, counts one misuse");
     CHECK(m2Body_IsValid(in.world, in.body), "the body survived its destroy");
     CHECK(m2Body_GetLinearVelocity(in.world, in.body).x < 1.0f, "the velocity never landed");
@@ -2147,13 +2146,13 @@ static void TestAllocatorCannotWrite(void)
     m2World* fresh = NewWorld(&def);
     meddler.body = NewBody(fresh, &gd);
     meddler.target = fresh;
-    uint64_t misuse = m2World_GetCounters(fresh).misuse;
+    uint64_t misuse = m2World_GetCounters(fresh).misuseCount;
     CHECK(ReplayJournal(fresh, tape, bytes), "the tape replays");
     CHECK(meddler.allocCalls >= 3, "the replay allocated its backup, the chain and the pieces");
     CHECK(meddler.allocRefused == meddler.allocCalls, "every create from inside alloc refused");
     CHECK(meddler.freeCalls >= 3 && meddler.freeRefused == meddler.freeCalls,
           "every destroy from inside free refused");
-    CHECK(m2World_GetCounters(fresh).misuse ==
+    CHECK(m2World_GetCounters(fresh).misuseCount ==
               misuse + (uint64_t)(meddler.allocCalls + meddler.freeCalls),
           "host code calling back counts as misuse, mid-replay too");
     CHECK(m2World_Hash(fresh) == m2World_Hash(world), "and the replay is untouched by it");
@@ -2247,12 +2246,12 @@ static void TestReplayScratchRefusedIsCapacity(void)
 
     m2World* fresh = NewWorld(&def);
     uint64_t hash = m2World_Hash(fresh);
-    uint64_t misuse = m2World_GetCounters(fresh).misuse;
+    uint64_t misuse = m2World_GetCounters(fresh).misuseCount;
     ration.left = 1; // the backup, and nothing after it
     CHECK(m2World_ReplayJournal(fresh, tape, bytes) == m2_errorCapacity,
           "a refused record scratch is m2_errorCapacity");
     ration.left = -1;
-    CHECK(m2World_Hash(fresh) == hash && m2World_GetCounters(fresh).misuse == misuse,
+    CHECK(m2World_Hash(fresh) == hash && m2World_GetCounters(fresh).misuseCount == misuse,
           "and the world is as it was, with no misuse counted");
     CHECK(ReplayJournal(fresh, tape, bytes), "with memory, the same tape replays");
     free(tape);
@@ -2290,10 +2289,10 @@ static void TestHostCodeMistakesCountMidReplay(void)
 
     m2World* fresh = NewWorld(&def);
     peek.world = fresh;
-    uint64_t misuse = m2World_GetCounters(fresh).misuse;
+    uint64_t misuse = m2World_GetCounters(fresh).misuseCount;
     CHECK(ReplayJournal(fresh, tape, bytes), "the tape replays");
     CHECK(peek.calls > 0, "the replayed step ran the task hook");
-    CHECK(m2World_GetCounters(fresh).misuse == misuse + (uint64_t)peek.calls,
+    CHECK(m2World_GetCounters(fresh).misuseCount == misuse + (uint64_t)peek.calls,
           "each stale read from the hook counts, mid-replay too");
     peek.world = NULL;
     m2DestroyWorld(fresh);
@@ -2322,7 +2321,7 @@ static void TestCorruptInputIsNotMisuse(void)
     m2Body_SetLinearDamping(world, box, 0.25f);
     int64_t bytes = StopJournal(world);
 
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     snap[0] ^= 0xFF;
     CHECK(m2World_Restore(world, snap, size) == m2_errorFormat, "a corrupt snapshot refuses");
     CHECK(m2World_Restore(world, snap, 3) == m2_errorFormat, "so does a truncated one");
@@ -2334,10 +2333,10 @@ static void TestCorruptInputIsNotMisuse(void)
     tape[0] ^= 0xFF;
     CHECK(m2World_ReplayJournal(world, tape, bytes) == m2_errorFormat,
           "and so does one with a broken header");
-    CHECK(m2World_GetCounters(world).misuse == misuse, "none of it counts as misuse");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse, "none of it counts as misuse");
 
     CHECK(m2World_Restore(world, NULL, size) == m2_errorInvalid, "a null buffer refuses");
-    CHECK(m2World_GetCounters(world).misuse == misuse + 1, "and that is misuse");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 1, "and that is misuse");
     free(tape);
     free(snap);
     m2DestroyWorld(world);
@@ -2375,7 +2374,7 @@ static void TestStaleIdsInStatusCalls(void)
     CHECK(m2DestroyWaterVolume(world, volume) == m2_success, "a live volume destroys");
     CHECK(m2DestroyWaterVolume(world, volume) == m2_errorStale, "a stale volume is m2_errorStale");
 
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     CHECK(m2DestroyBody(world, body) == m2_success, "a live body destroys");
     m2ShapeId made = shape;
     CHECK(m2CreateCircleShape(world, body, &sd, &ball, &made) == m2_errorStale,
@@ -2389,7 +2388,7 @@ static void TestStaleIdsInStatusCalls(void)
     CHECK(m2Body_GetPosition(world, body).x == 0.0 && m2Body_GetMass(world, body) == 0.0f,
           "a stale getter returns the zeroed value");
     CHECK(!m2Body_IsValid(world, body), "a validity query counts nothing");
-    CHECK(m2World_GetCounters(world).misuse == misuse + 4, "each stale use counts once");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 4, "each stale use counts once");
     m2DestroyWorld(world);
 }
 
@@ -2404,20 +2403,21 @@ static void TestStaticBodiesHaveNoVelocity(void)
     bd.type = m2_kinematicBody;
     m2BodyId lift = NewBody(world, &bd);
 
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     m2Body_SetLinearVelocity(world, wall, (m2Vec2){1.0f, 0.0f});
     m2Body_SetAngularVelocity(world, wall, 1.0f);
     CHECK(m2Body_SetTargetTransform(world, wall, (m2Pos2){1.0, 0.0}, (m2Rot){1.0f, 0.0f},
                                     1.0f / 60.0f) == m2_errorInvalid,
           "a target transform on a static body is refused");
-    CHECK(m2World_GetCounters(world).misuse == misuse + 3, "each call on a static body counts");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 3,
+          "each call on a static body counts");
     CHECK(m2Body_GetLinearVelocity(world, wall).x == 0.0f &&
               m2Body_GetAngularVelocity(world, wall) == 0.0f,
           "and leaves it still");
 
     m2Body_SetLinearVelocity(world, lift, (m2Vec2){0.0f, 1.0f});
     m2Body_SetAngularVelocity(world, lift, 0.5f);
-    CHECK(m2World_GetCounters(world).misuse == misuse + 3, "a kinematic body takes them");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 3, "a kinematic body takes them");
     CHECK(m2Body_GetLinearVelocity(world, lift).y == 1.0f, "and moves");
 
     m2BodyDef moving = m2DefaultBodyDef();
@@ -2429,7 +2429,7 @@ static void TestStaticBodiesHaveNoVelocity(void)
     moving.angularVelocity = 1.0f;
     CHECK(m2CreateBody(world, &moving, &made) == m2_errorInvalid && made.index1 == 0,
           "and one with an angular velocity");
-    CHECK(m2World_GetCounters(world).misuse == misuse + 5, "each counts one misuse");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 5, "each counts one misuse");
     moving.type = m2_kinematicBody;
     CHECK(m2CreateBody(world, &moving, &made) == m2_success, "a kinematic def keeps its velocity");
     m2DestroyWorld(world);
@@ -2467,7 +2467,7 @@ static void TestStaleIdsCountInEveryCall(void)
     CHECK(m2DestroyChain(world, chain) == m2_success, "the chain goes");
     CHECK(m2DestroyBody(world, body) == m2_success, "the body goes, and its sensor with it");
 
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     m2Body_SetAwake(world, body, true);
     m2Body_Enable(world, body, false);
     m2Body_Enable(world, body, true);
@@ -2489,7 +2489,8 @@ static void TestStaleIdsCountInEveryCall(void)
     m2Vec2 global = m2Body_GetWorldPointVelocity(world, body, (m2Pos2){1.0, 0.0});
     CHECK(local.x == 0.0f && local.y == 0.0f && global.x == 0.0f && global.y == 0.0f,
           "a stale body's points do not move");
-    CHECK(m2World_GetCounters(world).misuse == misuse + 19, "each of the 19 calls counts once");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 19,
+          "each of the 19 calls counts once");
     m2DestroyWorld(world);
 }
 
@@ -2509,13 +2510,13 @@ static void TestEveryRefusalHasAReason(void)
           "a third body is refused because the pool is full");
     CHECK(third.index1 == 0, "and the out id is the null id");
 
-    uint64_t misuseBefore = m2World_GetCounters(world).misuse;
+    uint64_t misuseBefore = m2World_GetCounters(world).misuseCount;
     DestroyBody(world, b);
     CHECK(!m2Body_IsValid(world, b), "a validity query on a stale id is not misuse");
-    CHECK(m2World_GetCounters(world).misuse == misuseBefore, "so it is not counted");
+    CHECK(m2World_GetCounters(world).misuseCount == misuseBefore, "so it is not counted");
     CHECK(m2DestroyBody(world, b) == m2_errorStale, "destroying a stale id is refused as stale");
     m2Body_SetLinearVelocity(world, b, (m2Vec2){1.0f, 0.0f});
-    CHECK(m2World_GetCounters(world).misuse == misuseBefore + 2, "and both refusals count");
+    CHECK(m2World_GetCounters(world).misuseCount == misuseBefore + 2, "and both refusals count");
 
     m2BodyDef badDef = m2DefaultBodyDef();
     badDef.internalValue = 0;
@@ -2524,14 +2525,15 @@ static void TestEveryRefusalHasAReason(void)
 
     // Bad step arguments and stale joint reads refuse in every build;
     // they are caller input, not internal invariants.
-    misuseBefore = m2World_GetCounters(world).misuse;
+    misuseBefore = m2World_GetCounters(world).misuseCount;
     uint64_t stepsBefore = m2World_GetStepCount(world);
     m2World_Step(world, 0.0f, 4);
     m2World_Step(world, 1.0f / 60.0f, 0);
     CHECK(m2World_GetStepCount(world) == stepsBefore, "a zero dt and zero substeps are refused");
     m2JointId staleJoint = {1, 1};
     CHECK(m2DistanceJoint_GetLength(world, staleJoint) == 0.0f, "a stale joint read returns zero");
-    CHECK(m2World_GetCounters(world).misuse == misuseBefore + 3, "and each refusal counts once");
+    CHECK(m2World_GetCounters(world).misuseCount == misuseBefore + 3,
+          "and each refusal counts once");
     m2DestroyWorld(world);
 }
 
@@ -2865,24 +2867,24 @@ static void TestShatterBody(void)
     m2ShapeDef ss = m2DefaultShapeDef();
     NewPolygonShape(small, lone, &ss, &box);
     uint64_t before = m2World_Hash(small);
-    uint64_t misuseBefore = m2World_GetCounters(small).misuse;
+    uint64_t misuseBefore = m2World_GetCounters(small).misuseCount;
     m2BodyId kept[2] = {lone, lone};
     int32_t count = 7;
     CHECK(m2Body_Shatter(small, lone, shards, 4, kept, 2, &count) == m2_errorCapacity,
           "a full world refuses with m2_errorCapacity");
     CHECK(count == 0 && kept[0].index1 == 0 && kept[1].index1 == 0, "and clears the outputs");
-    CHECK(m2World_GetCounters(small).misuse == misuseBefore, "a full pool is not misuse");
+    CHECK(m2World_GetCounters(small).misuseCount == misuseBefore, "a full pool is not misuse");
     m2Polygon bent = shards[0];
     bent.count = M2_MAX_POLYGON_VERTICES + 1;
     CHECK(m2Body_Shatter(small, lone, &bent, 1, NULL, 0, &count) == m2_errorLimit,
           "a piece past M2_MAX_POLYGON_VERTICES refuses with m2_errorLimit");
-    CHECK(m2World_GetCounters(small).misuse == misuseBefore + 1, "as misuse");
+    CHECK(m2World_GetCounters(small).misuseCount == misuseBefore + 1, "as misuse");
     bent = shards[0];
     bent.vertices[1] = bent.vertices[0];
     CHECK(m2Body_Shatter(small, lone, &bent, 1, NULL, 0, &count) == m2_errorInvalid,
           "a degenerate piece refuses with m2_errorInvalid");
     misuseBefore += 1;
-    CHECK(m2World_GetCounters(small).misuse == misuseBefore + 1, "as misuse");
+    CHECK(m2World_GetCounters(small).misuseCount == misuseBefore + 1, "as misuse");
     CHECK(m2World_Hash(small) == before, "a refusal moves no bits");
     m2BodyDef fixed = m2DefaultBodyDef();
     m2BodyId wall = NewBody(small, &fixed);
@@ -2903,7 +2905,7 @@ static void TestShatterBody(void)
     count = 7;
     CHECK(m2Body_Shatter(small, lone, shards, 1, NULL, 2, &count) == m2_errorInvalid && count == 0,
           "a null bodiesOut with room is refused and clears the count");
-    CHECK(m2World_GetCounters(small).misuse == misuseBefore + 6, "each a misuse");
+    CHECK(m2World_GetCounters(small).misuseCount == misuseBefore + 6, "each a misuse");
     CHECK(m2Body_IsValid(small, lone), "the refused parent is untouched");
     CHECK(m2World_Hash(small) == before, "nor do the later refusals");
     m2DestroyWorld(small);
@@ -3202,12 +3204,12 @@ static void TestSetMassDataChecksEveryField(void)
     bad[7].centralInertia = 1e-45f; // below M2_MIN_INERTIA; its inverse overflows
     bad[8] = (m2MassData){FLT_MAX, {0.0f, 0.0f}, 1.0f}; // its inverse's inverse overflows
     bad[9] = (m2MassData){1.0f, {0.0f, 0.0f}, FLT_MAX}; // so does the inertia's
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     for (int32_t i = 0; i < 10; ++i)
     {
         m2Body_SetMassData(world, body, bad[i]);
         m2MassData after = m2Body_GetMassData(world, body);
-        if (m2World_GetCounters(world).misuse != misuse + (uint64_t)i + 1 ||
+        if (m2World_GetCounters(world).misuseCount != misuse + (uint64_t)i + 1 ||
             memcmp(&after, &before, sizeof(after)) != 0)
         {
             printf("mass data case %d\n", (int)i);
@@ -3225,7 +3227,7 @@ static void TestSetMassDataChecksEveryField(void)
     m2Body_SetMassData(world, body, distant);
     m2MassData back = m2Body_GetMassData(world, body);
     m2Body_SetMassData(world, body, back);
-    CHECK(m2World_GetCounters(world).misuse == misuse + 10, "data read back sets again");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 10, "data read back sets again");
 
     // Any override the setter accepts is one a restore accepts: extreme
     // masses and inertias either set and round-trip, or are refused.
@@ -3237,9 +3239,9 @@ static void TestSetMassDataChecksEveryField(void)
     {
         for (int32_t k = 0; k < extremeCount; ++k)
         {
-            uint64_t counted = m2World_GetCounters(world).misuse;
+            uint64_t counted = m2World_GetCounters(world).misuseCount;
             m2Body_SetMassData(world, body, (m2MassData){extremes[i], {0.0f, 0.0f}, extremes[k]});
-            bool accepted = m2World_GetCounters(world).misuse == counted;
+            bool accepted = m2World_GetCounters(world).misuseCount == counted;
             if (accepted &&
                 !(Snapshot(world, snapshot, size) == size && Restore(world, snapshot, size) &&
                   m2Body_GetMass(world, body) <= FLT_MAX))
@@ -3273,9 +3275,9 @@ static void TestSmallCentralInertiaIsKept(void)
     bodyDef.type = m2_dynamicBody;
     m2BodyId body = NewBody(world, &bodyDef);
     const m2MassData data = {1.0f, {1.0f, 0.0f}, 1.0e-10f};
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     m2Body_SetMassData(world, body, data);
-    CHECK(m2World_GetCounters(world).misuse == misuse, "the mass data is accepted");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse, "the mass data is accepted");
     m2MassData back = m2Body_GetMassData(world, body);
     float kept = 1.0f / (1.0f / data.centralInertia);
     CHECK(back.mass == data.mass && back.center.x == data.center.x &&

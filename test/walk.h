@@ -241,7 +241,7 @@ static void DoRandomOp(m2World* world)
     }
     if (roll < 35)
     {
-        if (counters.bodies >= 15)
+        if (counters.bodyCount >= 15)
         {
             return;
         }
@@ -267,7 +267,7 @@ static void DoRandomOp(m2World* world)
     }
     if (roll < 45)
     {
-        if (counters.shapes >= 26)
+        if (counters.shapeCount >= 26)
         {
             return;
         }
@@ -310,7 +310,7 @@ static void DoRandomOp(m2World* world)
     }
     if (roll < 50)
     {
-        if (counters.joints >= 7)
+        if (counters.jointCount >= 7)
         {
             return;
         }
@@ -494,7 +494,7 @@ static void DoRandomOp(m2World* world)
     }
     if (roll < 54)
     {
-        if (m2World_GetChains(world, NULL, 0) >= 5 || counters.shapes >= 24)
+        if (m2World_GetChains(world, NULL, 0) >= 5 || counters.shapeCount >= 24)
         {
             return;
         }

@@ -86,7 +86,7 @@ enum
     m2_opSetParticleUserData = 60,
     m2_opCreateWaterVolume = 61,
     m2_opDestroyWaterVolume = 62,
-    m2_opSetFluidSurface = 63,
+    m2_opSetWaterSurface = 63,
     m2_opSetWind = 64,
     m2_opCount
 };
@@ -360,11 +360,11 @@ typedef struct m2OpCreateWaterVolume
     m2WaterVolumeId expected;
 } m2OpCreateWaterVolume;
 
-typedef struct m2OpFluidSurface
+typedef struct m2OpWaterSurface
 {
     m2WaterVolumeId id;
     M2_ALIGN8 double surface;
-} m2OpFluidSurface;
+} m2OpWaterSurface;
 
 typedef struct m2OpShatterHeader
 {
@@ -432,7 +432,7 @@ typedef union m2OpPayload
     m2OpParticleFloat particleFloat;
     m2OpParticleUserData particleUserData;
     m2OpCreateWaterVolume createWaterVolume;
-    m2OpFluidSurface fluidSurface;
+    m2OpWaterSurface waterSurface;
     m2OpShatterHeader shatterHeader;
     m2OpFlag flag;
     m2OpVec vec;

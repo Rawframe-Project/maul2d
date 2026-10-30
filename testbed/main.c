@@ -1420,12 +1420,12 @@ int main(void)
         DrawText(
             TextFormat("[%d/%d] %s", sceneIndex + 1, TB_SCENE_COUNT, s_scenes[sceneIndex].name), 12,
             10, 20, RAYWHITE);
-        DrawText(TextFormat(
-                     "bodies %d (awake %d)  shapes %d  joints %d  step %.2f ms%s", counters.bodies,
-                     counters.awakeBodies, counters.shapes, counters.joints, profile.stepMs,
-                     simMode == 0
-                         ? (paused ? "  [paused]" : "")
-                         : (simMode == 1 ? "  [30 Hz snapped: I]" : "  [30 Hz interpolated: I]")),
+        DrawText(TextFormat("bodies %d (awake %d)  shapes %d  joints %d  step %.2f ms%s",
+                            counters.bodyCount, counters.awakeCount, counters.shapeCount,
+                            counters.jointCount, profile.step,
+                            simMode == 0 ? (paused ? "  [paused]" : "")
+                                         : (simMode == 1 ? "  [30 Hz snapped: I]"
+                                                         : "  [30 Hz interpolated: I]")),
                  12, 36, 16, GRAY);
         DrawText("drag: grab   rmb: pan   wheel: zoom   tab: scene   f5: reset   space: pause  "
                  " s: step   e: boom   b: box   HOLD R: REWIND TIME",

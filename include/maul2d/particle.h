@@ -75,7 +75,7 @@ extern "C"
     M2_API m2ParticleDef m2DefaultParticleDef(void);
 
     /// Creates one particle. A full pool is also counted in
-    /// m2Counters.particlePoolFull; pace emitters off
+    /// m2Counters.particleCreatesRefused; pace emitters off
     /// m2World_GetParticleCount. Journaled.
     ///
     /// @param world        The world.
@@ -232,7 +232,7 @@ extern "C"
     ///                  it as it was.
     /// @return m2_success; m2_errorCapacity when the pool ran out before
     ///         the polygon was full, a pool of 0 included, which counts no
-    ///         misuse and counts once in m2Counters.particlePoolFull;
+    ///         misuse and counts once in m2Counters.particleCreatesRefused;
     ///         m2_errorInvalid when an argument is null, def was not
     ///         initialized by m2DefaultParticleDef, a value of it is NaN or
     ///         the polygon is not one a shape would take;

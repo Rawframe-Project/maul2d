@@ -493,9 +493,9 @@ static void ExpectByteRefused(m2World* world, const uint8_t* tape, int64_t bytes
     memcpy(edited, tape, (size_t)bytes);
     edited[recordStart + 1 + (int64_t)payloadOffset] = 29;
     uint64_t hash = m2World_Hash(world);
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     CHECK(m2World_ReplayJournal(world, edited, bytes) == m2_errorFormat, what);
-    CHECK(m2World_Hash(world) == hash && m2World_GetCounters(world).misuse == misuse,
+    CHECK(m2World_Hash(world) == hash && m2World_GetCounters(world).misuseCount == misuse,
           "a refused tape changes nothing and counts nothing");
     free(edited);
 }
@@ -929,7 +929,7 @@ static uint8_t* TapeOfFilledDefs(uint8_t fill, int64_t* bytesOut, uint64_t* hash
         pieces[i] = FilledPolygon(&half, fill);
     }
     CHECK(ShatterBody(world, crate, pieces, 2, NULL, 0) == 2, "a shatter records");
-    CHECK(m2World_GetCounters(world).misuse == 0,
+    CHECK(m2World_GetCounters(world).misuseCount == 0,
           "every call passes its checks, the explosion too");
     *bytesOut = StopJournal(world);
     *hashOut = m2World_Hash(world);
@@ -995,7 +995,7 @@ static void TestBusyStopKeepsBytes(void)
     uint8_t* tape = malloc((size_t)capacity);
     CHECK(tape != NULL && StartJournal(in.world, tape, capacity), "the journal starts");
 
-    uint64_t misuse = m2World_GetCounters(in.world).misuse;
+    uint64_t misuse = m2World_GetCounters(in.world).misuseCount;
     m2DebugDraw draw = {0};
     draw.drawSegment = StopJournalWhileDrawing;
     draw.drawAabbs = true;
@@ -1003,7 +1003,7 @@ static void TestBusyStopKeepsBytes(void)
     m2World_Draw(in.world, &draw);
     CHECK(in.calls > 0 && in.stopped == m2_errorBusy, "a stop inside a draw callback is busy");
     CHECK(in.bytes == 7, "and leaves bytesOut as it was");
-    CHECK(m2World_GetCounters(in.world).misuse == misuse + 1, "the refusal counts one misuse");
+    CHECK(m2World_GetCounters(in.world).misuseCount == misuse + 1, "the refusal counts one misuse");
     CHECK(StopJournal(in.world) > 0, "the journal was still recording");
     m2DestroyWorld(in.world);
     free(tape);

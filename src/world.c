@@ -437,11 +437,11 @@ static void ClearForces(m2World* world)
 // contacts, islands, solve, end. Diagnostics only.
 static void RecordProfile(m2World* world, const uint64_t marks[6])
 {
-    world->profile.stepMs = (float)((double)(marks[5] - marks[0]) * 1.0e-6);
-    world->profile.pairsMs = (float)((double)(marks[1] - marks[0]) * 1.0e-6);
-    world->profile.contactsMs = (float)((double)(marks[2] - marks[1]) * 1.0e-6);
-    world->profile.solveMs = (float)((double)(marks[4] - marks[3]) * 1.0e-6);
-    world->profile.sleepMs =
+    world->profile.step = (float)((double)(marks[5] - marks[0]) * 1.0e-6);
+    world->profile.broadphase = (float)((double)(marks[1] - marks[0]) * 1.0e-6);
+    world->profile.narrowphase = (float)((double)(marks[2] - marks[1]) * 1.0e-6);
+    world->profile.solve = (float)((double)(marks[4] - marks[3]) * 1.0e-6);
+    world->profile.sleep =
         (float)((double)(marks[3] - marks[2]) * 1.0e-6 + (double)(marks[5] - marks[4]) * 1.0e-6);
 }
 
@@ -489,11 +489,11 @@ static void StepWorld(m2World* world, float dt, int32_t substepCount)
     uint64_t tStart = m2TimeNowNs();
     if (WorldIsHibernating(world))
     {
-        world->profile.stepMs = (float)((double)(m2TimeNowNs() - tStart) * 1.0e-6);
-        world->profile.pairsMs = 0.0f;
-        world->profile.contactsMs = 0.0f;
-        world->profile.solveMs = 0.0f;
-        world->profile.sleepMs = 0.0f;
+        world->profile.step = (float)((double)(m2TimeNowNs() - tStart) * 1.0e-6);
+        world->profile.broadphase = 0.0f;
+        world->profile.narrowphase = 0.0f;
+        world->profile.solve = 0.0f;
+        world->profile.sleep = 0.0f;
         world->stepCount += 1;
         return;
     }
@@ -518,7 +518,7 @@ static void StepWorld(m2World* world, float dt, int32_t substepCount)
         m2SolveParticles(world, dt);
         AgeParticles(world, dt);
     }
-    if (world->volumes.maxFvIndex > 0)
+    if (world->volumes.maxWvIndex > 0)
     {
         // Buoyancy feeds the force accumulators before the solve, so it
         // integrates alongside gravity and dies with the step.
@@ -794,31 +794,31 @@ m2Counters m2World_GetCounters(const m2World* world)
         {
             continue;
         }
-        counters.bodies += 1;
-        counters.awakeBodies += world->bodies.asleep[i] == 0 ? 1 : 0;
+        counters.bodyCount += 1;
+        counters.awakeCount += world->bodies.asleep[i] == 0 ? 1 : 0;
     }
     for (int32_t i = 0; i < world->shapes.maxShapeIndex; ++i)
     {
-        counters.shapes += world->shapes.shapeAlive[i] != 0 ? 1 : 0;
+        counters.shapeCount += world->shapes.shapeAlive[i] != 0 ? 1 : 0;
     }
     for (int32_t i = 0; i < world->joints.maxJointIndex; ++i)
     {
-        counters.joints += world->joints.jointAlive[i] != 0 ? 1 : 0;
+        counters.jointCount += world->joints.jointAlive[i] != 0 ? 1 : 0;
     }
-    counters.pairs = world->contacts.pairCount;
+    counters.contactCount = world->contacts.pairCount;
     for (int32_t i = 0; i < world->contacts.pairCount; ++i)
     {
-        counters.touchingPairs += world->contacts.pairTouching[i] != 0 ? 1 : 0;
+        counters.touchingCount += world->contacts.pairTouching[i] != 0 ? 1 : 0;
     }
-    counters.constraints = world->solver.lastConstraintCount;
-    counters.graphColors = world->solver.lastGraphColors;
-    counters.overflowConstraints = world->solver.lastOverflow;
+    counters.constraintCount = world->solver.lastConstraintCount;
+    counters.colorCount = world->solver.lastGraphColors;
+    counters.overflowCount = world->solver.lastOverflow;
     counters.stepCount = world->stepCount;
-    counters.pairOverflow = world->contacts.pairOverflow;
-    counters.particlePairOverflow = world->particles.particlePairOverflow;
-    counters.particleBodyOverflow = world->particles.particleBodyOverflow;
-    counters.particlePoolFull = world->particles.particlePoolFullCount;
-    counters.misuse = m2MisuseCount(world);
+    counters.pairsDropped = world->contacts.pairsDropped;
+    counters.particlePairsDropped = world->particles.particlePairsDropped;
+    counters.particleBodyContactsDropped = world->particles.particleBodyContactsDropped;
+    counters.particleCreatesRefused = world->particles.particleCreatesRefused;
+    counters.misuseCount = m2MisuseCount(world);
     return counters;
 }
 

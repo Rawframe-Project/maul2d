@@ -167,7 +167,7 @@ static void Gather(m2World* world)
     m2Particles* p = &world->particles;
     for (int32_t i = 0; i < p->maxParticleIndex; ++i)
     {
-        m2CountDrops(&p->particleBodyOverflow, p->particleBodyStageDrops[i]);
+        m2CountDrops(&p->particleBodyContactsDropped, p->particleBodyStageDrops[i]);
         for (int32_t k = 0; k < M2_CONTACTS_PER_PARTICLE; ++k)
         {
             int32_t slot = i * M2_CONTACTS_PER_PARTICLE + k;
@@ -178,7 +178,7 @@ static void Gather(m2World* world)
             }
             if (p->particleBodyCount >= p->particleBodyCapacity)
             {
-                m2CountDrops(&p->particleBodyOverflow, 1);
+                m2CountDrops(&p->particleBodyContactsDropped, 1);
                 continue;
             }
             int32_t out = p->particleBodyCount;
@@ -196,7 +196,7 @@ static void Gather(m2World* world)
 void m2UpdateParticleContacts(m2World* world)
 {
     world->particles.particleBodyCount = 0;
-    world->particles.particleBodyOverflow = 0;
+    world->particles.particleBodyContactsDropped = 0;
     if (world->particles.particleCount >= M2_FLUID_THREAD_MIN)
     {
         m2RunParallel(world, StageRange, world, world->particles.maxParticleIndex, 64);

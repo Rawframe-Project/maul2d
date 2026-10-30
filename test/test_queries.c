@@ -780,16 +780,17 @@ static void TestCastHitOut(void)
     }
     CHECK(wrote, "and writes the hit");
 
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     CHECK(CastEveryClosest(world, floor, (m2Pos2){9.0, 3.0}, down, hits) == 0 &&
               HitsZero(hits, CLOSEST_CASTS),
           "a miss leaves zeros");
-    CHECK(m2World_GetCounters(world).misuse == misuse, "and counts no misuse");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse, "and counts no misuse");
 
     CHECK(CastEveryClosest(world, floor, (m2Pos2){(double)NAN, 3.0}, down, hits) == 0 &&
               HitsZero(hits, CLOSEST_CASTS),
           "a refused cast leaves zeros");
-    CHECK(m2World_GetCounters(world).misuse == misuse + CLOSEST_CASTS, "each counting one misuse");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + CLOSEST_CASTS,
+          "each counting one misuse");
 
     m2ShapeId stale = {floor.index1, floor.generation + 1u};
     m2CastHit staleHit;
@@ -805,14 +806,15 @@ static void TestCastHitOut(void)
     m2Capsule rod = {{-0.25f, 0.0f}, {0.25f, 0.0f}, 0.1f};
     m2Polygon chip = m2MakeBox(0.25f, 0.25f);
     m2Transform pose = {above, {1.0f, 0.0f}};
-    misuse = m2World_GetCounters(world).misuse;
+    misuse = m2World_GetCounters(world).misuseCount;
     CHECK(!m2World_CastRayClosest(world, above, down, all, NULL) &&
               !m2World_CastCircleClosest(world, &ball, pose, down, all, NULL) &&
               !m2World_CastCapsuleClosest(world, &rod, pose, down, all, NULL) &&
               !m2World_CastPolygonClosest(world, &chip, pose, down, all, NULL) &&
               !m2Shape_CastRay(world, floor, above, down, NULL),
           "a null hitOut is refused");
-    CHECK(m2World_GetCounters(world).misuse == misuse + CLOSEST_CASTS, "each counting one misuse");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + CLOSEST_CASTS,
+          "each counting one misuse");
     m2DestroyWorld(world);
 }
 
@@ -934,18 +936,18 @@ static void TestRefusedListsClear(void)
               ZEROED(a.contacts) && StaleListsZeroed(&a) == 4 && QueryListsZeroed(&a) == 10,
           "every list read on a null world zeroes its array");
 
-    uint64_t misuse = m2World_GetCounters(world).misuse;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     m2BodyId staleBody = {body.index1, body.generation + 1u};
     m2ChainId staleChain = {chain.index1, chain.generation + 1u};
     m2ShapeId staleSensor = {sensor.index1, sensor.generation + 1u};
     ReadEveryList(world, staleBody, staleChain, staleSensor, above, &a);
     CHECK(StaleListsZeroed(&a) == 4, "a read with a stale id zeroes its array");
-    CHECK(m2World_GetCounters(world).misuse == misuse + 4, "each counting one misuse");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 4, "each counting one misuse");
 
-    misuse = m2World_GetCounters(world).misuse;
+    misuse = m2World_GetCounters(world).misuseCount;
     ReadEveryList(world, body, chain, sensor, (m2Pos2){(double)NAN, 3.0}, &a);
     CHECK(QueryListsZeroed(&a) == 10, "a refused query zeroes its array");
-    CHECK(m2World_GetCounters(world).misuse == misuse + 10, "each counting one misuse");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 10, "each counting one misuse");
     CHECK(StaleListsZeroed(&a) == 0 && !ZEROED(a.bodies),
           "and a read that succeeds writes only the items it defines");
     m2DestroyWorld(world);

@@ -418,9 +418,9 @@ static bool ApplyDestroyWaterVolume(m2ReplayCursor* r, const m2OpPayload* p)
     return m2DestroyWaterVolume(r->world, p->waterVolumeId) == m2_success;
 }
 
-static bool ApplySetFluidSurface(m2ReplayCursor* r, const m2OpPayload* p)
+static bool ApplySetWaterSurface(m2ReplayCursor* r, const m2OpPayload* p)
 {
-    m2WaterVolume_SetSurface(r->world, p->fluidSurface.id, p->fluidSurface.surface);
+    m2WaterVolume_SetSurface(r->world, p->waterSurface.id, p->waterSurface.surface);
     return true;
 }
 
@@ -605,7 +605,7 @@ static const m2JournalCommand s_commands[m2_opCount] = {
     M2_COMMAND(m2_opSetParticleUserData, m2OpParticleUserData, ApplySetParticleUserData),
     M2_COMMAND(m2_opCreateWaterVolume, m2OpCreateWaterVolume, ApplyCreateWaterVolume),
     M2_COMMAND(m2_opDestroyWaterVolume, m2WaterVolumeId, ApplyDestroyWaterVolume),
-    M2_COMMAND(m2_opSetFluidSurface, m2OpFluidSurface, ApplySetFluidSurface),
+    M2_COMMAND(m2_opSetWaterSurface, m2OpWaterSurface, ApplySetWaterSurface),
     M2_COMMAND(m2_opSetWind, m2OpSetWind, ApplySetWind),
 };
 
