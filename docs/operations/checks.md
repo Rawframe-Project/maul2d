@@ -28,8 +28,9 @@ Run `changed` before every push. On the shared development machine, run `pr` and
 | `msvc-headers` | Every public header compiled by MSVC's `cl` as C17 and C++17. |
 | `testbed` | The native testbed builds. |
 | `web` | The library and its tests under Emscripten and Node, the golden test included, and the size of the static library. |
-| `fuzz` | One job per fuzz target. A pull request fuzzes each for 20 seconds from the inputs the targets build; `main` fuzzes for 90 seconds and the nightly or a dispatch for 600 (`fuzz_walk` for 3600), each from the target's cached corpus. On `main` and at night each corpus is then minimized and, when the run found nothing, saved. A finding prints a report without its input, from `tools/fuzz_target.sh`, and nothing is uploaded. |
+| `fuzz` | One job per fuzz target. A pull request fuzzes each for 20 seconds; `main` fuzzes for 90 seconds and the nightly or a dispatch for 600 (`fuzz_walk` for 3600), each from the target's cached corpus. On `main` and at night each corpus is then minimized and, when the run found nothing, saved. A finding prints a report without its input, from `tools/fuzz_target.sh`, and nothing is uploaded. |
 | `simulation` | At night only: the quarantined tests, a long soak and a deep API walk. |
+| `prune-caches` | On `main` only, after every job that saves a cache: the organization's `cache-prune.yml` deletes each entry a newer save on `main` replaced (a key that ends in a commit or a run id, the same up to it), so the repository keeps one entry per build cell, per fuzz target and for CodeQL, and the fuzz corpus is never evicted to make room. On a pull request it is skipped. |
 
 `pr-title.yml` checks that the pull request title is a conventional commit with a scope from `AGENTS.md`, and `pr-gate.yml` closes a pull request from outside the organization unless it closes an issue labeled `accepted`. `codeql.yml` runs CodeQL on pull requests, on `main` and weekly. `scorecard.yml` grades the repository's security practices weekly, and Dependabot proposes updates of the pinned actions. `pages.yml` publishes the documentation site and the browser testbed from `main`.
 

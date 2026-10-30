@@ -34,7 +34,7 @@ env:
 jobs:
   # Whether anything beyond documentation changed; the builds skip when not.
   changes:
-    uses: Rawframe-Project/.github/.github/workflows/changes.yml@3044ba71d36f3e3eb370b8915ca1b02f337fda8c # v0.0.41
+    uses: Rawframe-Project/.github/.github/workflows/changes.yml@8414d388d2116b581c5c5d8f6641e1da4d863244 # v0.0.42
     permissions:
       pull-requests: read
 
@@ -49,10 +49,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: Rawframe-Project/.github/.github/actions/docs-check@3044ba71d36f3e3eb370b8915ca1b02f337fda8c # v0.0.41
+      - uses: Rawframe-Project/.github/.github/actions/docs-check@8414d388d2116b581c5c5d8f6641e1da4d863244 # v0.0.42
 
   zizmor:
-    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@3044ba71d36f3e3eb370b8915ca1b02f337fda8c # v0.0.41
+    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@8414d388d2116b581c5c5d8f6641e1da4d863244 # v0.0.42
     permissions:
       contents: read
 
@@ -152,7 +152,7 @@ jobs:
           - { preset: macos-clang, runner: macos-15 }
           - { preset: windows-clang-cl, runner: windows-2025 }
           - { preset: windows-arm64-clang-cl, runner: windows-11-arm }
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@3044ba71d36f3e3eb370b8915ca1b02f337fda8c # v0.0.41
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@8414d388d2116b581c5c5d8f6641e1da4d863244 # v0.0.42
     permissions:
       contents: read
     with:
@@ -165,7 +165,7 @@ jobs:
   testbed:
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@3044ba71d36f3e3eb370b8915ca1b02f337fda8c # v0.0.41
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@8414d388d2116b581c5c5d8f6641e1da4d863244 # v0.0.42
     permissions:
       contents: read
     with:
@@ -334,12 +334,25 @@ jobs:
       - name: Deep API walk
         run: ./out/linux-clang-20/test_walk 200
 
+  # Every push to main saves a ccache entry per build cell keyed by its
+  # commit, and each fuzz run a corpus keyed by its run id; nothing else
+  # deletes the entries a newer save replaced, and once the repository's
+  # 10 GB fill, GitHub evicts the least recently used first, the corpus.
+  # After every job that saves a cache, main's run deletes the replaced
+  # entries and keeps the newest of each key.
+  prune-caches:
+    needs: [build, testbed, fuzz]
+    if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    uses: Rawframe-Project/.github/.github/workflows/cache-prune.yml@8414d388d2116b581c5c5d8f6641e1da4d863244 # v0.0.42
+    permissions:
+      actions: write
+
   # The one check the ruleset requires: it passes when every job above
   # passed or was skipped for a documentation-only change, so adding or
   # renaming a job never touches the ruleset.
   required:
     if: always()
-    needs: [changes, docs, zizmor, checks, build, testbed, msvc-headers, web, fuzz]
+    needs: [changes, docs, zizmor, checks, build, testbed, msvc-headers, web, fuzz, prune-caches]
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     permissions: {}
