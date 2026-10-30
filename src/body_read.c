@@ -186,6 +186,13 @@ int32_t m2Body_GetJoints(const m2World* world, m2BodyId bodyId, m2JointId* idsOu
 static M2_NOINLINE m2Vec2 BodyGetLocalPointVelocityWorker(const m2World* world, m2BodyId bodyId,
                                                           m2Vec2 localPoint)
 {
+    // The id is checked once here: the two calls below then see a live
+    // body and count nothing, so a stale id counts one misuse, not two.
+    if (world == NULL || m2BodySlot(world, bodyId) < 0)
+    {
+        m2Refuse(world, m2_errorInvalid);
+        return (m2Vec2){0.0f, 0.0f};
+    }
     return m2Body_GetWorldPointVelocity(world, bodyId,
                                         m2Body_GetWorldPoint(world, bodyId, localPoint));
 }
