@@ -1,7 +1,10 @@
 # Reads the library version from the public base header. The header is
 # the single source of truth: CMake, the package version file,
-# pkg-config and the code itself can never disagree.
+# pkg-config and the code itself can never disagree. A change to the
+# header configures the build again, so a version bump reaches an existing
+# build directory.
 function(maul_read_version header prefix out_var)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS "${header}")
     file(STRINGS "${header}" lines REGEX "^#define ${prefix}_VERSION_(MAJOR|MINOR|PATCH) [0-9]+$")
     set(parts "")
     foreach(part MAJOR MINOR PATCH)
