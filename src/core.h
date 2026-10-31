@@ -375,10 +375,6 @@ static inline bool m2ValidImpulseVec(m2Vec2 j)
 {
     return m2CheckImpulseVec(j) == m2_success;
 }
-static inline bool m2ValidTimeStep(float x)
-{
-    return m2CheckTimeStep(x) == m2_success;
-}
 static inline bool m2ValidAngle(float x)
 {
     return m2CheckAngle(x) == m2_success;

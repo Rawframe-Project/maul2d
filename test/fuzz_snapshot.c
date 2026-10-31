@@ -95,7 +95,7 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     }
     for (int32_t i = 0; i < 4; ++i)
     {
-        m2World_Step(s_world, 1.0f / 60.0f, 4);
+        Step(s_world, 1.0f / 60.0f, 4);
     }
     if (!m2World_Validate(s_world))
     {

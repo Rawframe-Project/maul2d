@@ -49,11 +49,18 @@ int main(int argc, char** argv)
         int32_t steps = override > 0 ? override : scene->steps;
         m2World* world = scene->build();
         double t0 = NowMs();
-        for (int32_t i = 0; i < steps; ++i)
+        m2Result stepped = m2_success;
+        for (int32_t i = 0; i < steps && stepped == m2_success; ++i)
         {
-            m2World_Step(world, BENCH_DT, BENCH_SUBSTEPS);
+            stepped = m2World_Step(world, BENCH_DT, BENCH_SUBSTEPS);
         }
         double totalMs = NowMs() - t0;
+        if (stepped != m2_success)
+        {
+            printf("M2_BENCH %s FAILED: a step returns %s\n", scene->name,
+                   m2GetResultName(stepped));
+            failures += 1;
+        }
         uint64_t hash = m2World_Hash(world);
         float speed = BenchMaxBodySpeed(world);
         printf("M2_BENCH %-10s steps=%d totalMs=%9.2f perStepMs=%7.4f hash=%016llx\n", scene->name,

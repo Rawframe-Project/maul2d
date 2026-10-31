@@ -51,7 +51,7 @@ static void TestRestitution(void)
     bool descending = true;
     for (int32_t i = 0; i < 400; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         double y = m2Body_GetPosition(world, ball).y;
         if (descending && y > previousY + 1.0e-6)
         {
@@ -108,7 +108,7 @@ static void TestFriction(void)
 
     for (int32_t i = 0; i < 180; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     double gripTravel = m2Body_GetPosition(world, gripBox).x - (-10.0);
     double iceTravel = m2Body_GetPosition(world, iceBox).x - 10.0;
@@ -152,7 +152,7 @@ static void TestPyramid(void)
 
     for (int32_t i = 0; i < 300; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
 
     float maxSpeed = 0.0f;
@@ -209,7 +209,7 @@ static void TestColorOverflow(void)
     int32_t overflow = 0;
     for (int32_t i = 0; i < 120; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         int32_t now = m2World_GetCounters(world).overflowCount;
         overflow = now > overflow ? now : overflow;
     }
@@ -251,7 +251,7 @@ static void TestSpinsAboutCenterOfMass(void)
     double maxOriginTravel = 0.0;
     for (int32_t i = 0; i < 240; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         m2Transform xf = m2Body_GetTransform(world, body);
         double comX = xf.p.x + (double)(xf.q.c * 2.0f);
         double comY = xf.p.y + (double)(xf.q.s * 2.0f);
@@ -273,7 +273,7 @@ static void TestSpinsAboutCenterOfMass(void)
     m2Transform mark = m2Body_GetTransform(world, body);
     for (int32_t i = 0; i < 120; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     m2Transform after = m2Body_GetTransform(world, body);
     double ox = after.p.x - mark.p.x;
@@ -309,7 +309,7 @@ static void TestConveyor(void)
 
     for (int32_t i = 0; i < 180; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     float vx = m2Body_GetLinearVelocity(world, crate).x;
     CHECK(vx > 1.9f && vx < 2.1f, "the belt carries the crate to belt speed");
@@ -318,7 +318,7 @@ static void TestConveyor(void)
     m2Shape_SetTangentSpeed(world, belt, -2.0f);
     for (int32_t i = 0; i < 240; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     vx = m2Body_GetLinearVelocity(world, crate).x;
     CHECK(vx < -1.9f && vx > -2.1f, "a live reversal turns the crate around");
@@ -326,7 +326,7 @@ static void TestConveyor(void)
     m2Shape_SetTangentSpeed(world, belt, 0.0f);
     for (int32_t i = 0; i < 240; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     vx = m2Body_GetLinearVelocity(world, crate).x;
     CHECK(vx > -0.05f && vx < 0.05f, "a stopped belt stops its rider");
@@ -335,7 +335,7 @@ static void TestConveyor(void)
     m2Shape_SetTangentSpeed(world, belt, 1.5f);
     for (int32_t i = 0; i < 120; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Body_GetLinearVelocity(world, crate).x > 1.0f, "restarting the belt wakes the sleeper");
     m2DestroyWorld(world);

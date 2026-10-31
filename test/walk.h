@@ -185,7 +185,7 @@ static void DoRandomOp(m2World* world)
     {
         float dt = Pick(2) == 0 ? 1.0f / 60.0f : 1.0f / 120.0f;
         int32_t substeps = 2 << Pick(2); // 2, 4, or 8
-        m2World_Step(world, dt, substeps);
+        Step(world, dt, substeps);
         return;
     }
     if (roll < 30)
@@ -880,7 +880,7 @@ static uint64_t RunScenario(uint64_t seed, uint8_t* journal, int32_t journalCapa
     }
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     uint64_t endHash = m2World_Hash(world);
 
@@ -904,7 +904,7 @@ static uint64_t RunScenario(uint64_t seed, uint8_t* journal, int32_t journalCapa
     CHECK(Snapshot(world, snapA, size) == size, "snapshot");
     for (int32_t i = 0; i < 15; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4); // a future to roll back from
+        Step(world, 1.0f / 60.0f, 4); // a future to roll back from
     }
     CHECK(Restore(world, snapA, size), "restore");
     CHECK(m2World_Hash(world) == endHash, "restore returns the exact bits");

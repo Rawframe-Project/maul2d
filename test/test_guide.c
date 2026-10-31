@@ -83,15 +83,17 @@ static void FirstWorld(bool* finished)
         m2CreateBody(world, &ballDef, &ball) == m2_success &&
         m2CreateCircleShape(world, ball, &shapeDef, &circle, &ballShape) == m2_success;
 
-    for (int32_t i = 0; built && i < 120; ++i)
+    bool stepped = built;
+    for (int32_t i = 0; stepped && i < 120; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        stepped = m2World_Step(world, 1.0f / 60.0f, 4) == m2_success;
     }
     m2Pos2 resting = m2Body_GetPosition(world, ball);
     m2DestroyWorld(world);
 
     *finished = true;
     CHECK(built, "the first world builds");
+    CHECK(stepped, "and every step runs");
     CHECK(resting.y > 0.9 && resting.y < 1.1, "the ball rests on the floor");
 }
 
@@ -148,14 +150,16 @@ static void TestHardHits(void)
     int32_t hardHits = 0;
     for (int32_t step = 0; step < 90; ++step)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        m2ContactEvents contacts = m2World_GetContactEvents(world);
-        for (int32_t i = 0; i < contacts.beginCount; ++i)
+        if (m2World_Step(world, 1.0f / 60.0f, 4) == m2_success)
         {
-            const m2ContactBeginEvent* begin = &contacts.beginEvents[i];
-            if (begin->approachSpeed > 2.0f)
+            m2ContactEvents contacts = m2World_GetContactEvents(world);
+            for (int32_t i = 0; i < contacts.beginCount; ++i)
             {
-                hardHits += 1; // a sound at begin->points[0], louder for faster hits
+                const m2ContactBeginEvent* begin = &contacts.beginEvents[i];
+                if (begin->approachSpeed > 2.0f)
+                {
+                    hardHits += 1; // a sound at begin->points[0], louder for faster hits
+                }
             }
         }
     }
@@ -212,13 +216,14 @@ static void TestExpiringDrop(void)
     {
         m2Particle_SetLifetime(world, drop, 0.5f); // gone half a second from now
     }
-    for (int32_t i = 0; i < 60; ++i)
+    bool stepped = true;
+    for (int32_t i = 0; stepped && i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        stepped = m2World_Step(world, 1.0f / 60.0f, 4) == m2_success;
     }
     bool stillThere = m2Particle_IsValid(world, drop); // false: it expired
 
-    CHECK(created == m2_success, "the drop is created");
+    CHECK(created == m2_success && stepped, "the drop is created and the world steps");
     CHECK(!stillThere, "and expires on its own");
     CHECK(m2Particle_GetPosition(world, drop).x == 0.0, "its id reads as zero");
     CHECK(m2World_GetCounters(world).misuseCount == misuse, "without counting misuse");
@@ -241,16 +246,15 @@ static void TestRollbackFrame(void)
     bool saved = frame != NULL && m2World_Snapshot(world, frame, size, &written) == m2_success;
 
     m2Body_ApplyLinearImpulse(world, ball, (m2Vec2){3.0f, 0.0f}); // a mispredicted input
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    bool predicted = m2World_Step(world, 1.0f / 60.0f, 4) == m2_success;
 
-    if (saved && m2World_Restore(world, frame, written) == m2_success)
-    {
-        m2World_Step(world, 1.0f / 60.0f, 4); // the corrected frame
-    }
+    // The corrected frame:
+    bool corrected = saved && m2World_Restore(world, frame, written) == m2_success &&
+                     m2World_Step(world, 1.0f / 60.0f, 4) == m2_success;
     free(frame);
 
-    m2World_Step(twin, 1.0f / 60.0f, 4);
-    CHECK(saved, "the frame is saved");
+    CHECK(m2World_Step(twin, 1.0f / 60.0f, 4) == m2_success, "the twin steps");
+    CHECK(saved && predicted && corrected, "the frame is saved, predicted and corrected");
     CHECK(m2World_Hash(world) == m2World_Hash(twin), "the rollback lands on the right frame");
     m2DestroyWorld(twin);
     m2DestroyWorld(world);
@@ -269,11 +273,12 @@ static void TestRecordAndReplay(void)
     void* tape = malloc((size_t)capacity);
     int64_t tapeSize = 0;
     bool recorded = tape != NULL && m2World_StartJournal(world, tape, capacity) == m2_success;
-    for (int32_t i = 0; recorded && i < 60; ++i)
+    bool stepped = true;
+    for (int32_t i = 0; recorded && stepped && i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        stepped = m2World_Step(world, 1.0f / 60.0f, 4) == m2_success;
     }
-    recorded = recorded && m2World_StopJournal(world, &tapeSize) == m2_success;
+    recorded = recorded && m2World_StopJournal(world, &tapeSize) == m2_success && stepped;
 
     // In another world built from the same def:
     bool same = recorded && m2World_ReplayJournal(replica, tape, tapeSize) == m2_success &&

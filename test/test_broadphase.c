@@ -38,7 +38,7 @@ static void TestWideMoverPairsEverything(void)
     bd.position = (m2Pos2){15.0, 0.0};
     m2Polygon slab = m2MakeBox(16.0f, 0.2f);
     NewPolygonShape(world, NewBody(world, &bd), &sd, &slab);
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     m2Counters c = m2World_GetCounters(world);
     CHECK(c.contactCount == POSTS, "the slab pairs with all 300 posts");
     CHECK(c.pairsDropped == 0, "and nothing overflowed");
@@ -63,7 +63,7 @@ static void TestFullPairTableIsCounted(void)
         m2Circle disc = {{0.0f, 0.0f}, 0.5f};
         NewCircleShape(world, NewBody(world, &bd), &sd, &disc);
     }
-    m2World_Step(world, 1.0f / 60.0f, 1);
+    Step(world, 1.0f / 60.0f, 1);
     m2Counters c = m2World_GetCounters(world);
     CHECK(c.pairsDropped > 0, "some pairs do not fit");
     CHECK(c.contactCount + c.pairsDropped == 190,
@@ -90,7 +90,7 @@ static void TestDuplicateCandidatesDoNotCrowdTheTable(void)
         m2Circle disc = {{0.0f, 0.0f}, 0.5f};
         NewCircleShape(world, NewBody(world, &bd), &sd, &disc);
     }
-    m2World_Step(world, 1.0f / 60.0f, 1);
+    Step(world, 1.0f / 60.0f, 1);
     m2Counters c = m2World_GetCounters(world);
     CHECK(c.contactCount == 136 && c.pairsDropped == 0, "all 136 distinct pairs fit");
     m2DestroyWorld(world);

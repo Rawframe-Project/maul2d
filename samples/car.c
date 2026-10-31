@@ -78,7 +78,7 @@ int main(void)
     printf("time   position   speed\n");
     for (int step = 1; step <= 300; ++step)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Require(m2World_Step(world, 1.0f / 60.0f, 4), "step the world");
         if (step % 30 == 0)
         {
             m2Pos2 p = m2Body_GetPosition(world, chassis);

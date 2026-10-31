@@ -57,7 +57,7 @@ int main(void)
     // the wreck never happened, bit for bit.
     for (int i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Require(m2World_Step(world, 1.0f / 60.0f, 4), "step the world");
     }
     int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
@@ -72,7 +72,7 @@ int main(void)
     m2Body_ApplyLinearImpulse(world, top, (m2Vec2){8.0f, 4.0f});
     for (int i = 0; i < 120; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Require(m2World_Step(world, 1.0f / 60.0f, 4), "step the world");
     }
     printf("wrecked hash %016llx\n", (unsigned long long)m2World_Hash(world));
 

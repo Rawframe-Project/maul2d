@@ -211,7 +211,7 @@ static void TestWorldAllocator(void)
     int32_t afterCreate = first.total;
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(a, 1.0f / 60.0f, 4);
+        Step(a, 1.0f / 60.0f, 4);
     }
     CHECK(first.total == afterCreate, "steps allocate nothing");
 
@@ -377,7 +377,7 @@ static void BuildReadWorld(Reader* r)
     vd.bounds = (m2WorldAabb){{-5.0, -1.0}, {5.0, 1.0}};
     vd.surface = 0.5;
     r->volume = NewWaterVolume(r->world, &vd);
-    m2World_Step(r->world, 1.0f / 60.0f, 4);
+    Step(r->world, 1.0f / 60.0f, 4);
 }
 
 static void TestDestroyedWorldReadsEmpty(void)

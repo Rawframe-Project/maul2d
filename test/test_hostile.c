@@ -93,7 +93,7 @@ static void TestJellyRollbackStorm(void)
                   m2_springParticle | m2_elasticParticle);
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
@@ -113,20 +113,20 @@ static void TestJellyRollbackStorm(void)
     }
     for (int32_t i = 0; i < 40; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
 
     // Roll back and run the canonical future twice: identical bits.
     CHECK(Restore(world, snap, size), "the storm snapshot restores");
     for (int32_t i = 0; i < 40; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     uint64_t first = m2World_Hash(world);
     CHECK(Restore(world, snap, size), "the second restore lands too");
     for (int32_t i = 0; i < 40; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2World_Hash(world) == first, "the jelly timeline replays bit for bit");
     free(snap);
@@ -150,7 +150,7 @@ static void TestJellyJournalStorm(void)
     FillParticles(world, &blob, (m2Pos2){0.0, 1.0}, (m2Vec2){0.0f, 0.0f}, m2_springParticle);
     for (int32_t i = 0; i < 20; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     m2ParticleId ids[128];
     int32_t n = m2World_GetParticles(world, ids, 128);
@@ -161,7 +161,7 @@ static void TestJellyJournalStorm(void)
     FillParticles(world, &blob, (m2Pos2){1.0, 1.0}, (m2Vec2){0.0f, -1.0f}, m2_elasticParticle);
     for (int32_t i = 0; i < 20; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     int64_t used = StopJournal(world);
     CHECK(used > 0, "the storm tape closed");
@@ -203,7 +203,7 @@ static void TestHostileFills(void)
     CHECK(m2World_Validate(world), "the nets reference only live particles");
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     m2ParticleId ids[32];
     int32_t n = m2World_GetParticles(world, ids, 32);
@@ -263,7 +263,7 @@ static void TestMachineryResurrection(void)
     m2JointId pawl = NewRatchetJoint(world, &rd);
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
@@ -276,7 +276,7 @@ static void TestMachineryResurrection(void)
     CHECK(!m2Joint_IsValid(world, pawl), "the ratchet dies with its wheel");
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2World_GetParticleCount(world) == 0, "no stowaways");
 
@@ -287,13 +287,13 @@ static void TestMachineryResurrection(void)
     CHECK(m2GearJoint_GetRatio(world, gear) == 1.5f, "the gear remembers its ratio");
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     uint64_t first = m2World_Hash(world);
     Restore(world, snap, size);
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2World_Hash(world) == first, "the resurrected workshop is deterministic");
     free(snap);
@@ -340,7 +340,7 @@ static void TestRatchetMotorWar(void)
             {
                 m2Joint_SetMotorSpeed(world, pin, i % 60 == 0 ? 3.0f : -3.0f);
             }
-            m2World_Step(world, 1.0f / 60.0f, 4);
+            Step(world, 1.0f / 60.0f, 4);
         }
         m2Vec2 v = {m2Body_GetAngularVelocity(world, wheel), 0.0f};
         CHECK(v.x == v.x, "the war stays finite");
@@ -452,7 +452,7 @@ static void TestJournalDefenses(void)
     m2Body_SetLinearVelocity(world, box, (m2Vec2){1.5f, 0.0f});
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     int64_t bytes = StopJournal(world);
     CHECK(bytes > 0, "journal captured");
@@ -573,7 +573,7 @@ static void TestOtherReleasesAreRefused(void)
     m2Body_SetLinearVelocity(world, box, (m2Vec2){1.5f, 0.0f});
     for (int32_t i = 0; i < 10; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     int64_t tapeBytes = StopJournal(world);
     CHECK(tapeBytes > 0, "the tape is recorded");
@@ -586,7 +586,7 @@ static void TestOtherReleasesAreRefused(void)
         m2DestroyWorld(world);
         return;
     }
-    m2World_Step(world, 1.0f / 60.0f, 4); // a state the refusals must keep
+    Step(world, 1.0f / 60.0f, 4); // a state the refusals must keep
 
     CHECK(ReadWord(snap, PREFIX_ABI) == M2_ABI_VERSION &&
               ReadWord(tape, PREFIX_ABI) == M2_ABI_VERSION,
@@ -864,7 +864,7 @@ static void TestHostileSnapshotWords(void)
     rj.bodyIdA = ground;
     rj.bodyIdB = box;
     NewRevoluteJoint(world, &rj);
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
 
     int64_t size = m2World_GetSnapshotSize(world);
     uint8_t* clean = (uint8_t*)malloc((size_t)size);
@@ -926,7 +926,7 @@ static void TestQueryEdges(void)
 
     // Destroyed shapes drop out of query results after the flush.
     DestroyBody(world, box);
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     CHECK(m2World_OverlapAabb(world, (m2WorldAabb){{-1.0, -1.0}, {1.0, 1.0}},
                               m2DefaultQueryFilter(), results, 4) == 0,
           "destroyed shape leaves the query space");
@@ -950,8 +950,8 @@ static void TestMultiWorldIsolation(void)
     }
     for (int32_t i = 0; i < 40; ++i)
     {
-        m2World_Step(w1, 1.0f / 60.0f, 4);
-        m2World_Step(w2, 1.0f / 60.0f, 4);
+        Step(w1, 1.0f / 60.0f, 4);
+        Step(w2, 1.0f / 60.0f, 4);
     }
     CHECK(m2World_Hash(w1) == m2World_Hash(w2), "twin worlds march in lockstep");
 
@@ -965,11 +965,11 @@ static void TestMultiWorldIsolation(void)
         }
         for (int32_t i = 0; i < 40; ++i)
         {
-            m2World_Step(w3, 1.0f / 60.0f, 4);
+            Step(w3, 1.0f / 60.0f, 4);
         }
         for (int32_t i = 0; i < 20; ++i)
         {
-            m2World_Step(w3, 1.0f / 60.0f, 4);
+            Step(w3, 1.0f / 60.0f, 4);
             expected[i] = m2World_Hash(w3);
         }
         m2DestroyWorld(w3);
@@ -978,7 +978,7 @@ static void TestMultiWorldIsolation(void)
     m2DestroyWorld(w1); // kill the twin mid-flight
     for (int32_t i = 0; i < 20; ++i)
     {
-        m2World_Step(w2, 1.0f / 60.0f, 4);
+        Step(w2, 1.0f / 60.0f, 4);
         CHECK(m2World_Hash(w2) == expected[i], "survivor unaffected by the neighbor's death");
     }
     m2DestroyWorld(w2);
@@ -1001,7 +1001,7 @@ static void TestWakeAfterFrozenEra(void)
     m2BodyId box = AddBox(world, 0.0, 0.5);
     for (int32_t i = 0; i < 150; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(!m2Body_IsAwake(world, box), "asleep deep in the frozen era");
     double x0 = m2Body_GetPosition(world, box).x;
@@ -1010,14 +1010,14 @@ static void TestWakeAfterFrozenEra(void)
                                      m2Body_GetPosition(world, box));
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Body_GetPosition(world, box).x > x0 + 0.5, "the shoved sleeper actually moves");
 
     bool sleptAgain = false;
     for (int32_t i = 0; i < 300 && !sleptAgain; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         sleptAgain = !m2Body_IsAwake(world, box);
     }
     CHECK(sleptAgain, "and earns its sleep back");
@@ -1044,7 +1044,7 @@ static void TestTeleportOntoSleepers(void)
     m2BodyId intruder = AddBox(world, 8.0, 0.5);
     for (int32_t i = 0; i < 200; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(!m2Body_IsAwake(world, a) && !m2Body_IsAwake(world, b), "stack asleep");
 
@@ -1052,7 +1052,7 @@ static void TestTeleportOntoSleepers(void)
     bool exploded = false;
     for (int32_t i = 0; i < 120; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         m2Vec2 v = m2Body_GetLinearVelocity(world, b);
         exploded = exploded || v.x * v.x + v.y * v.y > 100.0f;
     }
@@ -1081,17 +1081,17 @@ static void TestSetTypeEdges(void)
     m2BodyId sleeper = AddBox(world, 0.0, 0.5);
     for (int32_t i = 0; i < 150; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(!m2Body_IsAwake(world, sleeper), "asleep before conversion");
     m2Body_SetType(world, sleeper, m2_staticBody);
     m2Body_SetType(world, sleeper, m2_dynamicBody);
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     CHECK(m2Body_IsAwake(world, sleeper), "round-trip conversion wakes it");
     bool resleeps = false;
     for (int32_t i = 0; i < 200 && !resleeps; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         resleeps = !m2Body_IsAwake(world, sleeper);
     }
     CHECK(resleeps, "and it earns sleep again with real mass");
@@ -1113,7 +1113,7 @@ static void TestSetTypeEdges(void)
     m2Body_SetType(world, pivot, m2_staticBody); // becomes a wall anchor
     for (int32_t i = 0; i < 120; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Joint_IsValid(world, hinge), "the joint survives its anchor turning static");
     m2Pos2 pp = m2Body_GetPosition(world, pivot);
@@ -1133,11 +1133,11 @@ static void TestSetTypeEdges(void)
     m2ShapeDef bs = m2DefaultShapeDef();
     m2Circle bc = {{0.0f, 0.0f}, 0.1f};
     NewCircleShape(world, bullet, &bs, &bc);
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     m2Body_SetType(world, bullet, m2_staticBody);
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4); // must not crash the sweep
+        Step(world, 1.0f / 60.0f, 4); // must not crash the sweep
     }
     CHECK(m2Body_GetLinearVelocity(world, bullet).x == 0.0f, "a static bullet is just a pebble");
 
@@ -1176,7 +1176,7 @@ static void TestLoopChainBowl(void)
     bool rested = false;
     for (int32_t i = 0; i < 600 && !rested; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         rested = !m2Body_IsAwake(world, ball);
     }
     CHECK(rested, "the ball settles inside the bowl");
@@ -1223,7 +1223,7 @@ static void TestBreakStorm(void)
     int32_t stormStep = -1;
     for (int32_t i = 0; i < 60 && stormStep < 0; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         m2JointEvents events = m2World_GetJointEvents(world);
         if (events.breakCount > 0)
         {
@@ -1247,7 +1247,7 @@ static void TestBreakStorm(void)
     int32_t stormAgain = -1;
     for (int32_t i = 0; i < 60 && stormAgain < 0; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         if (m2World_GetJointEvents(world).breakCount > 0)
         {
             stormAgain = i;
@@ -1294,7 +1294,7 @@ static void TestKinematicSensorHibernation(void)
 
     for (int32_t i = 0; i < 250; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(!m2Body_IsAwake(world, sleeperBox), "the dynamic box sleeps");
     m2ShapeId inside[2];
@@ -1308,7 +1308,7 @@ static void TestKinematicSensorHibernation(void)
     bool sawExit = false;
     for (int32_t i = 0; i < 60 && !sawExit; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         sawExit = m2World_GetSensorEvents(world).endCount > 0;
     }
     CHECK(sawExit, "the guard's exit is witnessed");
@@ -1347,7 +1347,7 @@ static void TestBulletThroughOneWayChain(void)
 
     for (int32_t i = 0; i < 12; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Body_GetPosition(world, riser).y > 4.0,
           "the rising bullet passed the one-way platform");
@@ -1360,7 +1360,7 @@ static void TestBulletThroughOneWayChain(void)
     NewCircleShape(world, diver, &bs, &ball);
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Body_GetPosition(world, diver).y > 1.9, "the diving bullet stopped on the solid side");
 
@@ -1401,7 +1401,7 @@ static void TestChainSurgicalWake(void)
     m2BodyId onSlab = AddBox(world, 12.0, 0.45);
     for (int32_t i = 0; i < 240; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(!m2Body_IsAwake(world, onChain) && !m2Body_IsAwake(world, onSlab), "both sleep");
 
@@ -1409,7 +1409,7 @@ static void TestChainSurgicalWake(void)
     DestroyChain(world, chainId); // double destroy: generation miss, silent
     for (int32_t i = 0; i < 90; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Body_GetPosition(world, onChain).y < -2.0, "the chain rider wakes and falls");
     CHECK(!m2Body_IsAwake(world, onSlab), "the slab sleeper never stirs");
@@ -1437,7 +1437,7 @@ static void TestChainRollbackResurrection(void)
     AddBox(world, 1.0, 0.45);
     for (int32_t i = 0; i < 120; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
 
     int64_t size = m2World_GetSnapshotSize(world);
@@ -1448,7 +1448,7 @@ static void TestChainRollbackResurrection(void)
     uint64_t hashes[40];
     for (int32_t i = 0; i < 40; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         hashes[i] = m2World_Hash(world);
     }
     CHECK(!m2Chain_IsValid(world, chainId), "gone after the demolition");
@@ -1463,7 +1463,7 @@ static void TestChainRollbackResurrection(void)
     DestroyChain(world, chainId);
     for (int32_t i = 0; i < 40; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         CHECK(m2World_Hash(world) == hashes[i], "re-run demolition is bit-exact");
     }
     free(snap);
@@ -1489,7 +1489,7 @@ static void TestReactionRollbackReading(void)
     m2JointId rope = NewDistanceJoint(world, &jd);
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     float midSwing = m2Joint_GetReactionForce(world, rope);
     CHECK(midSwing > 0.0f, "a swinging rope carries load");
@@ -1499,7 +1499,7 @@ static void TestReactionRollbackReading(void)
     CHECK(Snapshot(world, snap, size) == size, "snapshot mid-swing");
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(Restore(world, snap, size), "restore");
     CHECK(m2Joint_GetReactionForce(world, rope) == midSwing,
@@ -1569,7 +1569,7 @@ static void TestReactionAllTypes(void)
 
     for (int32_t i = 0; i < 120; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Joint_GetReactionForce(world, lift) > 1.0f, "the prismatic lock carries the cabin");
     CHECK(m2Joint_GetReactionForce(world, spring) > 1.0f, "the wheel spring carries the hub");
@@ -1603,7 +1603,7 @@ static void TestVelocityCapUnderRollback(void)
         int64_t size = m2World_GetSnapshotSize(world);
         void* snap = malloc((size_t)size);
         Snapshot(world, snap, size);
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         m2Vec2 v = m2Body_GetLinearVelocity(world, body);
         float av = m2Body_GetAngularVelocity(world, body);
         CHECK(v.x * v.x + v.y * v.y < 460.0f * 460.0f, "the cap bounds an absurd linear speed");
@@ -1611,7 +1611,7 @@ static void TestVelocityCapUnderRollback(void)
         CHECK(v.x == v.x && v.y == v.y && av == av, "the capped step leaves no NaN");
         uint64_t after = m2World_Hash(world);
         CHECK(Restore(world, snap, size), "the capped world restores");
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         CHECK(m2World_Hash(world) == after, "the capped step replays bit for bit");
         caps[wc] = after;
         free(snap);
@@ -1639,7 +1639,7 @@ static void TestBeltWakeReplayStorm(void)
     m2BodyId rider = AddBox(world, 0.0, 0.65);
     for (int32_t i = 0; i < 400 && m2Body_IsAwake(world, rider); ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(!m2Body_IsAwake(world, rider), "the rider sleeps on the stopped belt");
     int32_t cap = 1 << 18;
@@ -1649,7 +1649,7 @@ static void TestBeltWakeReplayStorm(void)
     CHECK(m2Body_IsAwake(world, rider), "starting the belt wakes the sleeping rider");
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     int64_t used = StopJournal(world);
     CHECK(used > 0, "the belt tape closed");
@@ -1705,7 +1705,7 @@ static void TestOffCenterInertiaPrismatic(void)
         void* snap = NULL;
         for (int32_t i = 0; i < 120; ++i)
         {
-            m2World_Step(world, 1.0f / 60.0f, 4);
+            Step(world, 1.0f / 60.0f, 4);
             m2Vec2 v = m2Body_GetLinearVelocity(world, body);
             float av = m2Body_GetAngularVelocity(world, body);
             CHECK(v.x == v.x && v.y == v.y && av == av,
@@ -1721,7 +1721,7 @@ static void TestOffCenterInertiaPrismatic(void)
         CHECK(Restore(world, snap, size), "the off-center stressed body restores");
         for (int32_t i = 61; i < 120; ++i)
         {
-            m2World_Step(world, 1.0f / 60.0f, 4);
+            Step(world, 1.0f / 60.0f, 4);
         }
         CHECK(m2World_Hash(world) == after, "the off-center stressed body replays bit for bit");
         hashes[wc] = after;

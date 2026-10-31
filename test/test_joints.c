@@ -60,7 +60,7 @@ static void TestDistancePendulum(void)
     double worst = 0.0;
     for (int32_t i = 0; i < 300; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         double lenSq = Distance(m2Body_GetPosition(world, anchor), m2Body_GetPosition(world, bob));
         double err = lenSq - 4.0; // rod length 2 derived at create
         err = err < 0.0 ? -err : err;
@@ -100,13 +100,13 @@ static void TestDistanceRope(void)
     // joint would have pinned it at the spawn length of one.
     for (int32_t i = 0; i < 20; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Body_GetPosition(world, ball).y < 8.5, "the slack rope lets the ball fall freely");
 
     for (int32_t i = 0; i < 300; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     double d = sqrt(Distance(m2Body_GetPosition(world, anchor), m2Body_GetPosition(world, ball)));
     CHECK(d > 2.9 && d < 3.05, "the taut rope hangs at maxLength, not past it");
@@ -122,7 +122,7 @@ static void TestDistanceRope(void)
     NewDistanceJoint(world, &rd);
     for (int32_t i = 0; i < 100; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     double rigid =
         sqrt(Distance(m2Body_GetPosition(world, anchor), m2Body_GetPosition(world, ball)));
@@ -150,20 +150,20 @@ static void TestDistanceRope(void)
         NewDistanceJoint(w, &j2);
         for (int32_t i = 0; i < 40; ++i)
         {
-            m2World_Step(w, 1.0f / 60.0f, 4);
+            Step(w, 1.0f / 60.0f, 4);
         }
         int64_t size = m2World_GetSnapshotSize(w);
         void* snap = malloc((size_t)size);
         CHECK(Snapshot(w, snap, size) == size, "rope snapshot fits");
         for (int32_t i = 0; i < 60; ++i)
         {
-            m2World_Step(w, 1.0f / 60.0f, 4);
+            Step(w, 1.0f / 60.0f, 4);
         }
         uint64_t after = m2World_Hash(w);
         CHECK(Restore(w, snap, size), "rope snapshot restores");
         for (int32_t i = 0; i < 60; ++i)
         {
-            m2World_Step(w, 1.0f / 60.0f, 4);
+            Step(w, 1.0f / 60.0f, 4);
         }
         CHECK(m2World_Hash(w) == after, "rope timeline replays bit for bit");
         hashes[wc] = after;
@@ -207,13 +207,13 @@ static void TestMotorSpring(void)
     // Early: the soft drive is still easing in, not snapped to target.
     for (int32_t i = 0; i < 6; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Body_GetPosition(world, platform).x < 1.5, "the soft spring eases in, not snaps");
 
     for (int32_t i = 0; i < 240; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     m2Pos2 at = m2Body_GetPosition(world, platform);
     CHECK(at.x > 1.8 && at.x < 2.2, "the spring motor settles at the x offset");
@@ -247,20 +247,20 @@ static void TestMotorSpring(void)
         NewMotorJoint(w, &mj2);
         for (int32_t i = 0; i < 30; ++i)
         {
-            m2World_Step(w, 1.0f / 60.0f, 4);
+            Step(w, 1.0f / 60.0f, 4);
         }
         int64_t size = m2World_GetSnapshotSize(w);
         void* snap = malloc((size_t)size);
         CHECK(Snapshot(w, snap, size) == size, "spring motor snapshot fits");
         for (int32_t i = 0; i < 60; ++i)
         {
-            m2World_Step(w, 1.0f / 60.0f, 4);
+            Step(w, 1.0f / 60.0f, 4);
         }
         uint64_t after = m2World_Hash(w);
         CHECK(Restore(w, snap, size), "spring motor snapshot restores");
         for (int32_t i = 0; i < 60; ++i)
         {
-            m2World_Step(w, 1.0f / 60.0f, 4);
+            Step(w, 1.0f / 60.0f, 4);
         }
         CHECK(m2World_Hash(w) == after, "spring motor replays bit for bit");
         hashes[wc] = after;
@@ -299,7 +299,7 @@ static void TestRevoluteChain(void)
 
     for (int32_t i = 0; i < 240; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     // Pivot integrity: each pair of pinned anchors stays together within a
     // soft tolerance while the chain swings and folds.
@@ -340,19 +340,19 @@ static void TestJointsCoupleIslands(void)
 
     for (int32_t i = 0; i < 200; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(!m2Body_IsAwake(world, left) && !m2Body_IsAwake(world, right),
           "joined pair sleeps together");
 
     m2Body_SetLinearVelocity(world, left, (m2Vec2){0.5f, 0.0f});
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     CHECK(m2Body_IsAwake(world, right), "wake crosses the joint, no contact needed");
 
     // Destroy one end: the joint dies, the survivor wakes.
     for (int32_t i = 0; i < 200; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     DestroyBody(world, left);
     CHECK(m2Body_IsAwake(world, right), "destroying a jointed body wakes the counterpart");
@@ -377,7 +377,7 @@ static void TestJointRollback(void)
 
     for (int32_t i = 0; i < 40; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4); // mid-swing, impulses loaded
+        Step(world, 1.0f / 60.0f, 4); // mid-swing, impulses loaded
     }
     int64_t size = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)size);
@@ -385,13 +385,13 @@ static void TestJointRollback(void)
     uint64_t hashes[60];
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         hashes[i] = m2World_Hash(world);
     }
     CHECK(Restore(world, snap, size), "restore");
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         CHECK(m2World_Hash(world) == hashes[i], "pendulum replays bit-exactly");
     }
     free(snap);
@@ -440,7 +440,7 @@ static void TestRevoluteMotor(void)
 
     for (int32_t i = 0; i < 120; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     float w = m2Body_GetAngularVelocity(world, wheel);
     CHECK(w > 3.9f && w < 4.1f, "motor reaches target speed");
@@ -483,7 +483,7 @@ static void TestRevoluteLimit(void)
     float minAngle = 0.0f;
     for (int32_t i = 0; i < 400; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         float angle = BodyAngle(world, rod);
         minAngle = angle < minAngle ? angle : minAngle;
     }
@@ -526,7 +526,7 @@ static void TestPrismaticSlider(void)
 
     for (int32_t i = 0; i < 240; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     m2Pos2 pos = m2Body_GetPosition(world, platform);
     CHECK(pos.y > 4.0 - 1.55 && pos.y < 4.0 - 1.42, "platform rests on the lower stop");
@@ -572,14 +572,14 @@ static void TestPrismaticMotor(void)
 
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     m2Vec2 vel = m2Body_GetLinearVelocity(world, platform);
     CHECK(vel.y > 1.3f && vel.y < 1.7f, "elevator cruises at motor speed");
 
     for (int32_t i = 0; i < 200; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     m2Pos2 pos = m2Body_GetPosition(world, platform);
     CHECK(pos.y > 1.0 + 1.95 && pos.y < 1.0 + 2.05, "elevator holds at the upper stop");
@@ -623,7 +623,7 @@ static void TestWeldRigid(void)
 
     for (int32_t i = 0; i < 240; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     float relAngle = BodyAngle(world, right) - BodyAngle(world, left);
     CHECK(relAngle > -0.01f && relAngle < 0.01f, "weld holds the relative angle");
@@ -678,7 +678,7 @@ static void TestWheelSuspension(void)
 
     for (int32_t i = 0; i < 300; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     m2Pos2 wheelPos = m2Body_GetPosition(world, wheel);
     m2Pos2 chassisPos = m2Body_GetPosition(world, chassis);
@@ -739,12 +739,12 @@ static void TestWheelCar(void)
 
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4); // settle onto the road
+        Step(world, 1.0f / 60.0f, 4); // settle onto the road
     }
     double startX = m2Body_GetPosition(world, chassis).x;
     for (int32_t i = 0; i < 300; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     double traveled = m2Body_GetPosition(world, chassis).x - startX;
     CHECK(traveled > 3.0, "the car drives itself forward");
@@ -777,7 +777,7 @@ static void TestJointRuntimeTuning(void)
 
     for (int32_t i = 0; i < 90; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     float w1 = m2Body_GetAngularVelocity(world, wheel);
     CHECK(w1 > 2.9f && w1 < 3.1f, "initial motor speed reached");
@@ -785,7 +785,7 @@ static void TestJointRuntimeTuning(void)
     m2Joint_SetMotorSpeed(world, motor, -5.0f);
     for (int32_t i = 0; i < 120; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     float w2 = m2Body_GetAngularVelocity(world, wheel);
     CHECK(w2 > -5.1f && w2 < -4.9f, "retargeted motor speed reached");
@@ -796,7 +796,7 @@ static void TestJointRuntimeTuning(void)
     bool settled = false;
     for (int32_t i = 0; i < 300 && !settled; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         settled = !m2Body_IsAwake(world, wheel);
     }
     CHECK(settled, "limited free wheel eventually sleeps inside its limits");
@@ -804,7 +804,7 @@ static void TestJointRuntimeTuning(void)
     // A setter on a sleeping machine wakes it.
     m2Joint_SetMotorSpeed(world, motor, 1.0f);
     m2Joint_EnableMotor(world, motor, true);
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     CHECK(m2Body_IsAwake(world, wheel), "runtime tuning wakes the machine");
 
     m2DestroyWorld(world);
@@ -849,7 +849,7 @@ static void TestSoftWeld(void)
 
     for (int32_t i = 0; i < 240; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
 
     // Compare the beam tips by looking the bodies up via queries.
@@ -899,7 +899,7 @@ static void TestReactionGetters(void)
     }
     for (int32_t i = 0; i < 90; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     // Load = m*g = 5 * 1 * 10 = 50 N steady.
     float load = m2Joint_GetReactionForce(world, ropes[0]);
@@ -911,7 +911,7 @@ static void TestReactionGetters(void)
     m2Joint_SetBreakLimits(world, ropes[1], load * 2.0f, 0.0f);
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(!m2Joint_IsValid(world, ropes[0]), "a limit under the reading snaps");
     CHECK(m2Joint_IsValid(world, ropes[1]), "a limit over the reading holds");
@@ -937,7 +937,7 @@ static void TestReactionGetters(void)
     m2JointId cantilever = NewWeldJoint(world, &weld);
     for (int32_t i = 0; i < 90; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     float tipTorque = m2Joint_GetReactionTorque(world, cantilever);
     float holdForce = m2Joint_GetReactionForce(world, cantilever);
@@ -980,7 +980,7 @@ static void TestConnectedCollisionAndFilterJoint(void)
     NewPolygonShape(world, crate, &sd, &unit);
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Body_GetPosition(world, crate).y > 1.2, "the crate rests on the pedestal");
 
@@ -992,7 +992,7 @@ static void TestConnectedCollisionAndFilterJoint(void)
     CHECK(!m2Joint_IsConnectedCollisionEnabled(world, ghostPact), "and never collides");
     for (int32_t i = 0; i < 90; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Body_GetPosition(world, crate).y < 0.9, "the crate falls through the pedestal");
     CHECK(m2Body_GetPosition(world, crate).y > 0.2, "and lands on the floor");
@@ -1005,7 +1005,7 @@ static void TestConnectedCollisionAndFilterJoint(void)
     m2Body_SetLinearVelocity(world, crate, (m2Vec2){0.0f, 0.0f});
     for (int32_t i = 0; i < 90; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Body_GetPosition(world, crate).y > 1.2, "with the pact gone it rests on top again");
 
@@ -1034,7 +1034,7 @@ static void TestConnectedCollisionAndFilterJoint(void)
         NewDistanceJoint(world, &dj);
         for (int32_t i = 0; i < 120; ++i)
         {
-            m2World_Step(world, 1.0f / 60.0f, 4);
+            Step(world, 1.0f / 60.0f, 4);
         }
         double gap = m2Body_GetPosition(world, right).y - m2Body_GetPosition(world, left).y;
         if (pass == 0)
@@ -1081,7 +1081,7 @@ static void TestMotorAndMouseJoints(void)
     m2JointId mover = NewMotorJoint(world, &mj);
     for (int32_t i = 0; i < 180; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     m2Pos2 at = m2Body_GetPosition(world, platform);
     CHECK(at.x > 1.8 && at.x < 2.2, "the platform chases the x offset");
@@ -1094,7 +1094,7 @@ static void TestMotorAndMouseJoints(void)
     m2MotorJoint_SetOffsets(world, mover, (m2Vec2){-2.0f, 0.5f}, 0.0f);
     for (int32_t i = 0; i < 180; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     at = m2Body_GetPosition(world, platform);
     CHECK(at.x < -1.7, "retargeted platform crosses over");
@@ -1121,7 +1121,7 @@ static void TestMotorAndMouseJoints(void)
     m2MouseJoint_SetTarget(world, grip, (m2Pos2){12.0, 3.0});
     for (int32_t i = 0; i < 240; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     at = m2Body_GetPosition(world, crate);
     CHECK(at.x > 11.3 && at.x < 12.7, "the drag pulls the crate sideways");
@@ -1182,8 +1182,8 @@ static void TestDistanceSpringToggleReadsBack(void)
     m2World* twin = RopeWorld(&copy, &rebuilt);
     for (int32_t i = 0; i < 90; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        m2World_Step(twin, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
+        Step(twin, 1.0f / 60.0f, 4);
     }
     CHECK(m2World_Hash(world) == m2World_Hash(twin), "the rebuilt rope falls slack the same way");
 
@@ -1246,7 +1246,7 @@ static void TestDistanceRange(void)
     }
     for (int32_t i = 0; i < 240; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     double hangFree = 8.0 - m2Body_GetPosition(world, crates[0]).y;
     double hangClamped = 8.0 - m2Body_GetPosition(world, crates[1]).y;
@@ -1265,7 +1265,7 @@ static void TestDistanceRange(void)
     m2DistanceJoint_SetLengthRange(world, ropes[0], 0.5f, 1.5f);
     for (int32_t i = 0; i < 240; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     double reeled = 8.0 - m2Body_GetPosition(world, crates[0]).y;
     CHECK(reeled < 1.7, "a runtime range reels the crate in");
@@ -1274,7 +1274,7 @@ static void TestDistanceRange(void)
     m2DistanceJoint_SetLengthRange(world, ropes[1], 2.6f, 5.0f);
     for (int32_t i = 0; i < 240; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     double pushed = 8.0 - m2Body_GetPosition(world, crates[1]).y;
     CHECK(pushed > 2.4, "the min bound pushes the load out past the rod");
@@ -1288,7 +1288,7 @@ static void TestDistanceRange(void)
     double wobble = 0.0;
     for (int32_t i = 0; i < 120; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         double sway = m2Body_GetPosition(world, crates[0]).x;
         sway = sway < 0.0 ? -sway : sway;
         wobble = sway > wobble ? sway : wobble;
@@ -1313,7 +1313,7 @@ static void TestDistanceRange(void)
     m2DistanceJoint_SetLength(world, rod, 2.5f);
     for (int32_t i = 0; i < 180; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     double drop = 8.0 - m2Body_GetPosition(world, weight).y;
     CHECK(drop > 2.3 && drop < 2.7, "a retargeted rigid rod lowers the load");
@@ -1367,7 +1367,7 @@ static void TestRevoluteSpring(void)
 
     for (int32_t i = 0; i < 300; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     m2Pos2 limp = m2Body_GetPosition(world, bobs[0]);
     m2Pos2 held = m2Body_GetPosition(world, bobs[1]);
@@ -1382,7 +1382,7 @@ static void TestRevoluteSpring(void)
           "the disabled spring reads back, its frequency kept");
     for (int32_t i = 0; i < 300; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     held = m2Body_GetPosition(world, bobs[1]);
     CHECK(held.x < 4.4 && held.y < 4.4, "the bar droops once the spring is gone");
@@ -1434,7 +1434,7 @@ static void TestPulleyJoint(void)
 
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     m2Pos2 pHeavy = m2Body_GetPosition(world, heavy);
     m2Pos2 pLight = m2Body_GetPosition(world, light);
@@ -1469,7 +1469,7 @@ static void TestPulleyJoint(void)
     m2JointId scale = NewPulleyJoint(world, &bal);
     for (int32_t i = 0; i < 90; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     m2Pos2 pCounter = m2Body_GetPosition(world, counter);
     m2Pos2 pLoad = m2Body_GetPosition(world, load);
@@ -1483,7 +1483,7 @@ static void TestPulleyJoint(void)
     float c0 = m2PulleyJoint_GetLengthA(world, scale) + m2PulleyJoint_GetLengthB(world, scale);
     for (int32_t i = 0; i < 40; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     m2Pos2 pCounter2 = m2Body_GetPosition(world, counter);
     m2Pos2 pLoad2 = m2Body_GetPosition(world, load);
@@ -1540,7 +1540,7 @@ static void TestRatchetJoint(void)
     m2Body_SetAngularVelocity(world, wheel, 3.0f);
     for (int32_t i = 0; i < 180; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Body_GetAngularVelocity(world, wheel) > 2.9f, "the free direction never engages");
 
@@ -1552,7 +1552,7 @@ static void TestRatchetJoint(void)
     for (int32_t i = 0; i < 180; ++i)
     {
         m2Body_ApplyTorque(world, wheel, -2.0f);
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     m2Rot after = m2Body_GetRotation(world, wheel);
     float backSpin = m2Atan2Test(before, after);
@@ -1594,7 +1594,7 @@ static m2World* RatchetScene(m2JointId* ratchetOut, m2BodyId* wheelOut)
     m2Body_SetAngularVelocity(world, *wheelOut, 3.0f);
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     return world;
 }
@@ -1635,8 +1635,8 @@ static void TestMotorAndLimitCallsNeedTheirJoint(void)
     {
         m2Body_ApplyTorque(world, wheel, -2.0f);
         m2Body_ApplyTorque(twin, twinWheel, -2.0f);
-        m2World_Step(world, 1.0f / 60.0f, 4);
-        m2World_Step(twin, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
+        Step(twin, 1.0f / 60.0f, 4);
     }
     CHECK(m2World_Hash(world) == m2World_Hash(twin), "the ratchet holds as if never called");
 
@@ -1715,7 +1715,7 @@ static void TestGearJoint(void)
 
     for (int32_t i = 0; i < 240; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     float wA = m2Body_GetAngularVelocity(world, wheels[0]);
     float wB = m2Body_GetAngularVelocity(world, wheels[1]);
@@ -1729,7 +1729,7 @@ static void TestGearJoint(void)
     m2Joint_EnableMotor(world, pins[0], false);
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     wA = m2Body_GetAngularVelocity(world, wheels[0]);
     wB = m2Body_GetAngularVelocity(world, wheels[1]);
@@ -1740,7 +1740,7 @@ static void TestGearJoint(void)
     m2GearJoint_SetRatio(world, gear, 1.0f);
     for (int32_t i = 0; i < 120; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     wA = m2Body_GetAngularVelocity(world, wheels[0]);
     wB = m2Body_GetAngularVelocity(world, wheels[1]);
@@ -1791,7 +1791,7 @@ static void TestJointBreaking(void)
     float reportedForce = 0.0f;
     for (int32_t i = 0; i < 120; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         m2JointEvents events = m2World_GetJointEvents(world);
         if (events.breakCount > 0 && !snapped)
         {
@@ -1829,7 +1829,7 @@ static void TestJointBreaking(void)
     bool cracked = false;
     for (int32_t i = 0; i < 120 && !cracked; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         cracked = m2World_GetJointEvents(world).breakCount > 0;
     }
     CHECK(cracked, "the weld cracks under torque alone");
@@ -1872,7 +1872,7 @@ static void TestBreakRollback(void)
     uint64_t hashes[60];
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         hashes[i] = m2World_Hash(world);
         if (breakStepA < 0 && m2World_GetJointEvents(world).breakCount > 0)
         {
@@ -1885,7 +1885,7 @@ static void TestBreakRollback(void)
     int32_t breakStepB = -1;
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         CHECK(m2World_Hash(world) == hashes[i], "the snap replays bit-exactly");
         if (breakStepB < 0 && m2World_GetJointEvents(world).breakCount > 0)
         {
@@ -1947,7 +1947,7 @@ static void TestPrismaticStressStability(void)
         void* snap = NULL;
         for (int32_t i = 0; i < 300; ++i)
         {
-            m2World_Step(world, 1.0f / 60.0f, 4);
+            Step(world, 1.0f / 60.0f, 4);
             m2Vec2 v = m2Body_GetLinearVelocity(world, body);
             float av = m2Body_GetAngularVelocity(world, body);
             float s = sqrtf(v.x * v.x + v.y * v.y) + fabsf(av);
@@ -1968,7 +1968,7 @@ static void TestPrismaticStressStability(void)
         CHECK(Restore(world, snap, size), "the stressed slider restores");
         for (int32_t i = snapAt + 1; i < 300; ++i)
         {
-            m2World_Step(world, 1.0f / 60.0f, 4);
+            Step(world, 1.0f / 60.0f, 4);
         }
         CHECK(m2World_Hash(world) == endHash, "the stressed slider replays bit for bit");
         hashes[wc] = endHash;
@@ -2041,7 +2041,7 @@ static void TestJointAdjacency(void)
     int32_t spokeTouches = 0;
     for (int32_t i = 0; i < 10; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         m2ContactEvents events = m2World_GetContactEvents(world);
         for (int32_t e = 0; e < events.beginCount; ++e)
         {
@@ -2322,7 +2322,7 @@ static bool FarApartStaysFinite(int32_t type, int32_t placement)
     m2BodyId b = NewBody(world, &bodyDef);
     NewPolygonShape(world, b, &shapeDef, &box);
     bool made = type < 0 || FarJoint(world, (m2JointType)type, a, b);
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     m2Rot identity = {1.0f, 0.0f};
     if (placement == 0)
     {
@@ -2340,7 +2340,7 @@ static bool FarApartStaysFinite(int32_t type, int32_t placement)
     bool finite = made;
     for (int32_t i = 0; i < 8 && finite; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         finite = m2World_Validate(world) && BodyFinite(world, a) && BodyFinite(world, b);
     }
     m2DestroyWorld(world);
@@ -2445,7 +2445,7 @@ static double PinnedDrift(PinKind kind, float inertia, m2Vec2 arm)
     double worst = 0.0;
     for (int32_t i = 0; i < 120; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         m2Pos2 p = m2Body_GetPosition(world, body);
         m2Rot q = m2Body_GetRotation(world, body);
         double x = p.x + (double)(q.c * point.x - q.s * point.y);
@@ -2477,7 +2477,7 @@ static void TestBallPendulumHolds(void)
         double worst = 0.0;
         for (int32_t i = 0; i < 300; ++i)
         {
-            m2World_Step(world, 1.0f / 60.0f, 4);
+            Step(world, 1.0f / 60.0f, 4);
             double stretch =
                 fabs(sqrt(Distance((m2Pos2){0.0, 0.0}, m2Body_GetPosition(world, ball))) - 1.0);
             worst = stretch > worst || isnan(stretch) ? stretch : worst;
@@ -2549,7 +2549,7 @@ static void TestNearSingularPointPairActs(void)
             m2BodyId body;
             m2JointId joint =
                 PinBody(world, kinds[k], inertias[i], (m2Vec2){0.70710678f, 0.70710678f}, &body);
-            m2World_Step(world, 1.0f / 60.0f, 4);
+            Step(world, 1.0f / 60.0f, 4);
             float carried = m2Joint_GetReactionForce(world, joint);
             float share = 1.0f * -def.gravity.y * (kinds[k] == PIN_WELD ? 1.0f : 0.70710678f);
             if (!(fabsf(carried - share) < 0.1f * share))
@@ -2666,7 +2666,7 @@ static void TestVanishingSpringsStayFinite(void)
         CHECK(joint.index1 != 0, "the smallest hertz is a rate a def takes");
         for (int32_t i = 0; i < 10; ++i)
         {
-            m2World_Step(world, 1.0f / 60.0f, 4);
+            Step(world, 1.0f / 60.0f, 4);
         }
         m2Pos2 p = m2Body_GetPosition(world, box);
         if (!(isfinite(p.x) && isfinite(p.y) && m2World_Validate(world)))
@@ -2715,7 +2715,7 @@ static void TestJointSwitches(void)
     m2JointId tie = NewDistanceJoint(world, &rope);
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Joint_IsConnectedCollisionEnabled(world, tie) &&
               m2Body_GetPosition(world, crate).y > 1.2,
@@ -2723,7 +2723,7 @@ static void TestJointSwitches(void)
     m2Joint_EnableConnectedCollision(world, tie, false);
     for (int32_t i = 0; i < 90; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(!m2Joint_IsConnectedCollisionEnabled(world, tie) &&
               m2Body_GetPosition(world, crate).y < 0.0,
@@ -2733,7 +2733,7 @@ static void TestJointSwitches(void)
     m2Body_SetLinearVelocity(world, crate, (m2Vec2){0.0f, 0.0f});
     for (int32_t i = 0; i < 90; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Joint_IsConnectedCollisionEnabled(world, tie) &&
               m2Body_GetPosition(world, crate).y > 1.2,

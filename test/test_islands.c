@@ -61,7 +61,7 @@ static void TestPyramidSleeps(void)
 
     for (int32_t i = 0; i < 240; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     for (int32_t i = 0; i < count; ++i)
     {
@@ -74,14 +74,14 @@ static void TestPyramidSleeps(void)
     m2Pos2 before = m2Body_GetPosition(world, boxes[0]);
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     m2Pos2 after = m2Body_GetPosition(world, boxes[0]);
     CHECK(before.x == after.x && before.y == after.y, "sleeping bodies are frozen");
 
     // Island-transitive wake: shove the top box; the whole pile wakes.
     m2Body_SetLinearVelocity(world, boxes[count - 1], (m2Vec2){2.0f, 0.0f});
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     int32_t awakeCount = 0;
     for (int32_t i = 0; i < count; ++i)
     {
@@ -106,7 +106,7 @@ static void TestKinematicWakesSleepers(void)
 
     for (int32_t i = 0; i < 200; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(!m2Body_IsAwake(world, a) && !m2Body_IsAwake(world, b), "stack asleep before the sweep");
 
@@ -122,7 +122,7 @@ static void TestKinematicWakesSleepers(void)
     bool woke = false;
     for (int32_t i = 0; i < 90; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         if (m2Body_IsAwake(world, a))
         {
             woke = true;
@@ -132,7 +132,7 @@ static void TestKinematicWakesSleepers(void)
     CHECK(woke, "kinematic sweep wakes the sleeping stack");
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Body_GetPosition(world, a).x > 0.2, "woken box actually gets pushed");
 
@@ -152,7 +152,7 @@ static void TestSleepRollback(void)
 
     for (int32_t i = 0; i < 45; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4); // landed, counters counting
+        Step(world, 1.0f / 60.0f, 4); // landed, counters counting
     }
     CHECK(m2Body_IsAwake(world, box), "still dozing off at snapshot time");
 
@@ -164,7 +164,7 @@ static void TestSleepRollback(void)
     uint64_t hashes[120];
     for (int32_t i = 0; i < 120; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         hashes[i] = m2World_Hash(world);
         if (sleepStepA < 0 && !m2Body_IsAwake(world, box))
         {
@@ -177,7 +177,7 @@ static void TestSleepRollback(void)
     int32_t sleepStepB = -1;
     for (int32_t i = 0; i < 120; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         CHECK(m2World_Hash(world) == hashes[i], "sleep cycle replays bit-exactly");
         if (sleepStepB < 0 && !m2Body_IsAwake(world, box))
         {
@@ -220,7 +220,7 @@ static void TestTowerSleeps(void)
     int32_t sleepStep = -1;
     for (int32_t step = 0; step < 300 && sleepStep < 0; ++step)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         bool allAsleep = true;
         for (int32_t i = 0; i < 8; ++i)
         {
@@ -249,17 +249,17 @@ static void TestTeleportWakesBystanders(void)
 
     for (int32_t i = 0; i < 200; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(!m2Body_IsAwake(world, support) && !m2Body_IsAwake(world, rider), "stack asleep");
     double riderY = m2Body_GetPosition(world, rider).y;
 
     m2Body_SetTransform(world, support, (m2Pos2){50.0, 0.55}, (m2Rot){1.0f, 0.0f});
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     CHECK(m2Body_IsAwake(world, rider), "the rider notices its support vanish");
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Body_GetPosition(world, rider).y < riderY - 0.5, "and falls");
 

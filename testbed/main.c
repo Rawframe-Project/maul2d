@@ -1340,30 +1340,37 @@ int main(void)
         }
         else if ((!paused || single) && !halfRateSkip && world != NULL)
         {
-            m2World_Step(world, simMode == 0 ? 1.0f / 60.0f : 1.0f / 30.0f, 4);
-            simTime += 1.0 / 60.0;
-            if (s_scenes[sceneIndex].tick != NULL)
+            if (m2World_Step(world, simMode == 0 ? 1.0f / 60.0f : 1.0f / 30.0f, 4) != m2_success)
             {
-                s_scenes[sceneIndex].tick(world, simTime);
+                // A refused step changes nothing: hold the scene where it stands.
+                paused = true;
             }
-            if (s_scenes[sceneIndex].hasCharacter)
+            else
             {
-                // The character lives in the viewer, not the world:
-                // rewind rewinds the world under its feet only.
-                CharacterUpdate(world, 1.0f / 60.0f);
-            }
-            stepParity = (stepParity + 1) % ringStride;
-            if (stepParity == 0 && ring != NULL)
-            {
-                if (ringCount == ringCapacity)
+                simTime += 1.0 / 60.0;
+                if (s_scenes[sceneIndex].tick != NULL)
                 {
-                    // Forget the oldest by moving the ring start: O(1).
-                    ringStart = (ringStart + 1) % ringCapacity;
-                    ringCount -= 1;
+                    s_scenes[sceneIndex].tick(world, simTime);
                 }
-                int32_t slot = (ringStart + ringCount) % ringCapacity;
-                Snapshot(world, ring + (size_t)slot * (size_t)ringEntry, ringEntry);
-                ringCount += 1;
+                if (s_scenes[sceneIndex].hasCharacter)
+                {
+                    // The character lives in the viewer, not the world:
+                    // rewind rewinds the world under its feet only.
+                    CharacterUpdate(world, 1.0f / 60.0f);
+                }
+                stepParity = (stepParity + 1) % ringStride;
+                if (stepParity == 0 && ring != NULL)
+                {
+                    if (ringCount == ringCapacity)
+                    {
+                        // Forget the oldest by moving the ring start: O(1).
+                        ringStart = (ringStart + 1) % ringCapacity;
+                        ringCount -= 1;
+                    }
+                    int32_t slot = (ringStart + ringCount) % ringCapacity;
+                    Snapshot(world, ring + (size_t)slot * (size_t)ringEntry, ringEntry);
+                    ringCount += 1;
+                }
             }
         }
 

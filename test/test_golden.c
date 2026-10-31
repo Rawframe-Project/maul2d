@@ -258,7 +258,7 @@ static uint64_t RunStack(bool threaded)
     uint64_t hash = M2_HASH_INIT;
     for (int32_t i = 0; i < 360; ++i)
     {
-        m2World_Step(world, DT, 4);
+        Step(world, DT, 4);
         if (i % 60 == 59)
         {
             hash = Mix(hash, m2World_Hash(world));
@@ -390,7 +390,7 @@ static void SceneContacts(void)
     uint64_t hash = M2_HASH_INIT;
     for (int32_t i = 0; i < 240; ++i)
     {
-        m2World_Step(world, DT, 4);
+        Step(world, DT, 4);
         m2ContactEvents contacts = m2World_GetContactEvents(world);
         for (int32_t e = 0; e < contacts.beginCount; ++e)
         {
@@ -470,7 +470,7 @@ static uint64_t RunFluid(bool threaded)
     BuildFluid(world);
     for (int32_t i = 0; i < 180; ++i)
     {
-        m2World_Step(world, DT, 4);
+        Step(world, DT, 4);
     }
     uint64_t hash = Mix(m2World_Hash(world), (uint64_t)m2World_GetParticleCount(world));
     m2DestroyWorld(world);
@@ -500,7 +500,7 @@ static void SceneRollback(void)
     BuildFluid(world);
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, DT, 4);
+        Step(world, DT, 4);
     }
     int64_t size = m2World_GetSnapshotSize(world);
     uint8_t* snapshot = malloc((size_t)size);
@@ -510,13 +510,13 @@ static void SceneRollback(void)
     uint64_t first[60];
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, DT, 4);
+        Step(world, DT, 4);
         first[i] = m2World_Hash(world);
     }
     m2World_SetGravity(world, (m2Vec2){3.0f, -4.0f}); // a future to roll back from
     for (int32_t i = 0; i < 20; ++i)
     {
-        m2World_Step(world, DT, 4);
+        Step(world, DT, 4);
     }
     CHECK(Restore(world, snapshot, size), "ROLLBACK: the snapshot restores");
     CHECK(Snapshot(world, again, size) == size, "ROLLBACK: the re-snapshot writes");
@@ -524,7 +524,7 @@ static void SceneRollback(void)
     bool same = true;
     for (int32_t i = 0; i < 60; ++i)
     {
-        m2World_Step(world, DT, 4);
+        Step(world, DT, 4);
         same = same && m2World_Hash(world) == first[i];
     }
     CHECK(same, "ROLLBACK: the restored world repeats its hash sequence");
@@ -586,7 +586,7 @@ static void SceneBench(void)
         m2World* world = scenes[k].build();
         for (int32_t i = 0; i < scenes[k].steps; ++i)
         {
-            m2World_Step(world, BENCH_DT, BENCH_SUBSTEPS);
+            Step(world, BENCH_DT, BENCH_SUBSTEPS);
         }
         char name[32];
         snprintf(name, sizeof(name), "BENCH_%s", scenes[k].name);
@@ -624,7 +624,7 @@ static WalkRun ReplayWalks(int32_t workers)
         run.replay = JournalHash(run.replay, m2World_Hash(world));
         for (int32_t k = 0; k < WALK_TAIL; ++k)
         {
-            m2World_Step(world, DT, 4);
+            Step(world, DT, 4);
         }
         run.tail = JournalHash(run.tail, m2World_Hash(world));
         m2DestroyWorld(world);

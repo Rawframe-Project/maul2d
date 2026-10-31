@@ -136,7 +136,7 @@ static void RunSession(m2World* world, uint8_t* journal, int64_t capacity, int64
 
     for (int32_t i = 0; i < 45; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     // Shape destruction, impulses and joint tuning all ride the journal
     // too.
@@ -157,7 +157,7 @@ static void RunSession(m2World* world, uint8_t* journal, int64_t capacity, int64
     DestroyShape(world, sacrificial);
     for (int32_t i = 0; i < 15; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     DestroyBody(world, victim);
     DestroyJoint(world, rod);
@@ -281,7 +281,7 @@ static void RunSession(m2World* world, uint8_t* journal, int64_t capacity, int64
     m2Joint_EnableConnectedCollision(world, leash, true);     // param 18
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 120.0f, 2); // second dt flavor
+        Step(world, 1.0f / 120.0f, 2); // second dt flavor
     }
 
     if (journal != NULL)
@@ -377,7 +377,7 @@ static void TestRollbackWhileRecording(void)
 
     for (int32_t i = 0; i < 40; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
     int64_t snapSize = m2World_GetSnapshotSize(world);
     void* snap = malloc((size_t)snapSize);
@@ -388,13 +388,13 @@ static void TestRollbackWhileRecording(void)
                                      m2Body_GetPosition(world, ball));
     for (int32_t i = 0; i < 25; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
     }
 
     CHECK(Restore(world, snap, snapSize), "rollback with the tape still rolling");
     for (int32_t i = 0; i < 30; ++i)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4); // the corrected timeline
+        Step(world, 1.0f / 60.0f, 4); // the corrected timeline
     }
 
     int64_t bytes = StopJournal(world);
@@ -436,7 +436,7 @@ static void TestReplayIsAtomic(void)
     m2Circle ball = {{0.0f, 0.0f}, 0.5f};
     m2ShapeDef sd = m2DefaultShapeDef();
     NewCircleShape(target, own, &sd, &ball);
-    m2World_Step(target, 1.0f / 60.0f, 4);
+    Step(target, 1.0f / 60.0f, 4);
     uint64_t before = m2World_Hash(target);
 
     CHECK(!ReplayJournal(target, tape, size - 3), "a truncated tape is refused");
@@ -506,7 +506,7 @@ static void TestRefusedVoidOpsFailTheTape(void)
     // The record: an op byte, then the step's dt.
     CHECK(StartJournal(world, tape, capacity), "the journal starts again");
     recordStart = m2World_GetJournalBaseSize(world);
-    m2World_Step(world, 0.25f, 1);
+    Step(world, 0.25f, 1);
     bytes = StopJournal(world);
     CHECK(ReplayJournal(world, tape, bytes), "the recorded step replays");
     ExpectFloatRefused(world, tape, bytes, recordStart + 1, 0.25f, 0.0f,
@@ -544,7 +544,7 @@ static void TestRestoreRefusesBadCounters(void)
     int64_t size = m2World_GetSnapshotSize(world);
     uint8_t* snap = malloc((size_t)size);
     CHECK(Snapshot(world, snap, size) == size, "snapshot taken");
-    m2World_Step(world, 1.0f / 60.0f, 4);
+    Step(world, 1.0f / 60.0f, 4);
     uint64_t before = m2World_Hash(world);
 
     // maxBodyIndex follows the header and the step count, gravity, wind

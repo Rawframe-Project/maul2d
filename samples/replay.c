@@ -71,13 +71,13 @@ int main(void)
 
     for (int step = 0; step < 60; ++step)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Require(m2World_Step(world, 1.0f / 60.0f, 4), "step the world");
     }
     Shove(world, boxes[2], 3.0f);                             // meddle mid-session
     Require(m2DestroyBody(world, boxes[4]), "destroy a box"); // and destroy something
     for (int step = 0; step < 60; ++step)
     {
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Require(m2World_Step(world, 1.0f / 60.0f, 4), "step the world");
     }
 
     int64_t bytes = 0;

@@ -141,7 +141,7 @@ static uint64_t RunTrajectory(int32_t workerCount, int32_t steps)
         {
             FireBullet(world, i);
         }
-        m2World_Step(world, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
         uint64_t worldHash = m2World_Hash(world);
         h = m2Hash64(h, &worldHash, (int32_t)sizeof(worldHash));
     }
