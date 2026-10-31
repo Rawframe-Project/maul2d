@@ -26,7 +26,7 @@ The counters come from world state, so two worlds given the same calls report th
 
 ## Debug drawing
 
-`m2World_Draw` walks the world and calls the drawing callbacks in an `m2DebugDraw`; a null callback skips its primitive. Polygon vertices arrive in the body's frame with its f64 origin and rotation, so a renderer can subtract its camera in doubles and stay steady far from the origin. Shapes, joints, contacts, contact forces and bounding boxes switch on separately. The callbacks may read the world but not change it.
+`m2World_Draw` walks the world and calls the drawing callbacks in an `m2DebugDraw`; a null callback skips its primitive. Start from a zeroed one (`m2DebugDraw draw = {0};`), so a field a later minor release adds stays off. Polygon vertices arrive in the body's frame with its f64 origin and rotation, so a renderer can subtract its camera in doubles and stay steady far from the origin. Shapes, joints, contacts, contact forces and bounding boxes switch on separately. The callbacks may read the world but not change it.
 
 ## Hashes
 

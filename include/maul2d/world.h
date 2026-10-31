@@ -310,7 +310,8 @@ extern "C"
     /// host renders. Polygon vertices arrive body-local with the body's
     /// f64 origin and rotation, so a renderer can subtract its camera in
     /// doubles and stay steady far from the origin. A null callback skips
-    /// that primitive. Colors are 0xRRGGBB hints.
+    /// that primitive. Colors are 0xRRGGBB hints. Start from a zeroed
+    /// struct, so a field a later minor release adds stays off.
     typedef struct m2DebugDraw
     {
         void (*drawPolygon)(const m2Vec2* localVertices, int32_t count, m2Pos2 origin,

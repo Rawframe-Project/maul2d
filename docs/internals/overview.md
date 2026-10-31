@@ -11,6 +11,18 @@ Maul2D simulates rigid bodies, joints and particle fluids in a world that snapsh
 - **Data formats:** two state formats, the snapshot and the journal tape, and no asset format. Neither is read across 1.y: only the release that wrote one reads it, by its `M2_ABI_VERSION` (from 1.0.0, the patch releases of its minor version too), and any other refuses it with `m2_errorVersion`. A host keeps its own game state, not snapshots or tapes, across an upgrade. [snapshots-and-journal.md](snapshots-and-journal.md) has the layout.
 - **Platform dependencies:** none beyond the C standard library; the `<math.h>` functions it may call are the correctly rounded ones in `tools/libm-allowed.txt`. The testbed, which is not part of the library, uses raylib.
 
+## The public API
+
+The API is the nine headers in `include/maul2d/`: `base.h`, `core_math.h`, `body.h`, `shape.h`, `joint.h`, `events.h`, `particle.h`, `world.h`, and `maul2d.h`, which includes the other eight. Nothing else is: not `src/`, and not `test/helpers.h`, the samples, the testbed or the bench, which use the API as any program does. From 1.0.0 all nine keep the family's promise ([maul-conventions.md](maul-conventions.md)): a program that builds against 1.y builds against any later 1.z and means the same. Every def starts from its `m2DefaultXDef`, so a field a minor release adds to a def takes a default that keeps what the program asked for before.
+
+The structs the library fills for the program to read follow one more rule:
+
+- **Which.** The diagnostics (`m2Profile`, `m2Counters`, `m2MemoryUsage`, `m2WorldHashParts`), the event streams (`m2ContactEvents`, `m2SensorEvents`, `m2JointEvents`) and the events they hold, `m2ContactData`, and the query and mover results (`m2CastHit`, `m2MoverPlane`, `m2MoverMove`).
+- **Layout.** Each keeps its layout within a minor version. A minor release may add a field at the end of one, and no 1.x release moves, removes or renames a field. A program reads them by field name, never by a size or an offset of its own. A program built against another minor version's headers is refused at `m2CreateWorld` by `M2_ABI_VERSION`.
+- **Values.** A field keeps its meaning across 1.x. The value it holds for a given world may change in a minor release, as any result may (an event's approach speed, a counter, a hash part), and the changelog names the change. A patch release changes none ([release.md](../operations/release.md)). `m2Profile`'s times are wall-clock and differ from run to run.
+
+`m2DebugDraw` goes the other way: the program fills it and the world reads it. A minor release may add a callback or a switch at its end. A program starts from a zeroed one (`m2DebugDraw draw = {0};`), so a field it does not know stays off, as a null callback skips its primitive.
+
 ## API names
 
 Every public name follows these rules, so a new one is decided by them rather than by its neighbors.
