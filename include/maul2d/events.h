@@ -134,8 +134,8 @@ extern "C"
     /// Lists the shapes inside a sensor now, in canonical pair order.
     ///
     /// @param world          The world.
-    /// @param sensorShapeId  The sensor. A stale id counts one misuse; a
-    ///                       live shape that is not a sensor lists nothing.
+    /// @param sensorShapeId  The sensor. A stale id or a shape that is not a
+    ///                       sensor counts one misuse.
     /// @param overlapsOut    Receives up to capacity shape ids; zeros over the whole capacity on
     ///                       failure. May be null to measure.
     /// @param capacity       The length of overlapsOut.

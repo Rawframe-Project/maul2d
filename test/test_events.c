@@ -525,8 +525,13 @@ static void TestSensorOverlapQuery(void)
     CHECK(m2Shape_GetSensorOverlaps(world, zoneId, inside, 1) == 2, "truthful beyond capacity");
     CHECK(m2Shape_GetSensorOverlaps(world, zoneId, NULL, 4) == 2,
           "a null array measures, whatever the capacity");
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
     CHECK(m2Shape_GetSensorOverlaps(world, visitors[0], inside, 4) == 0,
-          "a non-sensor shape reports nothing");
+          "a solid shape, the wrong kind, lists nothing");
+    CHECK(inside[0].index1 == 0 && inside[1].index1 == 0 && inside[2].index1 == 0 &&
+              inside[3].index1 == 0,
+          "and clears the array over its capacity");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 1, "and counts one misuse");
 
     m2DestroyWorld(world);
 }
