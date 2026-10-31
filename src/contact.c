@@ -509,16 +509,14 @@ static M2_NOINLINE int32_t ShapeGetSensorOverlapsWorker(const m2World* world,
     {
         return m2RefuseList(world, overlaps, capacity, sizeof(*overlaps));
     }
+    // A stale id and a solid shape, the wrong kind, are refused alike.
     int32_t sensor = (int32_t)sensorShapeId.index1 - 1;
     if (sensor < 0 || sensor >= world->shapes.shapeCapacity ||
         world->shapes.shapeAlive[sensor] == 0 ||
-        world->shapes.shapeGenerations[sensor] != sensorShapeId.generation)
+        world->shapes.shapeGenerations[sensor] != sensorShapeId.generation ||
+        world->shapes.shapeSensor[sensor] == 0)
     {
         return m2RefuseList(world, overlaps, capacity, sizeof(*overlaps));
-    }
-    if (world->shapes.shapeSensor[sensor] == 0)
-    {
-        return 0; // a solid shape has no overlaps to list
     }
     int32_t total = 0;
     for (int32_t i = 0; i < world->contacts.pairCount; ++i)
