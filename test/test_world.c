@@ -2327,8 +2327,8 @@ static void RationedFree(void* memory, size_t size, size_t alignment, void* cont
 
 static void TestReplayScratchRefusedIsCapacity(void)
 {
-    // A replay whose backup fits but whose chain record's scratch the
-    // allocator refuses is out of memory, not a malformed tape.
+    // A replay whose backup or chain record's scratch the allocator
+    // refuses is out of memory, not a malformed tape.
     Ration ration = {-1};
     m2WorldDef def = m2DefaultWorldDef();
     def.allocator.alloc = RationedAlloc;
@@ -2350,6 +2350,10 @@ static void TestReplayScratchRefusedIsCapacity(void)
     m2World* fresh = NewWorld(&def);
     uint64_t hash = m2World_Hash(fresh);
     uint64_t misuse = m2World_GetCounters(fresh).misuseCount;
+    ration.left = 0; // not even the backup
+    CHECK(m2World_ReplayJournal(fresh, tape, bytes) == m2_errorCapacity &&
+              m2World_Hash(fresh) == hash,
+          "a refused backup is m2_errorCapacity and touches nothing");
     ration.left = 1; // the backup, and nothing after it
     CHECK(m2World_ReplayJournal(fresh, tape, bytes) == m2_errorCapacity,
           "a refused record scratch is m2_errorCapacity");

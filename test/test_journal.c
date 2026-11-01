@@ -279,10 +279,16 @@ static void RunSession(m2World* world, uint8_t* journal, int64_t capacity, int64
     m2Joint_SetSpringDampingRatio(world, leash, 0.5f);        // param 9
     m2Joint_EnableSpring(world, leash, false);                // param 17
     m2Joint_EnableConnectedCollision(world, leash, true);     // param 18
+    m2Pos2 bobAt = m2Body_GetPosition(world, bob);
+    m2Body_ApplyForceAtPoint(world, bob, (m2Vec2){-2.0f, 0.5f},
+                             (m2Pos2){bobAt.x + 0.25, bobAt.y}); // op 27
+    m2World_SetWind(world, (m2Vec2){1.5f, 0.0f}, 0.1f);          // op 64
     for (int32_t i = 0; i < 30; ++i)
     {
         Step(world, 1.0f / 120.0f, 2); // second dt flavor
     }
+    CHECK(DestroyWaterVolume(world, pool) == m2_success, "the pool drains"); // op 62
+    Step(world, 1.0f / 120.0f, 2);
 
     if (journal != NULL)
     {
@@ -1304,6 +1310,66 @@ static void TestBusyStopKeepsBytes(void)
     free(tape);
 }
 
+// Each journal call refuses out of turn: a start below the base size or
+// while recording, a stop with nowhere to write its size or with nothing
+// recording, and a replay of no data or while recording. A refusal that
+// is not m2_errorCapacity counts one misuse, and none of them changes the
+// world or ends a recording in progress.
+static void TestJournalCallsRefuseOutOfTurn(void)
+{
+    m2WorldDef def = TestDef();
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    m2BodyId body = NewBody(world, &bd);
+    m2Circle ball = {{0.0f, 0.0f}, 0.5f};
+    m2ShapeDef sd = m2DefaultShapeDef();
+    NewCircleShape(world, body, &sd, &ball);
+    int64_t base = m2World_GetJournalBaseSize(world);
+    int64_t capacity = base + 4096;
+    uint8_t* tape = malloc((size_t)capacity);
+    uint8_t* other = malloc((size_t)capacity);
+    CHECK(tape != NULL && other != NULL, "the buffers exist");
+    uint64_t hash = m2World_Hash(world);
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+
+    CHECK(m2World_StartJournal(world, tape, base - 1) == m2_errorCapacity,
+          "a buffer below the base size is m2_errorCapacity");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse, "which counts no misuse");
+    int64_t bytes = 7;
+    CHECK(m2World_StopJournal(world, &bytes) == m2_errorState && bytes == 0,
+          "so nothing is recording: a stop is m2_errorState and gives 0");
+    CHECK(m2World_StopJournal(world, NULL) == m2_errorInvalid,
+          "a stop with nowhere to write its size is m2_errorInvalid");
+    CHECK(m2World_ReplayJournal(world, NULL, 64) == m2_errorInvalid,
+          "a replay of no data is m2_errorInvalid");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 3, "each counting one misuse");
+
+    CHECK(StartJournal(world, tape, capacity), "the journal starts");
+    m2Body_SetLinearVelocity(world, body, (m2Vec2){1.0f, 0.0f});
+    Step(world, 1.0f / 60.0f, 4);
+    misuse = m2World_GetCounters(world).misuseCount;
+    CHECK(m2World_StartJournal(world, other, capacity) == m2_errorState,
+          "a second start while recording is m2_errorState");
+    CHECK(m2World_ReplayJournal(world, tape, capacity) == m2_errorState,
+          "and so is a replay");
+    CHECK(m2World_StopJournal(world, NULL) == m2_errorInvalid,
+          "a stop with nowhere to write its size is refused while recording too");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 3, "each counting one misuse");
+    uint64_t recorded = m2World_Hash(world);
+    bytes = StopJournal(world);
+    CHECK(bytes > 0, "the first recording went on through every refusal");
+
+    m2World* replayed = NewWorld(&def);
+    CHECK(ReplayJournal(replayed, tape, bytes) && m2World_Hash(replayed) == recorded,
+          "and its tape replays onto the recorded world");
+    CHECK(hash != recorded, "the session changed the world");
+    m2DestroyWorld(replayed);
+    m2DestroyWorld(world);
+    free(other);
+    free(tape);
+}
+
 int main(void)
 {
     TestTapeBoolsAreZeroOrOne();
@@ -1319,6 +1385,7 @@ int main(void)
     TestOverflowIsLoud();
     TestNegativeCapacityIsRefused();
     TestBusyStopKeepsBytes();
+    TestJournalCallsRefuseOutOfTurn();
 
     if (s_failures > 0)
     {
