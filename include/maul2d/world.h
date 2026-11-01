@@ -353,7 +353,18 @@ extern "C"
         float sleep;       // islands and sleep accounting
     } m2Profile;
 
-    /// Counts derived from world state, so they are deterministic.
+    /// What a world holds and what it did: observer data. Reading the
+    /// counters never touches the simulation, a snapshot or the hash, and
+    /// twins given the same calls report the same counts. The counts of
+    /// live objects, awake bodies, pairs and steps come from world state,
+    /// so a restore brings them back with it. The last-step counts
+    /// (constraintCount, colorCount, overflowCount and the three counts of
+    /// drops) describe the last step this world completed and are zero
+    /// before it; particleCreatesRefused and misuseCount add up over the
+    /// world's life. Neither kind is state: it is not hashed or
+    /// snapshotted, and a restore or a replay's back-out leaves it as it
+    /// is, so right after a rollback the last-step counts still describe
+    /// the step before it.
     typedef struct m2Counters
     {
         int32_t bodyCount;
