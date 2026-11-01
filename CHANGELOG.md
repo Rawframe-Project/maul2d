@@ -6,6 +6,23 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.10.0](https://github.com/Rawframe-Project/maul2d/compare/v0.9.0...v0.10.0) (2026-11-01)
+
+
+### ⚠ BREAKING CHANGES
+
+* **world:** m2CreateWorld checks the particle settings even when particleCapacity is 0, so a def with a particle setting out of its range is refused in a world without particles too.
+* **api:** the list reads return 0 and count one misuse for a negative capacity or a null array with a positive capacity, instead of measuring; a null array measures only with a capacity of 0. m2DecomposeOutline refuses the same pairs with m2_errorInvalid. m2World_Snapshot and m2World_StartJournal return m2_errorInvalid, counting one misuse, for a negative capacity instead of m2_errorCapacity.
+
+### Fixed
+
+* **api:** refuse a negative capacity and a null array that has room ([#231](https://github.com/Rawframe-Project/maul2d/issues/231)) ([e24f1b4](https://github.com/Rawframe-Project/maul2d/commit/e24f1b40191136f0c19ce04186dba97c9ce8d8ba)), closes [#230](https://github.com/Rawframe-Project/maul2d/issues/230)
+* **geometry:** keep every merged hull point within two slops of its edge ([#229](https://github.com/Rawframe-Project/maul2d/issues/229)) ([74eabff](https://github.com/Rawframe-Project/maul2d/commit/74eabfff2dded3207ee42e77771a6392695db0d5)), closes [#228](https://github.com/Rawframe-Project/maul2d/issues/228)
+* **journal:** keep the event streams through a refused replay ([#236](https://github.com/Rawframe-Project/maul2d/issues/236)) ([b4dcee1](https://github.com/Rawframe-Project/maul2d/commit/b4dcee16123f42a3b43b370fb6b46bd2cc22e2f4)), closes [#235](https://github.com/Rawframe-Project/maul2d/issues/235)
+* **journal:** put the counters back when a replay is refused ([#238](https://github.com/Rawframe-Project/maul2d/issues/238)) ([2c4d9af](https://github.com/Rawframe-Project/maul2d/commit/2c4d9af5cc60763c93191a8fb8e713a8929d544c)), closes [#237](https://github.com/Rawframe-Project/maul2d/issues/237)
+* **world:** check the particle settings of a world without particles ([#233](https://github.com/Rawframe-Project/maul2d/issues/233)) ([2327b60](https://github.com/Rawframe-Project/maul2d/commit/2327b604c03f1d136cc79b574abbd638295e4777)), closes [#232](https://github.com/Rawframe-Project/maul2d/issues/232)
+* **world:** refuse a world's destroy from host code it runs ([#243](https://github.com/Rawframe-Project/maul2d/issues/243)) ([b099676](https://github.com/Rawframe-Project/maul2d/commit/b0996768702ee8ac3b39c353ddeb2bc6057e5d4a)), closes [#242](https://github.com/Rawframe-Project/maul2d/issues/242)
+
 ## [0.9.0](https://github.com/Rawframe-Project/maul2d/compare/v0.8.0...v0.9.0) (2026-10-31)
 
 This release settles the API ahead of 1.0.0. The step and the target transform now return a status. The diagnostics and the water volume take maul3d's names, and the public kinds have fixed sizes. Every call clears its outputs the same way when it fails. A program needs the changes below to build again. No golden value moves, so the same calls step to the same bits as on 0.8.0.
