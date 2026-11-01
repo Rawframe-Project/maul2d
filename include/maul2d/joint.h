@@ -1252,8 +1252,8 @@ extern "C"
     ///
     /// @param world     The world.
     /// @param idsOut    Receives up to capacity joints; zeros over the whole capacity on failure.
-    ///                  May be null to measure.
-    /// @param capacity  The length of idsOut.
+    ///                  May be null with a capacity of 0 to measure.
+    /// @param capacity  The length of idsOut, not below 0.
     /// @return The number of joints, which may exceed capacity.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
@@ -1265,8 +1265,8 @@ extern "C"
     /// @param world     The world.
     /// @param bodyId    The body; a stale id counts one misuse.
     /// @param idsOut    Receives up to capacity joints; zeros over the whole capacity on failure.
-    ///                  May be null to measure.
-    /// @param capacity  The length of idsOut.
+    ///                  May be null with a capacity of 0 to measure.
+    /// @param capacity  The length of idsOut, not below 0.
     /// @return The number of joints, which may exceed capacity; 0 for a
     ///         stale id.
     /// @par Thread safety

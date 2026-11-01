@@ -373,7 +373,7 @@ int32_t m2Chain_GetShapes(const m2World* world, m2ChainId chainId, m2ShapeId* id
                           int32_t capacity)
 {
     int32_t chainIndex = world != NULL ? ChainSlot(world, chainId) : -1;
-    if (chainIndex < 0)
+    if (chainIndex < 0 || !m2ListOutputValid(idsOut, capacity))
     {
         return m2RefuseList(world, idsOut, capacity, sizeof(*idsOut));
     }

@@ -164,7 +164,7 @@ m2Vec2 m2Body_GetWorldPointVelocity(const m2World* world, m2BodyId bodyId, m2Pos
 int32_t m2Body_GetJoints(const m2World* world, m2BodyId bodyId, m2JointId* idsOut, int32_t capacity)
 {
     int32_t index = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (index < 0)
+    if (index < 0 || !m2ListOutputValid(idsOut, capacity))
     {
         return m2RefuseList(world, idsOut, capacity, sizeof(*idsOut));
     }
@@ -398,7 +398,7 @@ float m2Body_GetGravityScale(const m2World* world, m2BodyId bodyId)
 int32_t m2Body_GetShapes(const m2World* world, m2BodyId bodyId, m2ShapeId* idsOut, int32_t capacity)
 {
     int32_t bodyIndex = world != NULL ? m2BodySlot(world, bodyId) : -1;
-    if (bodyIndex < 0)
+    if (bodyIndex < 0 || !m2ListOutputValid(idsOut, capacity))
     {
         return m2RefuseList(world, idsOut, capacity, sizeof(*idsOut));
     }

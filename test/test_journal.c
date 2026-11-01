@@ -328,6 +328,20 @@ static void TestRecordReplay(void)
     free(journal);
 }
 
+// A negative capacity describes no buffer: the journal does not start,
+// and the call counts one misuse.
+static void TestNegativeCapacityIsRefused(void)
+{
+    m2WorldDef def = TestDef();
+    m2World* world = NewWorld(&def);
+    uint8_t byte = 0;
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+    CHECK(m2World_StartJournal(world, &byte, -1) == m2_errorInvalid,
+          "a capacity of -1 starts no journal");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 1, "and counts one misuse");
+    m2DestroyWorld(world);
+}
+
 static void TestOverflowIsLoud(void)
 {
     m2WorldDef def = TestDef();
@@ -1174,6 +1188,7 @@ int main(void)
     TestRollbackWhileRecording();
     TestRecordReplay();
     TestOverflowIsLoud();
+    TestNegativeCapacityIsRefused();
     TestBusyStopKeepsBytes();
 
     if (s_failures > 0)

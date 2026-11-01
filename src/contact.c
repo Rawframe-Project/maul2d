@@ -505,7 +505,7 @@ static M2_NOINLINE int32_t ShapeGetSensorOverlapsWorker(const m2World* world,
                                                         m2ShapeId sensorShapeId,
                                                         m2ShapeId* overlaps, int32_t capacity)
 {
-    if (world == NULL)
+    if (world == NULL || !m2ListOutputValid(overlaps, capacity))
     {
         return m2RefuseList(world, overlaps, capacity, sizeof(*overlaps));
     }
@@ -552,7 +552,7 @@ int32_t m2Shape_GetSensorOverlaps(const m2World* world, m2ShapeId sensorShapeId,
 static M2_NOINLINE int32_t WorldGetContactDataWorker(const m2World* world, m2ContactData* data,
                                                      int32_t capacity)
 {
-    if (world == NULL)
+    if (world == NULL || !m2ListOutputValid(data, capacity))
     {
         return m2RefuseList(world, data, capacity, sizeof(*data));
     }

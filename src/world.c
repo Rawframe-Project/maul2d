@@ -846,7 +846,7 @@ m2Counters m2World_GetCounters(const m2World* world)
 static M2_NOINLINE int32_t WorldGetBodiesWorker(const m2World* world, m2BodyId* ids,
                                                 int32_t capacity)
 {
-    if (world == NULL)
+    if (world == NULL || !m2ListOutputValid(ids, capacity))
     {
         return m2RefuseList(world, ids, capacity, sizeof(*ids));
     }
@@ -877,7 +877,7 @@ int32_t m2World_GetBodies(const m2World* world, m2BodyId* idsOut, int32_t capaci
 
 int32_t m2World_GetJoints(const m2World* world, m2JointId* idsOut, int32_t capacity)
 {
-    if (world == NULL)
+    if (world == NULL || !m2ListOutputValid(idsOut, capacity))
     {
         return m2RefuseList(world, idsOut, capacity, sizeof(*idsOut));
     }
@@ -900,7 +900,7 @@ int32_t m2World_GetJoints(const m2World* world, m2JointId* idsOut, int32_t capac
 
 int32_t m2World_GetChains(const m2World* world, m2ChainId* idsOut, int32_t capacity)
 {
-    if (world == NULL)
+    if (world == NULL || !m2ListOutputValid(idsOut, capacity))
     {
         return m2RefuseList(world, idsOut, capacity, sizeof(*idsOut));
     }

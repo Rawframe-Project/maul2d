@@ -147,7 +147,7 @@ static M2_NOINLINE m2Result WorldStartJournalWorker(m2World* world, void* buffer
     {
         return writer;
     }
-    if (buffer == NULL || !m2SizeFitsMemory(capacity))
+    if (buffer == NULL || capacity < 0 || !m2SizeFitsMemory(capacity))
     {
         return m2Refuse(world, m2_errorInvalid);
     }

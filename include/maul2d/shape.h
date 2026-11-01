@@ -278,11 +278,11 @@ extern "C"
     ///
     /// @param points     The outline, up to M2_MAX_OUTLINE_POINTS points.
     /// @param count      The number of points.
-    /// @param piecesOut  Receives up to capacity pieces; may be null to
-    ///                   measure. Left as it was on failure: a piece is
-    ///                   written only once it passes validation, and the
-    ///                   call fails only when none does.
-    /// @param capacity   The length of piecesOut.
+    /// @param piecesOut  Receives up to capacity pieces; may be null with a
+    ///                   capacity of 0 to measure. Left as it was on
+    ///                   failure: a piece is written only once it passes
+    ///                   validation, and the call fails only when none does.
+    /// @param capacity   The length of piecesOut, not below 0.
     /// @param countOut   Receives the number of pieces, which may exceed
     ///                   capacity; left as it was on failure.
     /// @return m2_success; m2_errorLimit for more than
@@ -291,8 +291,9 @@ extern "C"
     ///         outline too thin for any piece to pass validation, an
     ///         outline that is not simple (an edge crossing another, a
     ///         vertex within 0.005 m of an edge it does not end, a repeated
-    ///         vertex, an edge folding back over its neighbor) or a null
-    ///         argument. It takes no world, so a refusal counts nothing.
+    ///         vertex, an edge folding back over its neighbor), a negative
+    ///         capacity, a null piecesOut with a positive capacity or another
+    ///         null argument. It takes no world, so a refusal counts nothing.
     /// @par Thread safety
     /// Safe from any thread.
     M2_NODISCARD M2_API m2Result m2DecomposeOutline(const m2Vec2* points, int32_t count,
@@ -660,8 +661,8 @@ extern "C"
     /// @param world     The world.
     /// @param bodyId    The body; a stale id counts one misuse.
     /// @param idsOut    Receives up to capacity shapes; zeros over the whole capacity on failure.
-    ///                  May be null to measure.
-    /// @param capacity  The length of idsOut.
+    ///                  May be null with a capacity of 0 to measure.
+    /// @param capacity  The length of idsOut, not below 0.
     /// @return The number of shapes, which may exceed capacity; 0 for a
     ///         stale id.
     /// @par Thread safety
@@ -674,8 +675,8 @@ extern "C"
     ///
     /// @param world     The world.
     /// @param idsOut    Receives up to capacity chains; zeros over the whole capacity on failure.
-    ///                  May be null to measure.
-    /// @param capacity  The length of idsOut.
+    ///                  May be null with a capacity of 0 to measure.
+    /// @param capacity  The length of idsOut, not below 0.
     /// @return The number of chains, which may exceed capacity.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
@@ -687,8 +688,8 @@ extern "C"
     /// @param world     The world.
     /// @param chainId   The chain; a stale id counts one misuse.
     /// @param idsOut    Receives up to capacity shapes; zeros over the whole capacity on failure.
-    ///                  May be null to measure.
-    /// @param capacity  The length of idsOut.
+    ///                  May be null with a capacity of 0 to measure.
+    /// @param capacity  The length of idsOut, not below 0.
     /// @return The number of links, which may exceed capacity; 0 for a
     ///         stale id.
     /// @par Thread safety
@@ -878,8 +879,8 @@ extern "C"
     /// @param translation  The ray.
     /// @param filter       Which shapes the ray sees.
     /// @param hitsOut      Receives up to capacity hits; zeros over the whole capacity on failure.
-    ///                     May be null to measure.
-    /// @param capacity     The length of hitsOut.
+    ///                     May be null with a capacity of 0 to measure.
+    /// @param capacity     The length of hitsOut, not below 0.
     /// @return The number of hits, which may exceed capacity; 0 for a
     ///         non-finite argument, which counts one misuse.
     /// @par Thread safety
@@ -896,8 +897,8 @@ extern "C"
     /// @param translation  The sweep.
     /// @param filter       Which shapes the sweep sees.
     /// @param hitsOut      Receives up to capacity hits; zeros over the whole capacity on failure.
-    ///                     May be null to measure.
-    /// @param capacity     The length of hitsOut.
+    ///                     May be null with a capacity of 0 to measure.
+    /// @param capacity     The length of hitsOut, not below 0.
     /// @return The number of hits, which may exceed capacity; 0 for an
     ///         invalid argument, which counts one misuse.
     /// @par Thread safety
@@ -916,8 +917,8 @@ extern "C"
     /// @param translation  The sweep.
     /// @param filter       Which shapes the sweep sees.
     /// @param hitsOut      Receives up to capacity hits; zeros over the whole capacity on failure.
-    ///                     May be null to measure.
-    /// @param capacity     The length of hitsOut.
+    ///                     May be null with a capacity of 0 to measure.
+    /// @param capacity     The length of hitsOut, not below 0.
     /// @return The number of hits, which may exceed capacity; 0 for an
     ///         invalid argument, which counts one misuse.
     /// @par Thread safety
@@ -936,8 +937,8 @@ extern "C"
     /// @param translation  The sweep.
     /// @param filter       Which shapes the sweep sees.
     /// @param hitsOut      Receives up to capacity hits; zeros over the whole capacity on failure.
-    ///                     May be null to measure.
-    /// @param capacity     The length of hitsOut.
+    ///                     May be null with a capacity of 0 to measure.
+    /// @param capacity     The length of hitsOut, not below 0.
     /// @return The number of hits, which may exceed capacity; 0 for an
     ///         invalid argument, which counts one misuse.
     /// @par Thread safety
@@ -977,8 +978,8 @@ extern "C"
     /// @param origin     The capsule's pose.
     /// @param filter     Which shapes the mover sees.
     /// @param planesOut  Receives up to capacity planes; zeros over the whole capacity on failure.
-    ///                   May be null to measure.
-    /// @param capacity   The length of planesOut.
+    ///                   May be null with a capacity of 0 to measure.
+    /// @param capacity   The length of planesOut, not below 0.
     /// @return The number of planes, which may exceed capacity; 0 for an
     ///         invalid argument, which counts one misuse.
     /// @par Thread safety
@@ -1082,8 +1083,8 @@ extern "C"
     /// @param origin    The circle's pose.
     /// @param filter    Which shapes the query sees.
     /// @param idsOut    Receives up to capacity shapes; zeros over the whole capacity on failure.
-    ///                  May be null to measure.
-    /// @param capacity  The length of idsOut.
+    ///                  May be null with a capacity of 0 to measure.
+    /// @param capacity  The length of idsOut, not below 0.
     /// @return The number of shapes, which may exceed capacity; 0 for an
     ///         invalid argument, which counts one misuse.
     /// @par Thread safety
@@ -1101,8 +1102,8 @@ extern "C"
     /// @param origin    The capsule's pose.
     /// @param filter    Which shapes the query sees.
     /// @param idsOut    Receives up to capacity shapes; zeros over the whole capacity on failure.
-    ///                  May be null to measure.
-    /// @param capacity  The length of idsOut.
+    ///                  May be null with a capacity of 0 to measure.
+    /// @param capacity  The length of idsOut, not below 0.
     /// @return The number of shapes, which may exceed capacity; 0 for an
     ///         invalid argument, which counts one misuse.
     /// @par Thread safety
@@ -1120,8 +1121,8 @@ extern "C"
     /// @param origin    The polygon's pose.
     /// @param filter    Which shapes the query sees.
     /// @param idsOut    Receives up to capacity shapes; zeros over the whole capacity on failure.
-    ///                  May be null to measure.
-    /// @param capacity  The length of idsOut.
+    ///                  May be null with a capacity of 0 to measure.
+    /// @param capacity  The length of idsOut, not below 0.
     /// @return The number of shapes, which may exceed capacity; 0 for an
     ///         invalid argument, which counts one misuse.
     /// @par Thread safety
@@ -1138,8 +1139,8 @@ extern "C"
     /// @param box       The box, in world space.
     /// @param filter    Which shapes the query sees.
     /// @param idsOut    Receives up to capacity shapes; zeros over the whole capacity on failure.
-    ///                  May be null to measure.
-    /// @param capacity  The length of idsOut.
+    ///                  May be null with a capacity of 0 to measure.
+    /// @param capacity  The length of idsOut, not below 0.
     /// @return The number of shapes, which may exceed capacity; 0 for a
     ///         non-finite or inverted box, which counts one misuse.
     /// @par Thread safety

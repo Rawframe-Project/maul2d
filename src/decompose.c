@@ -365,7 +365,7 @@ static M2_NOINLINE m2Result DecomposeOutlineWorker(const m2Vec2* points, int32_t
                                                    m2Polygon* pieces, int32_t capacity,
                                                    int32_t* countOut)
 {
-    if (countOut == NULL)
+    if (countOut == NULL || capacity < 0 || (pieces == NULL && capacity > 0))
     {
         return m2_errorInvalid;
     }
