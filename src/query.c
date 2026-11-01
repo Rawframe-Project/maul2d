@@ -287,7 +287,7 @@ static M2_NOINLINE int32_t WorldOverlapAabbWorker(const m2World* world, m2WorldA
 {
     m2Pos2 lower = box.lowerBound;
     m2Pos2 upper = box.upperBound;
-    if (world == NULL || !m2ValidWorldAabb(box))
+    if (world == NULL || !m2ListOutputValid(results, capacity) || !m2ValidWorldAabb(box))
     {
         return m2RefuseList(world, results, capacity, sizeof(*results));
     }
@@ -440,7 +440,8 @@ static int32_t OverlapProxy(const m2World* world, const m2DistanceProxy* castLoc
                             m2Transform pose, m2ShapeId* ids, int32_t capacity,
                             m2QueryFilter filter)
 {
-    if (world == NULL || castLocal->count == 0 || !m2QueryMotionValid(pose, (m2Vec2){0.0f, 0.0f}))
+    if (world == NULL || !m2ListOutputValid(ids, capacity) || castLocal->count == 0 ||
+        !m2QueryMotionValid(pose, (m2Vec2){0.0f, 0.0f}))
     {
         return m2RefuseList(world, ids, capacity, sizeof(*ids));
     }
@@ -747,7 +748,8 @@ static M2_NOINLINE int32_t WorldCastRayAllWorker(const m2World* world, m2Pos2 or
                                                  m2Vec2 translation, m2CastHit* hits,
                                                  int32_t capacity, m2QueryFilter filter)
 {
-    if (world == NULL || !m2FinitePos2(origin) || !m2FiniteVec2(translation))
+    if (world == NULL || !m2ListOutputValid(hits, capacity) || !m2FinitePos2(origin) ||
+        !m2FiniteVec2(translation))
     {
         return m2RefuseList(world, hits, capacity, sizeof(*hits));
     }
@@ -861,7 +863,8 @@ static int32_t CastProxyAll(const m2World* world, const m2DistanceProxy* castLoc
                             m2Transform pose, m2Vec2 translation, m2CastHit* hits, int32_t capacity,
                             m2QueryFilter filter)
 {
-    if (world == NULL || castLocal->count == 0 || !m2QueryMotionValid(pose, translation))
+    if (world == NULL || !m2ListOutputValid(hits, capacity) || castLocal->count == 0 ||
+        !m2QueryMotionValid(pose, translation))
     {
         return m2RefuseList(world, hits, capacity, sizeof(*hits));
     }

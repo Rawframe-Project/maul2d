@@ -1918,6 +1918,13 @@ static void TestFailedSnapshotClearsItsBuffer(void)
         zeroed = zeroed && buffer[i] == 0;
     }
     CHECK(zeroed, "each zeroing the buffer");
+
+    memset(buffer, 0x5A, (size_t)size);
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+    CHECK(m2World_Snapshot(world, buffer, -1, &bytes) == m2_errorInvalid && bytes == 0,
+          "a negative capacity is refused as invalid");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 1 && buffer[0] == 0x5A,
+          "counting one misuse and leaving a buffer of unknown length");
     free(buffer);
     m2DestroyWorld(world);
 }

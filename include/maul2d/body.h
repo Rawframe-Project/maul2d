@@ -384,8 +384,8 @@ extern "C"
     ///
     /// @param world     The world.
     /// @param idsOut    Receives up to capacity bodies; zeros over the whole capacity on failure.
-    ///                  May be null to measure.
-    /// @param capacity  The length of idsOut.
+    ///                  May be null with a capacity of 0 to measure.
+    /// @param capacity  The length of idsOut, not below 0.
     /// @return The number of bodies, which may exceed capacity.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by

@@ -121,7 +121,7 @@ static void ClearSnapshotBuffer(void* buffer, int64_t capacity)
 static M2_NOINLINE m2Result WorldSnapshotWorker(const m2World* world, void* buffer,
                                                 int64_t capacity, int64_t* bytesOut)
 {
-    if (bytesOut == NULL || world == NULL || buffer == NULL)
+    if (bytesOut == NULL || world == NULL || buffer == NULL || capacity < 0)
     {
         ClearSnapshotBuffer(buffer, capacity);
         if (bytesOut != NULL)

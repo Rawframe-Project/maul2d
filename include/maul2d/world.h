@@ -454,10 +454,11 @@ extern "C"
     /// @param world      The world.
     /// @param bufferOut  Receives the snapshot; zeros over the whole
     ///                   capacity on failure.
-    /// @param capacity   The length of bufferOut, in bytes.
+    /// @param capacity   The length of bufferOut, in bytes, not below 0.
     /// @param bytesOut   Receives the bytes written; with m2_errorCapacity,
     ///                   the size needed; 0 on any other failure.
-    /// @return m2_success; m2_errorInvalid for a null argument;
+    /// @return m2_success; m2_errorInvalid for a null argument or a negative
+    ///         capacity;
     ///         m2_errorCapacity when capacity is below
     ///         m2World_GetSnapshotSize.
     /// @par Thread safety
@@ -677,9 +678,9 @@ extern "C"
     ///
     /// @param world     The world.
     /// @param buffer    Receives the tape.
-    /// @param capacity  The length of buffer, in bytes.
-    /// @return m2_success; m2_errorInvalid for a null buffer or a capacity
-    ///         a size_t cannot hold; m2_errorCapacity when capacity is below
+    /// @param capacity  The length of buffer, in bytes, not below 0.
+    /// @return m2_success; m2_errorInvalid for a null buffer, a negative
+    ///         capacity or one a size_t cannot hold; m2_errorCapacity when capacity is below
     ///         m2World_GetJournalBaseSize; m2_errorState when the world is
     ///         already recording; m2_errorBusy from host code the world is
     ///         running.

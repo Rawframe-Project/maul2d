@@ -645,8 +645,8 @@ static void TestContactData(void)
 
     // Capacity clamp stays truthful.
     CHECK(m2World_GetContactData(world, data, 0) == 1, "total reported beyond capacity");
-    CHECK(m2World_GetContactData(world, NULL, 4) == 1,
-          "a null array measures, whatever the capacity");
+    CHECK(m2World_GetContactData(world, NULL, 0) == 1,
+          "a null array with a capacity of 0 measures");
 
     m2DestroyWorld(world);
 }
@@ -841,12 +841,15 @@ typedef struct ListArrays
     m2ParticleId particlesInBox[LIST_CAPACITY];
 } ListArrays;
 
-// Runs every list read, the queries at `at`, each into its own array
-// filled first with a pattern no read writes.
-static void ReadEveryList(const m2World* world, m2BodyId body, m2ChainId chain, m2ShapeId sensor,
-                          m2Pos2 at, ListArrays* a)
+// One of a's arrays, or null when a is null.
+#define LIST(array) (a != NULL ? a->array : NULL)
+
+// Runs every list read, the queries at `at`, each into its own array of
+// a with the given capacity, or into null arrays when a is null, and
+// returns the sum of the totals they report.
+static int32_t ReadLists(const m2World* world, m2BodyId body, m2ChainId chain, m2ShapeId sensor,
+                         m2Pos2 at, ListArrays* a, int32_t capacity)
 {
-    memset(a, 0x5A, sizeof(*a));
     m2QueryFilter all = m2DefaultQueryFilter();
     m2Circle ball = {{0.0f, 0.0f}, 0.25f};
     m2Capsule rod = {{-0.25f, 0.0f}, {0.25f, 0.0f}, 0.1f};
@@ -854,25 +857,38 @@ static void ReadEveryList(const m2World* world, m2BodyId body, m2ChainId chain, 
     m2Transform pose = {at, {1.0f, 0.0f}};
     m2Vec2 down = {0.0f, -1.0f};
     m2WorldAabb box = {{at.x - 1.0, at.y - 1.0}, {at.x + 1.0, at.y + 1.0}};
-    (void)m2World_GetBodies(world, a->bodies, LIST_CAPACITY);
-    (void)m2World_GetJoints(world, a->joints, LIST_CAPACITY);
-    (void)m2Body_GetJoints(world, body, a->bodyJoints, LIST_CAPACITY);
-    (void)m2World_GetChains(world, a->chains, LIST_CAPACITY);
-    (void)m2Body_GetShapes(world, body, a->bodyShapes, LIST_CAPACITY);
-    (void)m2Chain_GetShapes(world, chain, a->chainShapes, LIST_CAPACITY);
-    (void)m2Shape_GetSensorOverlaps(world, sensor, a->sensed, LIST_CAPACITY);
-    (void)m2World_GetParticles(world, a->particles, LIST_CAPACITY);
-    (void)m2World_GetContactData(world, a->contacts, LIST_CAPACITY);
-    (void)m2World_OverlapAabb(world, box, all, a->overlaps[0], LIST_CAPACITY);
-    (void)m2World_OverlapCircle(world, &ball, pose, all, a->overlaps[1], LIST_CAPACITY);
-    (void)m2World_OverlapCapsule(world, &rod, pose, all, a->overlaps[2], LIST_CAPACITY);
-    (void)m2World_OverlapPolygon(world, &chip, pose, all, a->overlaps[3], LIST_CAPACITY);
-    (void)m2World_CastRayAll(world, at, down, all, a->hits[0], LIST_CAPACITY);
-    (void)m2World_CastCircleAll(world, &ball, pose, down, all, a->hits[1], LIST_CAPACITY);
-    (void)m2World_CastCapsuleAll(world, &rod, pose, down, all, a->hits[2], LIST_CAPACITY);
-    (void)m2World_CastPolygonAll(world, &chip, pose, down, all, a->hits[3], LIST_CAPACITY);
-    (void)m2World_CollideMover(world, &rod, pose, all, a->planes, LIST_CAPACITY);
-    (void)m2World_OverlapParticlesAabb(world, box, a->particlesInBox, LIST_CAPACITY);
+    int32_t total = 0;
+    total += m2World_GetBodies(world, LIST(bodies), capacity);
+    total += m2World_GetJoints(world, LIST(joints), capacity);
+    total += m2Body_GetJoints(world, body, LIST(bodyJoints), capacity);
+    total += m2World_GetChains(world, LIST(chains), capacity);
+    total += m2Body_GetShapes(world, body, LIST(bodyShapes), capacity);
+    total += m2Chain_GetShapes(world, chain, LIST(chainShapes), capacity);
+    total += m2Shape_GetSensorOverlaps(world, sensor, LIST(sensed), capacity);
+    total += m2World_GetParticles(world, LIST(particles), capacity);
+    total += m2World_GetContactData(world, LIST(contacts), capacity);
+    total += m2World_OverlapAabb(world, box, all, LIST(overlaps[0]), capacity);
+    total += m2World_OverlapCircle(world, &ball, pose, all, LIST(overlaps[1]), capacity);
+    total += m2World_OverlapCapsule(world, &rod, pose, all, LIST(overlaps[2]), capacity);
+    total += m2World_OverlapPolygon(world, &chip, pose, all, LIST(overlaps[3]), capacity);
+    total += m2World_CastRayAll(world, at, down, all, LIST(hits[0]), capacity);
+    total += m2World_CastCircleAll(world, &ball, pose, down, all, LIST(hits[1]), capacity);
+    total += m2World_CastCapsuleAll(world, &rod, pose, down, all, LIST(hits[2]), capacity);
+    total += m2World_CastPolygonAll(world, &chip, pose, down, all, LIST(hits[3]), capacity);
+    total += m2World_CollideMover(world, &rod, pose, all, LIST(planes), capacity);
+    total += m2World_OverlapParticlesAabb(world, box, LIST(particlesInBox), capacity);
+    return total;
+}
+
+#undef LIST
+
+// Runs every list read, the queries at `at`, each into its own array
+// filled first with a pattern no read writes.
+static void ReadEveryList(const m2World* world, m2BodyId body, m2ChainId chain, m2ShapeId sensor,
+                          m2Pos2 at, ListArrays* a)
+{
+    memset(a, 0x5A, sizeof(*a));
+    (void)ReadLists(world, body, chain, sensor, at, a, LIST_CAPACITY);
 }
 
 static bool Zeroed(const void* items, size_t bytes)
@@ -911,23 +927,43 @@ static int32_t QueryListsZeroed(const ListArrays* a)
 // A refused list read defines none of its items, so it zeroes the caller's
 // array over its whole capacity: an item from an earlier call is never
 // read as an answer, and zeroed ids are null ids.
-static void TestRefusedListsClear(void)
+// A world with a body holding a sensor and a chain, for the list reads.
+typedef struct ListScene
 {
+    m2World* world;
+    m2BodyId body;
+    m2ShapeId sensor;
+    m2ChainId chain;
+} ListScene;
+
+static ListScene NewListScene(void)
+{
+    ListScene scene;
     m2WorldDef def = m2DefaultWorldDef();
     def.particleCapacity = 4;
-    m2World* world = NewWorld(&def);
+    scene.world = NewWorld(&def);
     m2BodyDef bd = m2DefaultBodyDef();
-    m2BodyId body = NewBody(world, &bd);
+    scene.body = NewBody(scene.world, &bd);
     m2ShapeDef sd = m2DefaultShapeDef();
     sd.isSensor = true;
     m2Polygon slab = m2MakeBox(2.0f, 0.5f);
-    m2ShapeId sensor = NewPolygonShape(world, body, &sd, &slab);
+    scene.sensor = NewPolygonShape(scene.world, scene.body, &sd, &slab);
     m2Vec2 pts[4] = {{3.0f, 2.0f}, {1.0f, 2.0f}, {-1.0f, 2.0f}, {-3.0f, 2.0f}};
     m2ChainDef cd = m2DefaultChainDef();
     cd.points = pts;
     cd.count = 4;
-    m2ChainId chain = NewChain(world, body, &cd);
-    CHECK(chain.index1 != 0, "the chain is made");
+    scene.chain = NewChain(scene.world, scene.body, &cd);
+    CHECK(scene.chain.index1 != 0, "the chain is made");
+    return scene;
+}
+
+static void TestRefusedListsClear(void)
+{
+    ListScene scene = NewListScene();
+    m2World* world = scene.world;
+    m2BodyId body = scene.body;
+    m2ShapeId sensor = scene.sensor;
+    m2ChainId chain = scene.chain;
     m2Pos2 above = {0.0, 3.0};
     ListArrays a;
 
@@ -953,12 +989,50 @@ static void TestRefusedListsClear(void)
     m2DestroyWorld(world);
 }
 
+// A null array with a capacity of 0 measures. A negative capacity, or a
+// null array with a positive one, is a mistake: every list read refuses
+// it, returns 0 and counts one misuse, and leaves an array it cannot
+// know the length of untouched.
+static void TestBadListCapacities(void)
+{
+    ListScene scene = NewListScene();
+    m2World* world = scene.world;
+    m2Pos2 above = {0.0, 3.0};
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+    CHECK(ReadLists(world, scene.body, scene.chain, scene.sensor, above, NULL, 0) > 0,
+          "null arrays with a capacity of 0 measure");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse, "and count no misuse");
+
+    CHECK(ReadLists(world, scene.body, scene.chain, scene.sensor, above, NULL, 2) == 0,
+          "null arrays with a capacity of 2 are refused");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 19, "each counting one misuse");
+
+    ListArrays a;
+    memset(&a, 0x5A, sizeof(a));
+    ListArrays untouched = a;
+    CHECK(ReadLists(world, scene.body, scene.chain, scene.sensor, above, &a, -1) == 0,
+          "a capacity of -1 is refused");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 38, "each counting one misuse");
+    CHECK(memcmp(&a, &untouched, sizeof(a)) == 0, "and the arrays are left as they were");
+
+    m2Vec2 square[4] = {{0.0f, 0.0f}, {1.0f, 0.0f}, {1.0f, 1.0f}, {0.0f, 1.0f}};
+    m2Polygon pieces[2];
+    int32_t made = 0;
+    CHECK(m2DecomposeOutline(square, 4, NULL, 0, &made) == m2_success && made == 1,
+          "a decomposition measures with a null array and a capacity of 0");
+    CHECK(m2DecomposeOutline(square, 4, NULL, 2, &made) == m2_errorInvalid &&
+              m2DecomposeOutline(square, 4, pieces, -1, &made) == m2_errorInvalid,
+          "and refuses a null array with a positive capacity, or a negative capacity");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
     TestRayFromTheSurfaceHitsAtZero();
     TestFarAndLongRaysAtRoundShapes();
     TestCastHitOut();
     TestRefusedListsClear();
+    TestBadListCapacities();
     TestRayInsideRoundedPolygon();
     TestAllHitsBeyondSixtyFour();
     TestQueryFilters();

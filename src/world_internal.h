@@ -415,6 +415,13 @@ static inline void m2CountDrops(int32_t* counter, int64_t drops)
     *counter = total < INT32_MAX ? (int32_t)total : INT32_MAX;
 }
 
+// Whether a list call's array and capacity make sense: a capacity of 0
+// or more, and an array unless the capacity is 0, which measures.
+static inline bool m2ListOutputValid(const void* items, int32_t capacity)
+{
+    return capacity >= 0 && (items != NULL || capacity == 0);
+}
+
 // Refuses a list call: zeroes the caller's list over its whole capacity,
 // since a failed call defines none of its items, counts one misuse on a
 // live world as m2Refuse does, and returns the count of 0 the call

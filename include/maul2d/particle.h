@@ -255,8 +255,8 @@ extern "C"
     /// @param world     The world.
     /// @param box       The box, in world space.
     /// @param idsOut    Receives up to capacity particles; zeros over the whole capacity on
-    ///                  failure. May be null to measure.
-    /// @param capacity  The length of idsOut.
+    ///                  failure. May be null with a capacity of 0 to measure.
+    /// @param capacity  The length of idsOut, not below 0.
     /// @return The number of particles inside, which may exceed capacity;
     ///         0 for a non-finite or inverted box, which counts one misuse.
     /// @par Thread safety
@@ -269,8 +269,8 @@ extern "C"
     ///
     /// @param world     The world.
     /// @param idsOut    Receives up to capacity particles; zeros over the whole capacity on
-    ///                  failure. May be null to measure.
-    /// @param capacity  The length of idsOut.
+    ///                  failure. May be null with a capacity of 0 to measure.
+    /// @param capacity  The length of idsOut, not below 0.
     /// @return The number of particles, which may exceed capacity.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by

@@ -505,7 +505,7 @@ static M2_NOINLINE int32_t ShapeGetSensorOverlapsWorker(const m2World* world,
                                                         m2ShapeId sensorShapeId,
                                                         m2ShapeId* overlaps, int32_t capacity)
 {
-    if (world == NULL)
+    if (world == NULL || !m2ListOutputValid(overlaps, capacity))
     {
         return m2RefuseList(world, overlaps, capacity, sizeof(*overlaps));
     }
@@ -549,10 +549,32 @@ int32_t m2Shape_GetSensorOverlaps(const m2World* world, m2ShapeId sensorShapeId,
     return result;
 }
 
+// Writes the public view of touching pair i: its shapes, the world
+// normal, and each live point's separation and impulses.
+static void FillContactData(const m2World* world, int32_t i, m2ContactData* out)
+{
+    int32_t shapeA = (int32_t)(world->contacts.pairKeys[i] >> 32);
+    int32_t shapeB = (int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu);
+    const m2Manifold* manifold = &world->contacts.manifolds[i];
+    out->shapeIdA = m2MakeShapeId(world, shapeA);
+    out->shapeIdB = m2MakeShapeId(world, shapeB);
+    m2Rot qA = world->bodies.transforms[world->shapes.shapeBody[shapeA]].q;
+    out->normal = (m2Vec2){qA.c * manifold->normal.x - qA.s * manifold->normal.y,
+                           qA.s * manifold->normal.x + qA.c * manifold->normal.y};
+    out->pointCount = manifold->pointCount;
+    for (int32_t k = 0; k < 2; ++k)
+    {
+        bool live = k < manifold->pointCount;
+        out->separations[k] = live ? manifold->points[k].separation : 0.0f;
+        out->normalImpulses[k] = live ? manifold->points[k].normalImpulse : 0.0f;
+        out->tangentImpulses[k] = live ? manifold->points[k].tangentImpulse : 0.0f;
+    }
+}
+
 static M2_NOINLINE int32_t WorldGetContactDataWorker(const m2World* world, m2ContactData* data,
                                                      int32_t capacity)
 {
-    if (world == NULL)
+    if (world == NULL || !m2ListOutputValid(data, capacity))
     {
         return m2RefuseList(world, data, capacity, sizeof(*data));
     }
@@ -573,23 +595,7 @@ static M2_NOINLINE int32_t WorldGetContactDataWorker(const m2World* world, m2Con
         }
         if (data != NULL && total < capacity)
         {
-            int32_t shapeA = (int32_t)(world->contacts.pairKeys[i] >> 32);
-            int32_t shapeB = (int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu);
-            m2Manifold* manifold = &world->contacts.manifolds[i];
-            m2ContactData* out = data + total;
-            out->shapeIdA = m2MakeShapeId(world, shapeA);
-            out->shapeIdB = m2MakeShapeId(world, shapeB);
-            m2Rot qA = world->bodies.transforms[world->shapes.shapeBody[shapeA]].q;
-            out->normal = (m2Vec2){qA.c * manifold->normal.x - qA.s * manifold->normal.y,
-                                   qA.s * manifold->normal.x + qA.c * manifold->normal.y};
-            out->pointCount = manifold->pointCount;
-            for (int32_t k = 0; k < 2; ++k)
-            {
-                bool live = k < manifold->pointCount;
-                out->separations[k] = live ? manifold->points[k].separation : 0.0f;
-                out->normalImpulses[k] = live ? manifold->points[k].normalImpulse : 0.0f;
-                out->tangentImpulses[k] = live ? manifold->points[k].tangentImpulse : 0.0f;
-            }
+            FillContactData(world, i, data + total);
         }
         total += 1;
     }

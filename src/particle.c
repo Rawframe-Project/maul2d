@@ -361,7 +361,7 @@ int32_t m2World_GetParticleCount(const m2World* world)
 
 int32_t m2World_GetParticles(const m2World* world, m2ParticleId* idsOut, int32_t capacity)
 {
-    if (world == NULL)
+    if (world == NULL || !m2ListOutputValid(idsOut, capacity))
     {
         return m2RefuseList(world, idsOut, capacity, sizeof(*idsOut));
     }
@@ -643,7 +643,7 @@ static M2_NOINLINE int32_t WorldOverlapParticlesAabbWorker(const m2World* world,
 {
     m2Pos2 lower = box.lowerBound;
     m2Pos2 upper = box.upperBound;
-    if (world == NULL || !m2ValidWorldAabb(box))
+    if (world == NULL || !m2ListOutputValid(ids, capacity) || !m2ValidWorldAabb(box))
     {
         return m2RefuseList(world, ids, capacity, sizeof(*ids));
     }
