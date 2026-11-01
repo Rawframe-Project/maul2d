@@ -256,7 +256,8 @@ m2Result m2CreateWorld(const m2WorldDef* def, m2World** worldOut)
 
 static M2_NOINLINE void DestroyWorldWorker(m2World* world)
 {
-    if (world == NULL)
+    // Host code the world runs may not destroy it under its own feet.
+    if (m2CheckWriter(world) != m2_success)
     {
         return;
     }

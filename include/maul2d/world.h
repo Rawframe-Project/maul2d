@@ -188,7 +188,9 @@ extern "C"
     /// allocator. Ids into it become meaningless. The world empties before
     /// its first free: the allocator's free hook may read it back and finds
     /// every id stale and every list empty, and every writer it calls is
-    /// refused as busy.
+    /// refused as busy. This call is a writer too: host code the world runs
+    /// (a task hook, a debug draw callback, the allocator) that calls it
+    /// counts one misuse, and the world stays.
     ///
     /// @param world  The world; null does nothing.
     /// @par Thread safety
