@@ -53,7 +53,8 @@ extern "C"
         /// particleCapacity above 0 builds the particle system into the
         /// world for its whole life, so every snapshot has the same shape
         /// and rollback stays safe at any point in history. Its parameters
-        /// are fixed here like every other physics setting.
+        /// are fixed here like every other physics setting, and checked
+        /// even when particleCapacity is 0.
         int32_t particleCapacity;    // 0: no fluids
         int32_t waterVolumeCapacity; // 0: no buoyancy volumes
         float particleRadius;        // meters, M2_MIN_PARTICLE_RADIUS to M2_LOCAL_LIMIT
@@ -708,9 +709,9 @@ extern "C"
     /// a tape that is malformed or truncated, that carries a value one of
     /// its calls refuses (a void call included), or that recreates an
     /// object under another id than the recording saw, is refused and the
-    /// world stays as it was. Only the release that wrote a tape replays it
-    /// (M2_ABI_VERSION); a tape from another release, build or world shape
-    /// is refused too.
+    /// world stays as it was, its event streams included. Only the release
+    /// that wrote a tape replays it (M2_ABI_VERSION); a tape from another
+    /// release, build or world shape is refused too.
     ///
     /// @param world  The world.
     /// @param data   The tape.
