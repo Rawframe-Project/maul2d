@@ -151,8 +151,9 @@ static void TestMulRotAddsAngles(void)
         m2Rot q = m2MulRot(m2MakeRot(a), m2MakeRot(b));
         CHECK(m2IsNormalizedRot(q), "a composition is unit length");
         double angle = atan2((double)q.s, (double)q.c);
-        double want = remainder((double)a + (double)b, 2.0 * M2_PI);
-        worst = fmaxf(worst, (float)fabs(remainder(angle - want, 2.0 * M2_PI)));
+        double turn = 2.0 * (double)M2_PI;
+        double want = remainder((double)a + (double)b, turn);
+        worst = fmaxf(worst, (float)fabs(remainder(angle - want, turn)));
     }
     CHECK(worst < 2.0e-6f, "the angles add");
     m2Rot long3 = m2MulRot((m2Rot){3.0f, 4.0f}, (m2Rot){1.0f, 0.0f});
