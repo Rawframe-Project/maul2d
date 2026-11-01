@@ -55,9 +55,11 @@ m2WorldDef m2DefaultWorldDefValues(void)
     return def;
 }
 
-// Checks a world def past its cookie and version. The particle radius
-// floor, M2_MIN_PARTICLE_RADIUS, is four linear slops so the skin laws
-// keep meaning.
+// Checks a world def past its cookie and version. The particle settings
+// are checked whatever the particle capacity: the world keeps them, and a
+// snapshot carries the radius, which a restore compares. The particle
+// radius floor, M2_MIN_PARTICLE_RADIUS, is four linear slops so the skin
+// laws keep meaning.
 static m2Result WorldDefCheck(const m2WorldDef* def)
 {
     if (def->bodyCapacity < 1 || def->shapeCapacity < 1 || def->jointCapacity < 1 ||
@@ -67,10 +69,6 @@ static m2Result WorldDefCheck(const m2WorldDef* def)
         return m2_errorInvalid;
     }
     m2Result result = m2CheckAcceleration(def->gravity);
-    if (def->particleCapacity == 0)
-    {
-        return result;
-    }
     // A particle's mass is its density over a square of 1.5 radii, the
     // spacing of a fill; it must be a mass a body could have.
     float stride = 1.5f * def->particleRadius;
