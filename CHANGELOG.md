@@ -6,6 +6,78 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.9.0](https://github.com/Rawframe-Project/maul2d/compare/v0.8.0...v0.9.0) (2026-10-31)
+
+This release settles the API ahead of 1.0.0. The step and the target transform now return a status. The diagnostics and the water volume take maul3d's names, and the public kinds have fixed sizes. Every call clears its outputs the same way when it fails. A program needs the changes below to build again. No golden value moves, so the same calls step to the same bits as on 0.8.0.
+
+### Changed
+
+- **Breaking:** `m2World_Step` returns `m2Result` and is marked `M2_NODISCARD` ([#221](https://github.com/Rawframe-Project/maul2d/pull/221)). A refused step still changes nothing and counts one misuse, as before; a program now sees the refusal in the status:
+
+  | Input | Status |
+  |---|---|
+  | a null world | `m2_errorInvalid`, no misuse |
+  | `dt` NaN, 0 or below | `m2_errorInvalid` |
+  | a positive `dt` outside `M2_MIN_STEP` to `M2_STEP_LIMIT`, infinity included | `m2_errorLimit` |
+  | a substep count below 1 | `m2_errorInvalid` |
+  | a substep count above `M2_MAX_SUBSTEPS` | `m2_errorLimit` |
+  | a call from host code the world is running | `m2_errorBusy` |
+
+  Check the status; a refused step leaves the last step's contact events in place.
+- **Breaking:** `m2Body_SetTargetTransform` returns `m2Result` and is marked `M2_NODISCARD` ([#195](https://github.com/Rawframe-Project/maul2d/pull/195)). It returns `m2_errorStale` for a stale id and `m2_errorInvalid` for a static body or a bad pose. For a `dt` outside `M2_MIN_STEP` to `M2_STEP_LIMIT`, it returns `m2_errorLimit` and counts a misuse. For a pose too far to reach within `M2_SPEED_LIMIT` in one step, it returns `m2_errorLimit` and counts no misuse, since a correct program can meet that.
+- **Breaking:** the `m2Counters` and `m2Profile` fields take the family's names, as in maul3d ([#203](https://github.com/Rawframe-Project/maul2d/pull/203)). A count ends in `Count`, work lost without telling the caller in `Dropped`, and calls refused with a status in `Refused`:
+
+  | Old name | New name |
+  |---|---|
+  | `bodies` | `bodyCount` |
+  | `awakeBodies` | `awakeCount` |
+  | `shapes` | `shapeCount` |
+  | `joints` | `jointCount` |
+  | `pairs` | `contactCount` |
+  | `touchingPairs` | `touchingCount` |
+  | `constraints` | `constraintCount` |
+  | `graphColors` | `colorCount` |
+  | `overflowConstraints` | `overflowCount` |
+  | `pairOverflow` | `pairsDropped` |
+  | `particlePairOverflow` | `particlePairsDropped` |
+  | `particleBodyOverflow` | `particleBodyContactsDropped` |
+  | `particlePoolFull` | `particleCreatesRefused` |
+  | `misuse` | `misuseCount` |
+  | `m2Profile.stepMs` | `m2Profile.step` |
+  | `m2Profile.pairsMs` | `m2Profile.broadphase` |
+  | `m2Profile.contactsMs` | `m2Profile.narrowphase` |
+  | `m2Profile.solveMs` | `m2Profile.solve` |
+  | `m2Profile.sleepMs` | `m2Profile.sleep` |
+
+  `stepCount` keeps its name, and the profile is still in milliseconds. `awakeCount` now counts only enabled, awake dynamic bodies. `awakeBodies` also counted static, kinematic and disabled bodies, which never sleep.
+- **Breaking:** the buoyancy volume is a water volume, as in maul3d, so its name no longer suggests the particle fluids ([#199](https://github.com/Rawframe-Project/maul2d/pull/199)). Every `m2FluidVolume` name is now `m2WaterVolume`: the id, `m2_nullWaterVolumeId`, the def, `m2DefaultWaterVolumeDef`, the create and destroy calls and `m2WaterVolume_*`. `m2WorldDef.fluidVolumeCapacity` is `waterVolumeCapacity`. `m2WaterVolumeDef` takes its box as `bounds`, an `m2WorldAabb`, in place of `regionLower` and `regionUpper`. `m2WorldAabb` is now declared in `core_math.h`.
+- **Breaking:** `m2CreateWaterVolume` refuses a box without area, with `m2_errorInvalid` and one misuse ([#201](https://github.com/Rawframe-Project/maul2d/pull/201)). A box with area has its upper corner above the lower on both axes; a volume without one could never act. The default def's box is one point at the origin, so set `bounds` before creating.
+- **Breaking:** `m2BodyType`, `m2JointType` and `m2ShapeType` are `int32_t` typedefs, and `m2ParticleFlags` is a `uint32_t` typedef, each with its constants in an anonymous enum ([#184](https://github.com/Rawframe-Project/maul2d/pull/184)). Their sizes no longer depend on the compiler. Code that names `enum m2BodyType` and the like uses the typedef. The constants keep their names and values. `m2ParticleDef.flags` is an `m2ParticleFlags`, and `m2Particle_GetFlags` returns one. `m2IsCpuBackendSupported` returns `bool`, and `m2Hash64` takes an `int64_t` byte count.
+- **Breaking:** a call that fails clears its outputs, by the family rule:
+  - Refused list reads zero the caller's array over its whole capacity, instead of leaving it as it was ([#183](https://github.com/Rawframe-Project/maul2d/pull/183)). These are the id lists, `m2Shape_GetSensorOverlaps`, `m2World_GetContactData`, the overlap and cast-all queries, `m2World_CollideMover` and `m2World_OverlapParticlesAabb`. A read that succeeds still writes only the items it reports.
+  - A failed `m2World_Snapshot` zeroes its buffer over its capacity, `m2_errorCapacity` included ([#183](https://github.com/Rawframe-Project/maul2d/pull/183)). A ring of snapshot buffers sizes each one with `m2World_GetSnapshotSize` first, or snapshots into a spare and swaps it in on success.
+  - The closest casts (`m2World_CastRayClosest`, `m2World_CastCircleClosest`, `m2World_CastCapsuleClosest`, `m2World_CastPolygonClosest`) and `m2Shape_CastRay` zero `hitOut`, with the null shape id, on a miss and on a refusal ([#166](https://github.com/Rawframe-Project/maul2d/pull/166)). A program that kept an earlier hit in `hitOut` across a miss keeps its own copy.
+  - A call that the world's own host code makes, and that is refused with `m2_errorBusy`, leaves its count as it was. This covers `m2Body_Shatter`'s `countOut` ([#173](https://github.com/Rawframe-Project/maul2d/pull/173)), `m2World_StopJournal`'s `bytesOut` ([#178](https://github.com/Rawframe-Project/maul2d/pull/178)) and `m2CreateParticlesInPolygon`'s `countOut` ([#179](https://github.com/Rawframe-Project/maul2d/pull/179)). Such a call with a null count returns `m2_errorBusy` instead of `m2_errorInvalid`.
+  - `m2Body_Shatter` fills `bodiesOut` with null ids on every failure, a null `countOut` included ([#173](https://github.com/Rawframe-Project/maul2d/pull/173)).
+- **Breaking:** `m2Shape_GetSensorOverlaps` on a live shape that is not a sensor counts one misuse and zeroes the array over its capacity, as for a stale id ([#225](https://github.com/Rawframe-Project/maul2d/pull/225)).
+- `m2World_OverlapParticlesAabb` refuses an inverted box, with one misuse and a zeroed list, as `m2World_OverlapAabb` already did ([#201](https://github.com/Rawframe-Project/maul2d/pull/201)). A flat or one-point box is still a fair query.
+- Results and formats: the same calls step to the same bits as on 0.8.0, and no golden value moves. The snapshot (version 7) and journal tape (version 8) formats are unchanged. As before 1.0.0, 0.9.0 reads only its own snapshots and tapes, and refuses 0.8.0's with `m2_errorVersion`.
+
+### Removed
+
+- **Breaking:** `m2MinF`, `m2MaxF`, `m2AbsF`, `m2ClampF` and `m2UnwindAngle` are no longer in the public headers ([#197](https://github.com/Rawframe-Project/maul2d/pull/197)). A program uses its own min, max and abs. `m2MakeRot` still maps any angle into [-pi, pi]. `core_math.h` no longer pulls `<xmmintrin.h>` or `<arm_neon.h>` into a program built with MSVC.
+
+### Fixed
+
+- `m2DestroyWorld` no longer crashes when the allocator's free hook reads the world back ([#209](https://github.com/Rawframe-Project/maul2d/pull/209)). The world is emptied before its first pool is freed, so the hook finds every id stale and every list empty.
+- `m2World_ReplayJournal` refuses a tape with `m2_errorFormat` when one of its void calls is refused ([#217](https://github.com/Rawframe-Project/maul2d/pull/217)). Before, it skipped the call and returned `m2_success`. Examples are a velocity edited to NaN and a step edited to a `dt` of 0. No tape a recording wrote is affected.
+- `m2CreateParticle` and `m2CreateParticlesInPolygon` refuse particle flags with a bit the library does not define, with `m2_errorInvalid` and one misuse ([#215](https://github.com/Rawframe-Project/maul2d/pull/215)). A restore refuses undefined bits in particle flags, joint flags and motion locks with `m2_errorFormat`.
+- `m2CreateMouseJoint` counts no misuse when it refuses a target too far from body B, and returns `m2_errorLimit` at any rotation of B ([#195](https://github.com/Rawframe-Project/maul2d/pull/195)). Before, a target past the float range with B turned exactly a quarter returned `m2_errorInvalid`; ordinary targets were never affected.
+- `m2Body_GetLocalPointVelocity` counts one misuse for a stale id instead of two ([#192](https://github.com/Rawframe-Project/maul2d/pull/192)).
+- `m2CreateWorld` refuses, with `m2_errorCapacity` and before allocating anything, a `jointCapacity` above 1,073,741,823. Above that, the joint edge count wrapped 32 bits ([#187](https://github.com/Rawframe-Project/maul2d/pull/187)).
+- `m2World_Hash` covers a pool's generations in a world with more than 536,870,911 slots in that pool ([#184](https://github.com/Rawframe-Project/maul2d/pull/184)). Above that, the pool's byte count overflowed 32 bits and its generations dropped out of the hash.
+- The dropped-work counters stop at `INT32_MAX` instead of overflowing ([#189](https://github.com/Rawframe-Project/maul2d/pull/189)). Worlds with more than 2^30 bodies or water volumes no longer overflow in the hash, the free rings or the restore check.
+
 ## [0.8.0](https://github.com/Rawframe-Project/maul2d/compare/v0.7.0...v0.8.0) (2026-10-29)
 
 This release renames the API by the Maul family's naming rule, which maul3d follows too. Every change is a rename, so a program builds again once it uses the new names below, and nothing it computes changes.
