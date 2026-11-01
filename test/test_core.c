@@ -136,6 +136,31 @@ static void TestNormalizeKeepsDirection(void)
     CHECK(differ == 0, "lengths near unit normalize bit for bit as before");
 }
 
+// Composing two rotations adds their angles and comes back unit length,
+// whatever the inputs' lengths.
+static void TestMulRotAddsAngles(void)
+{
+    uint32_t seed = 54321u;
+    float worst = 0.0f;
+    for (int32_t i = 0; i < 10000; ++i)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        float a = ((float)(seed >> 8) / 16777216.0f) * 2.0f * M2_PI - M2_PI;
+        seed = seed * 1664525u + 1013904223u;
+        float b = ((float)(seed >> 8) / 16777216.0f) * 2.0f * M2_PI - M2_PI;
+        m2Rot q = m2MulRot(m2MakeRot(a), m2MakeRot(b));
+        CHECK(m2IsNormalizedRot(q), "a composition is unit length");
+        double angle = atan2((double)q.s, (double)q.c);
+        double turn = 2.0 * (double)M2_PI;
+        double want = remainder((double)a + (double)b, turn);
+        worst = fmaxf(worst, (float)fabs(remainder(angle - want, turn)));
+    }
+    CHECK(worst < 2.0e-6f, "the angles add");
+    m2Rot long3 = m2MulRot((m2Rot){3.0f, 4.0f}, (m2Rot){1.0f, 0.0f});
+    CHECK(fabsf(long3.c - 0.6f) < 1.0e-6f && fabsf(long3.s - 0.8f) < 1.0e-6f,
+          "a long input keeps its direction");
+}
+
 // --- The world's allocator ---------------------------------------------------
 
 typedef struct Ledger
@@ -539,6 +564,7 @@ int main(void)
 
     TestAccuracy();
     TestNormalizeKeepsDirection();
+    TestMulRotAddsAngles();
     TestSimdBackend();
 
     if (s_failures > 0)
