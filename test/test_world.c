@@ -1821,6 +1821,16 @@ static void TestDefsMatchWhatARestoreAccepts(void)
         {
             m2DestroyWorld(refused);
         }
+        // Without particles too: the world keeps the settings, and a
+        // snapshot carries the radius, which a restore compares, so a NaN
+        // radius would make the world refuse its own snapshots.
+        def.particleCapacity = 0;
+        CHECK(m2CreateWorld(&def, &refused) == BadWorldDefStatus(field) && refused == NULL,
+              "and so it is in a world without particles");
+        if (refused != NULL)
+        {
+            m2DestroyWorld(refused);
+        }
     }
 
     m2WorldDef def = m2DefaultWorldDef();

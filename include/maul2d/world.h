@@ -53,7 +53,8 @@ extern "C"
         /// particleCapacity above 0 builds the particle system into the
         /// world for its whole life, so every snapshot has the same shape
         /// and rollback stays safe at any point in history. Its parameters
-        /// are fixed here like every other physics setting.
+        /// are fixed here like every other physics setting, and checked
+        /// even when particleCapacity is 0.
         int32_t particleCapacity;    // 0: no fluids
         int32_t waterVolumeCapacity; // 0: no buoyancy volumes
         float particleRadius;        // meters, M2_MIN_PARTICLE_RADIUS to M2_LOCAL_LIMIT
