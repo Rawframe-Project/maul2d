@@ -1189,7 +1189,9 @@ static void TestBodyDynamicsPack(void)
     CHECK(m2Body_IsAwake(nap, insomniac), "the flagged twin never does");
     CHECK(!m2Body_IsSleepEnabled(nap, insomniac), "and reads back");
 
+    CHECK(m2World_IsSleepEnabled(nap), "sleep starts on");
     m2World_EnableSleep(nap, false);
+    CHECK(!m2World_IsSleepEnabled(nap), "the master switch reads back off");
     CHECK(m2Body_IsAwake(nap, sleeper), "killing the master switch wakes the sleeper");
     for (int32_t i = 0; i < 240; ++i)
     {
@@ -1197,6 +1199,7 @@ static void TestBodyDynamicsPack(void)
     }
     CHECK(m2Body_IsAwake(nap, sleeper), "and nobody sleeps while it is off");
     m2World_EnableSleep(nap, true);
+    CHECK(m2World_IsSleepEnabled(nap), "and back on");
     for (int32_t i = 0; i < 240; ++i)
     {
         Step(nap, 1.0f / 60.0f, 4);
@@ -1354,6 +1357,8 @@ static void TestSmallBasket(void)
           "and comes back local");
     m2Vec2 wv = m2Body_GetWorldVector(world, body, (m2Vec2){1.0f, 0.0f});
     CHECK(wv.y > 0.99f, "vectors rotate the same way");
+    m2Vec2 lv = m2Body_GetLocalVector(world, body, wv);
+    CHECK(lv.x > 0.99f && lv.x < 1.01f && lv.y > -0.01f && lv.y < 0.01f, "and come back local");
     m2Body_SetAngularVelocity(world, body, 2.0f);
     m2Vec2 pv = m2Body_GetWorldPointVelocity(
         world, body, m2Body_GetWorldPoint(world, body, (m2Vec2){1.0f, 0.0f}));

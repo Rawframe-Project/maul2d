@@ -865,6 +865,86 @@ static void TestSoftWeld(void)
     m2DestroyWorld(world);
 }
 
+// The weld's spring setters reach the state its def builds: a rigid weld
+// given its springs before the first step steps onto the same bits as a
+// twin whose def carried them. Each reads back; another joint type or a
+// ratio out of range changes nothing and counts one misuse.
+static m2JointId SpringWeld(m2World* world, bool fromDef)
+{
+    m2BodyDef wallDef = m2DefaultBodyDef();
+    wallDef.position = (m2Pos2){0.0, 4.0};
+    m2BodyId wall = NewBody(world, &wallDef);
+    m2BodyDef beamDef = m2DefaultBodyDef();
+    beamDef.type = m2_dynamicBody;
+    beamDef.position = (m2Pos2){0.9, 4.0};
+    m2BodyId beam = NewBody(world, &beamDef);
+    m2ShapeDef shapeDef = m2DefaultShapeDef();
+    m2Polygon bar = m2MakeBox(0.9f, 0.06f);
+    NewPolygonShape(world, beam, &shapeDef, &bar);
+    m2WeldJointDef weld = m2DefaultWeldJointDef();
+    weld.bodyIdA = wall;
+    weld.bodyIdB = beam;
+    weld.localAnchorB = (m2Vec2){-0.9f, 0.0f};
+    if (fromDef)
+    {
+        weld.linearSpringHertz = 3.0f;
+        weld.linearSpringDampingRatio = 0.4f;
+        weld.angularSpringHertz = 1.5f;
+        weld.angularSpringDampingRatio = 0.3f;
+    }
+    return NewWeldJoint(world, &weld);
+}
+
+static void TestWeldSpringSetters(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    def.jointCapacity = 4;
+    m2World* built = NewWorld(&def);
+    SpringWeld(built, true);
+    m2World* world = NewWorld(&def);
+    m2JointId weld = SpringWeld(world, false);
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+    m2WeldJoint_SetLinearSpringHertz(world, weld, 3.0f);
+    m2WeldJoint_SetLinearSpringDampingRatio(world, weld, 0.4f);
+    m2WeldJoint_SetAngularSpringHertz(world, weld, 1.5f);
+    m2WeldJoint_SetAngularSpringDampingRatio(world, weld, 0.3f);
+    CHECK(m2World_GetCounters(world).misuseCount == misuse, "the four setters are accepted");
+    CHECK(m2WeldJoint_GetLinearSpringHertz(world, weld) == 3.0f &&
+              m2WeldJoint_GetLinearSpringDampingRatio(world, weld) == 0.4f &&
+              m2WeldJoint_GetAngularSpringHertz(world, weld) == 1.5f &&
+              m2WeldJoint_GetAngularSpringDampingRatio(world, weld) == 0.3f,
+          "and each reads back");
+    for (int32_t i = 0; i < 120; ++i)
+    {
+        Step(built, 1.0f / 60.0f, 4);
+        Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(m2World_Hash(world) == m2World_Hash(built),
+          "the set springs step as the def's springs do");
+
+    m2RevoluteJointDef hingeDef = m2DefaultRevoluteJointDef();
+    hingeDef.bodyIdA = m2Joint_GetBodyA(world, weld);
+    hingeDef.bodyIdB = m2Joint_GetBodyB(world, weld);
+    m2JointId hinge = NewRevoluteJoint(world, &hingeDef);
+    misuse = m2World_GetCounters(world).misuseCount;
+    m2WeldJoint_SetLinearSpringDampingRatio(world, hinge, 0.5f);
+    m2WeldJoint_SetAngularSpringHertz(world, hinge, 2.0f);
+    m2WeldJoint_SetLinearSpringDampingRatio(world, weld, -1.0f);
+    m2WeldJoint_SetAngularSpringDampingRatio(world, weld, 2.0f * M2_COEFFICIENT_LIMIT);
+    m2WeldJoint_SetAngularSpringHertz(world, weld, NAN);
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 5,
+          "another joint type and out-of-range values count one misuse each");
+    CHECK(m2WeldJoint_GetLinearSpringDampingRatio(world, weld) == 0.4f &&
+              m2WeldJoint_GetAngularSpringDampingRatio(world, weld) == 0.3f &&
+              m2WeldJoint_GetAngularSpringHertz(world, weld) == 1.5f,
+          "and change nothing");
+
+    m2DestroyWorld(world);
+    m2DestroyWorld(built);
+}
+
 // The getters hand back the same numbers the scissors compare: read
 // the load, set a limit just under it, and the joint MUST snap; set
 // one well over it and it MUST hold. Plus analytic checks: a hanging
@@ -2782,6 +2862,7 @@ int main(void)
     TestWheelCar();
     TestJointRuntimeTuning();
     TestSoftWeld();
+    TestWeldSpringSetters();
     TestReactionGetters();
     TestConnectedCollisionAndFilterJoint();
     TestJointSwitches();
