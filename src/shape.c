@@ -192,29 +192,18 @@ static void WriteShapeSlot(m2World* world, int32_t index, int32_t bodyIndex, con
     sh->shapeAlive[index] = 1;
 }
 
-// Enters the shape into its body's tree. A full node pool undoes the
-// create: the slot goes back to the head of the free ring with its
-// generation untouched, since a refused create moves no later id.
-static bool InsertShapeProxy(m2World* world, int32_t index, int32_t oldMaxShapeIndex)
+// Enters the shape into its body's tree. The insert cannot fail: a tree
+// holds 2L - 1 nodes for its L leaves, each live shape is at most one
+// leaf, and the pool holds two nodes per shape slot (treeNodeCapacity).
+static void InsertShapeProxy(m2World* world, int32_t index)
 {
     int32_t bodyIndex = world->shapes.shapeBody[index];
     int32_t tree = world->bodies.types[bodyIndex];
     world->broadphase.proxyIds[index] =
         m2TreeInsert(&world->broadphase.trees[tree], world->broadphase.treeNodes[tree],
                      m2Fatten(m2ShapeTightAabb(world, index)), index);
-    if (world->broadphase.proxyIds[index] != M2_NULL_NODE)
-    {
-        m2PushMoved(world, index);
-        return true;
-    }
-    m2Shapes* sh = &world->shapes;
-    world->bodies.bodyShapeHead[bodyIndex] = sh->shapeNext[index];
-    sh->shapeAlive[index] = 0;
-    sh->maxShapeIndex = oldMaxShapeIndex;
-    sh->shapeFreeHead = (sh->shapeFreeHead + sh->shapeCapacity - 1) % sh->shapeCapacity;
-    sh->shapeFreeQueue[sh->shapeFreeHead] = index;
-    sh->shapeFreeCount += 1;
-    return false;
+    M2_ASSERT(world->broadphase.proxyIds[index] != M2_NULL_NODE);
+    m2PushMoved(world, index);
 }
 
 // The create record holds the def's fields and zero bytes between them:
@@ -256,14 +245,14 @@ m2Result m2CreateShape(m2World* world, m2BodyId bodyId, const m2ShapeDef* def,
     world->shapes.shapeFreeHead = (world->shapes.shapeFreeHead + 1) % world->shapes.shapeCapacity;
     world->shapes.shapeFreeCount -= 1;
     WriteShapeSlot(world, index, bodyIndex, def, geometry);
-    int32_t oldMaxShapeIndex = world->shapes.maxShapeIndex;
-    world->shapes.maxShapeIndex = index + 1 > oldMaxShapeIndex ? index + 1 : oldMaxShapeIndex;
+    world->shapes.maxShapeIndex =
+        index + 1 > world->shapes.maxShapeIndex ? index + 1 : world->shapes.maxShapeIndex;
     // Dormant bodies keep the shape out of the trees until Enable, but
     // everything else (mass, journaling, the id) proceeds normally so
     // replays mint identical worlds.
-    if (world->bodies.disabled[bodyIndex] == 0 && !InsertShapeProxy(world, index, oldMaxShapeIndex))
+    if (world->bodies.disabled[bodyIndex] == 0)
     {
-        return m2Refuse(world, m2_errorCapacity);
+        InsertShapeProxy(world, index);
     }
     m2RecomputeMass(world, bodyIndex);
     m2ShapeId id = {(uint32_t)(index + 1), world->shapes.shapeGenerations[index]};

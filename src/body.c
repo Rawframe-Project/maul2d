@@ -732,6 +732,7 @@ static void EnableBody(m2World* world, m2BodyId bodyId, int32_t index)
         world->broadphase.proxyIds[s] =
             m2TreeInsert(&world->broadphase.trees[tree], world->broadphase.treeNodes[tree],
                          m2Fatten(m2ShapeTightAabb(world, s)), s);
+        M2_ASSERT(world->broadphase.proxyIds[s] != M2_NULL_NODE); // the pool never fills
         m2PushMoved(world, s);
     }
     world->bodies.asleep[index] = 0;

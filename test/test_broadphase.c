@@ -96,11 +96,72 @@ static void TestDuplicateCandidatesDoNotCrowdTheTable(void)
     m2DestroyWorld(world);
 }
 
+// Every shape slot fits every tree: a full shape pool in one tree, then
+// moved into another body type's tree a body at a time, disabled and
+// enabled again, and refilled after destroys. No insert fails (the world
+// asserts it), every shape keeps its proxy and the world validates.
+static void TestFullShapePoolFitsEveryTree(void)
+{
+    enum
+    {
+        SHAPES = 16
+    };
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = SHAPES;
+    def.shapeCapacity = SHAPES;
+    m2World* world = NewWorld(&def);
+    m2BodyId bodies[SHAPES];
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Circle ball = {{0.0f, 0.0f}, 0.25f};
+    for (int32_t i = 0; i < SHAPES; ++i)
+    {
+        m2BodyDef bd = m2DefaultBodyDef();
+        bd.position = (m2Pos2){(double)i, 0.0};
+        bodies[i] = NewBody(world, &bd);
+        NewCircleShape(world, bodies[i], &sd, &ball);
+    }
+    CHECK(m2World_GetCounters(world).shapeCount == SHAPES && m2World_Validate(world),
+          "a full shape pool fits the static tree");
+    for (int32_t i = 0; i < SHAPES; ++i)
+    {
+        m2Body_SetType(world, bodies[i], m2_kinematicBody);
+    }
+    CHECK(m2World_Validate(world), "and moves into the kinematic tree a body at a time");
+    for (int32_t i = 0; i < SHAPES; ++i)
+    {
+        m2Body_SetType(world, bodies[i], m2_dynamicBody);
+        m2Body_Enable(world, bodies[i], false);
+    }
+    for (int32_t i = 0; i < SHAPES; ++i)
+    {
+        m2Body_Enable(world, bodies[i], true);
+    }
+    Step(world, 1.0f / 60.0f, 4);
+    CHECK(m2World_Validate(world), "then into the dynamic tree, out of it and back");
+    for (int32_t i = 0; i < SHAPES; i += 2)
+    {
+        CHECK(DestroyBody(world, bodies[i]) == m2_success, "half the bodies go");
+    }
+    for (int32_t i = 0; i < SHAPES; i += 2)
+    {
+        m2BodyDef bd = m2DefaultBodyDef();
+        bd.type = m2_dynamicBody;
+        bd.position = (m2Pos2){(double)i, 2.0};
+        bodies[i] = NewBody(world, &bd);
+        NewCircleShape(world, bodies[i], &sd, &ball);
+    }
+    Step(world, 1.0f / 60.0f, 4);
+    CHECK(m2World_GetCounters(world).shapeCount == SHAPES && m2World_Validate(world),
+          "and the refilled pool fits again");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
     TestWideMoverPairsEverything();
     TestFullPairTableIsCounted();
     TestDuplicateCandidatesDoNotCrowdTheTable();
+    TestFullShapePoolFitsEveryTree();
     if (s_failures > 0)
     {
         printf("%d failure(s)\n", s_failures);
