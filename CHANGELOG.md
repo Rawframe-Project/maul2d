@@ -6,6 +6,31 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.10.0](https://github.com/Rawframe-Project/maul2d/compare/v0.9.0...v0.10.0) (2026-11-01)
+
+This release makes two kinds of argument refusals stricter, keeps a refused journal replay from changing anything a program can see, keeps host code from destroying the world it runs in, and stops `m2ComputeHull` from shrinking fine curves. A program that relied on the two old leniencies below needs to change. No golden value moves, so the same calls step to the same bits as on 0.9.0.
+
+### Changed
+
+- **Breaking:** a list read refuses a bad pair of array and capacity, as in maul3d ([#231](https://github.com/Rawframe-Project/maul2d/pull/231)). Only a null array with a capacity of 0 measures now:
+
+  | Call | A negative capacity, or a null array with a capacity above 0 |
+  |---|---|
+  | The 19 list reads (the id lists, `m2Shape_GetSensorOverlaps`, `m2World_GetContactData`, the overlap and cast-all queries, `m2World_CollideMover`, `m2World_OverlapParticlesAabb`) | return 0 and count one misuse, instead of measuring |
+  | `m2DecomposeOutline` | `m2_errorInvalid`, instead of succeeding |
+  | `m2World_Snapshot` and `m2World_StartJournal` (a negative capacity) | `m2_errorInvalid` with one misuse, instead of `m2_errorCapacity` |
+
+  A program that measured with `NULL` and a capacity other than 0 passes 0. `m2World_Restore` and `m2World_ReplayJournal` still answer a negative size with `m2_errorFormat` and no misuse, as for any bytes that are not a snapshot or tape.
+- **Breaking:** `m2CreateWorld` checks the particle settings (radius, density, gravity scale and the eight strengths) even when `particleCapacity` is 0 ([#233](https://github.com/Rawframe-Project/maul2d/pull/233)). A def with a setting outside its range, NaN included, is refused in a world without particles too. Such a world used to be created and then refuse its own snapshots and tapes with `m2_errorFormat`.
+- Results and formats: no golden value moves. The snapshot (version 7) and journal tape (version 8) formats are unchanged. As before 1.0.0, 0.10.0 reads only its own snapshots and tapes, and refuses 0.9.0's with `m2_errorVersion`.
+
+### Fixed
+
+- `m2ComputeHull` keeps every merged point within 0.01 m of the edge that replaces it ([#229](https://github.com/Rawframe-Project/maul2d/pull/229)). On a dense curve, such as a finely traced sprite outline, the merge used to eat the curve and return a smaller hull with `m2_success`: 256 points on a unit circle gave an octagon with points up to 0.09 m outside it. A curve that needs more than `M2_MAX_POLYGON_VERTICES` vertices to stay that close is now `m2_errorLimit`, as the header says for any hull of more vertices. A hull the old merge built correctly comes out the same.
+- A refused `m2World_ReplayJournal` leaves the event streams as they were ([#236](https://github.com/Rawframe-Project/maul2d/pull/236)). It used to empty the last step's events and drop an end event that a destroy between steps had queued, so a host saw a contact begin and never end.
+- A refused `m2World_ReplayJournal` leaves the counters as they were, except that misuse by host code the replay ran stays counted ([#238](https://github.com/Rawframe-Project/maul2d/pull/238)). It used to leave the last-step counts of the steps it ran before it failed. The `m2Counters` header and `docs/user/diagnostics.md` now say which counters a restore leaves: the last-step counts and the cumulative counts are not snapshotted, so right after a rollback the last-step counts still describe the step before it.
+- `m2DestroyWorld` called from host code the world runs (a task hook, a debug draw callback, the allocator) is refused, as every other writer is ([#243](https://github.com/Rawframe-Project/maul2d/pull/243)). It counts one misuse and the world stays. It used to free the world while the world was still using it, and from a free hook during a destroy it freed the world twice.
+
 ## [0.9.0](https://github.com/Rawframe-Project/maul2d/compare/v0.8.0...v0.9.0) (2026-10-31)
 
 This release settles the API ahead of 1.0.0. The step and the target transform now return a status. The diagnostics and the water volume take maul3d's names, and the public kinds have fixed sizes. Every call clears its outputs the same way when it fails. A program needs the changes below to build again. No golden value moves, so the same calls step to the same bits as on 0.8.0.
