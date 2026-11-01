@@ -159,19 +159,11 @@ static M2_NOINLINE m2Result CreateChainWorker(m2World* world, m2BodyId bodyId,
     world->chains.chainFreeHead = (world->chains.chainFreeHead + 1) % world->shapes.shapeCapacity;
     world->chains.chainFreeCount -= 1;
 
+    // The first segment always fits: the pool has a free slot, the def
+    // check covers every field a shape create checks, and a tree insert
+    // cannot fail (ApplyWorldDef sizes the node pools).
     int32_t created = CreateSegments(world, bodyId, def, chainIndex);
-    if (created == 0)
-    {
-        // Unreachable while the shape pool had room: hand the claimed slot
-        // back to the head of the free ring, generation untouched, since a
-        // refused create is not journaled and must move no later id.
-        world->chains.chainFreeHead =
-            (world->chains.chainFreeHead + world->shapes.shapeCapacity - 1) %
-            world->shapes.shapeCapacity;
-        world->chains.chainFreeQueue[world->chains.chainFreeHead] = chainIndex;
-        world->chains.chainFreeCount += 1;
-        return m2Refuse(world, m2_errorCapacity);
-    }
+    M2_ASSERT(created > 0);
     world->chains.chainAlive[chainIndex] = 1;
     world->chains.chainBody[chainIndex] = bodyIndex;
     world->chains.chainLoop[chainIndex] = def->isLoop ? 1 : 0;
