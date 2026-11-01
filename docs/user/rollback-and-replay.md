@@ -53,7 +53,7 @@ bool same = recorded && m2World_ReplayJournal(replica, tape, tapeSize) == m2_suc
 free(tape);
 ```
 
-A replay is all or nothing: a tape that is malformed, truncated, or that recreates an object under another id than the recording saw is refused, and the world stays as it was, its events included: the last step's events stay readable, and an end event a destroy queued between steps still arrives with the next step. A rollback during recording is recorded too, and replays faithfully. Two tapes of the same inputs replay to the same bits.
+A replay is all or nothing: a tape that is malformed, truncated, or that recreates an object under another id than the recording saw is refused, and the world stays as it was, its events and counters included: the last step's events stay readable, and an end event a destroy queued between steps still arrives with the next step. A rollback during recording is recorded too, and replays faithfully. Two tapes of the same inputs replay to the same bits.
 
 ## Hunting a divergence
 

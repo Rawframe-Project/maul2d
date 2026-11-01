@@ -18,7 +18,7 @@ if (counters.misuseCount > lastMisuse)
 }
 ```
 
-Two worlds given the same calls report the same counters, but only the counts of what the world holds and its step count are world state, which a restore brings back. The last-step counts (constraints, colors, the serial bucket, the drops) describe the last step this world completed, and `misuseCount` and `particleCreatesRefused` add up over its whole life. A restore, or a refused replay backing out, leaves both kinds as they are, so right after a rollback the last-step counts still describe the step before it. `m2World_GetProfile` reports the wall-clock time of the last step's stages; times are never deterministic. Neither the counters nor the times enter a snapshot or a hash. `m2World_GetMemoryUsage` reports what the world allocated, which stays fixed for its life.
+Two worlds given the same calls report the same counters, but only the counts of what the world holds and its step count are world state, which a restore brings back. The last-step counts (constraints, colors, the serial bucket, the drops) describe the last step this world completed, and `misuseCount` and `particleCreatesRefused` add up over its whole life. A restore leaves both kinds as they are, so right after a rollback the last-step counts still describe the step before it. A refused replay leaves every count as it was before the call, though misuse that code the replay ran for the program counted stays counted. `m2World_GetProfile` reports the wall-clock time of the last step's stages; times are never deterministic. Neither the counters nor the times enter a snapshot or a hash. `m2World_GetMemoryUsage` reports what the world allocated, which stays fixed for its life.
 
 ## Validation
 
