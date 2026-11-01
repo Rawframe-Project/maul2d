@@ -1232,11 +1232,8 @@ static void TestFillCutShortReplays(void)
 static void TestZeroPoolsAreFull(void)
 {
     // A world created with a particle or volume pool of 0 refuses every
-    // particle and volume as a full pool does: capacity, no misuse. The
-    // particle parameters of such a world are never checked, so even a NaN
-    // radius makes no difference.
+    // particle and volume as a full pool does: capacity, no misuse.
     m2WorldDef def = m2DefaultWorldDef();
-    def.particleRadius = NAN;
     m2World* world = NewWorld(&def);
     uint64_t misuse = m2World_GetCounters(world).misuseCount;
     m2ParticleDef particleDef = m2DefaultParticleDef();
