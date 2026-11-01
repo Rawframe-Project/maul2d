@@ -1989,7 +1989,8 @@ static void TestSubstepCap(void)
 // Host code a world runs, a task hook or a debug draw callback, tries to
 // change the world it serves. Every writer refuses: a status writer with
 // m2_errorBusy, a void writer by counting one misuse. A busy shatter leaves
-// its count, which the host may be filling, and gives null ids.
+// its count, which the host may be filling, and gives null ids, and a busy
+// m2DestroyWorld leaves the world whole.
 typedef struct Intruder
 {
     m2World* world;
@@ -2018,6 +2019,7 @@ static void Intrude(Intruder* in)
     in->shattered = m2Body_Shatter(in->world, in->body, &piece, 1, in->pieces, 2, &in->pieceCount);
     m2Body_SetLinearVelocity(in->world, in->body, (m2Vec2){5.0f, 0.0f});
     in->stepped = m2World_Step(in->world, 1.0f / 60.0f, 1);
+    m2DestroyWorld(in->world);
     in->stepsSeen = m2World_GetStepCount(in->world); // readers stay open
 }
 
@@ -2087,8 +2089,8 @@ static void TestHostCodeCannotWrite(void)
           "and gives null ids for the bodies it did not make");
     CHECK(in.stepped == m2_errorBusy && in.stepsSeen == 0,
           "a nested step refuses with m2_errorBusy, and readers still answer");
-    CHECK(m2World_GetCounters(in.world).misuseCount == misuse + 6,
-          "each refusal, the void ones too, counts one misuse");
+    CHECK(m2World_GetCounters(in.world).misuseCount == misuse + 7,
+          "each refusal, the void ones and the world's destroy too, counts one misuse");
     CHECK(m2Body_IsValid(in.world, in.body), "the body survived its destroy");
     CHECK(m2Body_GetLinearVelocity(in.world, in.body).x < 1.0f, "the velocity never landed");
     CHECK(m2World_GetStepCount(in.world) == 1, "only the outer step counts");
@@ -2105,6 +2107,7 @@ static void TestHostCodeCannotWrite(void)
     CHECK(in.created == m2_errorBusy && in.destroyed == m2_errorBusy,
           "writers refuse inside a draw callback");
     CHECK(in.stepped == m2_errorBusy && in.stepsSeen == 1, "a step inside a draw does not run");
+    CHECK(m2Body_IsValid(in.world, in.body), "and the world outlives its destroy inside a draw");
 
     m2BodyId after = m2_nullBodyId;
     CHECK(m2CreateBody(in.world, &bd, &after) == m2_success, "outside host code writers work");
@@ -2147,6 +2150,7 @@ static void MeddlingFree(void* memory, size_t size, size_t alignment, void* cont
     {
         m->freeCalls += 1;
         m->freeRefused += m2DestroyBody(m->target, m->body) == m2_errorBusy ? 1 : 0;
+        m2DestroyWorld(m->target);
     }
     free(memory);
 }
@@ -2197,9 +2201,9 @@ static void TestAllocatorCannotWrite(void)
     CHECK(meddler.allocCalls >= 3, "the replay allocated its backup, the chain and the pieces");
     CHECK(meddler.allocRefused == meddler.allocCalls, "every create from inside alloc refused");
     CHECK(meddler.freeCalls >= 3 && meddler.freeRefused == meddler.freeCalls,
-          "every destroy from inside free refused");
+          "every destroy from inside free refused, the world's own too");
     CHECK(m2World_GetCounters(fresh).misuseCount ==
-              misuse + (uint64_t)(meddler.allocCalls + meddler.freeCalls),
+              misuse + (uint64_t)(meddler.allocCalls + 2 * meddler.freeCalls),
           "host code calling back counts as misuse, mid-replay too");
     CHECK(m2World_Hash(fresh) == m2World_Hash(world), "and the replay is untouched by it");
 
@@ -2208,7 +2212,7 @@ static void TestAllocatorCannotWrite(void)
     meddler.freeRefused = 0;
     m2DestroyWorld(fresh);
     CHECK(meddler.freeCalls > 1 && meddler.freeRefused == meddler.freeCalls,
-          "a destroy's frees cannot change the world either");
+          "a destroy's frees cannot change the world, nor destroy it a second time");
     m2DestroyWorld(world);
     free(tape);
 }
