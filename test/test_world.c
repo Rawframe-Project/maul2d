@@ -167,8 +167,8 @@ static void TestAwakeCountIsDynamicOnly(void)
 
 static void TestCountersAndProfile(void)
 {
-    // Counters are state-derived and deterministic; neither they nor the
-    // wall-clock profile may touch the simulation hash.
+    // Counters are deterministic; neither they nor the wall-clock profile
+    // may touch the simulation hash.
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 32;
     def.shapeCapacity = 32;
@@ -180,12 +180,14 @@ static void TestCountersAndProfile(void)
     m2ShapeDef fs = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(15.0f, 0.5f);
     NewPolygonShape(world, floor, &fs, &slab);
+    m2BodyId lifted = m2_nullBodyId;
     for (int32_t i = 0; i < 6; ++i)
     {
         m2BodyDef bd = m2DefaultBodyDef();
         bd.type = m2_dynamicBody;
         bd.position = (m2Pos2){-2.5 + (double)i, 0.55};
         m2BodyId body = NewBody(world, &bd);
+        lifted = i == 0 ? body : lifted;
         m2ShapeDef sd = m2DefaultShapeDef();
         m2Polygon box = m2MakeBox(0.45f, 0.45f);
         NewPolygonShape(world, body, &sd, &box);
@@ -238,8 +240,40 @@ static void TestCountersAndProfile(void)
     CHECK(memcmp(&counters, &twinCounters, sizeof(m2Counters)) == 0,
           "twin worlds report identical counters");
 
+    // A restore brings back the counts of what the world holds and leaves
+    // the last-step counts, which describe the last step this world took.
+    int64_t size = m2World_GetSnapshotSize(world);
+    uint8_t* snap = malloc((size_t)size);
+    CHECK(Snapshot(world, snap, size) == size, "snapshot at step 10");
+    m2World* fresh = NewWorld(&def);
+    CHECK(Restore(fresh, snap, size), "a fresh world takes the snapshot");
+    m2Counters restored = m2World_GetCounters(fresh);
+    CHECK(restored.bodyCount == 7 && restored.touchingCount == 6 &&
+              restored.contactCount == counters.contactCount && restored.stepCount == 10,
+          "the held counts come back with the state");
+    CHECK(restored.constraintCount == 0 && restored.colorCount == 0,
+          "a world that never stepped has no last step to count");
+    m2Body_SetTransform(world, lifted, (m2Pos2){-2.5, 5.0}, (m2Rot){.c = 1.0f, .s = 0.0f});
+    Step(world, 1.0f / 60.0f, 4);
+    m2Counters stepped = m2World_GetCounters(world);
+    CHECK(stepped.constraintCount == 5, "the lifted box left its constraint");
+    CHECK(Restore(world, snap, size), "the world rolls back to step 10");
+    m2Counters rolled = m2World_GetCounters(world);
+    CHECK(rolled.touchingCount == 6 && rolled.stepCount == 10, "the held counts roll back");
+    CHECK(rolled.constraintCount == stepped.constraintCount &&
+              rolled.colorCount == stepped.colorCount,
+          "the last-step counts still describe the step before the rollback");
+    Step(world, 1.0f / 60.0f, 4);
+    Step(fresh, 1.0f / 60.0f, 4);
+    rolled = m2World_GetCounters(world);
+    restored = m2World_GetCounters(fresh);
+    CHECK(memcmp(&rolled, &restored, sizeof(m2Counters)) == 0,
+          "after a step both report the same counters");
+
+    m2DestroyWorld(fresh);
     m2DestroyWorld(twin);
     m2DestroyWorld(world);
+    free(snap);
 }
 
 static void TestKineticEnergy(void)
