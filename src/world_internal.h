@@ -270,6 +270,7 @@ typedef struct m2Broadphase
 {
     m2DynamicTree trees[M2_TREE_COUNT];
     m2TreeNode* treeNodes[M2_TREE_COUNT];
+    // Per tree: two per shape slot, which no tree exhausts (ApplyWorldDef).
     int32_t treeNodeCapacity;
     int32_t* proxyIds; // per shape slot; M2_NULL_NODE when absent
     uint8_t* inMoved;  // per shape slot dedup flag
