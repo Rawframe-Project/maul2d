@@ -2167,6 +2167,286 @@ static void TestHostCodeCannotWrite(void)
     m2DestroyWorld(in.world);
 }
 
+// Every public writer refuses inside host code, not only the few the test
+// above tries: a debug draw callback calls each once on live ids. Each
+// call counts one misuse, each status writer says m2_errorBusy, and the
+// world, its journal included, stays as it was.
+typedef struct Sweep
+{
+    m2World* world;
+    m2BodyId body;
+    m2BodyId other;
+    m2ShapeId shape;
+    m2JointId weld;
+    m2ChainId chain;
+    m2WaterVolumeId volume;
+    m2ParticleId particle;
+    int32_t calls;
+    int32_t statusCalls;
+    int32_t busy;
+    int32_t voidCalls;
+} Sweep;
+
+#define M2_SWEEP_STATUS(call) (sw->statusCalls += 1, sw->busy += (call) == m2_errorBusy ? 1 : 0)
+#define M2_SWEEP_VOID(call)   (sw->voidCalls += 1, (call))
+
+static void SweepBodyWriters(Sweep* sw)
+{
+    m2World* w = sw->world;
+    m2BodyId b = sw->body;
+    m2Pos2 at = m2Body_GetPosition(w, b);
+    m2Rot q = m2Body_GetRotation(w, b);
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2BodyId made = m2_nullBodyId;
+    M2_SWEEP_STATUS(m2CreateBody(w, &bd, &made));
+    M2_SWEEP_STATUS(m2DestroyBody(w, sw->other));
+    M2_SWEEP_STATUS(m2Body_SetTargetTransform(w, b, at, q, 1.0f / 60.0f));
+    m2Polygon piece = m2MakeBox(0.25f, 0.25f);
+    m2BodyId pieces[2] = {m2_nullBodyId, m2_nullBodyId};
+    int32_t pieceCount = 0;
+    M2_SWEEP_STATUS(m2Body_Shatter(w, sw->other, &piece, 1, pieces, 2, &pieceCount));
+    M2_SWEEP_VOID(m2Body_SetAwake(w, b, false));
+    M2_SWEEP_VOID(m2Body_EnableBullet(w, b, true));
+    M2_SWEEP_VOID(m2Body_SetUserData(w, b, 9));
+    M2_SWEEP_VOID(m2Body_SetDominance(w, b, 3));
+    M2_SWEEP_VOID(m2Body_SetMassData(w, b, m2Body_GetMassData(w, sw->other)));
+    M2_SWEEP_VOID(m2Body_ApplyMassFromShapes(w, b));
+    M2_SWEEP_VOID(m2Body_Enable(w, b, false));
+    M2_SWEEP_VOID(m2Body_SetLinearVelocity(w, b, (m2Vec2){1.0f, 0.0f}));
+    M2_SWEEP_VOID(m2Body_SetAngularVelocity(w, b, 1.0f));
+    M2_SWEEP_VOID(m2Body_SetTransform(w, b, (m2Pos2){at.x + 1.0, at.y}, q));
+    M2_SWEEP_VOID(m2Body_SetType(w, b, m2_kinematicBody));
+    M2_SWEEP_VOID(m2Body_ApplyLinearImpulseAtPoint(w, b, (m2Vec2){1.0f, 0.0f}, at));
+    M2_SWEEP_VOID(m2Body_ApplyLinearImpulse(w, b, (m2Vec2){1.0f, 0.0f}));
+    M2_SWEEP_VOID(m2Body_ApplyForceAtPoint(w, b, (m2Vec2){1.0f, 0.0f}, at));
+    M2_SWEEP_VOID(m2Body_ApplyForce(w, b, (m2Vec2){1.0f, 0.0f}));
+    M2_SWEEP_VOID(m2Body_ApplyTorque(w, b, 1.0f));
+    M2_SWEEP_VOID(m2Body_ApplyAngularImpulse(w, b, 1.0f));
+    M2_SWEEP_VOID(m2Body_SetLinearDamping(w, b, 0.5f));
+    M2_SWEEP_VOID(m2Body_SetAngularDamping(w, b, 0.5f));
+    M2_SWEEP_VOID(m2Body_SetGravityScale(w, b, 2.0f));
+    M2_SWEEP_VOID(m2Body_SetMotionLocks(w, b, (m2MotionLocks){true, true, true}));
+    M2_SWEEP_VOID(m2Body_EnableSleep(w, b, false));
+}
+
+static void SweepJointCreates(Sweep* sw)
+{
+    m2World* w = sw->world;
+    m2JointId made = m2_nullJointId;
+#define M2_SWEEP_JOINT(kind)                                                                       \
+    do                                                                                             \
+    {                                                                                              \
+        m2##kind##JointDef def = m2Default##kind##JointDef();                                      \
+        def.bodyIdA = sw->body;                                                                    \
+        def.bodyIdB = sw->other;                                                                   \
+        M2_SWEEP_STATUS(m2Create##kind##Joint(w, &def, &made));                                    \
+    } while (0)
+    M2_SWEEP_JOINT(Distance);
+    M2_SWEEP_JOINT(Revolute);
+    M2_SWEEP_JOINT(Prismatic);
+    M2_SWEEP_JOINT(Weld);
+    M2_SWEEP_JOINT(Wheel);
+    M2_SWEEP_JOINT(Filter);
+    M2_SWEEP_JOINT(Gear);
+    M2_SWEEP_JOINT(Pulley);
+    M2_SWEEP_JOINT(Ratchet);
+    M2_SWEEP_JOINT(Motor);
+    M2_SWEEP_JOINT(Mouse);
+#undef M2_SWEEP_JOINT
+}
+
+static void SweepJointWriters(Sweep* sw)
+{
+    m2World* w = sw->world;
+    m2JointId j = sw->weld;
+    SweepJointCreates(sw);
+    M2_SWEEP_VOID(m2Joint_SetMotorSpeed(w, j, 1.0f));
+    M2_SWEEP_VOID(m2Joint_SetMaxMotorEffort(w, j, 1.0f));
+    M2_SWEEP_VOID(m2Joint_EnableMotor(w, j, true));
+    M2_SWEEP_VOID(m2Joint_EnableLimit(w, j, true));
+    M2_SWEEP_VOID(m2Joint_SetLimits(w, j, -1.0f, 1.0f));
+    M2_SWEEP_VOID(m2Joint_SetBreakLimits(w, j, 10.0f, 10.0f));
+    M2_SWEEP_VOID(m2Joint_SetConstraintHertz(w, j, 30.0f));
+    M2_SWEEP_VOID(m2Joint_SetConstraintDampingRatio(w, j, 1.0f));
+    M2_SWEEP_VOID(m2Joint_SetSpringHertz(w, j, 2.0f));
+    M2_SWEEP_VOID(m2Joint_SetSpringDampingRatio(w, j, 0.5f));
+    M2_SWEEP_VOID(m2WeldJoint_SetLinearSpringHertz(w, j, 2.0f));
+    M2_SWEEP_VOID(m2WeldJoint_SetLinearSpringDampingRatio(w, j, 0.5f));
+    M2_SWEEP_VOID(m2WeldJoint_SetAngularSpringHertz(w, j, 2.0f));
+    M2_SWEEP_VOID(m2WeldJoint_SetAngularSpringDampingRatio(w, j, 0.5f));
+    M2_SWEEP_VOID(m2DistanceJoint_SetLength(w, j, 1.0f));
+    M2_SWEEP_VOID(m2DistanceJoint_SetLengthRange(w, j, 0.5f, 2.0f));
+    M2_SWEEP_VOID(m2Joint_EnableSpring(w, j, true));
+    M2_SWEEP_VOID(m2Joint_EnableConnectedCollision(w, j, true));
+    M2_SWEEP_VOID(m2Joint_SetUserData(w, j, 9));
+    M2_SWEEP_VOID(m2MotorJoint_SetOffsets(w, j, (m2Vec2){1.0f, 0.0f}, 0.5f));
+    M2_SWEEP_VOID(m2GearJoint_SetRatio(w, j, 2.0f));
+    M2_SWEEP_VOID(m2PulleyJoint_SetRatio(w, j, 2.0f));
+    M2_SWEEP_VOID(m2MouseJoint_SetTarget(w, j, (m2Pos2){1.0, 1.0}));
+    M2_SWEEP_STATUS(m2DestroyJoint(w, j));
+}
+
+static void SweepShapeWriters(Sweep* sw)
+{
+    m2World* w = sw->world;
+    m2ShapeId s = sw->shape;
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2ShapeId made = m2_nullShapeId;
+    m2Circle circle = {{0.0f, 0.0f}, 0.25f};
+    m2Capsule capsule = {{-0.25f, 0.0f}, {0.25f, 0.0f}, 0.1f};
+    m2Polygon box = m2MakeBox(0.25f, 0.25f);
+    m2Segment segment = {{-0.25f, 0.0f}, {0.25f, 0.0f}};
+    M2_SWEEP_STATUS(m2CreateCircleShape(w, sw->body, &sd, &circle, &made));
+    M2_SWEEP_STATUS(m2CreateCapsuleShape(w, sw->body, &sd, &capsule, &made));
+    M2_SWEEP_STATUS(m2CreatePolygonShape(w, sw->body, &sd, &box, &made));
+    M2_SWEEP_STATUS(m2CreateSegmentShape(w, sw->body, &sd, &segment, &made));
+    M2_SWEEP_VOID(m2Shape_SetFriction(w, s, 0.1f));
+    M2_SWEEP_VOID(m2Shape_SetRestitution(w, s, 0.5f));
+    M2_SWEEP_VOID(m2Shape_SetTangentSpeed(w, s, 1.0f));
+    M2_SWEEP_VOID(m2Shape_SetFilter(w, s, 2, 2, -1));
+    M2_SWEEP_VOID(m2Shape_SetCircle(w, s, &circle));
+    M2_SWEEP_VOID(m2Shape_SetCapsule(w, s, &capsule));
+    M2_SWEEP_VOID(m2Shape_SetPolygon(w, s, &box));
+    M2_SWEEP_VOID(m2Shape_SetSegment(w, s, &segment));
+    M2_SWEEP_VOID(m2Shape_SetDensity(w, s, 5.0f));
+    M2_SWEEP_VOID(m2Shape_SetUserData(w, s, 9));
+    M2_SWEEP_STATUS(m2DestroyShape(w, s));
+    m2Vec2 ledge[4] = {{-1.0f, 0.0f}, {-0.5f, 0.0f}, {0.5f, 0.0f}, {1.0f, 0.0f}};
+    m2ChainDef cd = m2DefaultChainDef();
+    cd.points = ledge;
+    cd.count = 4;
+    m2ChainId chain = m2_nullChainId;
+    M2_SWEEP_STATUS(m2CreateChain(w, sw->body, &cd, &chain));
+    M2_SWEEP_VOID(m2Chain_SetFriction(w, sw->chain, 0.1f));
+    M2_SWEEP_VOID(m2Chain_SetRestitution(w, sw->chain, 0.5f));
+    M2_SWEEP_STATUS(m2DestroyChain(w, sw->chain));
+}
+
+static void SweepWorldWriters(Sweep* sw)
+{
+    m2World* w = sw->world;
+    m2ParticleDef pd = ParticleDef((m2Pos2){0.0, 3.0}, (m2Vec2){0.0f, 0.0f}, m2_waterParticle);
+    m2ParticleId particle = m2_nullParticleId;
+    m2Polygon box = m2MakeBox(0.25f, 0.25f);
+    int32_t filled = 0;
+    M2_SWEEP_STATUS(m2CreateParticle(w, &pd, &particle));
+    M2_SWEEP_STATUS(m2CreateParticlesInPolygon(w, &pd, &box, &filled));
+    M2_SWEEP_VOID(m2Particle_SetLifetime(w, sw->particle, 1.0f));
+    M2_SWEEP_VOID(m2Particle_SetUserData(w, sw->particle, 9));
+    M2_SWEEP_VOID(m2Particle_SetVelocity(w, sw->particle, (m2Vec2){1.0f, 0.0f}));
+    M2_SWEEP_STATUS(m2DestroyParticle(w, sw->particle));
+    m2WaterVolumeDef vd = m2DefaultWaterVolumeDef();
+    vd.bounds = (m2WorldAabb){{-1.0, -1.0}, {1.0, 1.0}};
+    m2WaterVolumeId volume = m2_nullWaterVolumeId;
+    M2_SWEEP_STATUS(m2CreateWaterVolume(w, &vd, &volume));
+    M2_SWEEP_VOID(m2WaterVolume_SetSurface(w, sw->volume, 2.0));
+    M2_SWEEP_STATUS(m2DestroyWaterVolume(w, sw->volume));
+    m2ExplosionDef ed = m2DefaultExplosionDef();
+    M2_SWEEP_VOID(m2World_SetGravity(w, (m2Vec2){0.0f, 5.0f}));
+    M2_SWEEP_VOID(m2World_SetWind(w, (m2Vec2){5.0f, 0.0f}, 0.5f));
+    M2_SWEEP_VOID(m2World_Explode(w, &ed));
+    M2_SWEEP_VOID(m2World_EnableSleep(w, false));
+    M2_SWEEP_STATUS(m2World_Step(w, 1.0f / 60.0f, 4));
+    uint8_t bytes[64] = {0};
+    int64_t size = 7;
+    M2_SWEEP_STATUS(m2World_Restore(w, bytes, (int64_t)sizeof(bytes)));
+    M2_SWEEP_STATUS(m2World_StartJournal(w, bytes, (int64_t)sizeof(bytes)));
+    M2_SWEEP_STATUS(m2World_StopJournal(w, &size));
+    M2_SWEEP_STATUS(m2World_ReplayJournal(w, bytes, (int64_t)sizeof(bytes)));
+}
+
+#undef M2_SWEEP_STATUS
+#undef M2_SWEEP_VOID
+
+static void SweepingDraw(m2Pos2 p1, m2Pos2 p2, uint32_t color, void* context)
+{
+    (void)p1;
+    (void)p2;
+    (void)color;
+    Sweep* sw = (Sweep*)context;
+    if (sw->calls++ == 0)
+    {
+        SweepBodyWriters(sw);
+        SweepJointWriters(sw);
+        SweepShapeWriters(sw);
+        SweepWorldWriters(sw);
+    }
+}
+
+static void TestEveryWriterRefusesInHostCode(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.particleCapacity = 8;
+    def.waterVolumeCapacity = 2;
+    Sweep sw;
+    memset(&sw, 0, sizeof(sw));
+    sw.world = NewWorld(&def);
+    m2BodyDef gd = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(sw.world, &gd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon slab = m2MakeBox(4.0f, 0.5f);
+    NewPolygonShape(sw.world, ground, &sd, &slab);
+    m2Vec2 ledge[4] = {{-4.0f, 2.0f}, {-2.0f, 2.0f}, {2.0f, 2.0f}, {4.0f, 2.0f}};
+    m2ChainDef cd = m2DefaultChainDef();
+    cd.points = ledge;
+    cd.count = 4;
+    sw.chain = NewChain(sw.world, ground, &cd);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    bd.position = (m2Pos2){-1.0, 1.0};
+    sw.body = NewBody(sw.world, &bd);
+    m2Circle ball = {{0.0f, 0.0f}, 0.5f};
+    sw.shape = NewCircleShape(sw.world, sw.body, &sd, &ball);
+    bd.position = (m2Pos2){1.0, 1.0};
+    sw.other = NewBody(sw.world, &bd);
+    m2Polygon box = m2MakeBox(0.5f, 0.5f);
+    NewPolygonShape(sw.world, sw.other, &sd, &box);
+    m2WeldJointDef wd = m2DefaultWeldJointDef();
+    wd.bodyIdA = sw.body;
+    wd.bodyIdB = sw.other;
+    CHECK(m2CreateWeldJoint(sw.world, &wd, &sw.weld) == m2_success, "the weld exists");
+    m2WaterVolumeDef vd = m2DefaultWaterVolumeDef();
+    vd.bounds = (m2WorldAabb){{-4.0, -1.0}, {4.0, 0.5}};
+    sw.volume = NewWaterVolume(sw.world, &vd);
+    sw.particle =
+        EmitParticle(sw.world, (m2Pos2){0.0, 3.0}, (m2Vec2){0.0f, 0.0f}, m2_waterParticle);
+    CHECK(m2Chain_IsValid(sw.world, sw.chain) && m2WaterVolume_IsValid(sw.world, sw.volume) &&
+              m2Particle_IsValid(sw.world, sw.particle),
+          "every kind of object is live");
+    Step(sw.world, 1.0f / 60.0f, 4);
+
+    // The journal records from before the draw; a tape of nothing is the
+    // one to match.
+    int64_t capacity = m2World_GetJournalBaseSize(sw.world) + 4096;
+    uint8_t* during = malloc((size_t)capacity);
+    uint8_t* idle = malloc((size_t)capacity);
+    CHECK(during != NULL && idle != NULL && StartJournal(sw.world, during, capacity),
+          "the journal starts");
+    uint64_t hash = m2World_Hash(sw.world);
+    uint64_t misuse = m2World_GetCounters(sw.world).misuseCount;
+    m2DebugDraw draw = {0};
+    draw.drawSegment = SweepingDraw;
+    draw.drawAabbs = true;
+    draw.context = &sw;
+    m2World_Draw(sw.world, &draw);
+    CHECK(sw.calls > 0 && sw.statusCalls == 33 && sw.voidCalls == 65,
+          "the draw swept every writer");
+    CHECK(sw.busy == sw.statusCalls, "every status writer said m2_errorBusy");
+    CHECK(m2World_GetCounters(sw.world).misuseCount ==
+              misuse + (uint64_t)(sw.statusCalls + sw.voidCalls),
+          "and every writer counted one misuse");
+    CHECK(m2World_Hash(sw.world) == hash, "the world is as it was");
+    int64_t duringBytes = StopJournal(sw.world);
+    CHECK(StartJournal(sw.world, idle, capacity), "a second journal starts");
+    int64_t idleBytes = StopJournal(sw.world);
+    CHECK(duringBytes > 0 && duringBytes == idleBytes &&
+              memcmp(during, idle, (size_t)duringBytes) == 0,
+          "and the journal recorded nothing");
+    free(idle);
+    free(during);
+    m2DestroyWorld(sw.world);
+}
+
 // The allocator is host code too: one that tries to change the world it
 // serves, from inside alloc or free, is refused, during a replay's scratch
 // allocations and a destroy's frees alike.
@@ -4373,6 +4653,7 @@ int main(void)
     TestRestoreRefusesANonUnitRotation();
     TestEveryRefusalHasAReason();
     TestHostCodeCannotWrite();
+    TestEveryWriterRefusesInHostCode();
     TestAllocatorCannotWrite();
     TestCorruptInputIsNotMisuse();
     TestHostCodeMistakesCountMidReplay();

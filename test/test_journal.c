@@ -1351,8 +1351,7 @@ static void TestJournalCallsRefuseOutOfTurn(void)
     misuse = m2World_GetCounters(world).misuseCount;
     CHECK(m2World_StartJournal(world, other, capacity) == m2_errorState,
           "a second start while recording is m2_errorState");
-    CHECK(m2World_ReplayJournal(world, tape, capacity) == m2_errorState,
-          "and so is a replay");
+    CHECK(m2World_ReplayJournal(world, tape, capacity) == m2_errorState, "and so is a replay");
     CHECK(m2World_StopJournal(world, NULL) == m2_errorInvalid,
           "a stop with nowhere to write its size is refused while recording too");
     CHECK(m2World_GetCounters(world).misuseCount == misuse + 3, "each counting one misuse");
