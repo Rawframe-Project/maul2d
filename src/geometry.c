@@ -240,11 +240,13 @@ static bool SpanIsFlat(const m2Vec2* chain, int32_t n, int32_t a, int32_t b)
 // neighbors, one at a time, lowest index first, until none is left. The
 // points dropped earlier between those neighbors must stay within two
 // slops of the line too, so the hull never moves further than that from
-// any point of the chain.
+// any point of the chain. The chain holds as many points as BuildHull's
+// hull buffer: in float, a point near collinear may sit on both of the
+// monotone chain's halves.
 static int32_t MergeCollinear(m2Vec2* hull, int32_t n)
 {
-    m2Vec2 chain[M2_MAX_HULL_POINTS];
-    int32_t kept[M2_MAX_HULL_POINTS];
+    m2Vec2 chain[2 * M2_MAX_HULL_POINTS];
+    int32_t kept[2 * M2_MAX_HULL_POINTS];
     for (int32_t i = 0; i < n; ++i)
     {
         chain[i] = hull[i];
