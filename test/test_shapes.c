@@ -640,9 +640,128 @@ static void TestGrownStaticShapeCollides(void)
     m2DestroyWorld(world);
 }
 
+// A geometry setter leaves a body as if the shape had been created with
+// the new geometry: the same type, the same mass data. Every pair of the
+// four kinds, on a rotated dynamic body that has stepped, and the session
+// that sets them replays onto the same bits.
+enum
+{
+    KIND_CIRCLE,
+    KIND_CAPSULE,
+    KIND_POLYGON,
+    KIND_SEGMENT,
+    KIND_COUNT
+};
+
+static const m2Circle kSetCircle = {{0.1f, 0.2f}, 0.4f};
+static const m2Capsule kSetCapsule = {{-0.3f, 0.1f}, {0.5f, 0.2f}, 0.2f};
+static const m2Segment kSetSegment = {{-0.5f, 0.0f}, {0.7f, 0.3f}};
+
+static m2Polygon SetterPolygon(void)
+{
+    const m2Vec2 points[4] = {{-0.1f, -0.7f}, {0.5f, -0.7f}, {0.5f, 0.5f}, {-0.1f, 0.5f}};
+    return MakePolygon(points, 4, 0.0f);
+}
+
+static m2ShapeId CreateKind(m2World* world, m2BodyId body, int32_t kind)
+{
+    m2ShapeDef shapeDef = m2DefaultShapeDef();
+    m2Polygon polygon = SetterPolygon();
+    switch (kind)
+    {
+    case KIND_CIRCLE:
+        return NewCircleShape(world, body, &shapeDef, &kSetCircle);
+    case KIND_CAPSULE:
+        return NewCapsuleShape(world, body, &shapeDef, &kSetCapsule);
+    case KIND_POLYGON:
+        return NewPolygonShape(world, body, &shapeDef, &polygon);
+    default:
+        return NewSegmentShape(world, body, &shapeDef, &kSetSegment);
+    }
+}
+
+static void SetKind(m2World* world, m2ShapeId shape, int32_t kind)
+{
+    m2Polygon polygon = SetterPolygon();
+    switch (kind)
+    {
+    case KIND_CIRCLE:
+        m2Shape_SetCircle(world, shape, &kSetCircle);
+        break;
+    case KIND_CAPSULE:
+        m2Shape_SetCapsule(world, shape, &kSetCapsule);
+        break;
+    case KIND_POLYGON:
+        m2Shape_SetPolygon(world, shape, &polygon);
+        break;
+    default:
+        m2Shape_SetSegment(world, shape, &kSetSegment);
+        break;
+    }
+}
+
+static m2World* SetterWorld(m2BodyId* body)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    m2World* world = NewWorld(&def);
+    m2BodyDef bodyDef = m2DefaultBodyDef();
+    bodyDef.type = m2_dynamicBody;
+    bodyDef.position = (m2Pos2){0.0, 1.5};
+    bodyDef.rotation = (m2Rot){0.8f, 0.6f};
+    *body = NewBody(world, &bodyDef);
+    return world;
+}
+
+static void TestGeometrySettersMatchCreation(void)
+{
+    const m2ShapeType types[KIND_COUNT] = {m2_circleShape, m2_capsuleShape, m2_polygonShape,
+                                           m2_segmentShape};
+    enum
+    {
+        CAPACITY = 1 << 16
+    };
+    uint8_t* tape = malloc(CAPACITY);
+    for (int32_t from = 0; from < KIND_COUNT; ++from)
+    {
+        for (int32_t to = 0; to < KIND_COUNT; ++to)
+        {
+            m2BodyId made = m2_nullBodyId;
+            m2World* direct = SetterWorld(&made);
+            CreateKind(direct, made, to);
+            m2BodyId body = m2_nullBodyId;
+            m2World* world = SetterWorld(&body);
+            CHECK(StartJournal(world, tape, CAPACITY), "the journal starts");
+            m2ShapeId shape = CreateKind(world, body, from);
+            Step(world, 1.0f / 60.0f, 4);
+            uint64_t misuse = m2World_GetCounters(world).misuseCount;
+            SetKind(world, shape, to);
+            CHECK(m2World_GetCounters(world).misuseCount == misuse, "the setter is accepted");
+            CHECK(m2Shape_GetType(world, shape) == types[to], "the shape takes the new type");
+            m2MassData want = m2Body_GetMassData(direct, made);
+            m2MassData got = m2Body_GetMassData(world, body);
+            CHECK(memcmp(&want, &got, sizeof(want)) == 0,
+                  "the body's mass data is that of the new geometry");
+            Step(world, 1.0f / 60.0f, 4);
+            int64_t bytes = StopJournal(world);
+            m2BodyId again = m2_nullBodyId;
+            m2World* replayed = SetterWorld(&again);
+            CHECK(ReplayJournal(replayed, tape, bytes) &&
+                      m2World_Hash(replayed) == m2World_Hash(world),
+                  "the session replays onto the same bits");
+            m2DestroyWorld(replayed);
+            m2DestroyWorld(world);
+            m2DestroyWorld(direct);
+        }
+    }
+    free(tape);
+}
+
 int main(void)
 {
     TestGrownStaticShapeCollides();
+    TestGeometrySettersMatchCreation();
     TestLocalLengthsAreBounded();
     TestOutlineThatNearlyTouchesIsRefused();
     TestSmallPolygonFarFromOriginIsValid();

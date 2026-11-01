@@ -235,6 +235,120 @@ m2Result m2World_StopJournal(m2World* world, int64_t* bytesOut)
     return result;
 }
 
+// The event streams are observer state no snapshot holds, and the restore
+// that backs out a refused replay clears them. The replay keeps a copy, so
+// a refused tape leaves the last step's events readable and an end event a
+// between-step destroy queued still reaches the next step.
+enum
+{
+    M2_EVENT_STREAMS = 7
+};
+
+typedef struct m2EventStream
+{
+    void* items;
+    int32_t* count;
+    size_t itemSize;
+} m2EventStream;
+
+static void EventStreams(m2World* world, m2EventStream streams[M2_EVENT_STREAMS])
+{
+    m2Events* e = &world->events;
+    streams[0] = (m2EventStream){e->beginEvents, &e->beginEventCount, sizeof(*e->beginEvents)};
+    streams[1] = (m2EventStream){e->endEvents, &e->endEventCount, sizeof(*e->endEvents)};
+    streams[2] =
+        (m2EventStream){e->pendingEndEvents, &e->pendingEndCount, sizeof(*e->pendingEndEvents)};
+    streams[3] =
+        (m2EventStream){e->sensorBeginEvents, &e->sensorBeginCount, sizeof(*e->sensorBeginEvents)};
+    streams[4] =
+        (m2EventStream){e->sensorEndEvents, &e->sensorEndCount, sizeof(*e->sensorEndEvents)};
+    streams[5] = (m2EventStream){e->pendingSensorEnd, &e->pendingSensorEndCount,
+                                 sizeof(*e->pendingSensorEnd)};
+    streams[6] = (m2EventStream){e->jointBreakEvents, &e->jointBreakEventCount,
+                                 sizeof(*e->jointBreakEvents)};
+}
+
+// The bytes the streams' events take. Each stream lives in the world's own
+// memory, so the sum fits a size_t.
+static size_t EventBytes(const m2EventStream streams[M2_EVENT_STREAMS])
+{
+    size_t bytes = 0;
+    for (int32_t i = 0; i < M2_EVENT_STREAMS; ++i)
+    {
+        bytes += (size_t)*streams[i].count * streams[i].itemSize;
+    }
+    return bytes;
+}
+
+static void SaveEvents(const m2EventStream streams[M2_EVENT_STREAMS], uint8_t* out,
+                       int32_t counts[M2_EVENT_STREAMS])
+{
+    for (int32_t i = 0; i < M2_EVENT_STREAMS; ++i)
+    {
+        size_t bytes = (size_t)*streams[i].count * streams[i].itemSize;
+        counts[i] = *streams[i].count;
+        if (bytes > 0)
+        {
+            memcpy(out, streams[i].items, bytes);
+        }
+        out += bytes;
+    }
+}
+
+static void LoadEvents(const m2EventStream streams[M2_EVENT_STREAMS], const uint8_t* in,
+                       const int32_t counts[M2_EVENT_STREAMS])
+{
+    for (int32_t i = 0; i < M2_EVENT_STREAMS; ++i)
+    {
+        size_t bytes = (size_t)counts[i] * streams[i].itemSize;
+        if (bytes > 0)
+        {
+            memcpy(streams[i].items, in, bytes);
+        }
+        *streams[i].count = counts[i];
+        in += bytes;
+    }
+}
+
+// The counts of m2Counters that steps and creates set or add to, which no
+// snapshot holds either. A refused replay puts them back after its steps
+// ran, so it leaves them as they were before the call. The misuse count is
+// not among them: what host code the replay ran gets wrong still counts.
+typedef struct m2ObserverCounts
+{
+    int32_t constraintCount;
+    int32_t colorCount;
+    int32_t overflowCount;
+    int32_t pairsDropped;
+    int32_t particlePairsDropped;
+    int32_t particleBodyContactsDropped;
+    uint64_t particleCreatesRefused;
+} m2ObserverCounts;
+
+static m2ObserverCounts SaveCounts(const m2World* world)
+{
+    m2ObserverCounts counts;
+    counts.constraintCount = world->solver.lastConstraintCount;
+    counts.colorCount = world->solver.lastGraphColors;
+    counts.overflowCount = world->solver.lastOverflow;
+    counts.pairsDropped = world->contacts.pairsDropped;
+    counts.particlePairsDropped = world->particles.particlePairsDropped;
+    counts.particleBodyContactsDropped = world->particles.particleBodyContactsDropped;
+    counts.particleCreatesRefused = world->particles.particleCreatesRefused;
+    return counts;
+}
+
+static void LoadCounts(m2World* world, const m2ObserverCounts* counts)
+{
+    world->solver.lastConstraintCount = counts->constraintCount;
+    world->solver.lastGraphColors = counts->colorCount;
+    world->solver.lastOverflow = counts->overflowCount;
+    world->contacts.pairsDropped = counts->pairsDropped;
+    world->particles.particlePairsDropped = counts->particlePairsDropped;
+    world->particles.particleBodyContactsDropped = counts->particleBodyContactsDropped;
+    world->particles.particleCreatesRefused = counts->particleCreatesRefused;
+}
+
 // Applies a tape to a world: header, snapshot, then one command per op.
 // Stops at the first op that is malformed, unknown, or recreates an
 // object under a different id than the recording saw; the caller rolls
@@ -323,10 +437,15 @@ static M2_NOINLINE m2Result WorldReplayJournalWorker(m2World* world, const void*
         return prefix;
     }
     // Atomic: the world takes the whole tape or none of it. A snapshot
-    // taken first backs out a replay that fails part way, so a corrupt
-    // or truncated tape never leaves a half-built world behind.
+    // taken first, and copies of the event streams and the observer counts
+    // after it, back out a replay that fails part way, so a corrupt or
+    // truncated tape never leaves a half-built world behind.
     int64_t backupSize = m2World_GetSnapshotSize(world);
-    void* backup = m2WorldAlloc(world, (size_t)backupSize);
+    m2EventStream streams[M2_EVENT_STREAMS];
+    int32_t eventCounts[M2_EVENT_STREAMS];
+    EventStreams(world, streams);
+    size_t scratchBytes = (size_t)backupSize + EventBytes(streams);
+    uint8_t* backup = m2WorldAlloc(world, scratchBytes);
     if (backup == NULL)
     {
         return m2Refuse(world, m2_errorCapacity); // no memory for the guarantee means no replay
@@ -335,6 +454,8 @@ static M2_NOINLINE m2Result WorldReplayJournalWorker(m2World* world, const void*
     m2Result snapshot = m2World_Snapshot(world, backup, backupSize, &written);
     M2_ASSERT(snapshot == m2_success && written == backupSize); // sized just above
     (void)snapshot;
+    SaveEvents(streams, backup + backupSize, eventCounts);
+    m2ObserverCounts counts = SaveCounts(world);
     // The ops re-enter the public calls with the tape's values; a value
     // they refuse is the tape's fault, not the caller's, and counts nothing
     // (m2Refuse). Host code the replay runs is the caller's and still
@@ -346,9 +467,11 @@ static M2_NOINLINE m2Result WorldReplayJournalWorker(m2World* world, const void*
         m2Result restored = m2World_Restore(world, backup, backupSize);
         M2_ASSERT(restored == m2_success); // our own snapshot must restore: invariant
         (void)restored;
+        LoadEvents(streams, backup + backupSize, eventCounts);
+        LoadCounts(world, &counts);
     }
     world->replaying = 0;
-    m2WorldFree(world, backup, (size_t)backupSize);
+    m2WorldFree(world, backup, scratchBytes);
     return result;
 }
 

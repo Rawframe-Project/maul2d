@@ -167,8 +167,8 @@ static void TestAwakeCountIsDynamicOnly(void)
 
 static void TestCountersAndProfile(void)
 {
-    // Counters are state-derived and deterministic; neither they nor the
-    // wall-clock profile may touch the simulation hash.
+    // Counters are deterministic; neither they nor the wall-clock profile
+    // may touch the simulation hash.
     m2WorldDef def = m2DefaultWorldDef();
     def.bodyCapacity = 32;
     def.shapeCapacity = 32;
@@ -180,12 +180,14 @@ static void TestCountersAndProfile(void)
     m2ShapeDef fs = m2DefaultShapeDef();
     m2Polygon slab = m2MakeBox(15.0f, 0.5f);
     NewPolygonShape(world, floor, &fs, &slab);
+    m2BodyId lifted = m2_nullBodyId;
     for (int32_t i = 0; i < 6; ++i)
     {
         m2BodyDef bd = m2DefaultBodyDef();
         bd.type = m2_dynamicBody;
         bd.position = (m2Pos2){-2.5 + (double)i, 0.55};
         m2BodyId body = NewBody(world, &bd);
+        lifted = i == 0 ? body : lifted;
         m2ShapeDef sd = m2DefaultShapeDef();
         m2Polygon box = m2MakeBox(0.45f, 0.45f);
         NewPolygonShape(world, body, &sd, &box);
@@ -238,8 +240,40 @@ static void TestCountersAndProfile(void)
     CHECK(memcmp(&counters, &twinCounters, sizeof(m2Counters)) == 0,
           "twin worlds report identical counters");
 
+    // A restore brings back the counts of what the world holds and leaves
+    // the last-step counts, which describe the last step this world took.
+    int64_t size = m2World_GetSnapshotSize(world);
+    uint8_t* snap = malloc((size_t)size);
+    CHECK(Snapshot(world, snap, size) == size, "snapshot at step 10");
+    m2World* fresh = NewWorld(&def);
+    CHECK(Restore(fresh, snap, size), "a fresh world takes the snapshot");
+    m2Counters restored = m2World_GetCounters(fresh);
+    CHECK(restored.bodyCount == 7 && restored.touchingCount == 6 &&
+              restored.contactCount == counters.contactCount && restored.stepCount == 10,
+          "the held counts come back with the state");
+    CHECK(restored.constraintCount == 0 && restored.colorCount == 0,
+          "a world that never stepped has no last step to count");
+    m2Body_SetTransform(world, lifted, (m2Pos2){-2.5, 5.0}, (m2Rot){.c = 1.0f, .s = 0.0f});
+    Step(world, 1.0f / 60.0f, 4);
+    m2Counters stepped = m2World_GetCounters(world);
+    CHECK(stepped.constraintCount == 5, "the lifted box left its constraint");
+    CHECK(Restore(world, snap, size), "the world rolls back to step 10");
+    m2Counters rolled = m2World_GetCounters(world);
+    CHECK(rolled.touchingCount == 6 && rolled.stepCount == 10, "the held counts roll back");
+    CHECK(rolled.constraintCount == stepped.constraintCount &&
+              rolled.colorCount == stepped.colorCount,
+          "the last-step counts still describe the step before the rollback");
+    Step(world, 1.0f / 60.0f, 4);
+    Step(fresh, 1.0f / 60.0f, 4);
+    rolled = m2World_GetCounters(world);
+    restored = m2World_GetCounters(fresh);
+    CHECK(memcmp(&rolled, &restored, sizeof(m2Counters)) == 0,
+          "after a step both report the same counters");
+
+    m2DestroyWorld(fresh);
     m2DestroyWorld(twin);
     m2DestroyWorld(world);
+    free(snap);
 }
 
 static void TestKineticEnergy(void)
@@ -1189,7 +1223,9 @@ static void TestBodyDynamicsPack(void)
     CHECK(m2Body_IsAwake(nap, insomniac), "the flagged twin never does");
     CHECK(!m2Body_IsSleepEnabled(nap, insomniac), "and reads back");
 
+    CHECK(m2World_IsSleepEnabled(nap), "sleep starts on");
     m2World_EnableSleep(nap, false);
+    CHECK(!m2World_IsSleepEnabled(nap), "the master switch reads back off");
     CHECK(m2Body_IsAwake(nap, sleeper), "killing the master switch wakes the sleeper");
     for (int32_t i = 0; i < 240; ++i)
     {
@@ -1197,6 +1233,7 @@ static void TestBodyDynamicsPack(void)
     }
     CHECK(m2Body_IsAwake(nap, sleeper), "and nobody sleeps while it is off");
     m2World_EnableSleep(nap, true);
+    CHECK(m2World_IsSleepEnabled(nap), "and back on");
     for (int32_t i = 0; i < 240; ++i)
     {
         Step(nap, 1.0f / 60.0f, 4);
@@ -1354,10 +1391,26 @@ static void TestSmallBasket(void)
           "and comes back local");
     m2Vec2 wv = m2Body_GetWorldVector(world, body, (m2Vec2){1.0f, 0.0f});
     CHECK(wv.y > 0.99f, "vectors rotate the same way");
+    m2Vec2 lv = m2Body_GetLocalVector(world, body, wv);
+    CHECK(lv.x > 0.99f && lv.x < 1.01f && lv.y > -0.01f && lv.y < 0.01f, "and come back local");
     m2Body_SetAngularVelocity(world, body, 2.0f);
     m2Vec2 pv = m2Body_GetWorldPointVelocity(
         world, body, m2Body_GetWorldPoint(world, body, (m2Vec2){1.0f, 0.0f}));
     CHECK(pv.x < -1.9f && pv.x > -2.1f, "point velocity is w cross r");
+    m2Vec2 lpv = m2Body_GetLocalPointVelocity(world, body, (m2Vec2){1.0f, 0.0f});
+    CHECK(lpv.x == pv.x && lpv.y == pv.y, "and the same from the body-local point");
+
+    // A body's box is the union of its shapes' boxes: a segment out to the
+    // right and the unit box, both in the rotated frame.
+    m2Segment arm = {{0.0f, 0.0f}, {2.0f, 0.0f}};
+    m2ShapeId armShape = NewSegmentShape(world, body, &sd, &arm);
+    m2Segment readArm = m2SegmentShape_GetSegment(world, armShape);
+    CHECK(memcmp(&readArm, &arm, sizeof(arm)) == 0, "the segment reads back");
+    m2WorldAabb both = m2Body_ComputeAabb(world, body);
+    CHECK(both.lowerBound.x > 99.5 && both.lowerBound.x < 99.7 && both.upperBound.x > 100.3 &&
+              both.upperBound.x < 100.5 && both.lowerBound.y > 49.5 && both.lowerBound.y < 49.7 &&
+              both.upperBound.y > 51.9 && both.upperBound.y < 52.1,
+          "the body's box spans the box and the arm");
 
     // Per-body joint walk.
     m2BodyDef ad = m2DefaultBodyDef();
@@ -1821,6 +1874,16 @@ static void TestDefsMatchWhatARestoreAccepts(void)
         {
             m2DestroyWorld(refused);
         }
+        // Without particles too: the world keeps the settings, and a
+        // snapshot carries the radius, which a restore compares, so a NaN
+        // radius would make the world refuse its own snapshots.
+        def.particleCapacity = 0;
+        CHECK(m2CreateWorld(&def, &refused) == BadWorldDefStatus(field) && refused == NULL,
+              "and so it is in a world without particles");
+        if (refused != NULL)
+        {
+            m2DestroyWorld(refused);
+        }
     }
 
     m2WorldDef def = m2DefaultWorldDef();
@@ -1979,7 +2042,8 @@ static void TestSubstepCap(void)
 // Host code a world runs, a task hook or a debug draw callback, tries to
 // change the world it serves. Every writer refuses: a status writer with
 // m2_errorBusy, a void writer by counting one misuse. A busy shatter leaves
-// its count, which the host may be filling, and gives null ids.
+// its count, which the host may be filling, and gives null ids, and a busy
+// m2DestroyWorld leaves the world whole.
 typedef struct Intruder
 {
     m2World* world;
@@ -2008,6 +2072,7 @@ static void Intrude(Intruder* in)
     in->shattered = m2Body_Shatter(in->world, in->body, &piece, 1, in->pieces, 2, &in->pieceCount);
     m2Body_SetLinearVelocity(in->world, in->body, (m2Vec2){5.0f, 0.0f});
     in->stepped = m2World_Step(in->world, 1.0f / 60.0f, 1);
+    m2DestroyWorld(in->world);
     in->stepsSeen = m2World_GetStepCount(in->world); // readers stay open
 }
 
@@ -2077,8 +2142,8 @@ static void TestHostCodeCannotWrite(void)
           "and gives null ids for the bodies it did not make");
     CHECK(in.stepped == m2_errorBusy && in.stepsSeen == 0,
           "a nested step refuses with m2_errorBusy, and readers still answer");
-    CHECK(m2World_GetCounters(in.world).misuseCount == misuse + 6,
-          "each refusal, the void ones too, counts one misuse");
+    CHECK(m2World_GetCounters(in.world).misuseCount == misuse + 7,
+          "each refusal, the void ones and the world's destroy too, counts one misuse");
     CHECK(m2Body_IsValid(in.world, in.body), "the body survived its destroy");
     CHECK(m2Body_GetLinearVelocity(in.world, in.body).x < 1.0f, "the velocity never landed");
     CHECK(m2World_GetStepCount(in.world) == 1, "only the outer step counts");
@@ -2095,6 +2160,7 @@ static void TestHostCodeCannotWrite(void)
     CHECK(in.created == m2_errorBusy && in.destroyed == m2_errorBusy,
           "writers refuse inside a draw callback");
     CHECK(in.stepped == m2_errorBusy && in.stepsSeen == 1, "a step inside a draw does not run");
+    CHECK(m2Body_IsValid(in.world, in.body), "and the world outlives its destroy inside a draw");
 
     m2BodyId after = m2_nullBodyId;
     CHECK(m2CreateBody(in.world, &bd, &after) == m2_success, "outside host code writers work");
@@ -2137,6 +2203,7 @@ static void MeddlingFree(void* memory, size_t size, size_t alignment, void* cont
     {
         m->freeCalls += 1;
         m->freeRefused += m2DestroyBody(m->target, m->body) == m2_errorBusy ? 1 : 0;
+        m2DestroyWorld(m->target);
     }
     free(memory);
 }
@@ -2187,9 +2254,9 @@ static void TestAllocatorCannotWrite(void)
     CHECK(meddler.allocCalls >= 3, "the replay allocated its backup, the chain and the pieces");
     CHECK(meddler.allocRefused == meddler.allocCalls, "every create from inside alloc refused");
     CHECK(meddler.freeCalls >= 3 && meddler.freeRefused == meddler.freeCalls,
-          "every destroy from inside free refused");
+          "every destroy from inside free refused, the world's own too");
     CHECK(m2World_GetCounters(fresh).misuseCount ==
-              misuse + (uint64_t)(meddler.allocCalls + meddler.freeCalls),
+              misuse + (uint64_t)(meddler.allocCalls + 2 * meddler.freeCalls),
           "host code calling back counts as misuse, mid-replay too");
     CHECK(m2World_Hash(fresh) == m2World_Hash(world), "and the replay is untouched by it");
 
@@ -2198,7 +2265,7 @@ static void TestAllocatorCannotWrite(void)
     meddler.freeRefused = 0;
     m2DestroyWorld(fresh);
     CHECK(meddler.freeCalls > 1 && meddler.freeRefused == meddler.freeCalls,
-          "a destroy's frees cannot change the world either");
+          "a destroy's frees cannot change the world, nor destroy it a second time");
     m2DestroyWorld(world);
     free(tape);
 }
@@ -2528,6 +2595,455 @@ static void TestStaleIdsCountInEveryCall(void)
     CHECK(m2World_GetCounters(world).misuseCount == misuse + 19,
           "each of the 19 calls counts once");
     m2DestroyWorld(world);
+}
+
+// The calls TestStaleIdsCountInEveryCall leaves out: every other reader
+// answers a stale id with the value its header names, every other writer
+// changes nothing, and each counts one misuse.
+static bool IsZeroVec(m2Vec2 v)
+{
+    return v.x == 0.0f && v.y == 0.0f;
+}
+
+static bool IsOrigin(m2Pos2 p)
+{
+    return p.x == 0.0 && p.y == 0.0;
+}
+
+static void TestStaleIdsCountInEveryOtherCall(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.waterVolumeCapacity = 1;
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    m2BodyId body = NewBody(world, &bd);
+    m2BodyId other = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Circle ball = {{0.0f, 0.0f}, 0.5f};
+    m2ShapeId shape = NewCircleShape(world, body, &sd, &ball);
+    m2DistanceJointDef jd = m2DefaultDistanceJointDef();
+    jd.bodyIdA = body;
+    jd.bodyIdB = other;
+    m2JointId joint = NewDistanceJoint(world, &jd);
+    m2MouseJointDef md = m2DefaultMouseJointDef();
+    md.bodyIdA = other;
+    md.bodyIdB = body;
+    m2JointId mouse = NewMouseJoint(world, &md);
+    m2Vec2 ledge[4] = {{-4.0f, 0.0f}, {-2.0f, 0.0f}, {2.0f, 0.0f}, {4.0f, 0.0f}};
+    m2ChainDef cd = m2DefaultChainDef();
+    cd.points = ledge;
+    cd.count = 4;
+    m2ChainId chain = NewChain(world, other, &cd);
+    m2WaterVolumeDef vd = m2DefaultWaterVolumeDef();
+    vd.bounds = (m2WorldAabb){{-1.0, -1.0}, {1.0, 1.0}};
+    m2WaterVolumeId volume = NewWaterVolume(world, &vd);
+    CHECK(m2DestroyWaterVolume(world, volume) == m2_success, "the volume goes");
+    CHECK(m2DestroyChain(world, chain) == m2_success, "the chain goes");
+    CHECK(m2DestroyBody(world, body) == m2_success, "the body goes, its shape and joints with it");
+    uint64_t before = m2World_Hash(world);
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+
+    CHECK(!m2Body_IsAwake(world, body) && m2Body_GetType(world, body) == m2_staticBody &&
+              m2Body_GetDominance(world, body) == 0 && !m2Body_IsBulletEnabled(world, body),
+          "a stale body reads asleep, static, without dominance and no bullet");
+    m2MassData mass = m2Body_GetMassData(world, body);
+    CHECK(mass.mass == 0.0f && IsZeroVec(mass.center) && mass.centralInertia == 0.0f &&
+              IsZeroVec(m2Body_GetLocalCenter(world, body)) &&
+              IsOrigin(m2Body_GetWorldCenterOfMass(world, body)) &&
+              m2Body_GetCentralInertia(world, body) == 0.0f &&
+              m2Body_GetGravityScale(world, body) == 0.0f,
+          "and has no mass, center, inertia or gravity scale");
+    m2WorldAabb box = m2Body_ComputeAabb(world, body);
+    CHECK(IsOrigin(box.lowerBound) && IsOrigin(box.upperBound) &&
+              m2Body_GetUserData(world, body) == 0,
+          "nor a box or data");
+    CHECK(IsOrigin(m2Body_GetWorldPoint(world, body, (m2Vec2){1.0f, 2.0f})) &&
+              IsZeroVec(m2Body_GetLocalPoint(world, body, (m2Pos2){1.0, 2.0})) &&
+              IsZeroVec(m2Body_GetWorldVector(world, body, (m2Vec2){1.0f, 2.0f})) &&
+              IsZeroVec(m2Body_GetLocalVector(world, body, (m2Vec2){1.0f, 2.0f})),
+          "and maps every point and vector to zero");
+    m2Body_EnableBullet(world, body, true);
+    m2Body_SetDominance(world, body, 3);
+    m2Body_ApplyMassFromShapes(world, body);
+    m2Body_SetUserData(world, body, 7u);
+    m2Body_ApplyForceAtPoint(world, body, (m2Vec2){1.0f, 0.0f}, (m2Pos2){0.0, 1.0});
+    m2Body_ApplyLinearImpulseAtPoint(world, body, (m2Vec2){1.0f, 0.0f}, (m2Pos2){0.0, 1.0});
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 21, "each body call counts once");
+
+    misuse = m2World_GetCounters(world).misuseCount;
+    uint64_t category = 1u;
+    uint64_t mask = 1u;
+    int32_t group = 1;
+    m2Shape_GetFilter(world, shape, &category, &mask, &group);
+    CHECK(category == 0u && mask == 0u && group == 0, "a stale shape's filter reads zeros");
+    CHECK(m2Shape_GetBody(world, shape).index1 == 0 && m2Shape_GetUserData(world, shape) == 0 &&
+              IsOrigin(m2Shape_GetClosestPoint(world, shape, (m2Pos2){1.0, 1.0})) &&
+              m2Shape_GetParentChain(world, shape).index1 == 0 &&
+              !m2Shape_TestPoint(world, shape, (m2Pos2){0.0, 0.0}) &&
+              m2Shape_GetType(world, shape) == m2_circleShape && !m2Shape_IsSensor(world, shape) &&
+              m2Shape_GetDensity(world, shape) == 0.0f,
+          "and it has no body, data, surface, chain, inside, type, sensor or density");
+    m2Shape_SetUserData(world, shape, 7u);
+    m2Shape_SetFilter(world, shape, 2u, 2u, 0);
+    m2Shape_SetCircle(world, shape, &ball);
+    m2Capsule pill = {{-0.5f, 0.0f}, {0.5f, 0.0f}, 0.25f};
+    m2Shape_SetCapsule(world, shape, &pill);
+    m2Polygon square = m2MakeBox(0.5f, 0.5f);
+    m2Shape_SetPolygon(world, shape, &square);
+    m2Segment edge = {{-0.5f, 0.0f}, {0.5f, 0.0f}};
+    m2Shape_SetSegment(world, shape, &edge);
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 15, "each shape call counts once");
+
+    misuse = m2World_GetCounters(world).misuseCount;
+    CHECK(!m2Joint_IsConnectedCollisionEnabled(world, joint) &&
+              m2Joint_GetBodyA(world, joint).index1 == 0 &&
+              m2Joint_GetBodyB(world, joint).index1 == 0 &&
+              m2Joint_GetType(world, joint) == m2_distanceJoint &&
+              m2Joint_GetUserData(world, joint) == 0 &&
+              m2Joint_GetLinearSeparation(world, joint) == 0.0f &&
+              m2Joint_GetAngularSeparation(world, joint) == 0.0f,
+          "a stale joint has no bodies, type, data or separation");
+    m2Joint_SetUserData(world, joint, 7u);
+    m2Joint_SetBreakLimits(world, joint, 10.0f, 10.0f);
+    m2Joint_SetConstraintHertz(world, joint, 30.0f);
+    m2DistanceJoint_SetLengthRange(world, joint, 0.5f, 2.0f);
+    m2MouseJoint_SetTarget(world, mouse, (m2Pos2){1.0, 1.0});
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 12, "each joint call counts once");
+
+    misuse = m2World_GetCounters(world).misuseCount;
+    m2Chain_SetFriction(world, chain, 0.5f);
+    m2Chain_SetRestitution(world, chain, 0.5f);
+    m2WaterVolume_SetSurface(world, volume, 0.5);
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 3,
+          "a stale chain or volume counts once per call");
+    CHECK(m2World_Hash(world) == before, "and no refused writer changed the world");
+    m2DestroyWorld(world);
+}
+
+// Every create refuses its own arguments the same way: a null out pointer,
+// a null def and a def not made by its default function are invalid, a
+// stale body is stale and one body twice in a joint is invalid. Each
+// counts one misuse, leaves the out id null and creates nothing.
+typedef enum CreateMode
+{
+    CREATE_OK,
+    CREATE_NULL_OUT,
+    CREATE_NULL_DEF,
+    CREATE_NO_COOKIE,
+    CREATE_STALE_BODY,
+    CREATE_SAME_BODY,
+    CREATE_MODES
+} CreateMode;
+
+typedef struct CreateScene
+{
+    m2BodyId a;
+    m2BodyId b;
+    m2BodyId stale;
+} CreateScene;
+
+typedef m2Result CreateCall(m2World* world, const CreateScene* scene, CreateMode mode,
+                            uint32_t* madeOut);
+
+#define M2_TEST_JOINT_CREATE(kind, ...)                                                            \
+    static m2Result Create##kind(m2World* world, const CreateScene* scene, CreateMode mode,        \
+                                 uint32_t* madeOut)                                                \
+    {                                                                                              \
+        m2##kind##JointDef def = m2Default##kind##JointDef();                                      \
+        def.bodyIdA = scene->a;                                                                    \
+        def.bodyIdB = mode == CREATE_STALE_BODY  ? scene->stale                                    \
+                      : mode == CREATE_SAME_BODY ? scene->a                                        \
+                                                 : scene->b;                                       \
+        __VA_ARGS__;                                                                               \
+        def.internalValue = mode == CREATE_NO_COOKIE ? 0 : def.internalValue;                      \
+        m2JointId id = {7u, 7u};                                                                   \
+        m2Result result = m2Create##kind##Joint(world, mode == CREATE_NULL_DEF ? NULL : &def,      \
+                                                mode == CREATE_NULL_OUT ? NULL : &id);             \
+        *madeOut = mode == CREATE_NULL_OUT ? 0u : id.index1;                                       \
+        return result;                                                                             \
+    }
+
+M2_TEST_JOINT_CREATE(Distance, (void)0)
+M2_TEST_JOINT_CREATE(Revolute, (void)0)
+M2_TEST_JOINT_CREATE(Prismatic, (void)0)
+M2_TEST_JOINT_CREATE(Weld, (void)0)
+M2_TEST_JOINT_CREATE(Wheel, (void)0)
+M2_TEST_JOINT_CREATE(Filter, (void)0)
+M2_TEST_JOINT_CREATE(Motor, (void)0)
+M2_TEST_JOINT_CREATE(Mouse, def.target = (m2Pos2){1.0, 0.0})
+M2_TEST_JOINT_CREATE(Gear, (void)0)
+M2_TEST_JOINT_CREATE(Pulley, def.groundAnchorA = (m2Pos2){0.0, 3.0};
+                     def.groundAnchorB = (m2Pos2){1.0, 3.0})
+M2_TEST_JOINT_CREATE(Ratchet, (void)0)
+
+#define M2_TEST_SHAPE_CREATE(kind, ...)                                                            \
+    static m2Result Create##kind##Shape_(m2World* world, const CreateScene* scene,                 \
+                                         CreateMode mode, uint32_t* madeOut)                       \
+    {                                                                                              \
+        m2ShapeDef def = m2DefaultShapeDef();                                                      \
+        def.internalValue = mode == CREATE_NO_COOKIE ? 0 : def.internalValue;                      \
+        __VA_ARGS__;                                                                               \
+        m2ShapeId id = {7u, 7u};                                                                   \
+        m2Result result = m2Create##kind##Shape(                                                   \
+            world, mode == CREATE_STALE_BODY ? scene->stale : scene->a,                            \
+            mode == CREATE_NULL_DEF ? NULL : &def, &shape, mode == CREATE_NULL_OUT ? NULL : &id);  \
+        *madeOut = mode == CREATE_NULL_OUT ? 0u : id.index1;                                       \
+        return result;                                                                             \
+    }
+
+M2_TEST_SHAPE_CREATE(Circle, m2Circle shape = {{0.0f, 0.0f}, 0.25f})
+M2_TEST_SHAPE_CREATE(Capsule, m2Capsule shape = {{-0.25f, 0.0f}, {0.25f, 0.0f}, 0.1f})
+M2_TEST_SHAPE_CREATE(Polygon, m2Polygon shape = m2MakeBox(0.25f, 0.25f))
+M2_TEST_SHAPE_CREATE(Segment, m2Segment shape = {{-0.25f, 0.0f}, {0.25f, 0.0f}})
+
+static m2Result CreateChain_(m2World* world, const CreateScene* scene, CreateMode mode,
+                             uint32_t* madeOut)
+{
+    static const m2Vec2 points[4] = {{-3.0f, -2.0f}, {-1.0f, -2.0f}, {1.0f, -2.0f}, {3.0f, -2.0f}};
+    m2ChainDef def = m2DefaultChainDef();
+    def.points = points;
+    def.count = 4;
+    def.internalValue = mode == CREATE_NO_COOKIE ? 0 : def.internalValue;
+    m2ChainId id = {7u, 7u};
+    m2Result result =
+        m2CreateChain(world, mode == CREATE_STALE_BODY ? scene->stale : scene->a,
+                      mode == CREATE_NULL_DEF ? NULL : &def, mode == CREATE_NULL_OUT ? NULL : &id);
+    *madeOut = mode == CREATE_NULL_OUT ? 0u : id.index1;
+    return result;
+}
+
+static m2Result CreateBody_(m2World* world, const CreateScene* scene, CreateMode mode,
+                            uint32_t* madeOut)
+{
+    (void)scene;
+    m2BodyDef def = m2DefaultBodyDef();
+    def.internalValue = mode == CREATE_NO_COOKIE ? 0 : def.internalValue;
+    m2BodyId id = {7u, 7u};
+    m2Result result = m2CreateBody(world, mode == CREATE_NULL_DEF ? NULL : &def,
+                                   mode == CREATE_NULL_OUT ? NULL : &id);
+    *madeOut = mode == CREATE_NULL_OUT ? 0u : id.index1;
+    return result;
+}
+
+static m2Result CreateWaterVolume_(m2World* world, const CreateScene* scene, CreateMode mode,
+                                   uint32_t* madeOut)
+{
+    (void)scene;
+    m2WaterVolumeDef def = m2DefaultWaterVolumeDef();
+    def.bounds = (m2WorldAabb){{-1.0, -1.0}, {1.0, 1.0}};
+    def.internalValue = mode == CREATE_NO_COOKIE ? 0 : def.internalValue;
+    m2WaterVolumeId id = {7u, 7u};
+    m2Result result = m2CreateWaterVolume(world, mode == CREATE_NULL_DEF ? NULL : &def,
+                                          mode == CREATE_NULL_OUT ? NULL : &id);
+    *madeOut = mode == CREATE_NULL_OUT ? 0u : id.index1;
+    return result;
+}
+
+static m2Result CreateParticle_(m2World* world, const CreateScene* scene, CreateMode mode,
+                                uint32_t* madeOut)
+{
+    (void)scene;
+    m2ParticleDef def = m2DefaultParticleDef();
+    def.internalValue = mode == CREATE_NO_COOKIE ? 0 : def.internalValue;
+    m2ParticleId id = {7u, 7u};
+    m2Result result = m2CreateParticle(world, mode == CREATE_NULL_DEF ? NULL : &def,
+                                       mode == CREATE_NULL_OUT ? NULL : &id);
+    *madeOut = mode == CREATE_NULL_OUT ? 0u : id.index1;
+    return result;
+}
+
+static void TestCreatesRefuseTheirArguments(void)
+{
+    // takesBodies: 0 none, 1 one body, 2 a joint's two.
+    static const struct
+    {
+        const char* name;
+        CreateCall* create;
+        int32_t takesBodies;
+    } kCreates[] = {
+        {"body", CreateBody_, 0},
+        {"circle", CreateCircleShape_, 1},
+        {"capsule", CreateCapsuleShape_, 1},
+        {"polygon", CreatePolygonShape_, 1},
+        {"segment", CreateSegmentShape_, 1},
+        {"chain", CreateChain_, 1},
+        {"distance", CreateDistance, 2},
+        {"revolute", CreateRevolute, 2},
+        {"prismatic", CreatePrismatic, 2},
+        {"weld", CreateWeld, 2},
+        {"wheel", CreateWheel, 2},
+        {"filter", CreateFilter, 2},
+        {"motor", CreateMotor, 2},
+        {"mouse", CreateMouse, 2},
+        {"gear", CreateGear, 2},
+        {"pulley", CreatePulley, 2},
+        {"ratchet", CreateRatchet, 2},
+        {"water volume", CreateWaterVolume_, 0},
+        {"particle", CreateParticle_, 0},
+    };
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 8;
+    def.shapeCapacity = 16;
+    def.jointCapacity = 4;
+    def.particleCapacity = 4;
+    def.waterVolumeCapacity = 2;
+    for (size_t i = 0; i < sizeof(kCreates) / sizeof(kCreates[0]); ++i)
+    {
+        for (int32_t mode = CREATE_OK; mode < CREATE_MODES; ++mode)
+        {
+            if ((mode == CREATE_STALE_BODY && kCreates[i].takesBodies == 0) ||
+                (mode == CREATE_SAME_BODY && kCreates[i].takesBodies < 2))
+            {
+                continue;
+            }
+            m2World* world = NewWorld(&def);
+            m2BodyDef bd = m2DefaultBodyDef();
+            bd.type = m2_dynamicBody;
+            CreateScene scene;
+            scene.a = NewBody(world, &bd);
+            bd.position = (m2Pos2){1.0, 0.0};
+            scene.b = NewBody(world, &bd);
+            scene.stale = NewBody(world, &bd);
+            DestroyBody(world, scene.stale);
+            uint64_t misuse = m2World_GetCounters(world).misuseCount;
+            uint64_t hash = m2World_Hash(world);
+            uint32_t made = 0u;
+            m2Result result = kCreates[i].create(world, &scene, (CreateMode)mode, &made);
+            uint64_t counted = m2World_GetCounters(world).misuseCount - misuse;
+            if (mode == CREATE_OK)
+            {
+                CHECK(result == m2_success && made != 0u && counted == 0u, kCreates[i].name);
+                m2DestroyWorld(world);
+                continue;
+            }
+            m2Result want = mode == CREATE_STALE_BODY ? m2_errorStale : m2_errorInvalid;
+            CHECK(result == want, kCreates[i].name);
+            CHECK(made == 0u && counted == 1u && m2World_Hash(world) == hash,
+                  "a refused create counts once, gives the null id and changes nothing");
+            m2DestroyWorld(world);
+        }
+    }
+}
+
+// Each joint type measures its own separation: B moves by (0.3, 0.4) and
+// turns by 0.2 radians from where the joint was made, before any step.
+// Point joints read the 0.5 anchor gap, sliders the gap off their axis, a
+// distance joint its length error, a mouse the gap to its target; welds,
+// motors and prismatic joints read the turn, and a filter holds nothing.
+static m2JointId SeparationJoint(m2World* world, m2BodyId a, m2BodyId b, m2JointType type)
+{
+    const m2Vec2 anchorA = {1.0f, 0.0f};
+    switch (type)
+    {
+    case m2_distanceJoint:
+    {
+        m2DistanceJointDef def = m2DefaultDistanceJointDef();
+        def.bodyIdA = a;
+        def.bodyIdB = b;
+        def.length = 1.0f;
+        return NewDistanceJoint(world, &def);
+    }
+    case m2_revoluteJoint:
+    {
+        m2RevoluteJointDef def = m2DefaultRevoluteJointDef();
+        def.bodyIdA = a;
+        def.bodyIdB = b;
+        def.localAnchorA = anchorA;
+        return NewRevoluteJoint(world, &def);
+    }
+    case m2_prismaticJoint:
+    {
+        m2PrismaticJointDef def = m2DefaultPrismaticJointDef();
+        def.bodyIdA = a;
+        def.bodyIdB = b;
+        def.localAnchorA = anchorA;
+        return NewPrismaticJoint(world, &def);
+    }
+    case m2_weldJoint:
+    {
+        m2WeldJointDef def = m2DefaultWeldJointDef();
+        def.bodyIdA = a;
+        def.bodyIdB = b;
+        def.localAnchorA = anchorA;
+        return NewWeldJoint(world, &def);
+    }
+    case m2_wheelJoint:
+    {
+        m2WheelJointDef def = m2DefaultWheelJointDef();
+        def.bodyIdA = a;
+        def.bodyIdB = b;
+        def.localAnchorA = anchorA;
+        return NewWheelJoint(world, &def);
+    }
+    case m2_motorJoint:
+    {
+        m2MotorJointDef def = m2DefaultMotorJointDef();
+        def.bodyIdA = a;
+        def.bodyIdB = b;
+        def.linearOffset = anchorA;
+        return NewMotorJoint(world, &def);
+    }
+    case m2_mouseJoint:
+    {
+        m2MouseJointDef def = m2DefaultMouseJointDef();
+        def.bodyIdA = a;
+        def.bodyIdB = b;
+        def.target = (m2Pos2){1.0, 0.0};
+        return NewMouseJoint(world, &def);
+    }
+    default:
+    {
+        m2FilterJointDef def = m2DefaultFilterJointDef();
+        def.bodyIdA = a;
+        def.bodyIdB = b;
+        return NewFilterJoint(world, &def);
+    }
+    }
+}
+
+static void TestSeparationOfEveryJoint(void)
+{
+    static const struct
+    {
+        m2JointType type;
+        float linear;
+        float angular;
+    } kCases[] = {
+        {m2_distanceJoint, 0.36015260f, 0.0f}, // |(1.3, 0.4)| - 1
+        {m2_revoluteJoint, 0.5f, 0.0f},
+        {m2_prismaticJoint, 0.4f, 0.2f}, // off the x axis
+        {m2_weldJoint, 0.5f, 0.2f},
+        {m2_wheelJoint, 0.3f, 0.0f}, // off the y axis
+        {m2_motorJoint, 0.5f, 0.2f},
+        {m2_mouseJoint, 0.5f, 0.0f},
+        {m2_filterJoint, 0.0f, 0.0f},
+    };
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    def.jointCapacity = 2;
+    for (size_t i = 0; i < sizeof(kCases) / sizeof(kCases[0]); ++i)
+    {
+        m2World* world = NewWorld(&def);
+        m2BodyDef groundDef = m2DefaultBodyDef();
+        m2BodyId ground = NewBody(world, &groundDef);
+        m2BodyDef bd = m2DefaultBodyDef();
+        bd.type = m2_dynamicBody;
+        bd.position = (m2Pos2){1.0, 0.0};
+        m2BodyId body = NewBody(world, &bd);
+        m2Circle ball = {{0.0f, 0.0f}, 0.25f};
+        m2ShapeDef sd = m2DefaultShapeDef();
+        NewCircleShape(world, body, &sd, &ball);
+        m2JointId joint = SeparationJoint(world, ground, body, kCases[i].type);
+        m2Body_SetTransform(world, body, (m2Pos2){1.3, 0.4}, m2MakeRot(0.2f));
+        float linear = m2Joint_GetLinearSeparation(world, joint);
+        float angular = m2Joint_GetAngularSeparation(world, joint);
+        CHECK(fabsf(linear - kCases[i].linear) < 1.0e-5f, "the joint reads its linear separation");
+        CHECK(fabsf(angular - kCases[i].angular) < 1.0e-5f,
+              "and its angular separation where it holds an angle");
+        m2DestroyWorld(world);
+    }
 }
 
 static void TestEveryRefusalHasAReason(void)
@@ -3858,6 +4374,9 @@ int main(void)
     TestHostCodeMistakesCountMidReplay();
     TestStaleIdsInStatusCalls();
     TestStaleIdsCountInEveryCall();
+    TestStaleIdsCountInEveryOtherCall();
+    TestCreatesRefuseTheirArguments();
+    TestSeparationOfEveryJoint();
     TestStaticBodiesHaveNoVelocity();
     TestRuntimeGravity();
     TestDominance();

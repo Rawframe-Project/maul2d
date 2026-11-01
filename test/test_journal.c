@@ -462,6 +462,133 @@ static void TestReplayIsAtomic(void)
     free(tape);
 }
 
+static bool SameShape(m2ShapeId a, m2ShapeId b)
+{
+    return a.index1 == b.index1 && a.generation == b.generation;
+}
+
+static void TestRefusedReplayKeepsEvents(void)
+{
+    // A ball lands on a floor; then its shape is destroyed between steps,
+    // which queues the contact's end for the next step. A refused replay
+    // in between leaves the last step's begin readable and the queued end
+    // on its way, as if the replay had never been called.
+    enum
+    {
+        CAPACITY = 1 << 16
+    };
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 8;
+    def.shapeCapacity = 8;
+    def.jointCapacity = 4;
+    m2World* world = NewWorld(&def);
+    m2BodyDef fd = m2DefaultBodyDef();
+    m2BodyId floor = NewBody(world, &fd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon slab = m2MakeBox(5.0f, 0.5f);
+    NewPolygonShape(world, floor, &sd, &slab);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    bd.position = (m2Pos2){0.0, 0.8};
+    m2BodyId ball = NewBody(world, &bd);
+    m2Circle circle = {{0.0f, 0.0f}, 0.25f};
+    m2ShapeId shape = NewCircleShape(world, ball, &sd, &circle);
+
+    uint8_t* tape = malloc(CAPACITY);
+    CHECK(StartJournal(world, tape, CAPACITY), "the journal starts");
+    Step(world, 1.0f / 60.0f, 4);
+    int64_t size = StopJournal(world);
+    CHECK(size > 0, "the tape is recorded");
+
+    int32_t begins = 0;
+    for (int32_t i = 0; i < 120 && begins == 0; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+        begins = m2World_GetContactEvents(world).beginCount;
+    }
+    CHECK(begins == 1, "the ball lands");
+    m2ContactBeginEvent begin = m2World_GetContactEvents(world).beginEvents[0];
+    uint64_t before = m2World_Hash(world);
+
+    // A tape whose embedded snapshot claims a negative size is refused
+    // after the replay has taken its back-out.
+    uint8_t* edited = malloc((size_t)size);
+    memcpy(edited, tape, (size_t)size);
+    int64_t negative = -1;
+    memcpy(edited + 16, &negative, sizeof(negative));
+    CHECK(m2World_ReplayJournal(world, edited, size) == m2_errorFormat,
+          "a negative snapshot size is refused");
+    m2ContactEvents events = m2World_GetContactEvents(world);
+    CHECK(events.beginCount == 1 && SameShape(events.beginEvents[0].shapeIdA, begin.shapeIdA) &&
+              SameShape(events.beginEvents[0].shapeIdB, begin.shapeIdB) &&
+              events.beginEvents[0].step == begin.step,
+          "the last step's begin is still readable");
+    CHECK(m2World_Hash(world) == before, "the world is untouched");
+
+    CHECK(DestroyShape(world, shape) == m2_success, "the ball's shape is destroyed");
+    uint64_t destroyed = m2World_Hash(world);
+    CHECK(m2World_ReplayJournal(world, tape, size - 1) == m2_errorFormat,
+          "a truncated tape is refused");
+    CHECK(m2World_Hash(world) == destroyed, "and the destroy stands");
+    Step(world, 1.0f / 60.0f, 4);
+    events = m2World_GetContactEvents(world);
+    CHECK(events.endCount == 1 && SameShape(events.endEvents[0].shapeIdA, begin.shapeIdA) &&
+              SameShape(events.endEvents[0].shapeIdB, begin.shapeIdB),
+          "the queued end reaches the next step");
+
+    m2DestroyWorld(world);
+    free(edited);
+    free(tape);
+}
+
+static void TestRefusedReplayKeepsCounters(void)
+{
+    // The session's tape steps a scene of its own before its cut-short
+    // last record fails it. The counts those steps set do not outlive the
+    // refusal: the world reports what it reported before the call.
+    enum
+    {
+        CAPACITY = 1 << 20
+    };
+    uint8_t* tape = malloc(CAPACITY);
+    m2WorldDef def = TestDef();
+    m2World* recorder = NewWorld(&def);
+    int64_t size = 0;
+    uint64_t recordedHash = 0;
+    RunSession(recorder, tape, CAPACITY, &size, &recordedHash);
+    m2Counters recorded = m2World_GetCounters(recorder);
+    m2DestroyWorld(recorder);
+
+    m2World* target = NewWorld(&def);
+    m2BodyDef fd = m2DefaultBodyDef();
+    m2BodyId floor = NewBody(target, &fd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon slab = m2MakeBox(5.0f, 0.5f);
+    NewPolygonShape(target, floor, &sd, &slab);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    bd.position = (m2Pos2){0.0, 0.8};
+    m2BodyId ball = NewBody(target, &bd);
+    m2Circle circle = {{0.0f, 0.0f}, 0.25f};
+    NewCircleShape(target, ball, &sd, &circle);
+    for (int32_t i = 0; i < 30; ++i)
+    {
+        Step(target, 1.0f / 60.0f, 4);
+    }
+    m2Counters before = m2World_GetCounters(target);
+    CHECK(before.constraintCount == 1 && recorded.constraintCount != before.constraintCount,
+          "the tape's last step solved other constraints than the target's");
+
+    CHECK(m2World_ReplayJournal(target, tape, size - 3) == m2_errorFormat,
+          "a tape cut short in its last record is refused");
+    m2Counters after = m2World_GetCounters(target);
+    CHECK(memcmp(&before, &after, sizeof(m2Counters)) == 0,
+          "every count is as it was before the call");
+
+    m2DestroyWorld(target);
+    free(tape);
+}
+
 // Replays tape with the 4-byte word at offset (from the tape's start)
 // replaced by value, after checking it held expected: the call it feeds
 // refuses, so the tape is refused, changes nothing and counts nothing,
@@ -1183,6 +1310,8 @@ int main(void)
     TestTapeKindsAreRefused();
     TestDefPaddingStaysOffTheTape();
     TestReplayIsAtomic();
+    TestRefusedReplayKeepsEvents();
+    TestRefusedReplayKeepsCounters();
     TestRefusedVoidOpsFailTheTape();
     TestRestoreRefusesBadCounters();
     TestRollbackWhileRecording();
