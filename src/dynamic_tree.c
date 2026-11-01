@@ -334,44 +334,6 @@ bool m2TreeNextQuery(m2TreeCursor* cursor, int32_t* userData)
     return false;
 }
 
-// Checks one subtree and returns its leaf count, or -1 on any breach:
-// links both ways, the height rule, AVL balance and box containment.
-static int32_t CheckSubtree(const m2DynamicTree* tree, const m2TreeNode* nodes, int32_t node)
-{
-    const m2TreeNode* n = nodes + node;
-    if (n->height == 0)
-    {
-        return n->child1 == M2_NULL_NODE && n->child2 == M2_NULL_NODE ? 1 : -1;
-    }
-    int32_t a = n->child1;
-    int32_t b = n->child2;
-    if (a < 0 || a >= tree->nodeCapacity || b < 0 || b >= tree->nodeCapacity ||
-        nodes[a].parent != node || nodes[b].parent != node ||
-        n->height != 1 + MaxHeight(nodes, a, b) || nodes[a].height - nodes[b].height > 1 ||
-        nodes[b].height - nodes[a].height > 1 || !m2Aabb_Contains(n->aabb, nodes[a].aabb) ||
-        !m2Aabb_Contains(n->aabb, nodes[b].aabb))
-    {
-        return -1;
-    }
-    int32_t leavesA = CheckSubtree(tree, nodes, a);
-    int32_t leavesB = CheckSubtree(tree, nodes, b);
-    return leavesA < 0 || leavesB < 0 ? -1 : leavesA + leavesB;
-}
-
-bool m2TreeValidate(const m2DynamicTree* tree, const m2TreeNode* nodes)
-{
-    if (tree->root == M2_NULL_NODE)
-    {
-        return tree->nodeCount == 0;
-    }
-    if (nodes[tree->root].parent != M2_NULL_NODE)
-    {
-        return false;
-    }
-    int32_t leaves = CheckSubtree(tree, nodes, tree->root);
-    return leaves > 0 && tree->nodeCount == 2 * leaves - 1;
-}
-
 void m2TreeKeepLowest(int32_t* kept, int32_t* count, int32_t capacity, int32_t value)
 {
     int32_t n = *count;
