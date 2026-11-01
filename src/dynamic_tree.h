@@ -85,10 +85,6 @@ bool m2TreeNextQuery(m2TreeCursor* cursor, int32_t* userData);
 // for a lower value and ignores a higher one.
 void m2TreeKeepLowest(int32_t* kept, int32_t* count, int32_t capacity, int32_t value);
 
-// Test oracle: links both ways, heights, AVL balance, box containment
-// and the node count. Returns false on any breach.
-bool m2TreeValidate(const m2DynamicTree* tree, const m2TreeNode* nodes);
-
 static inline bool m2Aabb_Overlaps(m2Aabb a, m2Aabb b)
 {
     return a.lowerBound.x <= b.upperBound.x && a.lowerBound.y <= b.upperBound.y &&
