@@ -46,7 +46,7 @@ A refusal counts one misuse only for an argument a correct program never passes:
 
 ## Host code
 
-The world calls host code in three places: the task hooks during a step, the debug draw callbacks during `m2World_Draw`, and the allocator. While it runs, an atomic count on the world is raised, and every writer checks it first: every writer counts one misuse and changes nothing, and a writer with a status also returns `m2_errorBusy`. Readers stay open, so a draw callback can ask the world about what it draws. `m2DestroyWorld` empties the world before its first free and frees the pools from a copy, so a free hook that reads the world back finds every id stale and every list empty, never a freed pool. The count is atomic because several readers may draw on separate threads at once.
+The world calls host code in three places: the task hooks during a step, the debug draw callbacks during `m2World_Draw`, and the allocator. While it runs, an atomic count on the world is raised, and every writer checks it first: every writer counts one misuse and changes nothing, and a writer with a status also returns `m2_errorBusy`. Readers stay open, so a draw callback can ask the world about what it draws. `m2DestroyWorld` empties the world before its first free and frees the pools from a copy, so a free hook that reads the world back finds every id stale and every list empty, never a freed pool; `m2DestroyWorld` is a writer like the rest, so host code cannot destroy the world it runs in. The count is atomic because several readers may draw on separate threads at once.
 
 ## A step
 

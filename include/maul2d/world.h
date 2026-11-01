@@ -188,7 +188,9 @@ extern "C"
     /// allocator. Ids into it become meaningless. The world empties before
     /// its first free: the allocator's free hook may read it back and finds
     /// every id stale and every list empty, and every writer it calls is
-    /// refused as busy.
+    /// refused as busy. This call is a writer too: host code the world runs
+    /// (a task hook, a debug draw callback, the allocator) that calls it
+    /// counts one misuse, and the world stays.
     ///
     /// @param world  The world; null does nothing.
     /// @par Thread safety
@@ -354,7 +356,19 @@ extern "C"
         float sleep;       // islands and sleep accounting
     } m2Profile;
 
-    /// Counts derived from world state, so they are deterministic.
+    /// What a world holds and what it did: observer data. Reading the
+    /// counters never touches the simulation, a snapshot or the hash, and
+    /// twins given the same calls report the same counts. The counts of
+    /// live objects, awake bodies, pairs and steps come from world state,
+    /// so a restore brings them back with it. The last-step counts
+    /// (constraintCount, colorCount, overflowCount and the three counts of
+    /// drops) describe the last step this world completed and are zero
+    /// before it; particleCreatesRefused and misuseCount add up over the
+    /// world's life. Neither kind is state: it is not hashed or
+    /// snapshotted, and a restore leaves it as it is, so right after a
+    /// rollback the last-step counts still describe the step before it. A
+    /// refused m2World_ReplayJournal leaves every count as it was before
+    /// the call; only misuse by host code the replay ran stays counted.
     typedef struct m2Counters
     {
         int32_t bodyCount;
@@ -709,7 +723,8 @@ extern "C"
     /// a tape that is malformed or truncated, that carries a value one of
     /// its calls refuses (a void call included), or that recreates an
     /// object under another id than the recording saw, is refused and the
-    /// world stays as it was, its event streams included. Only the release
+    /// world stays as it was, its event streams and counters included; only
+    /// misuse by host code the replay ran stays counted. Only the release
     /// that wrote a tape replays it (M2_ABI_VERSION); a tape from another
     /// release, build or world shape is refused too.
     ///
