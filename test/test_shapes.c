@@ -307,6 +307,51 @@ static void TestDecomposeOutline(void)
     m2DestroyWorld(world);
 }
 
+// How far the farthest of the points lies outside the polygon's edges.
+static float FarthestOutside(const m2Polygon* polygon, const m2Vec2* points, int32_t count)
+{
+    float farthest = 0.0f;
+    for (int32_t i = 0; i < count; ++i)
+    {
+        for (int32_t e = 0; e < polygon->count; ++e)
+        {
+            m2Vec2 v = polygon->vertices[e];
+            m2Vec2 n = polygon->normals[e];
+            float out = (points[i].x - v.x) * n.x + (points[i].y - v.y) * n.y;
+            farthest = out > farthest ? out : farthest;
+        }
+    }
+    return farthest;
+}
+
+// Merging keeps the hull within two linear slops (0.01 m) of every point
+// it was given, however many points lie along a curve.
+static void TestHullKeepsEveryPoint(void)
+{
+    // A flat base under a shallow arc of radius 50 m over a 4 m chord,
+    // which bulges 0.04 m, in 81 points 0.05 m apart.
+    m2Vec2 cloud[83] = {{-2.0f, -1.0f}, {2.0f, -1.0f}};
+    for (int32_t i = 0; i <= 80; ++i)
+    {
+        m2Rot turn = m2MakeRot(0.0400107f * (float)(i - 40) / 40.0f);
+        cloud[2 + i] = (m2Vec2){50.0f * turn.s, 50.0f * turn.c - 50.0f};
+    }
+    m2Polygon hull = m2MakeBox(1.0f, 1.0f);
+    CHECK(m2ComputeHull(cloud, 83, 0.0f, &hull) == m2_success && hull.count > 4 &&
+              FarthestOutside(&hull, cloud, 83) <= 0.0101f,
+          "the arc keeps vertices, and no point is more than 0.01 m outside the hull");
+
+    // A dense circle needs more than 8 vertices to stay that close.
+    m2Vec2 circle[256];
+    for (int32_t i = 0; i < 256; ++i)
+    {
+        m2Rot turn = m2MakeRot(2.0f * M2_PI * (float)i / 256.0f);
+        circle[i] = (m2Vec2){turn.c, turn.s};
+    }
+    CHECK(m2ComputeHull(circle, 256, 0.0f, &hull) == m2_errorLimit,
+          "a circle of 256 points is m2_errorLimit, not a shrunken octagon");
+}
+
 static void TestComputeHull(void)
 {
     // A square with duplicates, an interior point, and jitter on one
@@ -606,6 +651,7 @@ int main(void)
     TestMassClosedForms();
     TestValidation();
     TestComputeHull();
+    TestHullKeepsEveryPoint();
     TestDecomposeOutline();
     TestGeometryReadback();
     TestAabbAndMass();

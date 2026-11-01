@@ -222,30 +222,59 @@ static int32_t MonotoneChain(m2Vec2* ps, int32_t n, m2Vec2* hull)
     return k - 1; // the last point repeats the first
 }
 
+// Whether every chain point from after a to before b, cyclically, lies
+// within two linear slops of the line through chain[a] and chain[b].
+static bool SpanIsFlat(const m2Vec2* chain, int32_t n, int32_t a, int32_t b)
+{
+    for (int32_t j = (a + 1) % n; j != b; j = (j + 1) % n)
+    {
+        if (LineDistance(chain[a], chain[b], chain[j]) > 2.0f * M2_LINEAR_SLOP)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 // Drops vertices within two linear slops of the line through their
-// neighbors, one at a time, lowest index first, until none is left.
+// neighbors, one at a time, lowest index first, until none is left. The
+// points dropped earlier between those neighbors must stay within two
+// slops of the line too, so the hull never moves further than that from
+// any point of the chain. The chain holds as many points as BuildHull's
+// hull buffer: in float, a point near collinear may sit on both of the
+// monotone chain's halves.
 static int32_t MergeCollinear(m2Vec2* hull, int32_t n)
 {
+    m2Vec2 chain[2 * M2_MAX_HULL_POINTS];
+    int32_t kept[2 * M2_MAX_HULL_POINTS];
+    for (int32_t i = 0; i < n; ++i)
+    {
+        chain[i] = hull[i];
+        kept[i] = i;
+    }
+    int32_t m = n;
     bool merged = true;
-    while (merged && n > 2)
+    while (merged && m > 2)
     {
         merged = false;
-        for (int32_t i = 0; i < n && !merged; ++i)
+        for (int32_t i = 0; i < m && !merged; ++i)
         {
-            m2Vec2 prev = hull[(i + n - 1) % n];
-            m2Vec2 next = hull[(i + 1) % n];
-            if (LineDistance(prev, next, hull[i]) <= 2.0f * M2_LINEAR_SLOP)
+            if (SpanIsFlat(chain, n, kept[(i + m - 1) % m], kept[(i + 1) % m]))
             {
-                for (int32_t j = i; j < n - 1; ++j)
+                for (int32_t j = i; j < m - 1; ++j)
                 {
-                    hull[j] = hull[j + 1];
+                    kept[j] = kept[j + 1];
                 }
-                n -= 1;
+                m -= 1;
                 merged = true;
             }
         }
     }
-    return n;
+    for (int32_t i = 0; i < m; ++i)
+    {
+        hull[i] = chain[kept[i]];
+    }
+    return m;
 }
 
 // The bounds of caller points and a radius: a point or the radius past

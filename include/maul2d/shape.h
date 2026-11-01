@@ -254,7 +254,9 @@ extern "C"
 
     /// Builds the convex hull of a loose point cloud: near points are
     /// welded, collinear ones merged, the rest wrapped in a deterministic
-    /// order. The way from a sprite's points to a collision shape.
+    /// order. The way from a sprite's points to a collision shape. A
+    /// merged point lies within 0.01 m of the edge that replaces it, so a
+    /// curve that needs more vertices to stay that close is m2_errorLimit.
     ///
     /// @param points      The cloud.
     /// @param count       The number of points, 3 to M2_MAX_HULL_POINTS.
