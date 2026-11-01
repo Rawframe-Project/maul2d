@@ -8,7 +8,7 @@ Nothing calls back into a program in the middle of a step. After a step, the pro
 - `m2World_GetSensorEvents`: shapes that began and stopped overlapping a sensor, paired the same way. Each event names the sensor (`sensorShapeId`), the shape inside it (`visitorShapeId`) and the step; two sensors never detect each other.
 - `m2World_GetJointEvents`: joints that broke, with the force and torque that broke them.
 
-The arrays belong to the world and stay valid until the next step or restore. A refused step leaves them as the last step wrote them, so read them only after a step that returns `m2_success`. A restore clears them, and the steps simulated again after a rollback emit their events again; a program that must see each event once keys it by step and shape ids.
+The arrays belong to the world and stay valid until the next step or restore. A refused step leaves them as the last step wrote them, so read them only after a step that returns `m2_success`. A restore clears them (a refused replay leaves them), and the steps simulated again after a rollback emit their events again; a program that must see each event once keys it by step and shape ids.
 
 ```c
 if (m2World_Step(world, 1.0f / 60.0f, 4) == m2_success)

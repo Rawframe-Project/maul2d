@@ -708,9 +708,9 @@ extern "C"
     /// a tape that is malformed or truncated, that carries a value one of
     /// its calls refuses (a void call included), or that recreates an
     /// object under another id than the recording saw, is refused and the
-    /// world stays as it was. Only the release that wrote a tape replays it
-    /// (M2_ABI_VERSION); a tape from another release, build or world shape
-    /// is refused too.
+    /// world stays as it was, its event streams included. Only the release
+    /// that wrote a tape replays it (M2_ABI_VERSION); a tape from another
+    /// release, build or world shape is refused too.
     ///
     /// @param world  The world.
     /// @param data   The tape.
