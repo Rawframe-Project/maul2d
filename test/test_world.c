@@ -2168,9 +2168,9 @@ static void TestHostCodeCannotWrite(void)
 }
 
 // Every public writer refuses inside host code, not only the few the test
-// above tries: a debug draw callback calls each once on live ids. Each
-// call counts one misuse, each status writer says m2_errorBusy, and the
-// world, its journal included, stays as it was.
+// above tries: a debug draw callback calls each once on live ids, the
+// world's destroy last. Each call counts one misuse, each status writer
+// says m2_errorBusy, and the world, its journal included, stays as it was.
 typedef struct Sweep
 {
     m2World* world;
@@ -2353,6 +2353,7 @@ static void SweepWorldWriters(Sweep* sw)
     M2_SWEEP_STATUS(m2World_StartJournal(w, bytes, (int64_t)sizeof(bytes)));
     M2_SWEEP_STATUS(m2World_StopJournal(w, &size));
     M2_SWEEP_STATUS(m2World_ReplayJournal(w, bytes, (int64_t)sizeof(bytes)));
+    M2_SWEEP_VOID(m2DestroyWorld(w));
 }
 
 #undef M2_SWEEP_STATUS
@@ -2429,7 +2430,7 @@ static void TestEveryWriterRefusesInHostCode(void)
     draw.drawAabbs = true;
     draw.context = &sw;
     m2World_Draw(sw.world, &draw);
-    CHECK(sw.calls > 0 && sw.statusCalls == 33 && sw.voidCalls == 65,
+    CHECK(sw.calls > 0 && sw.statusCalls == 33 && sw.voidCalls == 66,
           "the draw swept every writer");
     CHECK(sw.busy == sw.statusCalls, "every status writer said m2_errorBusy");
     CHECK(m2World_GetCounters(sw.world).misuseCount ==
