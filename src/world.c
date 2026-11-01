@@ -95,7 +95,10 @@ static m2Result WorldDefCheck(const m2WorldDef* def)
 
 // Copies the def's settings and capacities into a zeroed world. The
 // derived capacities are checked products, so a def too large to address
-// is refused instead of wrapping.
+// is refused instead of wrapping. Each broadphase tree gets two nodes per
+// shape slot, which no tree can run out of: a tree of L leaves holds
+// 2L - 1 nodes, a live shape is at most one leaf, and a restore proves
+// the same of a snapshot's trees (snapshot_check.c), so no insert fails.
 static bool ApplyWorldDef(m2World* world, const m2WorldDef* def)
 {
     int32_t shapeCap = def->shapeCapacity;
