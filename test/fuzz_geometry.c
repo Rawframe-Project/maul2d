@@ -8,6 +8,8 @@
 // random floats rarely do. The promises:
 //   - a refusal is a status, never a crash;
 //   - every polygon a builder accepts makes a shape;
+//   - no point lies further outside an accepted hull than welding (0.02
+//     m) and merging (0.01 m) allow;
 //   - an accepted outline gives at least one piece, and its pieces lie
 //     within its area: they may drop slivers of near-zero area, never add
 //     any.
@@ -108,6 +110,32 @@ static double PolygonArea(const m2Polygon* polygon)
     return OutlineArea(polygon->vertices, polygon->count);
 }
 
+// How far the farthest point lies outside the polygon's edges, and the
+// largest coordinate among the points, whose float rounding the bound
+// allows for.
+static double FarthestOutside(const m2Polygon* polygon, const m2Vec2* points, int32_t count,
+                              double* scale)
+{
+    double farthest = 0.0;
+    *scale = 0.0;
+    for (int32_t i = 0; i < count; ++i)
+    {
+        double x = fabs((double)points[i].x);
+        double y = fabs((double)points[i].y);
+        *scale = x > *scale ? x : *scale;
+        *scale = y > *scale ? y : *scale;
+        for (int32_t e = 0; e < polygon->count; ++e)
+        {
+            const m2Vec2 v = polygon->vertices[e];
+            const m2Vec2 n = polygon->normals[e];
+            double out = ((double)points[i].x - (double)v.x) * (double)n.x +
+                         ((double)points[i].y - (double)v.y) * (double)n.y;
+            farthest = out > farthest ? out : farthest;
+        }
+    }
+    return farthest;
+}
+
 int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size);
 
 int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
@@ -149,6 +177,11 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
     if (m2ComputeHull(points, count, radius, &polygon) == m2_success)
     {
         MustMakeShape(&polygon);
+        double scale = 0.0;
+        if (FarthestOutside(&polygon, points, count, &scale) > 0.03 + 1.0e-5 * scale)
+        {
+            Fail("no point lies more than 0.03 m outside its hull");
+        }
     }
 
     m2Polygon pieces[FUZZ_MAX_PIECES];
