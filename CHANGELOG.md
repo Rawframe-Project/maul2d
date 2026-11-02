@@ -8,14 +8,16 @@ snapshot and journal formats.
 
 ## [0.11.0](https://github.com/Rawframe-Project/maul2d/compare/v0.10.0...v0.11.0) (2026-11-02)
 
+This release makes a rollback keep the end events a destroy or a disable queued between steps. To carry them, the snapshot and journal formats change, so 0.11.0 refuses 0.10.0's snapshots and tapes. No simulation result changes.
 
-### ⚠ BREAKING CHANGES
+### Changed
 
-* **snapshot:** a snapshot carries the end events queued for the next step and is format 8 (M2_SNAPSHOT_VERSION); a journal tape is format 9 (M2_JOURNAL_VERSION). Snapshots and tapes from earlier releases are refused with m2_errorVersion.
+- **Breaking:** the snapshot format is version 8 and the journal tape format is version 9 ([#254](https://github.com/Rawframe-Project/maul2d/pull/254)). A snapshot now carries the end events queued for the next step. 0.11.0 refuses 0.10.0's snapshots and tapes with `m2_errorVersion`.
+- Results: only the two format golden values move, `M2_ROLLBACK_SNAPSHOT_HASH` and `M2_JOURNAL_TAPE_HASH`. Every simulation line stays, so the same calls step to the same bits as on 0.10.0.
 
 ### Fixed
 
-* **snapshot:** carry the end events queued between steps ([#254](https://github.com/Rawframe-Project/maul2d/issues/254)) ([b13fe38](https://github.com/Rawframe-Project/maul2d/commit/b13fe385cf9f30b1f078cdcfb5c424ad7a32d28a)), closes [#253](https://github.com/Rawframe-Project/maul2d/issues/253)
+- A rollback keeps the end events a destroy or a disable queued between steps ([#254](https://github.com/Rawframe-Project/maul2d/pull/254)). Destroying or disabling a touching shape between steps queues its contact and sensor end events for the next step. A snapshot taken between the destroy and that step left them out, so restoring it and stepping again never delivered them, and a begin event lost its end. A journal started in that gap lost them on replay too. A restore now brings them back. A snapshot whose queued ends carry another step count, or name a slot outside the shape pool, is refused with `m2_errorFormat`.
 
 ## [0.10.0](https://github.com/Rawframe-Project/maul2d/compare/v0.9.0...v0.10.0) (2026-11-01)
 
