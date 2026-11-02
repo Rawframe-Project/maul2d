@@ -609,6 +609,45 @@ static void TestOutlineWithoutPiecesIsRefused(void)
           "and so is its measure");
 }
 
+// Outlines refused before any piece is cut: two edges that cross away from
+// every corner, and a spike whose tip, the first point, folds straight back
+// down the edge it came up. A missing or too short outline is refused too.
+static void TestCrossingOrFoldedOutlineIsRefused(void)
+{
+    m2Vec2 crossing[4] = {{0.0f, 0.0f}, {10.0f, 0.0f}, {10.0f, 10.0f}, {5.0f, -2.0f}};
+    m2Vec2 spike[7] = {{2.0f, 6.0f}, {2.0f, 5.0f}, {0.0f, 4.0f}, {0.0f, 0.0f},
+                       {4.0f, 0.0f}, {4.0f, 4.0f}, {2.0f, 4.0f}};
+    m2Polygon pieces[8];
+    int32_t count = 7;
+    CHECK(m2DecomposeOutline(crossing, 4, pieces, 8, &count) == m2_errorInvalid && count == 7,
+          "an outline whose edges cross is refused");
+    CHECK(m2DecomposeOutline(spike, 7, pieces, 8, &count) == m2_errorInvalid && count == 7,
+          "an outline that folds back at its first point is refused");
+    spike[1] = (m2Vec2){1.5f, 5.0f};
+    count = 0;
+    CHECK(m2DecomposeOutline(spike, 7, pieces, 8, &count) == m2_success && count > 1,
+          "the same spike with a width decomposes");
+    count = 7;
+    CHECK(m2DecomposeOutline(NULL, 3, pieces, 8, &count) == m2_errorInvalid &&
+              m2DecomposeOutline(crossing, 2, pieces, 8, &count) == m2_errorInvalid && count == 7,
+          "a missing outline and one of two points are refused");
+}
+
+// A convex outline of twelve points: the merge stops each piece at eight
+// vertices, so it comes out as an octagon and a hexagon that share an edge.
+static void TestRoundOutlineSplitsAtEightVertices(void)
+{
+    m2Vec2 rim[12] = {{0.0f, 0.0f},  {3.0f, 0.0f},  {5.0f, 1.0f},  {6.0f, 3.0f},
+                      {6.0f, 6.0f},  {5.0f, 8.0f},  {3.0f, 9.0f},  {0.0f, 9.0f},
+                      {-2.0f, 8.0f}, {-3.0f, 6.0f}, {-3.0f, 3.0f}, {-2.0f, 1.0f}};
+    m2Polygon pieces[4];
+    int32_t count = 0;
+    CHECK(m2DecomposeOutline(rim, 12, pieces, 4, &count) == m2_success && count == 2,
+          "a convex outline of twelve points makes two pieces");
+    CHECK(pieces[0].count == M2_MAX_POLYGON_VERTICES && pieces[1].count == 6,
+          "the first piece fills eight vertices and the second takes the rest");
+}
+
 // A static box that grows after the world has stepped: a ball dropped over
 // the new part rests on it. The step refits only awake bodies' boxes, so
 // the setter must refit the static shape's own box, or the broadphase
@@ -766,6 +805,8 @@ int main(void)
     TestOutlineThatNearlyTouchesIsRefused();
     TestSmallPolygonFarFromOriginIsValid();
     TestOutlineWithoutPiecesIsRefused();
+    TestCrossingOrFoldedOutlineIsRefused();
+    TestRoundOutlineSplitsAtEightVertices();
     TestPolygonNormalsAreTheWorlds();
     TestMassClosedForms();
     TestValidation();
