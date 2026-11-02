@@ -112,6 +112,11 @@ static const m2StateArray s_state[] = {
     M2_STATE_INLINE_CHECKED(shapes.shapeRetiredCount, M2_STATE_SNAPSHOT, count, shape),
     M2_STATE_INLINE_CHECKED(broadphase.movedCount, M2_STATE_SNAPSHOT, count, shape),
     M2_STATE_INLINE_CHECKED(contacts.pairCount, M2_STATE_SNAPSHOT, count, pair),
+    // The end events of touching pairs a destroy or a disable ended
+    // between steps, which the next step delivers: a snapshot taken in
+    // between carries them, so the steps after its restore deliver them too.
+    M2_STATE_INLINE_CHECKED(events.pendingEndCount, M2_STATE_SNAPSHOT, count, pair),
+    M2_STATE_INLINE_CHECKED(events.pendingSensorEndCount, M2_STATE_SNAPSHOT, count, pair),
     M2_STATE_CHECKED(bodies.transforms, m2Transform, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
                      transform, one),
     M2_STATE_CHECKED(bodies.linearVelocities, m2Vec2, body, 1, M2_STATE_SNAPSHOT | M2_STATE_HASH,
@@ -272,6 +277,8 @@ static const m2StateArray s_state[] = {
     M2_STATE_ARRAY(contacts.pairTouching, uint8_t, pair, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH),
     M2_STATE_CHECKED(contacts.manifolds, m2Manifold, pair, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
                      manifold, one),
+    M2_STATE_ARRAY(events.pendingEndEvents, m2ContactEndEvent, pair, 0, M2_STATE_SNAPSHOT),
+    M2_STATE_ARRAY(events.pendingSensorEnd, m2SensorEndEvent, pair, 0, M2_STATE_SNAPSHOT),
     M2_STATE_CHECKED(particles.particlePositions, m2Pos2, particle, 0,
                      M2_STATE_SNAPSHOT | M2_STATE_HASH | M2_STATE_PARTICLES, finite64, one),
     M2_STATE_CHECKED(particles.particleVelocities, m2Vec2, particle, 0,
@@ -382,10 +389,8 @@ static const m2StateArray s_state[] = {
     M2_STATE_ARRAY(solver.colorOrder, int32_t, pair, 0, 0),
     M2_STATE_ARRAY(events.beginEvents, m2ContactBeginEvent, pair, 0, 0),
     M2_STATE_ARRAY(events.endEvents, m2ContactEndEvent, pair, 0, 0),
-    M2_STATE_ARRAY(events.pendingEndEvents, m2ContactEndEvent, pair, 0, 0),
     M2_STATE_ARRAY(events.sensorBeginEvents, m2SensorBeginEvent, pair, 0, 0),
     M2_STATE_ARRAY(events.sensorEndEvents, m2SensorEndEvent, pair, 0, 0),
-    M2_STATE_ARRAY(events.pendingSensorEnd, m2SensorEndEvent, pair, 0, 0),
     M2_STATE_ARRAY(events.jointBreakEvents, m2JointBreakEvent, joint, 0, 0),
     M2_STATE_ARRAY(contacts.pairScratch, uint64_t, pair, 0, 0),
     M2_STATE_ARRAY(contacts.oldPairScratch, uint64_t, pair, 0, 0),

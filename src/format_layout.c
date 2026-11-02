@@ -141,6 +141,17 @@ M2_PIN_AT(m2DynamicTree, nodeCount, 4);
 M2_PIN_AT(m2DynamicTree, nodeCapacity, 8);
 M2_PIN_AT(m2DynamicTree, freeList, 12);
 
+// The end events queued between steps.
+M2_PIN_SIZE(m2ContactEndEvent, 24);
+M2_PIN_AT(m2ContactEndEvent, shapeIdA, 0);
+M2_PIN_AT(m2ContactEndEvent, shapeIdB, 8);
+M2_PIN_AT(m2ContactEndEvent, step, 16);
+
+M2_PIN_SIZE(m2SensorEndEvent, 24);
+M2_PIN_AT(m2SensorEndEvent, sensorShapeId, 0);
+M2_PIN_AT(m2SensorEndEvent, visitorShapeId, 8);
+M2_PIN_AT(m2SensorEndEvent, step, 16);
+
 // The public defs a record embeds as given.
 M2_PIN_SIZE(m2BodyDef, 80);
 M2_PIN_AT(m2BodyDef, type, 0);
