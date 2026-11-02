@@ -8,10 +8,21 @@ snapshot and journal formats.
 
 ## [0.11.4](https://github.com/Rawframe-Project/maul2d/compare/v0.11.3...v0.11.4) (2026-11-02)
 
+This release makes the world queries between steps see every shape where the last step left it. Results change: 7 of the 13 golden lines move, because the world hash covers each shape's broadphase box and moved flag. The simulation does not change: body and particle state is bit-identical, and no format version changes.
+
+### Changed
+
+- **Results:** 7 of the 13 golden lines move, the same in the scalar and AVX2 builds ([#278](https://github.com/Rawframe-Project/maul2d/pull/278)): `STACK`, `CONTACTS`, `ROLLBACK`, `JOURNAL`, `BENCH_CHAIN30` and `BENCH_CHAIN2000` hash moving shapes' fat boxes and moved flags, and `ROLLBACK_SNAPSHOT`'s bytes carry the trees and the moved flags, which the end-of-step refit now sets. `FLUID`, `JOURNAL_TAPE`, `BENCH_PYRAMID15`, `BENCH_PYRAMID30`, `BENCH_JOINTFARM` and `BENCH_WATER` hold. `test_golden` compiled against both versions with `m2World_Hash` replaced by a hash of only every body's transform and velocities and every particle's position and velocity agrees on 12 of the 13 lines, the seeded API walk and every per-step mix included; the 13th is `ROLLBACK_SNAPSHOT`, which hashes snapshot bytes. The snapshot and the tape keep their layout, and only the box values and moved flags inside a snapshot differ.
 
 ### Fixed
 
-* **query:** refit moving shapes' boxes at the end of a step ([#278](https://github.com/Rawframe-Project/maul2d/issues/278)) ([3941849](https://github.com/Rawframe-Project/maul2d/commit/3941849bdf08d91709a7ab371121c7f980a855f7)), closes [#277](https://github.com/Rawframe-Project/maul2d/issues/277)
+- Between steps, a query sees a shape that moved more than its broadphase box's 0.1 m margin in the last step ([#278](https://github.com/Rawframe-Project/maul2d/pull/278)). The step refit moving bodies' boxes at its start, before the pair update, so between two steps every tree still held each awake shape's box from before the last solve. The step now refits them once more at its end, after the sleep pass. The guide's events and queries page says that a query between steps sees each shape where the last step left it. Before and after the change:
+
+  | Comparison | Before | After |
+  |---|---|---|
+  | `m2World_OverlapAabb` against a brute-force test of every shape's `m2Shape_GetAabb`, 9800 random queries over a world of 60 boxes on static, kinematic and dynamic bodies moving at up to 40 m/s per axis, every seventh teleported every five steps, over 40 steps | 165 leave a shape out | 0 |
+  | A ray through the center of a ball falling at 20 m/s, after each of 30 steps | misses after 24 | 0 |
+  | `m2World_CastRayAll` against `m2Shape_CastRay` on every shape, 9800 random rays in the same world | 237 miss a shape | 0 |
 
 ## [0.11.3](https://github.com/Rawframe-Project/maul2d/compare/v0.11.2...v0.11.3) (2026-11-02)
 
