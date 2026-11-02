@@ -6,6 +6,18 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.11.1](https://github.com/Rawframe-Project/maul2d/compare/v0.11.0...v0.11.1) (2026-11-02)
+
+This release stops two shapes without area from colliding: a segment or a chain segment never pairs with another, as in Box2D. Such a pair could not hold a body anyway: it touched for a step before the body sank through. One golden line moves, and the snapshot and journal formats stay as they were.
+
+### Changed
+
+- Results: one golden value moves, `M2_JOURNAL_HASH`, the same in the scalar and AVX2 builds ([#265](https://github.com/Rawframe-Project/maul2d/pull/265)). The seeded API walk behind it attaches chains to random bodies, dynamic ones included. Their pairs with other segments and chains are no longer made, so the walk's worlds step to other bits. No other golden scene makes such a pair, and their lines hold. The snapshot (version 8) and journal tape (version 9) formats are unchanged.
+
+### Fixed
+
+- Two shapes without area never collide ([#265](https://github.com/Rawframe-Project/maul2d/pull/265)). A dynamic segment or chain set down on a segment or chain floor touched it for a step and then sank through: two lines have nothing inside to push each other out of. The broadphase no longer pairs a segment or a chain segment with another. A body that must land on one carries a circle, a capsule or a polygon. A sensor among them still pairs, so a segment sensor still detects a segment crossing it. `m2Segment`, `m2ChainSegment` and the guide's bodies and shapes page say so.
+
 ## [0.11.0](https://github.com/Rawframe-Project/maul2d/compare/v0.10.0...v0.11.0) (2026-11-02)
 
 This release makes a rollback keep the end events a destroy or a disable queued between steps. To carry them, the snapshot and journal formats change, so 0.11.0 refuses 0.10.0's snapshots and tapes. No simulation result changes.
