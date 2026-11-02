@@ -6,6 +6,19 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.11.3](https://github.com/Rawframe-Project/maul2d/compare/v0.11.2...v0.11.3) (2026-11-02)
+
+This release stops a bullet from passing a wall when more than 64 shapes crowd its path, and makes `m2World_CollideMover` with a short array hold the planes of the lowest shape slots, whatever order the broadphase trees yield them. No golden line moves.
+
+### Changed
+
+- Results: no golden line moves, in the scalar or AVX2 build ([#273](https://github.com/Rawframe-Project/maul2d/pull/273), [#276](https://github.com/Rawframe-Project/maul2d/pull/276)).
+
+### Fixed
+
+- A bullet advances against every shape in its path ([#276](https://github.com/Rawframe-Project/maul2d/pull/276)). It kept only the 64 shapes with the lowest slots among those whose boxes overlap a substep's sweep, and advanced against those alone. Small shapes beside the bullet's lane filled the 64 places, so a wall with a higher slot was never tested: with 400 circles 12 cm from the lane, a 300 m/s bullet flew through a wall it stops at with 200. The bullet now advances against every shape in its sweep that may stop it and keeps the earliest impact, which is the same in whatever order the broadphase trees yield the shapes. When no more than 64 shapes are in a sweep, the bullet stops at the same time as before.
+- `m2World_CollideMover` with an array shorter than the planes it finds holds the planes of the lowest shape slots ([#273](https://github.com/Rawframe-Project/maul2d/pull/273)). It kept the planes the broadphase trees yielded first, then sorted only those. The trees' order follows their history, which the world hash does not cover, so two worlds with the same hash could hand a controller different planes: twelve posts around a capsule, with room for three, kept shapes 1, 2, 3 in one tree history and 1, 3, 4 in another. A short array now holds the planes of the lowest shape slots, in ascending order; the returned total is unchanged, and an array with room for every plane gets the same planes in the same order as before. Its `///` block and the guide's events and queries page say so.
+
 ## [0.11.2](https://github.com/Rawframe-Project/maul2d/compare/v0.11.1...v0.11.2) (2026-11-02)
 
 This release keeps the contacts of a particle near more than 32 shapes, and speeds up a spring fill. No golden line moves.
