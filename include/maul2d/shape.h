@@ -974,7 +974,8 @@ extern "C"
     } m2MoverMove;
 
     /// Gathers the planes touching a posed capsule, one per nearby shape,
-    /// in ascending shape order. A collar of four linear slops lets a
+    /// in ascending shape order; an array too short for them all holds the
+    /// planes of the lowest shape slots. A collar of four linear slops lets a
     /// controller see a wall before it reaches it. A chain link counts only
     /// from its solid side. Use m2World_CastCapsuleClosest for the sweep.
     ///

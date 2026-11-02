@@ -1296,6 +1296,59 @@ static void TestMoverEdges(void)
     CHECK(kept.x == 2.0f && kept.y == -1.0f, "and so does one given no planes");
 }
 
+// Twelve posts in a ring around a capsule, each on its own static body.
+// Each post goes far away and comes back in a scrambled order, which
+// reshapes the static tree while every pose and fat box returns. An array
+// shorter than the planes still holds the planes of the lowest shape
+// slots, the head of the full list, whatever order the tree yields them.
+static void TestMoverKeepsTheLowestPlanes(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 16;
+    def.shapeCapacity = 16;
+    m2World* world = NewWorld(&def);
+    m2BodyId posts[12];
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon post = m2MakeBox(0.1f, 0.1f);
+    for (int32_t i = 0; i < 12; ++i)
+    {
+        m2Rot at = m2MakeRot(2.0f * M2_PI * (float)i / 12.0f);
+        m2BodyDef bd = m2DefaultBodyDef();
+        bd.position = (m2Pos2){0.6 * (double)at.c, 0.6 * (double)at.s};
+        posts[i] = NewBody(world, &bd);
+        NewPolygonShape(world, posts[i], &sd, &post);
+    }
+    Step(world, 1.0f / 60.0f, 4);
+    for (int32_t k = 0; k < 12; ++k)
+    {
+        m2Transform t = m2Body_GetTransform(world, posts[(k * 5) % 12]);
+        m2Body_SetTransform(world, posts[(k * 5) % 12], (m2Pos2){t.p.x + 1000.0, t.p.y}, t.q);
+    }
+    for (int32_t k = 0; k < 12; ++k)
+    {
+        m2Transform t = m2Body_GetTransform(world, posts[(k * 7) % 12]);
+        m2Body_SetTransform(world, posts[(k * 7) % 12], (m2Pos2){t.p.x - 1000.0, t.p.y}, t.q);
+    }
+    Step(world, 1.0f / 60.0f, 4);
+
+    m2Capsule mover = {{0.0f, -0.1f}, {0.0f, 0.1f}, 0.5f};
+    m2Transform origin = {{0.0, 0.0}, {1.0f, 0.0f}};
+    m2MoverPlane all[12];
+    m2MoverPlane three[3];
+    CHECK(m2World_CollideMover(world, &mover, origin, m2DefaultQueryFilter(), all, 12) == 12,
+          "the capsule touches all twelve posts");
+    CHECK(m2World_CollideMover(world, &mover, origin, m2DefaultQueryFilter(), three, 3) == 12,
+          "a short array still counts them all");
+    bool head = true;
+    for (int32_t i = 0; i < 3; ++i)
+    {
+        head = head && SameShape(three[i].shapeId, all[i].shapeId) &&
+               three[i].separation == all[i].separation;
+    }
+    CHECK(head, "and holds the planes of the three lowest shape slots");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
     TestRayFromTheSurfaceHitsAtZero();
@@ -1315,6 +1368,7 @@ int main(void)
     TestAllHits();
     TestMoverKit();
     TestMoverEdges();
+    TestMoverKeepsTheLowestPlanes();
     TestRayGeometries();
     TestRayFarFromOrigin();
     TestOverlap();
