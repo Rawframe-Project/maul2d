@@ -8,7 +8,7 @@ snapshot and journal formats.
 
 ## [0.11.1](https://github.com/Rawframe-Project/maul2d/compare/v0.11.0...v0.11.1) (2026-11-02)
 
-This release stops two shapes without area from colliding: a segment or a chain segment never pairs with another, as in Box2D. Such a pair could not hold a body anyway: it touched for a step before the body sank through. A world that paired such shapes steps to other bits, and the snapshot and journal formats stay as they were.
+This release stops two shapes without area from colliding: a segment or a chain segment never pairs with another, as in Box2D. Such a pair could not hold a body anyway: it touched for a step before the body sank through. One golden line moves, and the snapshot and journal formats stay as they were.
 
 ### Changed
 
