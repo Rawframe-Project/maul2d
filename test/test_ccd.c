@@ -239,9 +239,51 @@ static void TestSegmentBulletStops(void)
     m2DestroyWorld(world);
 }
 
+// A bullet stops at a thin static post of each rounded or bare shape, not
+// only at a box: the sweep measures its distance to a circle, a capsule
+// and a segment as well as to a polygon.
+static void TestBulletStopsAtEveryPostShape(void)
+{
+    for (int32_t kind = 0; kind < 3; ++kind)
+    {
+        m2WorldDef def = m2DefaultWorldDef();
+        def.bodyCapacity = 4;
+        def.shapeCapacity = 4;
+        def.gravity = (m2Vec2){0.0f, 0.0f};
+        m2World* world = NewWorld(&def);
+        m2BodyDef pd = m2DefaultBodyDef();
+        m2BodyId post = NewBody(world, &pd);
+        m2ShapeDef sd = m2DefaultShapeDef();
+        if (kind == 0)
+        {
+            m2Circle disc = {{0.0f, 0.0f}, 0.05f};
+            NewCircleShape(world, post, &sd, &disc);
+        }
+        else if (kind == 1)
+        {
+            m2Capsule pole = {{0.0f, -4.0f}, {0.0f, 4.0f}, 0.05f};
+            NewCapsuleShape(world, post, &sd, &pole);
+        }
+        else
+        {
+            m2Segment line = {{0.0f, -4.0f}, {0.0f, 4.0f}};
+            NewSegmentShape(world, post, &sd, &line);
+        }
+        m2BodyId bullet = FireBall(world, -12.0, 150.0f, true);
+        for (int32_t i = 0; i < 30; ++i)
+        {
+            Step(world, 1.0f / 60.0f, 4);
+        }
+        CHECK(m2Body_GetPosition(world, bullet).x < 0.0,
+              "a bullet stops at a thin circle, capsule or segment");
+        m2DestroyWorld(world);
+    }
+}
+
 int main(void)
 {
     TestSegmentBulletStops();
+    TestBulletStopsAtEveryPostShape();
     TestCappedSweepIgnoresTreeHistory();
     TestThinWall();
     TestEarliestWallWins();

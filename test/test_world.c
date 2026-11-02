@@ -1596,6 +1596,32 @@ static void TestLeftoverBasket(void)
     m2DestroyWorld(world);
 }
 
+// The one-shape point queries on a bare segment: a point within the slop
+// of the line touches it, one half a meter off does not, and the closest
+// point lies on the line, or at its end past it.
+static void TestSegmentShapePointQueries(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 2;
+    def.shapeCapacity = 2;
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.position = (m2Pos2){0.0, 5.0};
+    m2BodyId ground = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Segment line = {{-2.0f, 0.0f}, {2.0f, 0.0f}};
+    m2ShapeId shape = NewSegmentShape(world, ground, &sd, &line);
+    CHECK(m2Shape_TestPoint(world, shape, (m2Pos2){1.0, 5.001}), "a point on the line touches it");
+    CHECK(!m2Shape_TestPoint(world, shape, (m2Pos2){1.0, 5.5}), "one half a meter off does not");
+    m2Pos2 above = m2Shape_GetClosestPoint(world, shape, (m2Pos2){1.0, 6.0});
+    m2Pos2 beyond = m2Shape_GetClosestPoint(world, shape, (m2Pos2){3.0, 5.0});
+    CHECK(above.x > 0.9999 && above.x < 1.0001 && above.y > 4.9999 && above.y < 5.0001,
+          "the closest point lies straight below on the line");
+    CHECK(beyond.x > 1.9999 && beyond.x < 2.0001 && beyond.y > 4.9999 && beyond.y < 5.0001,
+          "past its end, the closest point is the end");
+    m2DestroyWorld(world);
+}
+
 // Dominance: the higher body cannot be
 // pushed by the lower one in contacts, statics outrank everyone,
 // joints stay symmetric.
@@ -4772,6 +4798,7 @@ int main(void)
     TestHashParts();
     TestValidateAndCounters();
     TestLeftoverBasket();
+    TestSegmentShapePointQueries();
     TestSmallBasket();
     TestDormancyMassAndExplosions();
     TestBodyDynamicsPack();

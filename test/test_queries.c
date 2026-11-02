@@ -961,6 +961,50 @@ static void TestCastHitOut(void)
     m2DestroyWorld(world);
 }
 
+// A cast or overlap with a missing shape, or one with a NaN point or an
+// infinite radius, is refused before it walks the tree: each counts one
+// misuse and finds nothing, though the same call with a sound shape hits.
+static void TestMalformedQueryShapesAreRefused(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon slab = m2MakeBox(2.0f, 0.5f);
+    NewPolygonShape(world, ground, &sd, &slab);
+    m2QueryFilter all = m2DefaultQueryFilter();
+    m2Transform pose = {{0.0, 3.0}, {1.0f, 0.0f}};
+    m2Transform onFloor = {{0.0, 0.5}, {1.0f, 0.0f}};
+    m2Vec2 down = {0.0f, -6.0f};
+    m2Capsule rod = {{-0.25f, 0.0f}, {0.25f, 0.0f}, 0.1f};
+    m2Polygon chip = m2MakeBox(0.25f, 0.25f);
+    m2CastHit hit;
+    m2CastHit hits[2];
+    m2ShapeId ids[2];
+    CHECK(m2World_CastCapsuleClosest(world, &rod, pose, down, all, &hit) &&
+              m2World_CastPolygonAll(world, &chip, pose, down, all, hits, 2) == 1 &&
+              m2World_OverlapPolygon(world, &chip, onFloor, all, ids, 2) == 1,
+          "a sound capsule and polygon find the floor");
+
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+    CHECK(!m2World_CastCapsuleClosest(world, NULL, pose, down, all, &hit) &&
+              m2World_CastCapsuleAll(world, NULL, pose, down, all, hits, 2) == 0 &&
+              m2World_OverlapCapsule(world, NULL, onFloor, all, ids, 2) == 0,
+          "a missing capsule is refused");
+    m2Polygon torn = chip;
+    torn.vertices[2].x = NAN;
+    m2Capsule endless = rod;
+    endless.radius = INFINITY;
+    CHECK(!m2World_CastPolygonClosest(world, &torn, pose, down, all, &hit) &&
+              m2World_CastPolygonAll(world, &torn, pose, down, all, hits, 2) == 0 &&
+              m2World_OverlapPolygon(world, &torn, onFloor, all, ids, 2) == 0 &&
+              m2World_OverlapCapsule(world, &endless, onFloor, all, ids, 2) == 0,
+          "a polygon with a NaN point and a capsule of infinite radius are refused");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 7, "each counting one misuse");
+    m2DestroyWorld(world);
+}
+
 enum
 {
     LIST_CAPACITY = 3
@@ -1257,6 +1301,7 @@ int main(void)
     TestRayFromTheSurfaceHitsAtZero();
     TestFarAndLongRaysAtRoundShapes();
     TestCastHitOut();
+    TestMalformedQueryShapesAreRefused();
     TestRefusedListsClear();
     TestBadListCapacities();
     TestRayInsideRoundedPolygon();
