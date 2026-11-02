@@ -25,7 +25,7 @@ Every result that depends on an order has a canonical one:
 - Pairs live in a list sorted by key (the two shape indices), rebuilt each step by a merge, and `m2World_Validate` checks the order. Manifolds, events and contact data follow it.
 - Islands union toward the lowest body index, and every pass over bodies, shapes, joints and particles walks slots in ascending order.
 - Ties break to the lower index: the closest hit of a query, the deepest face of a manifold, the first ear of a decomposition.
-- A query that keeps only some of its hits keeps the lowest shape slots (`m2TreeKeepLowest`): a particle's crossing candidates and a bullet's sweep candidates. A particle's body contacts test every shape in its box and keep the four touching shapes with the lowest slots. A broadphase tree yields its leaves in an order that follows its history, which is not hashed, so what a capped query keeps must depend only on which leaves overlap.
+- A query that keeps only some of its hits keeps the lowest shape slots (`m2TreeKeepLowest`): a particle's crossing candidates. A particle's body contacts test every shape in its box and keep the four touching shapes with the lowest slots, and a bullet advances against every shape in its sweep and takes the earliest impact. A broadphase tree yields its leaves in an order that follows its history, which is not hashed, so what a capped query keeps must depend only on which leaves overlap.
 - A slot freed by a destroy is reused in FIFO order under a new generation, so the same calls hand out the same ids. A slot at its last generation (`M2_LAST_GENERATION`, the largest 32-bit value) retires instead, in every pool, so no id is handed out twice.
 
 ## Threads

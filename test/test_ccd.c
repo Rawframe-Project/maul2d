@@ -153,12 +153,11 @@ static void TestCcdRollback(void)
 }
 
 // A field of thin static walls at x = 0.01 k, created in a scrambled and
-// mirrored order so slots do not follow position: which walls a capped
-// query keeps then decides where a bullet stops. With reshuffle, each wall goes
-// far away and back, in reverse order: its leaf is reinserted, so the tree
-// takes another shape while every pose and fat box comes back the same.
-// Without, each wall is teleported in place, which marks it moved as the
-// round trip does. The two worlds hash the same.
+// mirrored order so slots do not follow position: a bullet sweeping
+// them meets them in an order that follows neither slot nor position. With reshuffle, each wall
+// goes far away and back, in reverse order: its leaf is reinserted, so the tree takes another shape
+// while every pose and fat box comes back the same. Without, each wall is teleported in place,
+// which marks it moved as the round trip does. The two worlds hash the same.
 static m2World* WallField(int32_t walls, bool reshuffle)
 {
     m2WorldDef def = m2DefaultWorldDef();
@@ -190,10 +189,9 @@ static m2World* WallField(int32_t walls, bool reshuffle)
     return world;
 }
 
-// A bullet whose sweep overlaps more walls than the candidate cap keeps
-// the same candidates, and stops at the same place, whatever the tree's
-// history.
-static void TestCappedSweepIgnoresTreeHistory(void)
+// A bullet whose sweep overlaps 100 walls stops at the same place
+// whatever the tree's history.
+static void TestCrowdedSweepIgnoresTreeHistory(void)
 {
     m2World* plain = WallField(100, false);
     m2World* reshuffled = WallField(100, true);
@@ -210,6 +208,39 @@ static void TestCappedSweepIgnoresTreeHistory(void)
     CHECK(same, "and step on to the same bits");
     m2DestroyWorld(plain);
     m2DestroyWorld(reshuffled);
+}
+
+// A wall at x = 5 created after 320 small circles 12 cm to either side
+// of a bullet's lane, from x = 3 to 7: more than 100 of them overlap a
+// substep's sweep among them, and the bullet touches none. Only the wall
+// stops it.
+static void TestBulletStopsBehindACrowd(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 8;
+    def.shapeCapacity = 340;
+    def.gravity = (m2Vec2){0.0f, 0.0f};
+    m2World* world = NewWorld(&def);
+    m2BodyDef gd = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(world, &gd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    for (int32_t i = 0; i < 160; ++i)
+    {
+        float x = 3.0f + 0.025f * (float)i;
+        m2Circle above = {{x, 0.12f}, 0.01f};
+        m2Circle below = {{x, -0.12f}, 0.01f};
+        NewCircleShape(world, ground, &sd, &above);
+        NewCircleShape(world, ground, &sd, &below);
+    }
+    AddWall(world, 5.0, 0.05f, 1.0f);
+    m2BodyId bullet = FireBall(world, 0.0, 300.0f, true);
+    for (int32_t i = 0; i < 30; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(m2Body_GetPosition(world, bullet).x < 5.0,
+          "the bullet stops at the wall behind the crowd");
+    m2DestroyWorld(world);
 }
 
 static void TestSegmentBulletStops(void)
@@ -284,7 +315,8 @@ int main(void)
 {
     TestSegmentBulletStops();
     TestBulletStopsAtEveryPostShape();
-    TestCappedSweepIgnoresTreeHistory();
+    TestCrowdedSweepIgnoresTreeHistory();
+    TestBulletStopsBehindACrowd();
     TestThinWall();
     TestEarliestWallWins();
     TestBulletsIgnoreEachOther();

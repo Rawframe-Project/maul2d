@@ -3,11 +3,12 @@
 //
 // Bullet continuous collision: conservative advancement
 // per substep for bullet-flagged bodies. Deterministic by construction:
-// bullets advance in body-index order, candidates come from tree queries
-// filtered and processed in canonical shape order, iteration counts are
-// capped, and hitting the cap is documented behavior (slight overlap
-// next substep, which the speculative solver then resolves). Bullets do
-// not sweep against other bullets.
+// bullets advance in body-index order, every shape in a bullet's sweep is
+// advanced against, and the earliest impact over them does not depend on
+// the order the trees yield them; iteration counts are capped, and
+// hitting the cap is documented behavior (slight overlap next substep,
+// which the speculative solver then resolves). Bullets do not sweep
+// against other bullets.
 //
 // Simplifications: the bullet sweeps as its bounding circle (exact for
 // circle shapes, conservative for the rest), and rotation during the
@@ -21,7 +22,6 @@
 
 #define M2_TOI_ITERATIONS 20
 #define M2_TOI_TARGET     0.005f // stop one slop short of the surface
-#define M2_TOI_CANDIDATES 64
 
 static float BulletBoundingRadius(const m2World* world, int32_t body)
 {
@@ -137,27 +137,30 @@ static bool BulletMayHit(const m2World* world, int32_t body, int32_t shape)
     return mayCollide;
 }
 
-// The lowest M2_TOI_CANDIDATES shape slots in the sweep that may stop the
-// bullet, in ascending order whatever the tree's shape. Returns the count.
-static int32_t SweepCandidates(const m2World* world, int32_t body, m2Aabb sweep,
-                               int32_t* candidates)
+// Conservative advancement of a bullet's move against one shape: the
+// time of impact if it comes before minT, else minT. A shape's own steps
+// never depend on the others, so the earliest impact over a sweep's shapes
+// is the same in whatever order the trees yield them.
+static float EarliestImpact(const m2World* world, int32_t shape, m2Pos2 p0, double mx, double my,
+                            float moveLen, float bulletRadius, float minT)
 {
-    int32_t count = 0;
-    for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
+    float t = 0.0f;
+    for (int32_t iter = 0; iter < M2_TOI_ITERATIONS; ++iter)
     {
-        m2TreeCursor cursor;
-        m2TreeBeginQuery(&cursor, &world->broadphase.trees[t], world->broadphase.treeNodes[t],
-                         sweep);
-        int32_t shape;
-        while (m2TreeNextQuery(&cursor, &shape))
+        m2Pos2 wp = {p0.x + (double)t * mx, p0.y + (double)t * my};
+        float distance = DistanceToShape(world, shape, wp, bulletRadius);
+        if (distance < M2_TOI_TARGET)
         {
-            if (BulletMayHit(world, body, shape))
-            {
-                m2TreeKeepLowest(candidates, &count, M2_TOI_CANDIDATES, shape);
-            }
+            return t < minT ? t : minT;
+        }
+        float advance = (distance - 0.5f * M2_TOI_TARGET) / moveLen;
+        t += advance;
+        if (t >= minT || t >= 1.0f)
+        {
+            return minT; // no earlier impact on this shape
         }
     }
-    return count;
+    return minT;
 }
 
 // Sweep one bullet from p0 toward its current position; clamp on impact.
@@ -180,35 +183,20 @@ static void SweepBullet(m2World* world, int32_t body, m2Pos2 p0)
     sweep.upperBound.x = (p0.x > p1.x ? p0.x : p1.x) + (double)bulletRadius;
     sweep.upperBound.y = (p0.y > p1.y ? p0.y : p1.y) + (double)bulletRadius;
 
-    int32_t candidates[M2_TOI_CANDIDATES];
-    int32_t candidateCount = SweepCandidates(world, body, sweep, candidates);
-    if (candidateCount == 0)
-    {
-        return;
-    }
-
-    // Conservative advancement to the earliest impact across candidates.
+    // Conservative advancement to the earliest impact across every shape
+    // in the sweep that may stop the bullet.
     float minT = 1.0f;
-    for (int32_t c = 0; c < candidateCount; ++c)
+    for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
-        float t = 0.0f;
-        for (int32_t iter = 0; iter < M2_TOI_ITERATIONS; ++iter)
+        m2TreeCursor cursor;
+        m2TreeBeginQuery(&cursor, &world->broadphase.trees[t], world->broadphase.treeNodes[t],
+                         sweep);
+        int32_t shape;
+        while (m2TreeNextQuery(&cursor, &shape))
         {
-            m2Pos2 wp = {p0.x + (double)t * mx, p0.y + (double)t * my};
-            float distance = DistanceToShape(world, candidates[c], wp, bulletRadius);
-            if (distance < M2_TOI_TARGET)
+            if (BulletMayHit(world, body, shape))
             {
-                if (t < minT)
-                {
-                    minT = t;
-                }
-                break;
-            }
-            float advance = (distance - 0.5f * M2_TOI_TARGET) / moveLen;
-            t += advance;
-            if (t >= minT || t >= 1.0f)
-            {
-                break; // no earlier impact on this candidate
+                minT = EarliestImpact(world, shape, p0, mx, my, moveLen, bulletRadius, minT);
             }
         }
     }
