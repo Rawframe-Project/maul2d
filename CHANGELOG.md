@@ -16,7 +16,7 @@ This release stops two shapes without area from colliding: a segment or a chain 
 
 ### Fixed
 
-- Two shapes without area never collide ([#265](https://github.com/Rawframe-Project/maul2d/pull/265)). A dynamic segment or chain set down on a segment or chain floor touched it for a step and then sank through, and one that came fast passed with no contact at all: two lines have nothing inside to push each other out of. The broadphase no longer pairs a segment or a chain segment with another, so the outcome no longer depends on speed. A body that must land on one carries a circle, a capsule or a polygon. A sensor among them still pairs, so a segment sensor still detects a segment crossing it. `m2Segment`, `m2ChainSegment` and the guide's bodies and shapes page say so.
+- Two shapes without area never collide ([#265](https://github.com/Rawframe-Project/maul2d/pull/265)). A dynamic segment or chain set down on a segment or chain floor touched it for a step and then sank through: two lines have nothing inside to push each other out of. The broadphase no longer pairs a segment or a chain segment with another. A body that must land on one carries a circle, a capsule or a polygon. A sensor among them still pairs, so a segment sensor still detects a segment crossing it. `m2Segment`, `m2ChainSegment` and the guide's bodies and shapes page say so.
 
 ## [0.11.0](https://github.com/Rawframe-Project/maul2d/compare/v0.10.0...v0.11.0) (2026-11-02)
 
