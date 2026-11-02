@@ -441,7 +441,10 @@ static void AddCellTriads(m2World* world, const FillBatch* batch, int32_t col, i
 }
 
 // Every batch pair inside one diameter becomes a spring that remembers
-// its spawn length, in ascending order; a full spring pool truncates.
+// its spawn length, in ascending order; a full spring pool truncates. The
+// batch comes row by row from the bottom, so once a later particle lies a
+// diameter or more above, every one after it does too, and no pair from
+// there on can be a spring.
 static void AddFillSprings(m2World* world, const FillBatch* batch)
 {
     m2Particles* p = &world->particles;
@@ -454,6 +457,10 @@ static void AddFillSprings(m2World* world, const FillBatch* batch)
             int32_t b = batch->emitted[j];
             float dx = (float)(p->particlePositions[b].x - p->particlePositions[a].x);
             float dy = (float)(p->particlePositions[b].y - p->particlePositions[a].y);
+            if (dy >= diameter)
+            {
+                break;
+            }
             float distSq = dx * dx + dy * dy;
             if (distSq >= diameter * diameter || distSq <= 0.0f ||
                 p->particleSpringCount >= p->particleSpringCapacity)
