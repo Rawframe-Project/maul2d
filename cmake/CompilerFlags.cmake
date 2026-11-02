@@ -100,9 +100,10 @@ function(maul_apply_flags target)
             target_compile_options(${target} PRIVATE -fsanitize=thread -fno-omit-frame-pointer)
             target_link_options(${target} PRIVATE -fsanitize=thread)
         endif()
-        # Coverage only adds counters, so it rides on the normal flags.
+        # Coverage only adds counters, so it rides on the normal flags. The
+        # counters are atomic so that threads running a line count it exactly.
         if(${MAUL_PREFIX}_COVERAGE)
-            target_compile_options(${target} PRIVATE --coverage -O0)
+            target_compile_options(${target} PRIVATE --coverage -fprofile-update=atomic -O0)
             target_link_options(${target} PRIVATE --coverage)
         endif()
     endif()
