@@ -690,6 +690,149 @@ static void TestAllHitsBeyondSixtyFour(void)
     m2DestroyWorld(world);
 }
 
+// Whether a list of hits names the expected shapes, in order.
+static bool HitsAre(const m2CastHit* hits, const m2ShapeId* want, int32_t count)
+{
+    bool same = true;
+    for (int32_t i = 0; i < count; ++i)
+    {
+        same = same && SameShape(hits[i].shapeId, want[i]);
+    }
+    return same;
+}
+
+// The kept hits come out in ascending (fraction, shape slot) order, at
+// every capacity, whatever order the tree offers them in. A ray each way
+// along a row of posts meets them nearest first one way and farthest first
+// the other, and a twin post where another stands ties on the fraction and
+// follows it, being in the higher slot.
+static void TestAllHitsSortWhateverTheTreeOffers(void)
+{
+    enum
+    {
+        POSTS = 8,
+        HITS = POSTS + 1
+    };
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = HITS;
+    def.shapeCapacity = HITS;
+    m2World* world = NewWorld(&def);
+    m2QueryFilter all = m2DefaultQueryFilter();
+    m2ShapeId posts[POSTS];
+    for (int32_t i = 0; i < POSTS; ++i)
+    {
+        posts[i] = AddStaticBox(world, 1.0 + (double)i, 0.0, 0.1f, 1.0f);
+    }
+    m2ShapeId twin = AddStaticBox(world, 4.0, 0.0, 0.1f, 1.0f); // where posts[3] stands
+    m2ShapeId east[HITS];
+    m2ShapeId west[HITS];
+    for (int32_t i = 0, e = 0, w = 0; i < POSTS; ++i)
+    {
+        east[e++] = posts[i];
+        west[w++] = posts[POSTS - 1 - i];
+        if (i == 3)
+        {
+            east[e++] = twin;
+        }
+        if (POSTS - 1 - i == 3)
+        {
+            west[w++] = twin;
+        }
+    }
+
+    m2Circle ball = {{0.0f, 0.0f}, 0.2f};
+    for (int32_t dir = 0; dir < 2; ++dir)
+    {
+        const m2ShapeId* want = dir == 0 ? east : west;
+        m2Transform pose = {{dir == 0 ? 0.0 : (double)POSTS + 1.0, 0.0}, {1.0f, 0.0f}};
+        m2Vec2 path = {dir == 0 ? (float)POSTS + 1.0f : -((float)POSTS + 1.0f), 0.0f};
+        bool sorted = true;
+        for (int32_t capacity = 1; capacity <= HITS; ++capacity)
+        {
+            m2CastHit rays[HITS];
+            m2CastHit sweeps[HITS];
+            int32_t rayCount = m2World_CastRayAll(world, pose.p, path, all, rays, capacity);
+            int32_t sweepCount =
+                m2World_CastCircleAll(world, &ball, pose, path, all, sweeps, capacity);
+            sorted = sorted && rayCount == HITS && sweepCount == HITS &&
+                     HitsAre(rays, want, capacity) && HitsAre(sweeps, want, capacity);
+        }
+        CHECK(sorted, dir == 0 ? "eastward casts keep the nearest hits, the twin after its post"
+                               : "westward casts keep the nearest hits, the twin after its post");
+    }
+    m2DestroyWorld(world);
+}
+
+// What a query's tree walk reaches but must not report: a shape its filter
+// does not see, a shape whose box it crosses but whose body it misses, and
+// a chain link it touches from the ghost side. An all-hits sweep that
+// starts inside a shape reports it at fraction 0, with a zero normal, at
+// the sweep's start.
+static void TestQueriesPassOverWhatTheyMustNotSee(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    m2QueryFilter all = m2DefaultQueryFilter();
+    m2QueryFilter blind = all;
+    blind.maskBits = 0;
+    m2ShapeId disc = AddStaticCircle(world, 0.0, 0.0, 1.0f);
+
+    m2Circle ball = {{0.0f, 0.0f}, 0.2f};
+    m2Transform west = {{-3.0, 0.0}, {1.0f, 0.0f}};
+    m2Vec2 east = {6.0f, 0.0f};
+    m2CastHit hit;
+    m2CastHit hits[2];
+    CHECK(m2World_OverlapCircle(world, &ball, (m2Transform){{0.0, 0.0}, {1.0f, 0.0f}}, all, NULL,
+                                0) == 1 &&
+              m2World_CastCircleClosest(world, &ball, west, east, all, &hit) &&
+              m2World_CastRayAll(world, west.p, east, all, NULL, 0) == 1 &&
+              m2World_CastCircleAll(world, &ball, west, east, all, NULL, 0) == 1,
+          "the disc stands in every query's way");
+    CHECK(m2World_OverlapCircle(world, &ball, (m2Transform){{0.0, 0.0}, {1.0f, 0.0f}}, blind, NULL,
+                                0) == 0 &&
+              !m2World_CastCircleClosest(world, &ball, west, east, blind, &hit) &&
+              m2World_CastRayAll(world, west.p, east, blind, NULL, 0) == 0 &&
+              m2World_CastCircleAll(world, &ball, west, east, blind, NULL, 0) == 0,
+          "a filter that sees nothing finds nothing");
+
+    // Past the disc's rim, inside its box: x + y = 1.6 is 1.13 from its center.
+    m2Circle speck = {{0.0f, 0.0f}, 0.05f};
+    m2Transform corner = {{2.0, -0.4}, {1.0f, 0.0f}};
+    m2Vec2 across = {-2.4f, 2.4f};
+    m2Circle chip = {{0.0f, 0.0f}, 0.1f};
+    CHECK(m2World_CastRayAll(world, corner.p, across, all, NULL, 0) == 0 &&
+              m2World_CastCircleAll(world, &speck, corner, across, all, NULL, 0) == 0 &&
+              m2World_OverlapCircle(world, &chip, (m2Transform){{0.8, 0.8}, {1.0f, 0.0f}}, all,
+                                    NULL, 0) == 0,
+          "crossing the disc's box past its rim is a miss");
+
+    m2Transform inside = {{0.25, 0.0}, {1.0f, 0.0f}};
+    CHECK(m2World_CastCircleAll(world, &ball, inside, east, all, hits, 2) == 1 &&
+              SameShape(hits[0].shapeId, disc) && hits[0].fraction == 0.0f &&
+              hits[0].normal.x == 0.0f && hits[0].normal.y == 0.0f && hits[0].point.x == 0.25 &&
+              hits[0].point.y == 0.0,
+          "a sweep from inside reports the disc where it starts");
+
+    // A shelf whose solid side faces up, as in TestAllHits.
+    m2BodyDef cd = m2DefaultBodyDef();
+    cd.position = (m2Pos2){20.0, 0.0};
+    m2BodyId shelfBody = NewBody(world, &cd);
+    m2Vec2 pts[5] = {{2.5f, 2.0f}, {1.2f, 2.0f}, {0.0f, 2.0f}, {-1.2f, 2.0f}, {-2.5f, 2.0f}};
+    m2ChainDef chain = m2DefaultChainDef();
+    chain.points = pts;
+    chain.count = 5;
+    NewChain(world, shelfBody, &chain);
+    m2Circle pebble = {{0.0f, 0.0f}, 0.3f};
+    CHECK(m2World_OverlapCircle(world, &pebble, (m2Transform){{20.6, 2.2}, {1.0f, 0.0f}}, all, NULL,
+                                0) == 1,
+          "a circle on the shelf's solid side touches its link");
+    CHECK(m2World_OverlapCircle(world, &pebble, (m2Transform){{20.6, 1.8}, {1.0f, 0.0f}}, all, NULL,
+                                0) == 0,
+          "a circle on the ghost side touches nothing");
+
+    m2DestroyWorld(world);
+}
+
 // A ray that starts inside a rounded polygon hits where it starts, with
 // no normal, like every other solid shape; from outside it meets the
 // rounded corner.
@@ -1118,6 +1261,8 @@ int main(void)
     TestBadListCapacities();
     TestRayInsideRoundedPolygon();
     TestAllHitsBeyondSixtyFour();
+    TestAllHitsSortWhateverTheTreeOffers();
+    TestQueriesPassOverWhatTheyMustNotSee();
     TestQueryFilters();
     TestContactData();
     TestRayClosest();
