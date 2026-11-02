@@ -6,6 +6,17 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.11.0](https://github.com/Rawframe-Project/maul2d/compare/v0.10.0...v0.11.0) (2026-11-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* **snapshot:** a snapshot carries the end events queued for the next step and is format 8 (M2_SNAPSHOT_VERSION); a journal tape is format 9 (M2_JOURNAL_VERSION). Snapshots and tapes from earlier releases are refused with m2_errorVersion.
+
+### Fixed
+
+* **snapshot:** carry the end events queued between steps ([#254](https://github.com/Rawframe-Project/maul2d/issues/254)) ([b13fe38](https://github.com/Rawframe-Project/maul2d/commit/b13fe385cf9f30b1f078cdcfb5c424ad7a32d28a)), closes [#253](https://github.com/Rawframe-Project/maul2d/issues/253)
+
 ## [0.10.0](https://github.com/Rawframe-Project/maul2d/compare/v0.9.0...v0.10.0) (2026-11-01)
 
 This release makes two kinds of argument refusals stricter, keeps a refused journal replay from changing anything a program can see, keeps host code from destroying the world it runs in, and stops `m2ComputeHull` from shrinking fine curves. A program that relied on the two old leniencies below needs to change. No golden value moves, so the same calls step to the same bits as on 0.9.0.
