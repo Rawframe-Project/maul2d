@@ -1349,6 +1349,43 @@ static void TestMoverKeepsTheLowestPlanes(void)
     m2DestroyWorld(world);
 }
 
+// A ball falling at 20 m/s moves a third of a meter a step, farther than
+// its broadphase box's margin. Between steps, a ray through its center
+// and a box query over its bottom 15 cm still find it.
+static void TestQueriesSeeAMovingShape(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    bd.position = (m2Pos2){0.0, 10.0};
+    bd.linearVelocity = (m2Vec2){0.0f, -20.0f};
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Circle ball = {{0.0f, 0.0f}, 0.25f};
+    m2ShapeId shape = NewCircleShape(world, NewBody(world, &bd), &sd, &ball);
+    bool rays = true;
+    bool boxes = true;
+    for (int32_t i = 0; i < 30; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+        m2WorldAabb box = m2Shape_GetAabb(world, shape);
+        double y = 0.5 * (box.lowerBound.y + box.upperBound.y);
+        CastResult hit =
+            RayClosest(world, (m2Pos2){-5.0, y}, (m2Vec2){10.0f, 0.0f}, m2DefaultQueryFilter());
+        rays = rays && hit.hit && SameShape(hit.shapeId, shape);
+        m2WorldAabb bottom = {box.lowerBound, {box.upperBound.x, box.lowerBound.y + 0.15}};
+        m2ShapeId found;
+        boxes = boxes &&
+                m2World_OverlapAabb(world, bottom, m2DefaultQueryFilter(), &found, 1) == 1 &&
+                SameShape(found, shape);
+    }
+    CHECK(rays, "a ray through the falling ball's center hits it after every step");
+    CHECK(boxes, "and a box query over its bottom finds it");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
     TestRayFromTheSurfaceHitsAtZero();
@@ -1369,6 +1406,7 @@ int main(void)
     TestMoverKit();
     TestMoverEdges();
     TestMoverKeepsTheLowestPlanes();
+    TestQueriesSeeAMovingShape();
     TestRayGeometries();
     TestRayFarFromOrigin();
     TestOverlap();
