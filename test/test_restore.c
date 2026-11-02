@@ -380,6 +380,68 @@ static void PairNamesADeadShape(const Scene* scene, uint8_t* block)
     memcpy(At(scene, block, &w->contacts.pairKeys), &key, sizeof(key));
 }
 
+// Queues one end event between the first two shape slots, as a destroy
+// between steps would, then lets `change` spoil it.
+static void QueueEnd(const Scene* scene, uint8_t* block, const void* countField,
+                     const void* eventsField, void (*change)(const Scene*, m2ContactEndEvent*))
+{
+    m2ContactEndEvent e;
+    memset(&e, 0, sizeof(e));
+    e.shapeIdA = (m2ShapeId){1, 1};
+    e.shapeIdB = (m2ShapeId){2, 1};
+    memcpy(&e.step, At(scene, block, &scene->world->stepCount), sizeof(e.step));
+    change(scene, &e);
+    PutI32(At(scene, block, countField), 0, 1);
+    memcpy(At(scene, block, eventsField), &e, sizeof(e));
+}
+
+static void FromTheNextStep(const Scene* scene, m2ContactEndEvent* e)
+{
+    (void)scene;
+    e->step += 1;
+}
+
+static void PastTheShapePool(const Scene* scene, m2ContactEndEvent* e)
+{
+    e->shapeIdB.index1 = (uint32_t)scene->world->shapes.shapeCapacity + 1;
+}
+
+static void SlotZero(const Scene* scene, m2ContactEndEvent* e)
+{
+    (void)scene;
+    e->shapeIdA.index1 = 0;
+}
+
+// A queued contact end stamped with a step that has not run.
+static void QueuedEndFromAnotherStep(const Scene* scene, uint8_t* block)
+{
+    const m2World* w = scene->world;
+    QueueEnd(scene, block, &w->events.pendingEndCount, &w->events.pendingEndEvents,
+             FromTheNextStep);
+}
+
+// A queued contact end naming a slot past the shape pool.
+static void QueuedEndPastThePool(const Scene* scene, uint8_t* block)
+{
+    const m2World* w = scene->world;
+    QueueEnd(scene, block, &w->events.pendingEndCount, &w->events.pendingEndEvents,
+             PastTheShapePool);
+}
+
+// A queued sensor end naming slot 0, which no id holds.
+static void QueuedSensorEndSlotZero(const Scene* scene, uint8_t* block)
+{
+    const m2World* w = scene->world;
+    QueueEnd(scene, block, &w->events.pendingSensorEndCount, &w->events.pendingSensorEnd, SlotZero);
+}
+
+// More queued contact ends than pairs.
+static void QueuedEndsPastThePairs(const Scene* scene, uint8_t* block)
+{
+    const m2World* w = scene->world;
+    PutI32(At(scene, block, &w->events.pendingEndCount), 0, w->contacts.pairCapacity + 1);
+}
+
 // A geometry edit on the first shape of a body, through the stored union.
 static void EditGeometry(const Scene* scene, uint8_t* block, m2BodyId owner,
                          void (*change)(m2ShapeGeometry* geometry))
@@ -1390,6 +1452,11 @@ static void TestHostileStructures(void)
     ExpectRefused(&scene, MovedRepeatsAShape, "a moved list that repeats a shape is refused");
     ExpectRefused(&scene, MovedFlagMissing, "a moved shape without its flag is refused");
     ExpectRefused(&scene, PairNamesADeadShape, "a pair with a dead shape is refused");
+    ExpectRefused(&scene, QueuedEndFromAnotherStep,
+                  "a queued end from a step that has not run is refused");
+    ExpectRefused(&scene, QueuedEndPastThePool, "a queued end past the shape pool is refused");
+    ExpectRefused(&scene, QueuedSensorEndSlotZero, "a queued sensor end on slot 0 is refused");
+    ExpectRefused(&scene, QueuedEndsPastThePairs, "more queued ends than pairs are refused");
     ExpectRefused(&scene, PolygonNormalLies, "a polygon whose normal lies is refused");
     ExpectRefused(&scene, GroundGeometryBroken, "a broken ground geometry is refused");
     ExpectRefused(&scene, ShapeTypeMinusOne, "a shape type of -1 is refused");

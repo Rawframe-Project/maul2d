@@ -22,7 +22,7 @@
 
 #define M2_SNAPSHOT_MAGIC M2_STATE_MAGIC('M', '2', 'S', 'N')
 
-#define M2_SNAPSHOT_VERSION 7u
+#define M2_SNAPSHOT_VERSION 8u
 
 // --- Snapshot -------------------------------------------------------------------
 
@@ -217,14 +217,13 @@ static M2_NOINLINE m2Result WorldRestoreWorker(m2World* world, const void* buffe
     // The price is tape size, and that is the caller's tradeoff.
     m2JournalRecordRestore(world, buffer, size);
 
-    // Events are an observer stream from an abandoned timeline: cleared
-    // on restore, re-emitted by re-simulation.
+    // The last step's events belong to an abandoned timeline: cleared on
+    // restore, emitted again by the steps simulated again. The end events
+    // queued for the next step came with the snapshot.
     world->events.beginEventCount = 0;
     world->events.endEventCount = 0;
-    world->events.pendingEndCount = 0;
     world->events.sensorBeginCount = 0;
     world->events.sensorEndCount = 0;
-    world->events.pendingSensorEndCount = 0;
     world->events.jointBreakEventCount = 0;
     return m2_success;
 }

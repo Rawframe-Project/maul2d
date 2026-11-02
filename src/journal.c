@@ -20,7 +20,7 @@
 #include <string.h>
 
 #define M2_JOURNAL_MAGIC   M2_STATE_MAGIC('M', '2', 'J', 'N')
-#define M2_JOURNAL_VERSION 8u
+#define M2_JOURNAL_VERSION 9u
 
 // The world's shape travels in the embedded snapshot's header, which
 // restore checks; the tape's header only says where the records start.
