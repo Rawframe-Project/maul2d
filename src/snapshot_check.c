@@ -19,6 +19,8 @@
 //     their children, and its free list holds every other node;
 //   - the moved list and its flags agree, and the pairs are ordered and
 //     join live shapes in the broadphase;
+//   - each end event queued for the next step carries the step count and
+//     names two shape slots;
 //   - each shape of a static or sleeping body lies inside its fat box at
 //     the body's pose: the step refits no such box before it, or a host,
 //     queries it.
@@ -883,6 +885,44 @@ static bool CheckPairs(const m2World* world, const uint8_t* in)
     return true;
 }
 
+// Whether `count` queued end events, laid out as m2ContactEndEvent and
+// m2SensorEndEvent both are, each carry the step count and name two shape
+// slots of this world.
+static bool QueuedEndsValid(const m2World* world, const uint8_t* events, int32_t count,
+                            uint64_t step)
+{
+    if (count < 0 || count > world->contacts.pairCapacity)
+    {
+        return false;
+    }
+    uint32_t capacity = (uint32_t)world->shapes.shapeCapacity;
+    for (int32_t i = 0; i < count; ++i)
+    {
+        m2ContactEndEvent e;
+        memcpy(&e, events + (size_t)i * sizeof(e), sizeof(e));
+        if (e.shapeIdA.index1 < 1 || e.shapeIdA.index1 > capacity || e.shapeIdB.index1 < 1 ||
+            e.shapeIdB.index1 > capacity || e.step != step)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// The end events a destroy or a disable queued since the last step: each
+// was queued at the snapshot's step count and names two shape slots, so
+// the next step hands the host no id outside its pools.
+static bool CheckQueuedEnds(const m2World* world, const uint8_t* in)
+{
+    _Static_assert(sizeof(m2ContactEndEvent) == sizeof(m2SensorEndEvent),
+                   "both queues share one layout");
+    uint64_t step = ReadU64(M2_IN(stepCount), 0);
+    return QueuedEndsValid(world, M2_IN(events.pendingEndEvents),
+                           InlineI32(world, in, &world->events.pendingEndCount), step) &&
+           QueuedEndsValid(world, M2_IN(events.pendingSensorEnd),
+                           InlineI32(world, in, &world->events.pendingSensorEndCount), step);
+}
+
 // The boxes the step will not refit before it queries them: those of
 // static bodies, which never move in a step, and of sleeping dynamic
 // bodies, which a world refits as they fall asleep. Each must hold its
@@ -934,5 +974,5 @@ bool m2SnapshotCheck(m2World* world, const uint8_t* in)
     return CheckPools(world, in) && CheckShapeLists(world, in) && CheckChains(world, in) &&
            CheckJoints(world, in) && CheckGeometry(world, in) && CheckMass(world, in) &&
            CheckTrees(world, in) && CheckMoved(world, in) && CheckPairs(world, in) &&
-           CheckRestingBoxes(world, in) && CheckFlagBits(world, in);
+           CheckQueuedEnds(world, in) && CheckRestingBoxes(world, in) && CheckFlagBits(world, in);
 }

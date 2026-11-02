@@ -485,7 +485,9 @@ extern "C"
     /// Restores a snapshot of a world with the same shape: the same
     /// capacities and the same particle radius in its def. Everything,
     /// bodies, id pools and the step count included, returns to the
-    /// snapshot's instant, bit for bit, and the event streams clear. Only
+    /// snapshot's instant, bit for bit, and the event streams clear. End
+    /// events a destroy or a disable queued for the next step are state:
+    /// the snapshot carries them, and the next step delivers them. Only
     /// the release that wrote a snapshot reads it (M2_ABI_VERSION). The
     /// buffer is checked before any byte lands: a header from another
     /// release, build or world shape, an index or count out of range,

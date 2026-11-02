@@ -180,6 +180,90 @@ static void TestRestoreClearsAndReplays(void)
     m2DestroyWorld(world);
 }
 
+// Whether two steps delivered the same end events.
+static bool SameEnds(m2ContactEvents a, m2SensorEvents as, m2ContactEvents b, m2SensorEvents bs)
+{
+    return a.endCount == b.endCount && as.endCount == bs.endCount &&
+           memcmp(a.endEvents, b.endEvents, (size_t)a.endCount * sizeof(*a.endEvents)) == 0 &&
+           memcmp(as.endEvents, bs.endEvents, (size_t)as.endCount * sizeof(*as.endEvents)) == 0;
+}
+
+static void TestRestoreKeepsQueuedEnds(void)
+{
+    // A destroy between steps queues the end events of its touching
+    // pairs for the next step. A snapshot taken in between carries them:
+    // the step after its restore delivers the same ends the original
+    // did. A snapshot from before the destroy carries none.
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 8;
+    def.shapeCapacity = 8;
+    m2World* world = NewWorld(&def);
+    AddSlab(world);
+    m2BodyDef zd = m2DefaultBodyDef();
+    zd.position = (m2Pos2){0.0, 0.5};
+    m2BodyId zoneBody = NewBody(world, &zd);
+    m2ShapeDef zs = m2DefaultShapeDef();
+    zs.isSensor = true;
+    m2Polygon zone = m2MakeBox(1.0f, 1.0f);
+    NewPolygonShape(world, zoneBody, &zs, &zone);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    bd.position = (m2Pos2){0.0, 0.6};
+    m2BodyId box = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon unit = m2MakeBox(0.5f, 0.5f);
+    m2ShapeId boxShape = NewPolygonShape(world, box, &sd, &unit);
+    for (int32_t i = 0; i < 30; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+    }
+
+    int64_t size = m2World_GetSnapshotSize(world);
+    void* before = malloc((size_t)size);
+    void* between = malloc((size_t)size);
+    CHECK(Snapshot(world, before, size) == size, "snapshot before the destroy");
+    DestroyShape(world, boxShape);
+    CHECK(Snapshot(world, between, size) == size, "snapshot between the destroy and the step");
+    Step(world, 1.0f / 60.0f, 4);
+    m2ContactEvents ends = m2World_GetContactEvents(world);
+    m2SensorEvents sensorEnds = m2World_GetSensorEvents(world);
+    CHECK(ends.endCount == 1 && sensorEnds.endCount == 1,
+          "the step after the destroy ends the box's contact and its overlap");
+    m2ContactEndEvent end = ends.endEvents[0];
+    m2SensorEndEvent sensorEnd = sensorEnds.endEvents[0];
+    uint64_t hash = m2World_Hash(world);
+
+    CHECK(Restore(world, between, size), "restore between the destroy and the step");
+    Step(world, 1.0f / 60.0f, 4);
+    m2ContactEvents again = m2World_GetContactEvents(world);
+    m2SensorEvents sensorAgain = m2World_GetSensorEvents(world);
+    CHECK(again.endCount == 1 && sensorAgain.endCount == 1 &&
+              memcmp(&again.endEvents[0], &end, sizeof(end)) == 0 &&
+              memcmp(&sensorAgain.endEvents[0], &sensorEnd, sizeof(sensorEnd)) == 0,
+          "the step after the restore delivers the same ends");
+    CHECK(m2World_Hash(world) == hash, "and reaches the same state");
+
+    // A fresh world that restores the same snapshot delivers the same ends:
+    // they travel in the snapshot's bytes, not in the world's memory.
+    m2World* twin = NewWorld(&def);
+    CHECK(Restore(twin, between, size), "a fresh world restores the same snapshot");
+    Step(twin, 1.0f / 60.0f, 4);
+    CHECK(
+        SameEnds(m2World_GetContactEvents(twin), m2World_GetSensorEvents(twin), again, sensorAgain),
+        "a fresh world's step delivers the same ends");
+
+    CHECK(Restore(world, before, size), "restore before the destroy");
+    Step(world, 1.0f / 60.0f, 4);
+    CHECK(m2World_GetContactEvents(world).endCount == 0 &&
+              m2World_GetSensorEvents(world).endCount == 0,
+          "an abandoned timeline's ends never arrive");
+
+    free(before);
+    free(between);
+    m2DestroyWorld(twin);
+    m2DestroyWorld(world);
+}
+
 static void TestDestroyShapeBookends(void)
 {
     // Destroying one shape of a
@@ -547,6 +631,7 @@ int main(void)
     TestLifecycleSymmetry();
     TestDestroyBookending();
     TestRestoreClearsAndReplays();
+    TestRestoreKeepsQueuedEnds();
 
     if (s_failures > 0)
     {
