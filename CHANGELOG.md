@@ -6,6 +6,13 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.11.4](https://github.com/Rawframe-Project/maul2d/compare/v0.11.3...v0.11.4) (2026-11-02)
+
+
+### Fixed
+
+* **query:** refit moving shapes' boxes at the end of a step ([#278](https://github.com/Rawframe-Project/maul2d/issues/278)) ([3941849](https://github.com/Rawframe-Project/maul2d/commit/3941849bdf08d91709a7ab371121c7f980a855f7)), closes [#277](https://github.com/Rawframe-Project/maul2d/issues/277)
+
 ## [0.11.3](https://github.com/Rawframe-Project/maul2d/compare/v0.11.2...v0.11.3) (2026-11-02)
 
 This release stops a bullet from passing a wall when more than 64 shapes crowd its path, and makes `m2World_CollideMover` with a short array hold the planes of the lowest shape slots, whatever order the broadphase trees yield them. No golden line moves.
