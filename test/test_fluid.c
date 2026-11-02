@@ -1060,6 +1060,53 @@ static void TestCrowdedCrossingStops(void)
     m2DestroyWorld(world);
 }
 
+// A world with a particle dropped onto a floor whose shape is created
+// after clutter small circles 28 cm to either side of its path: their fat
+// boxes overlap the particle's box near the floor, but their surfaces stay
+// farther than a diameter, so none touches it.
+static m2World* ClutteredFloor(int32_t clutter, m2ParticleId* particle)
+{
+    m2WorldDef def = FluidWorldDef(16);
+    def.shapeCapacity = 64;
+    def.particleRadius = 0.1f;
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    for (int32_t i = 0; i < clutter; ++i)
+    {
+        m2Circle dot = {{i % 2 == 0 ? -0.28f : 0.28f, -0.3f + 0.02f * (float)(i / 2)}, 0.01f};
+        NewCircleShape(world, ground, &sd, &dot);
+    }
+    m2Segment floor = {{-5.0f, 0.0f}, {5.0f, 0.0f}};
+    NewSegmentShape(world, ground, &sd, &floor);
+    *particle = EmitParticle(world, (m2Pos2){0.0, 0.5}, (m2Vec2){0.0f, 0.0f}, 0);
+    for (int32_t i = 0; i < 120; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+    }
+    return world;
+}
+
+// More shape boxes around a particle than any fixed count never cost it a
+// contact it has: beside 40 shapes that do not touch it, a particle rests
+// on the floor exactly as on the bare floor, and no contact is dropped.
+static void TestFarShapesKeepTheFloor(void)
+{
+    m2ParticleId bareParticle;
+    m2ParticleId clutteredParticle;
+    m2World* bare = ClutteredFloor(0, &bareParticle);
+    m2World* cluttered = ClutteredFloor(40, &clutteredParticle);
+    m2Pos2 a = m2Particle_GetPosition(bare, bareParticle);
+    m2Pos2 b = m2Particle_GetPosition(cluttered, clutteredParticle);
+    CHECK(a.y > 0.05, "a particle rests on the floor's contact");
+    CHECK(a.x == b.x && a.y == b.y, "and on the same spot beside 40 shapes that do not touch it");
+    CHECK(m2World_GetCounters(cluttered).particleBodyContactsDropped == 0,
+          "with no contact dropped");
+    m2DestroyWorld(bare);
+    m2DestroyWorld(cluttered);
+}
+
 // A program may hold the id of a particle that is gone. A slot is reused
 // every capacity emits, so one slot reused 65536 times would bring a 16-bit
 // generation back to the held id: it would name the new particle. Volumes
@@ -1261,6 +1308,7 @@ int main(void)
 {
     TestZeroPoolsAreFull();
     TestCrowdedCrossingStops();
+    TestFarShapesKeepTheFloor();
     TestCappedCandidatesIgnoreTreeHistory();
     TestLifecycle();
     TestParticleDefs();
