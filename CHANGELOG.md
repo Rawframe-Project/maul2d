@@ -6,6 +6,14 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.11.3](https://github.com/Rawframe-Project/maul2d/compare/v0.11.2...v0.11.3) (2026-11-02)
+
+
+### Fixed
+
+* **collision:** sweep a bullet against every shape in its path ([#276](https://github.com/Rawframe-Project/maul2d/issues/276)) ([5c1a5b0](https://github.com/Rawframe-Project/maul2d/commit/5c1a5b0844b3cb7edfbc4518ac3eda2249cb0024)), closes [#275](https://github.com/Rawframe-Project/maul2d/issues/275)
+* **query:** keep the lowest-slot planes when a mover's array is short ([#273](https://github.com/Rawframe-Project/maul2d/issues/273)) ([94d2ad7](https://github.com/Rawframe-Project/maul2d/commit/94d2ad710114663b099cf7bfc58edea128500abc)), closes [#272](https://github.com/Rawframe-Project/maul2d/issues/272)
+
 ## [0.11.2](https://github.com/Rawframe-Project/maul2d/compare/v0.11.1...v0.11.2) (2026-11-02)
 
 This release keeps the contacts of a particle near more than 32 shapes, and speeds up a spring fill. No golden line moves.
