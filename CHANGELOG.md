@@ -8,11 +8,11 @@ snapshot and journal formats.
 
 ## [0.11.1](https://github.com/Rawframe-Project/maul2d/compare/v0.11.0...v0.11.1) (2026-11-02)
 
-This release stops two shapes without area from colliding: a segment or a chain segment never pairs with another, as in Box2D. Such a pair could not hold a body anyway: it touched for a step before the body sank through. Results change only where a world puts a segment or a chain on a dynamic body, and the snapshot and journal formats stay as they were.
+This release stops two shapes without area from colliding: a segment or a chain segment never pairs with another, as in Box2D. Such a pair could not hold a body anyway: it touched for a step before the body sank through. A world that paired such shapes steps to other bits, and the snapshot and journal formats stay as they were.
 
 ### Changed
 
-- Results: one golden value moves, `M2_JOURNAL_HASH`, the same in the scalar and AVX2 builds ([#265](https://github.com/Rawframe-Project/maul2d/pull/265)). The seeded API walk behind it attaches chains to dynamic bodies, whose pairs with other segments and chains are no longer made. Every other line stays, so worlds without such pairs step to the same bits as on 0.11.0. The snapshot (version 8) and journal tape (version 9) formats are unchanged.
+- Results: one golden value moves, `M2_JOURNAL_HASH`, the same in the scalar and AVX2 builds ([#265](https://github.com/Rawframe-Project/maul2d/pull/265)). The seeded API walk behind it attaches chains to random bodies, dynamic ones included. Their pairs with other segments and chains are no longer made, so the walk's worlds step to other bits. No other golden scene makes such a pair, and their lines hold. The snapshot (version 8) and journal tape (version 9) formats are unchanged.
 
 ### Fixed
 
