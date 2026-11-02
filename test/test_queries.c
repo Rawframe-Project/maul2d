@@ -1026,6 +1026,89 @@ static void TestBadListCapacities(void)
     m2DestroyWorld(world);
 }
 
+// The mover kit's edges. The planes come back in ascending shape order
+// even when a later tree holds the lower index, a filter hides what it
+// excludes, and a capsule sunk into a shape is pushed out along its
+// offset from the shape's origin, or skipped when it sits dead on it.
+// The solver leaves the wish when it has no planes, ignores planes past
+// M2_MAX_MOVER_PLANES, rests on one of two parallel planes, and leaves
+// the wish where planes that squeeze from both sides overlap least.
+static void TestMoverEdges(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    m2BodyDef cd = m2DefaultBodyDef();
+    cd.type = m2_dynamicBody;
+    cd.position = (m2Pos2){1.0, 0.5};
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon crate = m2MakeBox(0.5f, 0.5f);
+    m2ShapeId low = NewPolygonShape(world, NewBody(world, &cd), &sd, &crate);
+    m2BodyDef fd = m2DefaultBodyDef();
+    fd.position = (m2Pos2){0.0, -0.5};
+    m2Polygon slab = m2MakeBox(8.0f, 0.5f);
+    m2ShapeId high = NewPolygonShape(world, NewBody(world, &fd), &sd, &slab);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.position = (m2Pos2){-5.0, 3.0};
+    m2Polygon big = m2MakeBox(2.0f, 2.0f);
+    m2ShapeId block = NewPolygonShape(world, NewBody(world, &bd), &sd, &big);
+
+    m2Capsule mover = {{0.0f, -0.4f}, {0.0f, 0.4f}, 0.3f};
+    m2QueryFilter all = m2DefaultQueryFilter();
+    m2MoverPlane planes[4];
+    m2Transform corner = {{0.19, 0.71}, {1.0f, 0.0f}};
+    CHECK(m2World_CollideMover(world, &mover, corner, all, planes, 4) == 2 &&
+              planes[0].shapeId.index1 == low.index1 && planes[1].shapeId.index1 == high.index1,
+          "the dynamic crate's lower index comes first, though the static tree is walked first");
+    m2QueryFilter blind = all;
+    blind.maskBits = 0x2;
+    CHECK(m2World_CollideMover(world, &mover, corner, blind, planes, 4) == 0,
+          "a filter that excludes both shapes gathers nothing");
+    m2Transform sunk = {{-4.5, 3.0}, {1.0f, 0.0f}};
+    CHECK(m2World_CollideMover(world, &mover, sunk, all, planes, 4) == 1 &&
+              planes[0].shapeId.index1 == block.index1 && planes[0].normal.x == 1.0f &&
+              planes[0].normal.y == 0.0f && planes[0].separation == -0.3f,
+          "a sunk capsule is pushed out along its offset, as deep as its radius");
+    m2Transform centered = {{-5.0, 3.0}, {1.0f, 0.0f}};
+    CHECK(m2World_CollideMover(world, &mover, centered, all, planes, 4) == 0,
+          "one dead on the shape's origin has no way out and gets no plane");
+    m2DestroyWorld(world);
+
+    m2Vec2 down = {0.0f, -1.0f};
+    m2MoverMove move = m2SolveMover(down, NULL, 3);
+    CHECK(move.translation.x == 0.0f && move.translation.y == -1.0f && move.pressed == 0,
+          "no planes leave the wish");
+    m2MoverPlane floor = {.normal = {0.0f, 1.0f}, .separation = 0.0f};
+    move = m2SolveMover((m2Vec2){NAN, 0.0f}, &floor, 1);
+    CHECK(move.pressed == 0, "nor does a wish that is not finite");
+    m2MoverPlane many[M2_MAX_MOVER_PLANES + 1];
+    for (int32_t i = 0; i < M2_MAX_MOVER_PLANES; ++i)
+    {
+        many[i] = (m2MoverPlane){.normal = {1.0f, 0.0f}, .separation = 10.0f};
+    }
+    many[M2_MAX_MOVER_PLANES] = floor;
+    move = m2SolveMover(down, many, M2_MAX_MOVER_PLANES + 1);
+    CHECK(move.translation.y == -1.0f && move.pressed == 0,
+          "a plane past M2_MAX_MOVER_PLANES takes no part");
+    m2MoverPlane twins[2] = {floor, floor};
+    twins[1].separation = 0.5f;
+    move = m2SolveMover(down, twins, 2);
+    CHECK(move.translation.x == 0.0f && move.translation.y == 0.0f && move.pressed == 1u,
+          "two parallel planes: the move rests on the nearer one");
+    m2MoverPlane squeeze[2] = {floor, floor};
+    squeeze[0].separation = -0.1f;
+    squeeze[1].normal = (m2Vec2){0.0f, -1.0f};
+    squeeze[1].separation = -0.1f;
+    move = m2SolveMover((m2Vec2){0.0f, 0.0f}, squeeze, 2);
+    CHECK(move.translation.x == 0.0f && move.translation.y == 0.0f && move.pressed == 0,
+          "planes that squeeze from both sides leave the wish, where both overlap least");
+
+    m2Vec2 velocity = {2.0f, -1.0f};
+    m2Vec2 kept = m2ClipMoverVelocity(velocity, &floor, 1, 0);
+    CHECK(kept.x == 2.0f && kept.y == -1.0f, "a velocity resting on nothing keeps all of itself");
+    kept = m2ClipMoverVelocity(velocity, NULL, 1, 1);
+    CHECK(kept.x == 2.0f && kept.y == -1.0f, "and so does one given no planes");
+}
+
 int main(void)
 {
     TestRayFromTheSurfaceHitsAtZero();
@@ -1041,6 +1124,7 @@ int main(void)
     TestShapeCastsAndOverlaps();
     TestAllHits();
     TestMoverKit();
+    TestMoverEdges();
     TestRayGeometries();
     TestRayFarFromOrigin();
     TestOverlap();

@@ -1208,6 +1208,9 @@ static void TestMotorAndMouseJoints(void)
     CHECK(at.y > 2.2 && at.y < 3.6, "and lifts it off the floor");
     m2Pos2 target = m2MouseJoint_GetTarget(world, grip);
     CHECK(target.x == 12.0 && target.y == 3.0, "the target reads back");
+    CHECK(m2MouseJoint_GetMaxForce(world, grip) == 200.0f &&
+              m2MouseJoint_GetMaxForce(world, mover) == 0.0f,
+          "so does the force budget, which another joint type reads as 0");
     CHECK(m2Joint_GetReactionForce(world, grip) > 1.0f, "the spring carries real load");
     CHECK(m2Joint_GetType(world, mover) == m2_motorJoint &&
               m2Joint_GetType(world, grip) == m2_mouseJoint,
