@@ -6,6 +6,18 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.11.2](https://github.com/Rawframe-Project/maul2d/compare/v0.11.1...v0.11.2) (2026-11-02)
+
+
+### Fixed
+
+* **fluid:** keep a particle's body contacts past 32 shape boxes ([#271](https://github.com/Rawframe-Project/maul2d/issues/271)) ([bf47069](https://github.com/Rawframe-Project/maul2d/commit/bf47069dd527f8162d52301c9deeb9eef72d02b1)), closes [#270](https://github.com/Rawframe-Project/maul2d/issues/270)
+
+
+### Changed
+
+* **fluid:** stop the fill's spring scan a diameter above each particle ([#268](https://github.com/Rawframe-Project/maul2d/issues/268)) ([f015bbd](https://github.com/Rawframe-Project/maul2d/commit/f015bbd1766da77ee1c6e87798ce34286529e365)), closes [#267](https://github.com/Rawframe-Project/maul2d/issues/267)
+
 ## [0.11.1](https://github.com/Rawframe-Project/maul2d/compare/v0.11.0...v0.11.1) (2026-11-02)
 
 This release stops two shapes without area from colliding: a segment or a chain segment never pairs with another, as in Box2D. Such a pair could not hold a body anyway: it touched for a step before the body sank through. One golden line moves, and the snapshot and journal formats stay as they were.
