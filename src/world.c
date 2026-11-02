@@ -349,7 +349,10 @@ static bool WorldIsHibernating(const m2World* world)
 }
 
 // Refits the proxies of every moving body whose tight box left its fat
-// box: fixed body order, shape-list order within a body.
+// box: fixed body order, shape-list order within a body. The step runs it
+// at its end, so the trees hold every shape where the solve left it and a
+// query between steps sees it, and again at its start, for anything moved
+// between steps without a refit of its own.
 static void MoveProxies(m2World* world)
 {
     for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
@@ -554,6 +557,7 @@ static void StepWorld(m2World* world, float dt, int32_t substepCount)
     m2SolveStep(world, dt, substepCount);
     uint64_t tSolve = m2TimeNowNs();
     m2UpdateSleep(world, dt);
+    MoveProxies(world);
 #ifdef MAUL2D_VALIDATE
     // The validate build walks the invariants after every step.
     M2_ASSERT(m2World_Validate(world));
