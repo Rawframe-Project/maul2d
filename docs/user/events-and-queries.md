@@ -54,7 +54,7 @@ pose.p.y += (double)move.translation.y;
 velocity = m2ClipMoverVelocity(velocity, planes, planeCount, move.pressed);
 ```
 
-`m2World_CollideMover` gathers the planes near the capsule, `m2SolveMover` turns the wished translation into the closest one no plane blocks, and `m2ClipMoverVelocity` removes the velocity that pushes into the planes the character rests on. `m2World_CastCapsuleClosest` is the sweep for fast moves. All of it only reads the world, so a character built on it replays exactly. The testbed's platformer is this loop end to end.
+`m2World_CollideMover` gathers the planes near the capsule, `m2SolveMover` turns the wished translation into the closest one no plane blocks, and `m2ClipMoverVelocity` removes the velocity that pushes into the planes the character rests on. `m2World_CollideMover` returns how many planes it found; when that is more than the array holds, the array keeps the planes of the lowest shape slots. `m2World_CastCapsuleClosest` is the sweep for fast moves. All of it only reads the world, so a character built on it replays exactly. The testbed's platformer is this loop end to end.
 
 ## Walking the world
 

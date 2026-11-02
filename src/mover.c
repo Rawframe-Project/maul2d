@@ -22,6 +22,68 @@
 
 #include <math.h>
 
+// Keeps the `capacity` planes of the lowest shape slots offered, as a
+// max-heap on the slot while collecting, so which planes a short array
+// holds depends only on which shapes touch, never on the order the trees
+// yield them. SortPlanes then lays them out ascending.
+static void SiftPlaneDown(m2MoverPlane* heap, int32_t size, int32_t i)
+{
+    for (;;)
+    {
+        int32_t largest = i;
+        int32_t left = 2 * i + 1;
+        int32_t right = left + 1;
+        if (left < size && heap[left].shapeId.index1 > heap[largest].shapeId.index1)
+        {
+            largest = left;
+        }
+        if (right < size && heap[right].shapeId.index1 > heap[largest].shapeId.index1)
+        {
+            largest = right;
+        }
+        if (largest == i)
+        {
+            return;
+        }
+        m2MoverPlane swap = heap[i];
+        heap[i] = heap[largest];
+        heap[largest] = swap;
+        i = largest;
+    }
+}
+
+static void OfferPlane(m2MoverPlane* heap, int32_t* size, int32_t capacity, m2MoverPlane plane)
+{
+    if (*size < capacity)
+    {
+        int32_t i = (*size)++;
+        heap[i] = plane;
+        while (i > 0 && heap[(i - 1) / 2].shapeId.index1 < heap[i].shapeId.index1)
+        {
+            m2MoverPlane swap = heap[i];
+            heap[i] = heap[(i - 1) / 2];
+            heap[(i - 1) / 2] = swap;
+            i = (i - 1) / 2;
+        }
+    }
+    else if (capacity > 0 && plane.shapeId.index1 < heap[0].shapeId.index1)
+    {
+        heap[0] = plane;
+        SiftPlaneDown(heap, *size, 0);
+    }
+}
+
+static void SortPlanes(m2MoverPlane* heap, int32_t size)
+{
+    for (int32_t end = size - 1; end > 0; --end)
+    {
+        m2MoverPlane swap = heap[0];
+        heap[0] = heap[end];
+        heap[end] = swap;
+        SiftPlaneDown(heap, end, 0);
+    }
+}
+
 // Planes for a posed capsule: one distance query per nearby shape. A
 // collar of four linear slops lets a controller see a wall before it
 // reaches it.
@@ -46,6 +108,7 @@ static M2_NOINLINE int32_t WorldCollideMoverWorker(const m2World* world, const m
     aabb.upperBound.y = q.pose.p.y + (double)(q.boundRadius + collar);
 
     int32_t total = 0;
+    int32_t kept = 0;
     for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
     {
         m2TreeCursor cursor;
@@ -92,33 +155,22 @@ static M2_NOINLINE int32_t WorldCollideMoverWorker(const m2World* world, const m
             m2Transform xf = world->bodies.transforms[body];
             m2Vec2 surf = {d.pointA.x + target.radius * normalLocal.x,
                            d.pointA.y + target.radius * normalLocal.y};
-            if (results != NULL && total < capacity)
+            if (results != NULL)
             {
-                m2MoverPlane* out = results + total;
-                out->shapeId.index1 = shapeIndex + 1;
-                out->shapeId.generation = world->shapes.shapeGenerations[shapeIndex];
-                out->normal = (m2Vec2){xf.q.c * normalLocal.x - xf.q.s * normalLocal.y,
-                                       xf.q.s * normalLocal.x + xf.q.c * normalLocal.y};
-                out->separation = separation;
-                out->point = (m2Pos2){xf.p.x + (double)(xf.q.c * surf.x - xf.q.s * surf.y),
-                                      xf.p.y + (double)(xf.q.s * surf.x + xf.q.c * surf.y)};
+                m2MoverPlane plane;
+                plane.shapeId.index1 = (uint32_t)(shapeIndex + 1);
+                plane.shapeId.generation = world->shapes.shapeGenerations[shapeIndex];
+                plane.normal = (m2Vec2){xf.q.c * normalLocal.x - xf.q.s * normalLocal.y,
+                                        xf.q.s * normalLocal.x + xf.q.c * normalLocal.y};
+                plane.separation = separation;
+                plane.point = (m2Pos2){xf.p.x + (double)(xf.q.c * surf.x - xf.q.s * surf.y),
+                                       xf.p.y + (double)(xf.q.s * surf.x + xf.q.c * surf.y)};
+                OfferPlane(results, &kept, capacity, plane);
             }
             total += 1;
         }
     }
-    // Ascending shape order for the filled portion (canonical).
-    int32_t filled = results != NULL ? (total < capacity ? total : capacity) : 0;
-    for (int32_t i = 1; i < filled; ++i)
-    {
-        m2MoverPlane key = results[i];
-        int32_t j = i - 1;
-        while (j >= 0 && results[j].shapeId.index1 > key.shapeId.index1)
-        {
-            results[j + 1] = results[j];
-            j -= 1;
-        }
-        results[j + 1] = key;
-    }
+    SortPlanes(results, kept); // ascending shape order (canonical)
     return total;
 }
 
