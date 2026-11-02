@@ -285,6 +285,44 @@ static void TestChainGround(void)
     m2DestroyWorld(world);
 }
 
+// A ball at rest beside a seam of a flat chain, on either side, touches
+// only the segment under it. The next segment's end lies within reach,
+// but its point there belongs to the segment the ball rests on: the chain
+// lets go of it, so no contact pushes the ball along a slanted normal.
+static void TestBallBesideASeamTouchesOneSegment(void)
+{
+    for (int32_t side = 0; side < 2; ++side)
+    {
+        m2WorldDef def = m2DefaultWorldDef();
+        def.bodyCapacity = 4;
+        def.shapeCapacity = 8;
+        m2World* world = NewWorld(&def);
+        m2BodyDef gd = m2DefaultBodyDef();
+        m2BodyId ground = NewBody(world, &gd);
+        m2Vec2 points[6] = {{10.0f, 0.0f}, {6.0f, 0.0f},  {2.0f, 0.0f},
+                            {-2.0f, 0.0f}, {-6.0f, 0.0f}, {-10.0f, 0.0f}};
+        m2ChainDef chainDef = m2DefaultChainDef();
+        chainDef.points = points;
+        chainDef.count = 6;
+        NewChain(world, ground, &chainDef);
+        m2BodyDef bd = m2DefaultBodyDef();
+        bd.type = m2_dynamicBody;
+        bd.position = (m2Pos2){side == 0 ? 1.9 : 2.1, 0.25};
+        m2BodyId ball = NewBody(world, &bd);
+        m2ShapeDef sd = m2DefaultShapeDef();
+        m2Circle circle = {{0.0f, 0.0f}, 0.25f};
+        NewCircleShape(world, ball, &sd, &circle);
+        for (int32_t i = 0; i < 60; ++i)
+        {
+            Step(world, 1.0f / 60.0f, 4);
+        }
+        m2ContactData contacts[4];
+        CHECK(m2World_GetContactData(world, contacts, 4) == 1 && contacts[0].normal.y > 0.999f,
+              "a ball beside a seam touches one segment, straight up");
+        m2DestroyWorld(world);
+    }
+}
+
 static void TestRuntimeMaterials(void)
 {
     // Ice turns to grip mid-slide: the tuned twin stops far short of
@@ -561,6 +599,7 @@ int main(void)
     TestCollisionFilters();
     TestGroupIndex();
     TestChainGround();
+    TestBallBesideASeamTouchesOneSegment();
     TestChainDestroy();
     TestChainCutShort();
     TestRuntimeMaterials();
