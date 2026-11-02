@@ -211,8 +211,9 @@ static void TestCrowdedSweepIgnoresTreeHistory(void)
 }
 
 // A wall at x = 5 created after 320 small circles 12 cm to either side
-// of a bullet's lane, from x = 3 to 7: about 100 of them overlap each
-// substep's sweep, and the bullet touches none. Only the wall stops it.
+// of a bullet's lane, from x = 3 to 7: more than 100 of them overlap a
+// substep's sweep among them, and the bullet touches none. Only the wall
+// stops it.
 static void TestBulletStopsBehindACrowd(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
