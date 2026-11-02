@@ -6,6 +6,13 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.11.1](https://github.com/Rawframe-Project/maul2d/compare/v0.11.0...v0.11.1) (2026-11-02)
+
+
+### Fixed
+
+* **collision:** never pair two segments or chain segments ([#265](https://github.com/Rawframe-Project/maul2d/issues/265)) ([51e85dc](https://github.com/Rawframe-Project/maul2d/commit/51e85dce592307ac2be82f5275af622b732cb1aa)), closes [#262](https://github.com/Rawframe-Project/maul2d/issues/262)
+
 ## [0.11.0](https://github.com/Rawframe-Project/maul2d/compare/v0.10.0...v0.11.0) (2026-11-02)
 
 This release makes a rollback keep the end events a destroy or a disable queued between steps. To carry them, the snapshot and journal formats change, so 0.11.0 refuses 0.10.0's snapshots and tapes. No simulation result changes.
