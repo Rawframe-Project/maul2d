@@ -2693,8 +2693,8 @@ static void RationedFree(void* memory, size_t size, size_t alignment, void* cont
 
 static void TestReplayScratchRefusedIsCapacity(void)
 {
-    // A replay whose backup or chain record's scratch the allocator
-    // refuses is out of memory, not a malformed tape.
+    // A replay whose backup, chain record's or shatter record's scratch
+    // the allocator refuses is out of memory, not a malformed tape.
     Ration ration = {-1};
     m2WorldDef def = m2DefaultWorldDef();
     def.allocator.alloc = RationedAlloc;
@@ -2711,6 +2711,18 @@ static void TestReplayScratchRefusedIsCapacity(void)
     cd.points = ledge;
     cd.count = 4;
     CHECK(NewChain(world, ground, &cd).index1 != 0, "the chain is recorded");
+    m2BodyDef rd = m2DefaultBodyDef();
+    rd.type = m2_dynamicBody;
+    rd.position = (m2Pos2){0.0, 3.0};
+    m2BodyId rock = NewBody(world, &rd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon block = m2MakeBox(1.0f, 0.5f);
+    NewPolygonShape(world, rock, &sd, &block);
+    m2Polygon pieces[2] = {m2MakeBox(0.5f, 0.5f), m2MakeBox(0.5f, 0.5f)};
+    m2BodyId made[2];
+    int32_t madeCount = 0;
+    CHECK(m2Body_Shatter(world, rock, pieces, 2, made, 2, &madeCount) == m2_success,
+          "the shatter is recorded");
     int64_t bytes = StopJournal(world);
 
     m2World* fresh = NewWorld(&def);
@@ -2722,7 +2734,10 @@ static void TestReplayScratchRefusedIsCapacity(void)
           "a refused backup is m2_errorCapacity and touches nothing");
     ration.left = 1; // the backup, and nothing after it
     CHECK(m2World_ReplayJournal(fresh, tape, bytes) == m2_errorCapacity,
-          "a refused record scratch is m2_errorCapacity");
+          "a refused chain scratch is m2_errorCapacity");
+    ration.left = 2; // the backup and the chain's points
+    CHECK(m2World_ReplayJournal(fresh, tape, bytes) == m2_errorCapacity,
+          "a refused shatter scratch is m2_errorCapacity");
     ration.left = -1;
     CHECK(m2World_Hash(fresh) == hash && m2World_GetCounters(fresh).misuseCount == misuse,
           "and the world is as it was, with no misuse counted");

@@ -1794,6 +1794,143 @@ static void TestSpentSlotsRetire(void)
     m2DestroyWorld(w);
 }
 
+// Replays a copy of a tape with `size` bytes of `value` at `offset`: the
+// replay refuses it with m2_errorFormat, changes nothing and counts
+// nothing.
+static void ExpectPatchRefused(m2World* world, const uint8_t* tape, int64_t bytes, int64_t offset,
+                               const void* value, size_t size, const char* what)
+{
+    uint8_t* edited = (uint8_t*)malloc((size_t)bytes);
+    CHECK(edited != NULL, "a copy of the tape");
+    if (edited == NULL)
+    {
+        return;
+    }
+    memcpy(edited, tape, (size_t)bytes);
+    memcpy(edited + offset, value, size);
+    uint64_t hash = m2World_Hash(world);
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+    CHECK(m2World_ReplayJournal(world, edited, bytes) == m2_errorFormat, what);
+    CHECK(m2World_Hash(world) == hash && m2World_GetCounters(world).misuseCount == misuse,
+          "a refused tape changes nothing and counts nothing");
+    free(edited);
+}
+
+// Records no recording writes, each refused with the whole tape: a shape
+// created or reshaped with a chain link's type, an op code past the
+// table, a restore of no bytes, of more bytes than the tape holds or of
+// bytes that are no snapshot, a chain of too few points or more than the
+// tape holds, and a shatter of no pieces or more than the tape holds.
+// Each tape is recorded with one record, which starts after the header
+// and snapshot.
+static void TestMalformedRecordsAreRefused(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 8;
+    def.shapeCapacity = 16;
+    m2World* world = NewWorld(&def);
+    m2BodyDef groundDef = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(world, &groundDef);
+    m2BodyDef rockDef = m2DefaultBodyDef();
+    rockDef.type = m2_dynamicBody;
+    rockDef.position = (m2Pos2){0.0, 3.0};
+    m2BodyId rock = NewBody(world, &rockDef);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon block = m2MakeBox(1.0f, 0.5f);
+    NewPolygonShape(world, rock, &sd, &block);
+    int64_t base = m2World_GetJournalBaseSize(world);
+    int64_t record = base + 1; // past the op byte
+    int64_t capacity = 2 * base + 4096;
+    uint8_t* tape = (uint8_t*)malloc((size_t)capacity);
+    CHECK(tape != NULL, "the tape buffer");
+    if (tape == NULL)
+    {
+        m2DestroyWorld(world);
+        return;
+    }
+    const int32_t chainLink = m2_chainSegmentShape;
+    const int32_t tooFew = 2;
+    const int32_t tooMany = INT32_MAX;
+    const int32_t none = 0;
+
+    m2Segment edge = {{-1.0f, 0.0f}, {1.0f, 0.0f}};
+    CHECK(StartJournal(world, tape, capacity), "the journal starts");
+    m2ShapeId rim = NewSegmentShape(world, ground, &sd, &edge);
+    int64_t bytes = StopJournal(world);
+    ExpectPatchRefused(
+        world, tape, bytes,
+        record + (int64_t)(offsetof(m2OpCreateShape, geometry) + offsetof(m2ShapeGeometry, type)),
+        &chainLink, sizeof(chainLink), "a shape created as a chain link on a tape is refused");
+    uint8_t* longer = (uint8_t*)malloc((size_t)bytes + 1);
+    CHECK(longer != NULL, "a tape one byte longer");
+    if (longer != NULL)
+    {
+        memcpy(longer, tape, (size_t)bytes);
+        longer[bytes] = 0;
+        CHECK(ReplayJournal(world, longer, bytes), "the recorded tape replays");
+        ExpectPatchRefused(world, longer, bytes + 1, bytes, &(uint8_t){m2_opCount}, 1,
+                           "an op code past the table on a tape is refused");
+        free(longer);
+    }
+
+    edge.point2 = (m2Vec2){2.0f, 0.0f};
+    CHECK(StartJournal(world, tape, capacity), "the journal starts again");
+    m2Shape_SetSegment(world, rim, &edge);
+    bytes = StopJournal(world);
+    ExpectPatchRefused(
+        world, tape, bytes,
+        record + (int64_t)(offsetof(m2OpSetGeometry, geometry) + offsetof(m2ShapeGeometry, type)),
+        &chainLink, sizeof(chainLink), "a shape reshaped as a chain link on a tape is refused");
+
+    int64_t snapshotSize = m2World_GetSnapshotSize(world);
+    uint8_t* snapshot = (uint8_t*)malloc((size_t)snapshotSize);
+    CHECK(snapshot != NULL && Snapshot(world, snapshot, snapshotSize) == snapshotSize,
+          "a snapshot to restore while recording");
+    CHECK(StartJournal(world, tape, capacity), "the journal starts for a restore");
+    CHECK(Restore(world, snapshot, snapshotSize), "the restore is recorded");
+    bytes = StopJournal(world);
+    const int64_t noBytes = 0;
+    const int64_t pastTheTape = snapshotSize + 1;
+    uint8_t notAMagic = (uint8_t)(tape[record + (int64_t)sizeof(int64_t)] ^ 0xFFu);
+    ExpectPatchRefused(world, tape, bytes, record, &noBytes, sizeof(noBytes),
+                       "a restore of no bytes on a tape is refused");
+    ExpectPatchRefused(world, tape, bytes, record, &pastTheTape, sizeof(pastTheTape),
+                       "a restore longer than the tape is refused");
+    ExpectPatchRefused(world, tape, bytes, record + (int64_t)sizeof(int64_t), &notAMagic, 1,
+                       "a restore of bytes that are no snapshot is refused");
+    free(snapshot);
+
+    m2Vec2 ridge[4] = {{-6.0f, 2.0f}, {-5.0f, 0.5f}, {-4.0f, 0.5f}, {-3.0f, 2.0f}};
+    m2ChainDef chainDef = m2DefaultChainDef();
+    chainDef.points = ridge;
+    chainDef.count = 4;
+    CHECK(StartJournal(world, tape, capacity), "the journal starts for a chain");
+    NewChain(world, ground, &chainDef);
+    bytes = StopJournal(world);
+    int64_t countAt = record + (int64_t)offsetof(m2OpChainHeader, count);
+    ExpectPatchRefused(world, tape, bytes, countAt, &tooFew, sizeof(tooFew),
+                       "a chain of two points on a tape is refused");
+    ExpectPatchRefused(world, tape, bytes, countAt, &tooMany, sizeof(tooMany),
+                       "a chain of more points than the tape holds is refused");
+
+    m2Polygon pieces[2] = {m2MakeBox(0.5f, 0.5f), m2MakeBox(0.5f, 0.5f)};
+    m2BodyId made[2];
+    int32_t madeCount = 0;
+    CHECK(StartJournal(world, tape, capacity), "the journal starts for a shatter");
+    CHECK(m2Body_Shatter(world, rock, pieces, 2, made, 2, &madeCount) == m2_success &&
+              madeCount == 2,
+          "the rock shatters");
+    bytes = StopJournal(world);
+    int64_t piecesAt = record + (int64_t)offsetof(m2OpShatterHeader, pieceCount);
+    ExpectPatchRefused(world, tape, bytes, piecesAt, &none, sizeof(none),
+                       "a shatter of no pieces on a tape is refused");
+    ExpectPatchRefused(world, tape, bytes, piecesAt, &tooMany, sizeof(tooMany),
+                       "a shatter of more pieces than the tape holds is refused");
+
+    free(tape);
+    m2DestroyWorld(world);
+}
+
 static void TestJournalRecordRoom(void)
 {
     // A record's room on a tape is its op byte and payload against what
@@ -2030,6 +2167,7 @@ int main(void)
     TestResleptBodyRefreshesItsContacts();
     TestSpentSlotsRetire();
     TestJournalRecordRoom();
+    TestMalformedRecordsAreRefused();
     TestDistantLinkEndStaysFinite();
     TestLinkShapesInRange();
     TestRestoreKeepsTheParticleRadius();
