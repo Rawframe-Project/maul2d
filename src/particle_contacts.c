@@ -8,11 +8,14 @@
 // that normal. Sensors never touch particles, and a one-way chain link
 // ignores particles on its ghost side.
 //
-// Each particle's candidates come from the broadphase trees and are
-// taken in ascending shape order, so the contacts are canonical: by
-// particle, then by shape. Large pools stage the particles in parallel
-// ranges; the gather that follows runs serially in particle order, so
-// the worker count never changes a bit.
+// Each particle tests every non-sensor shape whose box overlaps its own,
+// as the broadphase trees yield them, and keeps the touching shapes with
+// the lowest slots; every touch past them counts as a drop. What it keeps
+// depends only on which shapes touch, not on the order the trees yield
+// them, so the contacts are canonical: by particle, then by shape. Large
+// pools stage the particles in parallel ranges; the gather that follows
+// runs serially in particle order, so the worker count never changes a
+// bit.
 
 #include "body.h"
 #include "distance.h"
@@ -27,7 +30,6 @@
 #include <math.h>
 #include <string.h>
 
-#define M2_PARTICLE_CANDIDATES   32
 #define M2_CONTACTS_PER_PARTICLE 4
 
 // Staging a pool this large pays for the fork and join.
@@ -36,27 +38,6 @@
 static m2Vec2 Rotate(m2Rot q, m2Vec2 v)
 {
     return (m2Vec2){q.c * v.x - q.s * v.y, q.s * v.x + q.c * v.y};
-}
-
-// The non-sensor shapes whose boxes overlap box, ascending: the lowest
-// M2_PARTICLE_CANDIDATES slots when more overlap. Returns the count.
-static int32_t Candidates(const m2World* world, m2Aabb box, int32_t* out)
-{
-    int32_t count = 0;
-    for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
-    {
-        m2TreeCursor cursor;
-        m2TreeBeginQuery(&cursor, &world->broadphase.trees[t], world->broadphase.treeNodes[t], box);
-        int32_t shape;
-        while (m2TreeNextQuery(&cursor, &shape))
-        {
-            if (world->shapes.shapeSensor[shape] == 0)
-            {
-                m2TreeKeepLowest(out, &count, M2_PARTICLE_CANDIDATES, shape);
-            }
-        }
-    }
-    return count;
 }
 
 // A staged contact slot.
@@ -116,6 +97,61 @@ static bool TouchShape(const m2World* world, m2Pos2 p, int32_t shape, float h,
     return true;
 }
 
+// A particle's kept touches, ascending by shape slot.
+typedef struct Kept
+{
+    int32_t count;
+    int32_t drops;
+    int32_t shapes[M2_CONTACTS_PER_PARTICLE];
+    Touch touches[M2_CONTACTS_PER_PARTICLE];
+} Kept;
+
+// Keeps a touch if its shape is among the lowest slots so far; the touch
+// left out, this one or the highest kept, counts as a drop.
+static void KeepTouch(Kept* kept, int32_t shape, Touch touch)
+{
+    int32_t n = kept->count;
+    if (n == M2_CONTACTS_PER_PARTICLE)
+    {
+        kept->drops += 1;
+        if (shape > kept->shapes[n - 1])
+        {
+            return;
+        }
+        n -= 1; // the highest makes room
+    }
+    int32_t i = n;
+    for (; i > 0 && kept->shapes[i - 1] > shape; --i)
+    {
+        kept->shapes[i] = kept->shapes[i - 1];
+        kept->touches[i] = kept->touches[i - 1];
+    }
+    kept->shapes[i] = shape;
+    kept->touches[i] = touch;
+    kept->count = n + 1;
+}
+
+// Every non-sensor shape in the box that touches the particle at.
+static void TouchShapes(const m2World* world, m2Pos2 at, float h, float particleInvMass, Kept* kept)
+{
+    m2Aabb box = {{at.x - (double)h, at.y - (double)h}, {at.x + (double)h, at.y + (double)h}};
+    for (int32_t t = 0; t < M2_TREE_COUNT; ++t)
+    {
+        m2TreeCursor cursor;
+        m2TreeBeginQuery(&cursor, &world->broadphase.trees[t], world->broadphase.treeNodes[t], box);
+        int32_t shape;
+        while (m2TreeNextQuery(&cursor, &shape))
+        {
+            Touch touch;
+            if (world->shapes.shapeSensor[shape] == 0 &&
+                TouchShape(world, at, shape, h, particleInvMass, &touch))
+            {
+                KeepTouch(kept, shape, touch);
+            }
+        }
+    }
+}
+
 static void StageRange(int32_t begin, int32_t end, void* context)
 {
     m2World* world = (m2World*)context;
@@ -134,29 +170,16 @@ static void StageRange(int32_t begin, int32_t end, void* context)
         {
             continue;
         }
-        m2Pos2 at = p->particlePositions[i];
-        m2Aabb box = {{at.x - (double)h, at.y - (double)h}, {at.x + (double)h, at.y + (double)h}};
-        int32_t shapes[M2_PARTICLE_CANDIDATES];
-        int32_t count = Candidates(world, box, shapes);
-        int32_t kept = 0;
-        for (int32_t c = 0; c < count; ++c)
+        Kept kept = {0};
+        TouchShapes(world, p->particlePositions[i], h, particleInvMass, &kept);
+        p->particleBodyStageDrops[i] = kept.drops;
+        for (int32_t k = 0; k < kept.count; ++k)
         {
-            Touch touch;
-            if (!TouchShape(world, at, shapes[c], h, particleInvMass, &touch))
-            {
-                continue;
-            }
-            if (kept == M2_CONTACTS_PER_PARTICLE)
-            {
-                p->particleBodyStageDrops[i] += 1;
-                continue;
-            }
-            int32_t slot = i * M2_CONTACTS_PER_PARTICLE + kept;
-            p->particleBodyStageBody[slot] = world->shapes.shapeBody[shapes[c]];
-            p->particleBodyStageWeight[slot] = touch.weight;
-            p->particleBodyStageNormal[slot] = touch.normal;
-            p->particleBodyStageMass[slot] = touch.mass;
-            kept += 1;
+            int32_t slot = i * M2_CONTACTS_PER_PARTICLE + k;
+            p->particleBodyStageBody[slot] = world->shapes.shapeBody[kept.shapes[k]];
+            p->particleBodyStageWeight[slot] = kept.touches[k].weight;
+            p->particleBodyStageNormal[slot] = kept.touches[k].normal;
+            p->particleBodyStageMass[slot] = kept.touches[k].mass;
         }
     }
 }
