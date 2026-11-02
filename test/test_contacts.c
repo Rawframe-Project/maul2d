@@ -493,6 +493,69 @@ static void TestChainCutShort(void)
     m2DestroyWorld(world);
 }
 
+// Drops a box onto a ground made of a lone segment or of a chain, with
+// the box in the lower shape slot when `boxFirst` (a pair names its lower
+// slot first), and returns where the box comes to rest.
+static double BoxRestsOn(bool chainGround, bool boxFirst)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 8;
+    m2World* world = NewWorld(&def);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2BodyDef groundDef = m2DefaultBodyDef();
+    m2BodyDef boxDef = m2DefaultBodyDef();
+    boxDef.type = m2_dynamicBody;
+    boxDef.position = (m2Pos2){0.0, 1.5};
+    m2Polygon block = m2MakeBox(0.5f, 0.5f);
+    m2BodyId box = m2_nullBodyId;
+    for (int32_t turn = 0; turn < 2; ++turn)
+    {
+        if ((turn == 0) == boxFirst)
+        {
+            box = NewBody(world, &boxDef);
+            NewPolygonShape(world, box, &sd, &block);
+            continue;
+        }
+        m2BodyId ground = NewBody(world, &groundDef);
+        if (chainGround)
+        {
+            // Points run right to left, so the solid side faces up.
+            m2Vec2 floor[4] = {{6.0f, 0.0f}, {3.0f, 0.0f}, {-3.0f, 0.0f}, {-6.0f, 0.0f}};
+            m2ChainDef cd = m2DefaultChainDef();
+            cd.points = floor;
+            cd.count = 4;
+            NewChain(world, ground, &cd);
+        }
+        else
+        {
+            m2Segment floor = {{-3.0f, 0.0f}, {3.0f, 0.0f}};
+            NewSegmentShape(world, ground, &sd, &floor);
+        }
+    }
+    for (int32_t i = 0; i < 120; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+    }
+    double y = m2Body_GetPosition(world, box).y;
+    m2DestroyWorld(world);
+    return y;
+}
+
+// A box lands on a lone segment and on a chain link, whichever of the two
+// holds the lower shape slot, and rests on top within the contact skin.
+static void TestBoxRestsOnSegmentsInEitherSlot(void)
+{
+    const char* what[4] = {
+        "a box above a segment's slot rests on it", "a box below a segment's slot rests on it",
+        "a box above a chain's slots rests on it", "a box below a chain's slots rests on it"};
+    for (int32_t k = 0; k < 4; ++k)
+    {
+        double y = BoxRestsOn(k >= 2, (k % 2) == 1);
+        CHECK(y > 0.49 && y < 0.52, what[k]);
+    }
+}
+
 int main(void)
 {
     TestCollisionFilters();
@@ -503,6 +566,7 @@ int main(void)
     TestRuntimeMaterials();
     TestRuntimeFilter();
     TestFilterRollback();
+    TestBoxRestsOnSegmentsInEitherSlot();
 
     if (s_failures > 0)
     {
