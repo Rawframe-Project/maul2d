@@ -556,6 +556,104 @@ static void TestBoxRestsOnSegmentsInEitherSlot(void)
     }
 }
 
+// Two shapes without area never collide. A segment or a chain plank set
+// down 2 mm above a segment or a chain floor makes no contact, not even on
+// the first step, and falls through, where a box plank lands on either
+// floor. A segment sensor still detects a segment.
+static void TestShapesWithoutAreaNeverCollide(void)
+{
+    for (int32_t floorKind = 0; floorKind < 2; ++floorKind)
+    {
+        for (int32_t plankKind = 0; plankKind < 3; ++plankKind)
+        {
+            m2WorldDef def = m2DefaultWorldDef();
+            def.bodyCapacity = 4;
+            def.shapeCapacity = 8;
+            m2World* world = NewWorld(&def);
+            m2BodyDef gd = m2DefaultBodyDef();
+            m2BodyId ground = NewBody(world, &gd);
+            m2ShapeDef sd = m2DefaultShapeDef();
+            m2Vec2 floorPoints[4] = {{12.0f, 0.0f}, {8.0f, 0.0f}, {-8.0f, 0.0f}, {-12.0f, 0.0f}};
+            m2Segment floorLine = {{-8.0f, 0.0f}, {8.0f, 0.0f}};
+            m2ChainDef chainDef = m2DefaultChainDef();
+            chainDef.points = floorPoints;
+            chainDef.count = 4;
+            if (floorKind == 0)
+            {
+                NewSegmentShape(world, ground, &sd, &floorLine);
+            }
+            else
+            {
+                NewChain(world, ground, &chainDef);
+            }
+            m2BodyDef bd = m2DefaultBodyDef();
+            bd.type = m2_dynamicBody;
+            bd.position = (m2Pos2){0.0, plankKind == 2 ? 0.102 : 0.002};
+            m2BodyId plank = NewBody(world, &bd);
+            m2Segment plankLine = {{-1.0f, 0.0f}, {1.0f, 0.0f}};
+            m2Vec2 plankPoints[4] = {{-2.0f, 0.0f}, {-1.0f, 0.0f}, {1.0f, 0.0f}, {2.0f, 0.0f}};
+            m2ChainDef plankChain = m2DefaultChainDef();
+            plankChain.points = plankPoints;
+            plankChain.count = 4;
+            m2Polygon board = m2MakeBox(1.0f, 0.1f);
+            if (plankKind == 0)
+            {
+                NewSegmentShape(world, plank, &sd, &plankLine);
+            }
+            else if (plankKind == 1)
+            {
+                NewChain(world, plank, &plankChain);
+            }
+            else
+            {
+                NewPolygonShape(world, plank, &sd, &board);
+            }
+            Step(world, 1.0f / 60.0f, 4);
+            int32_t first = m2World_GetContactData(world, NULL, 0);
+            for (int32_t i = 0; i < 60; ++i)
+            {
+                Step(world, 1.0f / 60.0f, 4);
+            }
+            double y = m2Body_GetPosition(world, plank).y;
+            int32_t last = m2World_GetContactData(world, NULL, 0);
+            if (plankKind == 2)
+            {
+                CHECK(first == 1 && last == 1 && y > 0.09 && y < 0.11,
+                      "a box lands on a segment or a chain");
+            }
+            else
+            {
+                CHECK(first == 0 && last == 0 && y < -1.0,
+                      "a segment or a chain never touches a segment or a chain");
+            }
+            m2DestroyWorld(world);
+        }
+    }
+
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    def.gravity = (m2Vec2){0.0f, 0.0f};
+    m2World* world = NewWorld(&def);
+    m2BodyDef gd = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(world, &gd);
+    m2ShapeDef sensorDef = m2DefaultShapeDef();
+    sensorDef.isSensor = true;
+    m2Segment gate = {{0.0f, -1.0f}, {0.0f, 1.0f}};
+    m2ShapeId sensor = NewSegmentShape(world, ground, &sensorDef, &gate);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    m2BodyId rod = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Segment across = {{-1.0f, 0.0f}, {1.0f, 0.0f}};
+    NewSegmentShape(world, rod, &sd, &across);
+    Step(world, 1.0f / 60.0f, 4);
+    m2ShapeId visitors[2];
+    CHECK(m2Shape_GetSensorOverlaps(world, sensor, visitors, 2) == 1,
+          "a segment sensor detects a segment crossing it");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
     TestCollisionFilters();
@@ -567,6 +665,7 @@ int main(void)
     TestRuntimeFilter();
     TestFilterRollback();
     TestBoxRestsOnSegmentsInEitherSlot();
+    TestShapesWithoutAreaNeverCollide();
 
     if (s_failures > 0)
     {

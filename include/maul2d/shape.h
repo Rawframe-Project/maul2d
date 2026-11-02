@@ -67,7 +67,9 @@ extern "C"
         float radius;
     } m2Polygon;
 
-    /// A two-sided line segment.
+    /// A two-sided line segment. It has no area, so it never collides with
+    /// another segment or a chain segment; a sensor among them still
+    /// detects the other.
     typedef struct m2Segment
     {
         m2Vec2 point1;
@@ -77,7 +79,8 @@ extern "C"
     /// One link of a chain: the segment and the ghost points of its
     /// neighbors, which keep bodies from snagging on the seams. Built by
     /// m2CreateChain. It collides on one side only: solid on the right when
-    /// walking from point1 to point2.
+    /// walking from point1 to point2. Like a segment, it never collides
+    /// with a segment or another chain segment.
     typedef struct m2ChainSegment
     {
         m2Segment segment;

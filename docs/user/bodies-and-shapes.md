@@ -30,7 +30,7 @@ A dynamic body's mass comes from its shapes' densities. `m2Body_SetMassData` ove
 
 ## Shapes and materials
 
-Circles, capsules, rounded polygons (convex, up to 8 vertices) and segments attach to a body in its own frame. A shape's friction pairs by geometric mean and its restitution by maximum. `m2Shape_SetTangentSpeed` makes a conveyor: the surface slides along the contact, and friction drags riders toward that speed (positive drives a rider toward +x on an upward-facing floor; a pair adds both speeds).
+Circles, capsules, rounded polygons (convex, up to 8 vertices) and segments attach to a body in its own frame. A segment has no area, and neither does a chain's segment, so two of them never collide, as in Box2D: two lines have nothing inside to push each other out of. A body that must land on a segment or a chain carries a circle, a capsule or a polygon; a sensor still detects a segment. A shape's friction pairs by geometric mean and its restitution by maximum. `m2Shape_SetTangentSpeed` makes a conveyor: the surface slides along the contact, and friction drags riders toward that speed (positive drives a rider toward +x on an upward-facing floor; a pair adds both speeds).
 
 Shapes can change at run time: materials, filters, density, and the geometry itself (`m2Shape_SetCircle` and its siblings, a change of type included). The mass recomputes and touching partners wake.
 

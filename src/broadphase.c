@@ -59,6 +59,23 @@ static bool ShapeIsDynamic(const m2World* world, int32_t shapeIndex)
     return world->bodies.types[world->shapes.shapeBody[shapeIndex]] == (uint8_t)m2_dynamicBody;
 }
 
+// Whether the kinds of two shapes let them pair. Two sensors never detect
+// each other. Two shapes without area, a segment or a chain segment
+// against another, never hold each other: two lines have no inside to
+// push each other out of, so a body that meets one faster than the
+// contact margin per step passes through it. A sensor among them still
+// pairs.
+static bool KindsMayPair(const m2World* world, int32_t shapeA, int32_t shapeB)
+{
+    bool sensorA = world->shapes.shapeSensor[shapeA] != 0;
+    bool sensorB = world->shapes.shapeSensor[shapeB] != 0;
+    m2ShapeType a = world->shapes.shapeGeometry[shapeA].type;
+    m2ShapeType b = world->shapes.shapeGeometry[shapeB].type;
+    bool lineA = a == m2_segmentShape || a == m2_chainSegmentShape;
+    bool lineB = b == m2_segmentShape || b == m2_chainSegmentShape;
+    return sensorA ? !sensorB : (sensorB || !(lineA && lineB));
+}
+
 // Re-derive pairs touched by the moved set, then batch-merge with the
 // untouched remainder.
 // Which trees a moved shape queries: dynamic and kinematic movers sweep
@@ -131,10 +148,9 @@ void m2UpdatePairs(m2World* world)
                 {
                     continue; // two non-dynamics only pair through a sensor
                 }
-                if (world->shapes.shapeSensor[shapeIndex] != 0 &&
-                    world->shapes.shapeSensor[other] != 0)
+                if (!KindsMayPair(world, shapeIndex, other))
                 {
-                    continue; // two sensors never detect each other
+                    continue; // two sensors, or two shapes without area
                 }
                 int32_t groupA = world->shapes.shapeGroup[shapeIndex];
                 if (groupA != 0 && groupA == world->shapes.shapeGroup[other])
