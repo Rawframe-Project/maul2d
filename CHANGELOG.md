@@ -6,6 +6,19 @@ the project uses [Semantic Versioning](https://semver.org/). Before
 1.0.0, any minor release may change the API, the ABI and the
 snapshot and journal formats.
 
+## [0.11.2](https://github.com/Rawframe-Project/maul2d/compare/v0.11.1...v0.11.2) (2026-11-02)
+
+This release keeps the contacts of a particle near more than 32 shapes, and speeds up a spring fill. No golden line moves.
+
+### Changed
+
+- The spring fill stops its scan a diameter above each particle ([#268](https://github.com/Rawframe-Project/maul2d/pull/268)). `m2CreateParticlesInPolygon` with `m2_springParticle` tested every pair of the particles it made, so its time grew with the square of the batch. A fill emits its lattice row by row from the bottom, so for each particle the scan now covers the rest of its row and the row above, fewer than 512 particles. An 80000-particle fill took 2.7 s and now takes 0.011 s (RelWithDebInfo, clang-20). The springs come out the same, in the same order, and the same fills reach the same `m2World_Hash` before and after.
+- Results: no golden line moves, in the scalar or AVX2 build ([#268](https://github.com/Rawframe-Project/maul2d/pull/268), [#271](https://github.com/Rawframe-Project/maul2d/pull/271)).
+
+### Fixed
+
+- A particle near more than 32 shapes keeps the contacts it really has ([#271](https://github.com/Rawframe-Project/maul2d/pull/271)). A particle kept only the 32 overlapping shapes with the lowest slots before testing which ones it touches. Boxes are fattened by 0.1 m, so shapes far from touching filled those places, and a touching shape with a higher slot was never tested. `m2Counters.particleBodyContactsDropped` did not count it, and when the particle touched the crowd the counter never passed 28. A particle now tests every non-sensor shape whose box overlaps its own and keeps the four touching shapes with the lowest slots; every touch past four counts as a drop. The kept set depends only on which shapes touch, not on the order the broadphase trees yield them. When no more than 32 shapes overlap a particle's box, the kept contacts are the same as before, in the same order.
+
 ## [0.11.1](https://github.com/Rawframe-Project/maul2d/compare/v0.11.0...v0.11.1) (2026-11-02)
 
 This release stops two shapes without area from colliding: a segment or a chain segment never pairs with another, as in Box2D. Such a pair could not hold a body anyway: it touched for a step before the body sank through. One golden line moves, and the snapshot and journal formats stay as they were.
