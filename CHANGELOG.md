@@ -9,6 +9,13 @@ minor release, and its entry says what changes. A snapshot or journal
 tape is read within the minor version that wrote it and refused
 across minor versions.
 
+## [1.0.0](https://github.com/Rawframe-Project/maul2d/compare/v0.11.4...v1.0.0) (2026-11-03)
+
+
+### Documentation
+
+* state the 1.y versioning rule and release 1.0.0 ([#293](https://github.com/Rawframe-Project/maul2d/issues/293)) ([b5e40a1](https://github.com/Rawframe-Project/maul2d/commit/b5e40a1ac894987c9ae453b8d3e5380779655ce9)), closes [#292](https://github.com/Rawframe-Project/maul2d/issues/292)
+
 ## [0.11.4](https://github.com/Rawframe-Project/maul2d/compare/v0.11.3...v0.11.4) (2026-11-02)
 
 This release makes the world queries between steps see every shape where the last step left it. Results change: 7 of the 13 golden lines move, because the world hash covers each shape's broadphase box and moved flag. The simulation does not change: body and particle state is bit-identical, and no format version changes.

@@ -58,13 +58,13 @@ extern "C"
 // The library version. CMake reads it from here, and release-please
 // moves it between the markers.
 // x-release-please-start-major
-#define M2_VERSION_MAJOR 0
+#define M2_VERSION_MAJOR 1
 // x-release-please-end
 // x-release-please-start-minor
-#define M2_VERSION_MINOR 11
+#define M2_VERSION_MINOR 0
 // x-release-please-end
 // x-release-please-start-patch
-#define M2_VERSION_PATCH 4
+#define M2_VERSION_PATCH 0
 // x-release-please-end
 
 // The binary interface a program is built for: the whole version before
