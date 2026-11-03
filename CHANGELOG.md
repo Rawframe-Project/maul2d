@@ -11,10 +11,15 @@ across minor versions.
 
 ## [1.0.1](https://github.com/Rawframe-Project/maul2d/compare/v1.0.0...v1.0.1) (2026-11-03)
 
+This release keeps every piece of an outline that `m2DecomposeOutline` splits when three of its corners lie on one straight line, as they do in a sprite outline traced on a grid. No golden line moves.
+
+### Changed
+
+- Results: no golden line moves ([#296](https://github.com/Rawframe-Project/maul2d/pull/296)). Only outlines whose merge pass tries a fuse that the polygon checks refuse get new pieces; in a comparison of 400,000 random outlines, each of them lost area or was refused before.
 
 ### Fixed
 
-* **geometry:** keep the pieces a merge across a straight corner lost ([#296](https://github.com/Rawframe-Project/maul2d/issues/296)) ([14103a7](https://github.com/Rawframe-Project/maul2d/commit/14103a7fbabb06e6851cdcf1a7328380074bdb84)), closes [#295](https://github.com/Rawframe-Project/maul2d/issues/295)
+- `m2DecomposeOutline` keeps the pieces of an outline with a straight run ([#296](https://github.com/Rawframe-Project/maul2d/pull/296)). The merge pass fused two pieces when its convexity test, which works in double, found every corner of the union turning left. In float, a corner on a straight run can turn by a hair, so the pass fused pieces across it into one that the polygon checks refused, and the decomposition dropped it along with the valid pieces it was made of. A 6-corner outline of 17.86 square meters came back as one piece of about 5.2. The merge now fuses two pieces only when the union passes the polygon checks. Among 200,000 random star-shaped outlines of 4 to 16 corners on a 0.1 m grid, 521 lost more than 1% of their area and 27 were refused; now none loses more than 1%, and none is refused.
 
 ## [1.0.0](https://github.com/Rawframe-Project/maul2d/compare/v0.11.4...v1.0.0) (2026-11-03)
 
