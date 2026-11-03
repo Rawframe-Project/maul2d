@@ -28,7 +28,7 @@ None of these refusals counts as misuse. A header embedded in another, such as a
 
 The golden lines that pin a format's bytes hash them from offset 8, with each embedded header's `abiVersion` zeroed. A separate check confirms that each of those words is this release's, so a release bump moves no line.
 
-`src/world_internal.c` writes and checks the prefix for both formats (`m2MakeStatePrefix`, `m2CheckStatePrefix`). The ABI version is the major and minor version: the patch releases of one minor version keep the state layout and read each other's bytes, and another minor version refuses them. A change to either format's bytes therefore lands only in a minor release, with its format version bumped.
+`src/world_internal.c` writes and checks the prefix for both formats (`m2MakeStatePrefix`, `m2CheckStatePrefix`). The ABI version is the major and minor version: state is read within a minor version and refused across minor versions. The patch releases of one minor version keep the state layout and the results, and read each other's bytes; a change to either format's bytes, or to any result, lands only in a minor release, so another minor version refuses the bytes instead of reading them onto other bits.
 
 ## Snapshot format
 

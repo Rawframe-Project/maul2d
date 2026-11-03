@@ -3,10 +3,11 @@
 All notable changes to this project are recorded here. The format
 follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and
 the project uses [Semantic Versioning](https://semver.org/). From
-1.0.0, a minor release only adds to the API and may change results,
-naming each change, and a patch release never changes results. A
-snapshot or journal tape is read by the patch releases of the minor
-version that wrote it. There is no 2.0.0.
+1.0.0, a minor release only adds to the API, a patch release only
+fixes, and there is no 2.0.0. A release that changes results is a
+minor release, and its entry says what changes. A snapshot or journal
+tape is read within the minor version that wrote it and refused
+across minor versions.
 
 ## [0.11.4](https://github.com/Rawframe-Project/maul2d/compare/v0.11.3...v0.11.4) (2026-11-02)
 
