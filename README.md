@@ -42,7 +42,7 @@ Maul2D has a 3D sibling, [Maul3D](https://github.com/Rawframe-Project/maul3d). T
 
 ## Status
 
-Until 1.0.0 the API, the ABI and the snapshot and journal formats may change in any minor release; the [changelog](CHANGELOG.md) records every change. A world def built from other headers is refused at creation. A snapshot or tape is read only by a release of the ABI version that wrote it (`M2_ABI_VERSION`), and any other refuses it with `m2_errorVersion`: before 1.0.0 that is the one release that wrote it, and from 1.0.0 a patch release keeps it while a minor release refuses it.
+Maul2D is at 1.y, and there is no 2.0.0. A program that builds against 1.y builds against any later 1.z and means the same: a minor release only adds functions, types, enum values and fields, and a patch release only fixes. A change that gives existing inputs a different result is a `feat`, or a `fix` when it corrects a result the documentation already promised, and the [changelog](CHANGELOG.md) says what changes. A release that changes results is always a minor release, so a snapshot or tape replays onto the same bits or is refused. A world def built from other headers is refused at creation. A snapshot or tape is read within the minor version that wrote it (`M2_ABI_VERSION`), and a release of another minor version refuses it with `m2_errorVersion`.
 
 ## Documentation
 

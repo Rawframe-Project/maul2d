@@ -20,7 +20,7 @@ Every state format starts with the same 16 bytes, shared with maul3d, each a lit
 A reader checks in this order:
 
 - Bytes shorter than the prefix, or with another magic, are not this format: `m2_errorFormat`.
-- Another ABI version or format number means another release wrote them: `m2_errorVersion`.
+- Another ABI version means another minor version wrote them, and another format number another format: `m2_errorVersion`.
 - Another header size, or bytes too short to hold the header, are corrupt: `m2_errorFormat`.
 - The format's own fields follow. Another build hash is `m2_errorVersion`; another world shape is `m2_errorFormat`.
 
@@ -28,7 +28,7 @@ None of these refusals counts as misuse. A header embedded in another, such as a
 
 The golden lines that pin a format's bytes hash them from offset 8, with each embedded header's `abiVersion` zeroed. A separate check confirms that each of those words is this release's, so a release bump moves no line.
 
-`src/world_internal.c` writes and checks the prefix for both formats (`m2MakeStatePrefix`, `m2CheckStatePrefix`). The ABI version names the release. Before 1.0.0 it is the whole version, so only the release that wrote a snapshot or tape reads it. From 1.0.0 it is the major and minor version: the patch releases of one minor version keep the state layout and read each other's bytes, and another minor version refuses them.
+`src/world_internal.c` writes and checks the prefix for both formats (`m2MakeStatePrefix`, `m2CheckStatePrefix`). The ABI version is the major and minor version: state is read within a minor version and refused across minor versions. The patch releases of one minor version keep the state layout and the results, and read each other's bytes; a change to either format's bytes, or to any result, lands only in a minor release, so another minor version refuses the bytes instead of reading them onto other bits.
 
 ## Snapshot format
 

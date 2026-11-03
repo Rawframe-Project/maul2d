@@ -166,7 +166,7 @@ m2Result m2CheckStatePrefix(const void* bytes, int64_t size, uint32_t magic, uin
     }
     if (prefix.abiVersion != M2_ABI_VERSION || prefix.formatVersion != formatVersion)
     {
-        return m2_errorVersion; // written by another release
+        return m2_errorVersion; // written by another minor version
     }
     if (prefix.headerBytes != (uint32_t)headerBytes || size < headerBytes)
     {

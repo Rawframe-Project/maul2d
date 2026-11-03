@@ -554,8 +554,8 @@ static void ExpectCutRefused(m2World* world, const uint8_t* bytes, int64_t keep,
     free(cut);
 }
 
-// Only the release that wrote a snapshot or a tape reads it: another ABI
-// version, format number or build hash is m2_errorVersion, while another
+// Only the minor version that wrote a snapshot or a tape reads it: another
+// ABI version, format number or build hash is m2_errorVersion, while another
 // magic or header size is not this format at all and is m2_errorFormat.
 // The tape's embedded snapshot is checked the same way and its status
 // passes through. Each magic's bytes spell its name in order, and the
@@ -596,11 +596,11 @@ static void TestOtherReleasesAreRefused(void)
     CHECK(memcmp(snap, "M2SN", 4) == 0 && memcmp(tape, "M2JN", 4) == 0 &&
               memcmp(tape + embedded, "M2SN", 4) == 0,
           "each magic's bytes spell its name");
-    const uint32_t otherRelease = M2_ABI_VERSION ^ 0x100u; // the next minor before 1.0
+    const uint32_t otherMinor = M2_ABI_VERSION ^ 0x100u; // another minor, before 1.0 and after
     uint32_t snapFormat = ReadWord(snap, PREFIX_FORMAT);
     uint32_t snapHeader = ReadWord(snap, PREFIX_HEADER_BYTES);
-    ExpectWordRefused(world, snap, size, false, PREFIX_ABI, otherRelease, m2_errorVersion,
-                      "a snapshot from another release is m2_errorVersion");
+    ExpectWordRefused(world, snap, size, false, PREFIX_ABI, otherMinor, m2_errorVersion,
+                      "a snapshot from another minor version is m2_errorVersion");
     ExpectWordRefused(world, snap, size, false, PREFIX_FORMAT, snapFormat + 1u, m2_errorVersion,
                       "a snapshot of another format number is m2_errorVersion");
     ExpectWordRefused(world, snap, size, false, SNAPSHOT_CONFIG_HASH,
@@ -615,16 +615,16 @@ static void TestOtherReleasesAreRefused(void)
 
     ExpectWordRefused(world, tape, tapeBytes, true, 0, Reversed(ReadWord(tape, 0)), m2_errorFormat,
                       "a tape magic in the other byte order is m2_errorFormat");
-    ExpectWordRefused(world, tape, tapeBytes, true, PREFIX_ABI, otherRelease, m2_errorVersion,
-                      "a tape from another release is m2_errorVersion");
+    ExpectWordRefused(world, tape, tapeBytes, true, PREFIX_ABI, otherMinor, m2_errorVersion,
+                      "a tape from another minor version is m2_errorVersion");
     ExpectWordRefused(world, tape, tapeBytes, true, PREFIX_FORMAT,
                       ReadWord(tape, PREFIX_FORMAT) + 1u, m2_errorVersion,
                       "a tape of another format number is m2_errorVersion");
     ExpectWordRefused(world, tape, tapeBytes, true, PREFIX_HEADER_BYTES, tapeHeader + 8u,
                       m2_errorFormat, "a tape with another header size is m2_errorFormat");
-    ExpectWordRefused(world, tape, tapeBytes, true, embedded + PREFIX_ABI, otherRelease,
+    ExpectWordRefused(world, tape, tapeBytes, true, embedded + PREFIX_ABI, otherMinor,
                       m2_errorVersion,
-                      "a tape embedding another release's snapshot is m2_errorVersion");
+                      "a tape embedding another minor version's snapshot is m2_errorVersion");
 
     // Cut behind a valid prefix: at the prefix, one byte short of the
     // header, inside the tape's embedded snapshot header and one byte

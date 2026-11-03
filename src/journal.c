@@ -362,8 +362,8 @@ static m2Result ReplayOps(m2World* world, const uint8_t* data, int64_t size)
         return m2_errorFormat;
     }
     // The embedded snapshot's refusal is the tape's: m2_errorVersion for
-    // one from another release or build, m2_errorFormat for the rest, one
-    // from another world shape included.
+    // one from another minor version or build, m2_errorFormat for the
+    // rest, one from another world shape included.
     m2Result restored = m2World_Restore(world, data + sizeof(header), header.snapshotSize);
     if (restored != m2_success)
     {
@@ -428,8 +428,8 @@ static M2_NOINLINE m2Result WorldReplayJournalWorker(m2World* world, const void*
         return m2Refuse(world, m2_errorState);
     }
     // From here on the tape is untrusted input: refusing it is no misuse
-    // of the API, so nothing is counted. Only the release that wrote a
-    // tape replays it.
+    // of the API, so nothing is counted. Only the minor version that wrote
+    // a tape replays it.
     m2Result prefix = m2CheckStatePrefix(data, size, M2_JOURNAL_MAGIC, M2_JOURNAL_VERSION,
                                          (int32_t)sizeof(m2JournalHeader));
     if (prefix != m2_success)

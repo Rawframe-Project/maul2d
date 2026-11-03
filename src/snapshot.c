@@ -57,7 +57,7 @@ static uint64_t ConfigHash(void)
     // Everything that changes what the serialized bytes MEAN, and
     // nothing that does not (SIMD backend and worker count are
     // deliberately absent: the format is portable across them). The
-    // release that wrote the bytes is the prefix's, not part of this.
+    // ABI version that wrote the bytes is the prefix's, not part of this.
     uint64_t h = 0xCBF29CE484222325ull;
     int32_t version = (int32_t)M2_SNAPSHOT_VERSION;
     int32_t realSize = (int32_t)sizeof(float);
@@ -178,7 +178,7 @@ static M2_NOINLINE m2Result WorldRestoreWorker(m2World* world, const void* buffe
     }
     // From here on the bytes are untrusted input: refusing them is no
     // misuse of the API, so nothing is counted.
-    // Only the release that wrote a snapshot reads it.
+    // Only the minor version that wrote a snapshot reads it.
     m2Result prefix = m2CheckStatePrefix(buffer, size, M2_SNAPSHOT_MAGIC, M2_SNAPSHOT_VERSION,
                                          (int32_t)sizeof(m2SnapshotHeader));
     if (prefix != m2_success)
