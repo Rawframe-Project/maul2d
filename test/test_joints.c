@@ -1921,10 +1921,8 @@ static void TestJointBreaking(void)
     m2DestroyWorld(world);
 }
 
-// A loaded joint whose spring is switched off, beside a twin that never
-// had one, stepped once more: `sprung` keeps its spring until `release`
-// runs, then both step and the switched joint's reaction is returned
-// through `reading`, the twin's through `twinReading`.
+// Two loaded joints in one world: `sprung` carries a spring the test
+// switches off, and `plain`, its twin, never has a spring force.
 typedef struct SpringPair
 {
     m2World* world;
