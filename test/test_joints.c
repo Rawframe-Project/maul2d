@@ -1921,6 +1921,135 @@ static void TestJointBreaking(void)
     m2DestroyWorld(world);
 }
 
+// A loaded joint whose spring is switched off, beside a twin that never
+// had one, stepped once more: `sprung` keeps its spring until `release`
+// runs, then both step and the switched joint's reaction is returned
+// through `reading`, the twin's through `twinReading`.
+typedef struct SpringPair
+{
+    m2World* world;
+    m2JointId sprung;
+    m2JointId plain;
+} SpringPair;
+
+static m2BodyId LoadedBody(m2World* world, m2Pos2 at, const m2Polygon* shape)
+{
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    bd.position = at;
+    m2BodyId body = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    NewPolygonShape(world, body, &sd, shape);
+    return body;
+}
+
+// Two wheels hang on vertical wheel joints, one held by its spring.
+static SpringPair WheelPair(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 8;
+    def.jointCapacity = 4;
+    SpringPair pair = {NewWorld(&def), {0, 0}, {0, 0}};
+    m2BodyDef gd = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(pair.world, &gd);
+    m2Polygon hub = m2MakeBox(0.25f, 0.25f);
+    for (int32_t k = 0; k < 2; ++k)
+    {
+        m2Pos2 at = {3.0 * (double)k, 1.0};
+        m2WheelJointDef wd = m2DefaultWheelJointDef();
+        wd.bodyIdA = ground;
+        wd.bodyIdB = LoadedBody(pair.world, at, &hub);
+        wd.localAnchorA = (m2Vec2){(float)at.x, 1.0f};
+        wd.localAxisA = (m2Vec2){0.0f, 1.0f};
+        wd.enableSpring = k == 0;
+        wd.springHertz = 2.0f;
+        wd.springDampingRatio = 0.7f;
+        m2JointId joint = NewWheelJoint(pair.world, &wd);
+        if (k == 0)
+        {
+            pair.sprung = joint;
+        }
+        else
+        {
+            pair.plain = joint;
+        }
+    }
+    return pair;
+}
+
+// Two arms hang level from revolute joints at their left ends, one held
+// up by its angular spring.
+static SpringPair HingePair(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 8;
+    def.jointCapacity = 4;
+    SpringPair pair = {NewWorld(&def), {0, 0}, {0, 0}};
+    m2BodyDef gd = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(pair.world, &gd);
+    m2Polygon arm = m2MakeBox(0.5f, 0.05f);
+    for (int32_t k = 0; k < 2; ++k)
+    {
+        m2Pos2 at = {3.0 * (double)k + 0.5, 1.0};
+        m2RevoluteJointDef rd = m2DefaultRevoluteJointDef();
+        rd.bodyIdA = ground;
+        rd.bodyIdB = LoadedBody(pair.world, at, &arm);
+        rd.localAnchorA = (m2Vec2){(float)at.x - 0.5f, 1.0f};
+        rd.localAnchorB = (m2Vec2){-0.5f, 0.0f};
+        rd.enableSpring = true;
+        rd.springHertz = k == 0 ? 4.0f : 0.0f;
+        rd.springDampingRatio = 0.7f;
+        m2JointId joint = NewRevoluteJoint(pair.world, &rd);
+        if (k == 0)
+        {
+            pair.sprung = joint;
+        }
+        else
+        {
+            pair.plain = joint;
+        }
+    }
+    return pair;
+}
+
+// A spring switched off forgets the impulse it carried. A wheel joint's
+// spring, switched off under load, leaves no axial force on the next step,
+// as a twin wheel that never had a spring shows; a revolute spring whose
+// hertz is set to 0 leaves no torque, as a twin hinge with hertz 0 from
+// the start shows. Kept, the old impulse would warm-start every step and
+// read back as the joint's load.
+static void TestSwitchedOffSpringsForgetTheirImpulse(void)
+{
+    SpringPair wheels = WheelPair();
+    for (int32_t i = 0; i < 60; ++i)
+    {
+        Step(wheels.world, 1.0f / 60.0f, 4);
+    }
+    float held = m2Joint_GetReactionForce(wheels.world, wheels.sprung);
+    m2Joint_EnableSpring(wheels.world, wheels.sprung, false);
+    Step(wheels.world, 1.0f / 60.0f, 4);
+    float after = m2Joint_GetReactionForce(wheels.world, wheels.sprung);
+    float twin = m2Joint_GetReactionForce(wheels.world, wheels.plain);
+    CHECK(held > 1.0f, "a sprung wheel carries its weight through the joint");
+    CHECK(after <= twin + 0.01f * held,
+          "switched off, it carries no more than a wheel that never had a spring");
+    m2DestroyWorld(wheels.world);
+
+    SpringPair hinges = HingePair();
+    for (int32_t i = 0; i < 60; ++i)
+    {
+        Step(hinges.world, 1.0f / 60.0f, 4);
+    }
+    float holding = m2Joint_GetReactionTorque(hinges.world, hinges.sprung);
+    m2Joint_SetSpringHertz(hinges.world, hinges.sprung, 0.0f);
+    Step(hinges.world, 1.0f / 60.0f, 4);
+    CHECK(holding > 0.25f, "a sprung hinge holds its arm up with a torque");
+    CHECK(m2Joint_GetReactionTorque(hinges.world, hinges.sprung) ==
+              m2Joint_GetReactionTorque(hinges.world, hinges.plain),
+          "with hertz 0 it reads the torque of a hinge that never had a spring");
+    m2DestroyWorld(hinges.world);
+}
+
 static void TestBreakRollback(void)
 {
     // Snapshot before the snap, replay through it: the joint must
@@ -2936,6 +3065,7 @@ int main(void)
     TestRevoluteSpring();
     TestJointBreaking();
     TestBreakRollback();
+    TestSwitchedOffSpringsForgetTheirImpulse();
 
     if (s_failures > 0)
     {
