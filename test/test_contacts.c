@@ -692,9 +692,72 @@ static void TestShapesWithoutAreaNeverCollide(void)
     m2DestroyWorld(world);
 }
 
+// With a null world, the three event getters return no events. A sensor
+// beside a box it does not touch, close enough that their broadphase
+// boxes overlap, lists no overlap. Contact data lists the box resting on
+// the floor but not the sensor the box sits inside.
+static void TestEventEdgesAndSensorPairs(void)
+{
+    m2ContactEvents contacts = m2World_GetContactEvents(NULL);
+    m2SensorEvents sensors = m2World_GetSensorEvents(NULL);
+    m2JointEvents joints = m2World_GetJointEvents(NULL);
+    CHECK(contacts.beginCount == 0 && contacts.endCount == 0 && sensors.beginCount == 0 &&
+              sensors.endCount == 0 && joints.breakCount == 0,
+          "a null world has no contact, sensor or joint events");
+
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 8;
+    def.shapeCapacity = 8;
+    m2World* world = NewWorld(&def);
+    m2BodyDef fd = m2DefaultBodyDef();
+    fd.position = (m2Pos2){0.0, -0.5};
+    m2BodyId floor = NewBody(world, &fd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon slab = m2MakeBox(10.0f, 0.5f);
+    NewPolygonShape(world, floor, &sd, &slab);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    bd.position = (m2Pos2){0.0, 0.5};
+    m2BodyId box = NewBody(world, &bd);
+    m2Polygon crate = m2MakeBox(0.5f, 0.5f);
+    m2ShapeId crateShape = NewPolygonShape(world, box, &sd, &crate);
+
+    // One sensor around the box, one 15 cm to its right: their boxes'
+    // 0.1 m margins overlap the crate's, but the second never touches it.
+    m2ShapeDef sensorDef = m2DefaultShapeDef();
+    sensorDef.isSensor = true;
+    m2BodyDef zd = m2DefaultBodyDef();
+    zd.position = (m2Pos2){0.0, 0.5};
+    m2Polygon zone = m2MakeBox(1.0f, 1.0f);
+    NewPolygonShape(world, NewBody(world, &zd), &sensorDef, &zone);
+    zd.position = (m2Pos2){0.75, 0.5};
+    m2Polygon strip = m2MakeBox(0.1f, 0.3f);
+    m2ShapeId beside = NewPolygonShape(world, NewBody(world, &zd), &sensorDef, &strip);
+    for (int32_t i = 0; i < 10; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+    }
+    m2ShapeId overlaps[4];
+    CHECK(m2Shape_GetSensorOverlaps(world, beside, overlaps, 4) == 0,
+          "a sensor beside a box it does not touch lists no overlap");
+    m2ContactData data[8];
+    int32_t count = m2World_GetContactData(world, data, 8);
+    bool solid = count >= 1;
+    for (int32_t i = 0; i < count && i < 8; ++i)
+    {
+        solid = solid &&
+                (data[i].shapeIdA.index1 == crateShape.index1 ||
+                 data[i].shapeIdB.index1 == crateShape.index1) &&
+                data[i].pointCount > 0;
+    }
+    CHECK(solid, "contact data lists the crate on the floor and not the sensor around it");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
     TestCollisionFilters();
+    TestEventEdgesAndSensorPairs();
     TestGroupIndex();
     TestChainGround();
     TestBallBesideASeamTouchesOneSegment();
