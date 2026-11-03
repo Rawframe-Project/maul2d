@@ -729,7 +729,7 @@ static void TestEventEdgesAndSensorPairs(void)
     m2BodyDef zd = m2DefaultBodyDef();
     zd.position = (m2Pos2){0.0, 0.5};
     m2Polygon zone = m2MakeBox(1.0f, 1.0f);
-    NewPolygonShape(world, NewBody(world, &zd), &sensorDef, &zone);
+    m2ShapeId zoneShape = NewPolygonShape(world, NewBody(world, &zd), &sensorDef, &zone);
     zd.position = (m2Pos2){0.75, 0.5};
     m2Polygon strip = m2MakeBox(0.1f, 0.3f);
     m2ShapeId beside = NewPolygonShape(world, NewBody(world, &zd), &sensorDef, &strip);
@@ -742,14 +742,13 @@ static void TestEventEdgesAndSensorPairs(void)
           "a sensor beside a box it does not touch lists no overlap");
     m2ContactData data[8];
     int32_t count = m2World_GetContactData(world, data, 8);
-    bool solid = count >= 1;
-    for (int32_t i = 0; i < count && i < 8; ++i)
-    {
-        solid = solid &&
-                (data[i].shapeIdA.index1 == crateShape.index1 ||
-                 data[i].shapeIdB.index1 == crateShape.index1) &&
-                data[i].pointCount > 0;
-    }
+    // The crate touches the floor and sits inside the zone; only the floor
+    // contact is physical.
+    bool solid = count == 1 && data[0].pointCount > 0 &&
+                 (data[0].shapeIdA.index1 == crateShape.index1 ||
+                  data[0].shapeIdB.index1 == crateShape.index1) &&
+                 data[0].shapeIdA.index1 != zoneShape.index1 &&
+                 data[0].shapeIdB.index1 != zoneShape.index1;
     CHECK(solid, "contact data lists the crate on the floor and not the sensor around it");
     m2DestroyWorld(world);
 }
