@@ -243,6 +243,78 @@ static void TestBulletStopsBehindACrowd(void)
     m2DestroyWorld(world);
 }
 
+// A wall on its own body, as AddWall makes, with its shape def given.
+static void AddWallWith(m2World* world, double x, const m2ShapeDef* sd)
+{
+    m2BodyDef wd = m2DefaultBodyDef();
+    wd.position = (m2Pos2){x, 0.0};
+    m2BodyId wall = NewBody(world, &wd);
+    m2Polygon slab = m2MakeBox(0.05f, 4.0f);
+    NewPolygonShape(world, wall, sd, &slab);
+}
+
+// A bullet shot at 200 m/s from x = -10 through the walls a world holds;
+// returns where it is after 30 steps.
+static double ShootThrough(m2World* world, int32_t groupIndex)
+{
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    bd.position = (m2Pos2){-10.0, 0.0};
+    bd.linearVelocity = (m2Vec2){200.0f, 0.0f};
+    bd.gravityScale = 0.0f;
+    bd.enableBullet = true;
+    m2BodyId ball = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    sd.groupIndex = groupIndex;
+    m2Circle circle = {{0.0f, 0.0f}, 0.1f};
+    NewCircleShape(world, ball, &sd, &circle);
+    for (int32_t i = 0; i < 30; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+    }
+    return m2Body_GetPosition(world, ball).x;
+}
+
+static m2World* WallWorld(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 8;
+    def.shapeCapacity = 8;
+    def.gravity = (m2Vec2){0.0f, 0.0f};
+    return NewWorld(&def);
+}
+
+// A sensor never blocks a bullet, and a shared group decides before the
+// masks do: a negative one lets the bullet through a wall, a positive one
+// stops it at a wall whose mask excludes it.
+static void TestBulletFiltersAndSensors(void)
+{
+    m2World* world = WallWorld();
+    m2ShapeDef sensor = m2DefaultShapeDef();
+    sensor.isSensor = true;
+    AddWallWith(world, 0.0, &sensor);
+    AddWall(world, 3.0, 0.05f, 4.0f);
+    double x = ShootThrough(world, 0);
+    CHECK(x > 0.0 && x < 3.0, "a bullet passes a sensor and stops at the wall behind it");
+    m2DestroyWorld(world);
+
+    world = WallWorld();
+    m2ShapeDef apart = m2DefaultShapeDef();
+    apart.groupIndex = -2;
+    AddWallWith(world, 0.0, &apart);
+    CHECK(ShootThrough(world, -2) > 3.0, "a shared negative group lets it through a wall");
+    m2DestroyWorld(world);
+
+    world = WallWorld();
+    m2ShapeDef together = m2DefaultShapeDef();
+    together.groupIndex = 2;
+    together.maskBits = 0;
+    AddWallWith(world, 0.0, &together);
+    CHECK(ShootThrough(world, 2) < 0.0,
+          "a shared positive group stops it at a wall whose mask excludes it");
+    m2DestroyWorld(world);
+}
+
 static void TestSegmentBulletStops(void)
 {
     // A bullet whose only shape is a segment is swept by the circle that
@@ -317,6 +389,7 @@ int main(void)
     TestBulletStopsAtEveryPostShape();
     TestCrowdedSweepIgnoresTreeHistory();
     TestBulletStopsBehindACrowd();
+    TestBulletFiltersAndSensors();
     TestThinWall();
     TestEarliestWallWins();
     TestBulletsIgnoreEachOther();

@@ -591,6 +591,70 @@ static m2Polygon FarTriangle(void)
     return distant;
 }
 
+// A triangle's fill leaves out the lattice points of its bounding box
+// that fall outside it: fewer particles than the box holds, every one
+// inside the triangle.
+static void TestTriangleFillStaysInside(void)
+{
+    m2WorldDef def = FluidWorldDef(256);
+    def.gravity = (m2Vec2){0.0f, 0.0f};
+    m2World* world = NewWorld(&def);
+    m2Vec2 corners[3] = {{-1.0f, 0.0f}, {1.0f, 0.0f}, {-1.0f, 1.0f}};
+    m2Polygon triangle = MakePolygon(corners, 3, 0.0f);
+    int32_t made = FillParticles(world, &triangle, (m2Pos2){0.0, 0.0}, (m2Vec2){0.0f, 0.0f}, 0);
+    m2Polygon box = m2MakeBox(1.0f, 0.5f);
+    m2World* boxed = NewWorld(&def);
+    int32_t full = FillParticles(boxed, &box, (m2Pos2){0.0, 0.5}, (m2Vec2){0.0f, 0.0f}, 0);
+    CHECK(made > 0 && made < full, "a triangle fills fewer particles than its bounding box");
+    m2ParticleId ids[256];
+    int32_t total = m2World_GetParticles(world, ids, 256);
+    bool inside = true;
+    for (int32_t i = 0; i < total; ++i)
+    {
+        m2Pos2 p = m2Particle_GetPosition(world, ids[i]);
+        // Inside: y >= 0 and x + 2y <= 1 (the hypotenuse), x >= -1.
+        inside = inside && p.y >= 0.0 && p.x >= -1.0 && p.x + 2.0 * p.y <= 1.0;
+    }
+    CHECK(inside, "and every one lies inside the triangle");
+    m2DestroyWorld(boxed);
+    m2DestroyWorld(world);
+}
+
+// A lifetime that is negative or not finite counts one misuse and leaves
+// the particle's lifetime as it was; a fill into a null world is refused
+// and reports a count of 0; the box query leaves out a destroyed particle.
+static void TestParticleRefusalsAndGaps(void)
+{
+    m2WorldDef def = FluidWorldDef(16);
+    def.gravity = (m2Vec2){0.0f, 0.0f};
+    m2World* world = NewWorld(&def);
+    m2ParticleId first = EmitParticle(world, (m2Pos2){1.0, 1.0}, (m2Vec2){0.0f, 0.0f}, 0);
+    m2ParticleId second = EmitParticle(world, (m2Pos2){2.0, 1.0}, (m2Vec2){0.0f, 0.0f}, 0);
+    m2Particle_SetLifetime(world, first, 2.0f);
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+    m2Particle_SetLifetime(world, first, -1.0f);
+    m2Particle_SetLifetime(world, first, NAN);
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 2 &&
+              m2Particle_GetLifetime(world, first) == 2.0f,
+          "a negative or NaN lifetime counts one misuse each and changes nothing");
+
+    m2ParticleDef particleDef = m2DefaultParticleDef();
+    m2Polygon box = m2MakeBox(0.5f, 0.5f);
+    int32_t count = 7;
+    CHECK(m2CreateParticlesInPolygon(NULL, &particleDef, &box, &count) == m2_errorInvalid &&
+              count == 0,
+          "a fill into a null world is m2_errorInvalid and reports a count of 0");
+
+    CHECK(DestroyParticle(world, first) == m2_success, "the first particle is destroyed");
+    m2ParticleId found[4];
+    int32_t total =
+        m2World_OverlapParticlesAabb(world, (m2WorldAabb){{0.0, 0.0}, {3.0, 2.0}}, found, 4);
+    CHECK(total == 1 && found[0].index1 == second.index1 &&
+              found[0].generation == second.generation,
+          "the box query lists only the particle still alive");
+    m2DestroyWorld(world);
+}
+
 static void TestFillChecksItsPolygon(void)
 {
     m2WorldDef def = FluidWorldDef(64);
@@ -1307,6 +1371,8 @@ static void TestZeroPoolsAreFull(void)
 int main(void)
 {
     TestZeroPoolsAreFull();
+    TestTriangleFillStaysInside();
+    TestParticleRefusalsAndGaps();
     TestCrowdedCrossingStops();
     TestFarShapesKeepTheFloor();
     TestCappedCandidatesIgnoreTreeHistory();
