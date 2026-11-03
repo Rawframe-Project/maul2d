@@ -1416,6 +1416,65 @@ static void TestCheckStandsAlone(void)
     FreeScene(&scene);
 }
 
+// A particle slot at the pool's high-water mark comes alive: a live slot
+// the pool never handed out.
+static void ParticleAliveAtHighWater(const Scene* scene, uint8_t* block)
+{
+    const m2World* w = scene->world;
+    int32_t highWater = GetI32(At(scene, block, &w->particles.maxParticleIndex), 0);
+    At(scene, block, &w->particles.particleAlive)[highWater] = 1;
+}
+
+// The last body slot, never used, claims the ground's first shape.
+static void DeadBodyListsAShape(const Scene* scene, uint8_t* block)
+{
+    const m2World* w = scene->world;
+    uint8_t* heads = At(scene, block, &w->bodies.bodyShapeHead);
+    PutI32(heads, w->bodies.bodyCapacity - 1, GetI32(heads, (int32_t)scene->ground.index1 - 1));
+}
+
+// The first box's shape names the ground's chain, which sits on another
+// body.
+static void ShapeClaimsAnotherBodysChain(const Scene* scene, uint8_t* block)
+{
+    const m2World* w = scene->world;
+    int32_t s = GetI32(At(scene, block, &w->bodies.bodyShapeHead), (int32_t)scene->boxA.index1 - 1);
+    PutI32(At(scene, block, &w->shapes.shapeChain), s, 0);
+}
+
+// The dynamic tree's root names its own first child as its parent.
+static void TreeRootHasAParent(const Scene* scene, uint8_t* block)
+{
+    int32_t root = 0;
+    uint8_t* nodes = DynamicTreeNodes(scene, block, &root);
+    m2TreeNode top = GetNode(nodes, root);
+    top.parent = top.child1;
+    PutNode(nodes, root, top);
+}
+
+// The dynamic tree's first free node links back to itself: a free list
+// that never ends.
+static void FreeListLoops(const Scene* scene, uint8_t* block)
+{
+    const m2World* w = scene->world;
+    m2DynamicTree tree;
+    memcpy(&tree, At(scene, block, &w->broadphase.trees) + sizeof(tree) * m2_dynamicBody,
+           sizeof(tree));
+    uint8_t* nodes = At(scene, block, &w->broadphase.treeNodes[m2_dynamicBody]);
+    m2TreeNode first = GetNode(nodes, tree.freeList);
+    first.parent = tree.freeList;
+    PutNode(nodes, tree.freeList, first);
+}
+
+// The last shape slot, never used, keeps a proxy: the dynamic tree's root.
+static void DeadShapeKeepsAProxy(const Scene* scene, uint8_t* block)
+{
+    const m2World* w = scene->world;
+    int32_t root = 0;
+    (void)DynamicTreeNodes(scene, block, &root);
+    PutI32(At(scene, block, &w->broadphase.proxyIds), w->shapes.shapeCapacity - 1, root);
+}
+
 static void TestHostileStructures(void)
 {
     Scene scene = MakeScene();
@@ -1458,6 +1517,14 @@ static void TestHostileStructures(void)
     ExpectRefused(&scene, QueuedSensorEndSlotZero, "a queued sensor end on slot 0 is refused");
     ExpectRefused(&scene, QueuedEndsPastThePairs, "more queued ends than pairs are refused");
     ExpectRefused(&scene, PolygonNormalLies, "a polygon whose normal lies is refused");
+    ExpectRefused(&scene, ParticleAliveAtHighWater,
+                  "a live particle at the pool's high-water mark is refused");
+    ExpectRefused(&scene, DeadBodyListsAShape, "a dead body that lists a shape is refused");
+    ExpectRefused(&scene, ShapeClaimsAnotherBodysChain,
+                  "a shape that names another body's chain is refused");
+    ExpectRefused(&scene, TreeRootHasAParent, "a tree root that names a parent is refused");
+    ExpectRefused(&scene, FreeListLoops, "a free list that loops is refused");
+    ExpectRefused(&scene, DeadShapeKeepsAProxy, "a dead shape that keeps a proxy is refused");
     ExpectRefused(&scene, GroundGeometryBroken, "a broken ground geometry is refused");
     ExpectRefused(&scene, ShapeTypeMinusOne, "a shape type of -1 is refused");
     ExpectRefused(&scene, ShapeTypeInt32Min, "a shape type of INT32_MIN is refused");
