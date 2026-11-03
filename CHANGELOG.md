@@ -9,6 +9,16 @@ minor release, and its entry says what changes. A snapshot or journal
 tape is read within the minor version that wrote it and refused
 across minor versions.
 
+## [1.0.0](https://github.com/Rawframe-Project/maul2d/compare/v0.11.4...v1.0.0) (2026-11-03)
+
+This release settles maul2d at 1.0.0. No golden line moves, and no library behavior changes. What changes is the promise ([#293](https://github.com/Rawframe-Project/maul2d/pull/293)): from 1.0.0, a minor release only adds to the API, a patch release only fixes, and there is no 2.0.0. A release that changes results is a minor release, and its entry says what changes. A snapshot or journal tape is read within the minor version that wrote it and refused across minor versions. The other pull requests in this release change no library code.
+
+### Changed
+
+- The 1.y versioning rule ([#293](https://github.com/Rawframe-Project/maul2d/pull/293)): a minor release only adds to the API, a patch release only fixes, and a release that changes results is a minor release whose entry says what changes. Within a minor version, a snapshot or tape replays onto the same bits.
+- The binary interface ([#293](https://github.com/Rawframe-Project/maul2d/pull/293)). From 1.0, `M2_ABI_VERSION` is the major and minor version, the shared library's `SOVERSION` is `1.Y`, and the CMake package accepts any later 1.y. Before 1.0 `M2_ABI_VERSION` was the whole version, and only the release that wrote a snapshot or tape read it, so 1.0.0 refuses 0.11.4's snapshots and tapes with `m2_errorVersion`.
+- Results: no golden line moves ([#281](https://github.com/Rawframe-Project/maul2d/pull/281), [#283](https://github.com/Rawframe-Project/maul2d/pull/283), [#285](https://github.com/Rawframe-Project/maul2d/pull/285), [#287](https://github.com/Rawframe-Project/maul2d/pull/287), [#293](https://github.com/Rawframe-Project/maul2d/pull/293)).
+
 ## [0.11.4](https://github.com/Rawframe-Project/maul2d/compare/v0.11.3...v0.11.4) (2026-11-02)
 
 This release makes the world queries between steps see every shape where the last step left it. Results change: 7 of the 13 golden lines move, because the world hash covers each shape's broadphase box and moved flag. The simulation does not change: body and particle state is bit-identical, and no format version changes.
