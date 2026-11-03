@@ -12,9 +12,10 @@
 
 // --- Convex decomposition -------------------------------------------------------
 //
-// Ear clipping into triangles, then Hertel-Mehlhorn style merging:
-// pieces fuse across a shared edge whenever the union stays strictly
-// convex and inside the 8-vertex polygon limit. Every scan runs in
+// Ear clipping into triangles, diagonal flips that raise the worst
+// triangle's quality, then Hertel-Mehlhorn style merging: pieces fuse
+// across a shared edge whenever the union stays strictly convex and
+// inside the 8-vertex polygon limit. Every scan runs in
 // ascending index order and every pass picks the lowest-index
 // candidate, so the decomposition is canonical: same outline, same
 // pieces, on every platform.
@@ -153,6 +154,116 @@ static bool DecompPieceValid(const m2Vec2* points, const m2DecompPiece* piece)
     return m2BuildPolygon(verts, piece->n, 0.0f).count != 0;
 }
 
+// A triangle's quality: twice its area over its longest edge squared,
+// near 0 for a sliver. Taken from its lowest index, so the same three
+// corners always give the same bits, whatever order they come in.
+static double DecompQuality(const m2Vec2* points, int32_t a, int32_t b, int32_t c)
+{
+    while (!(a < b && a < c))
+    {
+        int32_t first = a;
+        a = b;
+        b = c;
+        c = first;
+    }
+    m2Vec2 pa = points[a];
+    m2Vec2 pb = points[b];
+    m2Vec2 pc = points[c];
+    double abx = (double)pb.x - (double)pa.x;
+    double aby = (double)pb.y - (double)pa.y;
+    double bcx = (double)pc.x - (double)pb.x;
+    double bcy = (double)pc.y - (double)pb.y;
+    double cax = (double)pa.x - (double)pc.x;
+    double cay = (double)pa.y - (double)pc.y;
+    double ab = abx * abx + aby * aby;
+    double bc = bcx * bcx + bcy * bcy;
+    double ca = cax * cax + cay * cay;
+    double longest = ab > bc ? (ab > ca ? ab : ca) : (bc > ca ? bc : ca);
+    return DecompCross(pa, pb, pc) / longest;
+}
+
+// The corner of a triangle opposite its edge from v to u, or -1 when the
+// triangle has no such edge.
+static int32_t DecompOpposite(const int32_t* triangle, int32_t u, int32_t v)
+{
+    for (int32_t g = 0; g < 3; ++g)
+    {
+        if (triangle[g] == v && triangle[(g + 1) % 3] == u)
+        {
+            return triangle[(g + 2) % 3];
+        }
+    }
+    return -1;
+}
+
+// Flips the diagonal triangle s (u, v, w) shares with triangle o
+// (v, u, x) to the quad's other diagonal, when the quad is strictly
+// convex and the worse of the two new triangles is better than the worse
+// of the two old ones. Returns whether it flipped.
+static bool DecompFlip(const m2Vec2* points, int32_t* s, int32_t* o, int32_t e)
+{
+    int32_t u = s[e];
+    int32_t v = s[(e + 1) % 3];
+    int32_t w = s[(e + 2) % 3];
+    int32_t x = DecompOpposite(o, u, v);
+    if (DecompCross(points[w], points[u], points[x]) <= 0.0 ||
+        DecompCross(points[x], points[v], points[w]) <= 0.0)
+    {
+        return false;
+    }
+    double oldFirst = DecompQuality(points, u, v, w);
+    double oldSecond = DecompQuality(points, v, u, x);
+    double newFirst = DecompQuality(points, w, u, x);
+    double newSecond = DecompQuality(points, x, v, w);
+    double before = oldFirst < oldSecond ? oldFirst : oldSecond;
+    double after = newFirst < newSecond ? newFirst : newSecond;
+    if (!(after > before))
+    {
+        return false;
+    }
+    s[0] = w;
+    s[1] = u;
+    s[2] = x;
+    o[0] = x;
+    o[1] = v;
+    o[2] = w;
+    return true;
+}
+
+// Raises the triangulation's worst triangles (Lawson's local
+// optimization, with the quality above for the angle), so a long, thin
+// triangle the ears cut becomes two that fuse into pieces validation
+// keeps. Each pass walks triangles and their edges in ascending order and
+// flips every inner diagonal that qualifies. It ends: a quality depends
+// only on its three corners, and a flip replaces two triangles whose
+// worse quality is q by two whose qualities both exceed q, so the
+// triangulation's qualities, sorted, rise in lexicographic order with
+// every flip, and an outline has finitely many triangulations.
+static void DecompRaiseWorst(const m2Vec2* points, int32_t* triangles, int32_t triangleCount)
+{
+    bool flipped = true;
+    while (flipped)
+    {
+        flipped = false;
+        for (int32_t s = 0; s < triangleCount; ++s)
+        {
+            for (int32_t e = 0; e < 3; ++e)
+            {
+                int32_t* first = triangles + 3 * s;
+                for (int32_t o = s + 1; o < triangleCount; ++o)
+                {
+                    int32_t* second = triangles + 3 * o;
+                    if (DecompOpposite(second, first[e], first[(e + 1) % 3]) >= 0)
+                    {
+                        flipped = DecompFlip(points, first, second, e) || flipped;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+}
+
 // The decomposition behind m2DecomposeOutline: the true piece total, or
 // -1 for an outline it refuses.
 // NOLINTNEXTLINE(readability-function-cognitive-complexity): one ring: clip ears, merge, validate
@@ -257,6 +368,7 @@ static int32_t Decompose(const m2Vec2* points, int32_t count, m2Polygon* pieces,
         triangles[3 * triangleCount + 2] = ring[2];
         triangleCount += 1;
     }
+    DecompRaiseWorst(points, triangles, triangleCount);
 
     // Merge pass: fuse two pieces across a shared edge whenever the
     // union stays strictly convex, at most 8 vertices and passes the

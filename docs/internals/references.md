@@ -58,6 +58,12 @@ these descriptions, never copied from other implementations (see
 - A. M. Andrew, "Another Efficient Algorithm for Convex Hulls in Two
   Dimensions", *Information Processing Letters* 9(5), 1979. The
   monotone chain hull.
+- C. L. Lawson, "Software for C1 Surface Interpolation", in J. R. Rice
+  (ed.), *Mathematical Software III*, Academic Press, 1977. The local
+  optimization that flips the diagonal of a convex quad when the flip
+  raises the worse of its two triangles; the outline decomposition uses
+  it with twice the area over the longest edge squared in place of the
+  smallest angle.
 - J. Steiner's formula for parallel bodies: a convex region swollen by
   a radius r gains its perimeter times r plus a disc of radius r. The
   mass of rounded polygons and capsules follows this decomposition

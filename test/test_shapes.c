@@ -327,6 +327,27 @@ static void TestDecomposeKeepsStraightRuns(void)
     CHECK(area > 17.855f && area < 17.865f, "the pieces keep the outline's 17.86 square meters");
 }
 
+// An outline whose lowest ears cut a long, thin triangle across it:
+// (-2.1, -1.3), (0.6, -1.9) and (2.7, -2.3), 4.9 m long and 0.09 square
+// meters, too thin for the polygon checks and fused with no neighbor. The
+// flips turn it into triangles that fuse, so the pieces cover the whole
+// outline, 16.62 square meters.
+static void TestDecomposeKeepsThinTriangles(void)
+{
+    m2Vec2 outline[10] = {{2.8f, 0.2f},  {1.6f, 1.2f},  {0.7f, 1.7f},   {-0.4f, 1.7f},
+                          {-1.4f, 1.1f}, {-1.8f, 0.1f}, {-2.1f, -1.3f}, {-0.8f, -3.3f},
+                          {0.6f, -1.9f}, {2.7f, -2.3f}};
+    m2Polygon pieces[8];
+    int32_t n = DecomposeOutline(outline, 10, pieces, 8);
+    CHECK(n >= 1 && n <= 8, "the outline splits into one to eight pieces");
+    float area = 0.0f;
+    for (int32_t i = 0; i < n && i < 8; ++i)
+    {
+        area += PieceArea(&pieces[i]);
+    }
+    CHECK(area > 16.615f && area < 16.625f, "the pieces keep the outline's 16.62 square meters");
+}
+
 // How far the farthest of the points lies outside the polygon's edges.
 static float FarthestOutside(const m2Polygon* polygon, const m2Vec2* points, int32_t count)
 {
@@ -863,6 +884,7 @@ int main(void)
     TestHullKeepsEveryPoint();
     TestDecomposeOutline();
     TestDecomposeKeepsStraightRuns();
+    TestDecomposeKeepsThinTriangles();
     TestGeometryReadback();
     TestAabbAndMass();
 
