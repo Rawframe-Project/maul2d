@@ -45,7 +45,8 @@ static m2Vec2 Rotate(m2Rot q, m2Vec2 v)
     return (m2Vec2){q.c * v.x - q.s * v.y, q.s * v.x + q.c * v.y};
 }
 
-// What of a shape lies below the surface: area and world centroid.
+// What of a shape lies below the surface: area and centroid, the centroid
+// relative to the body's origin.
 typedef struct Immersion
 {
     float area;
@@ -149,11 +150,12 @@ static float FanRadius(float r, int32_t m, float a, float sinA)
     return r * (sqrtf(sinA * sinA + k * (float)m * a) - sinA) / k;
 }
 
-// The outline of a rounded convex polygon in the world: each corner fans
-// from the previous edge's normal to the next one's in at least two
-// steps of at most a sixteenth of a turn, keeping the shape's area.
+// The outline of a rounded convex polygon, turned to the world about the
+// body's origin: each corner fans from the previous edge's normal to the
+// next one's in at least two steps of at most a sixteenth of a turn,
+// keeping the shape's area.
 static int32_t RoundedOutline(const m2Vec2* verts, const m2Vec2* normals, int32_t count,
-                              float radius, m2Transform xf, m2Vec2* out)
+                              float radius, m2Rot q, m2Vec2* out)
 {
     int32_t n = 0;
     for (int32_t i = 0; i < count; ++i)
@@ -176,42 +178,44 @@ static int32_t RoundedOutline(const m2Vec2* verts, const m2Vec2* normals, int32_
         {
             float reach = k == 0 || k == steps ? radius : inner;
             m2Vec2 local = {verts[i].x + reach * dir.x, verts[i].y + reach * dir.y};
-            m2Vec2 world = Rotate(xf.q, local);
-            out[n++] = (m2Vec2){world.x + (float)xf.p.x, world.y + (float)xf.p.y};
+            out[n++] = Rotate(q, local);
             dir = k + 1 == steps ? to : Rotate(rot, dir);
         }
     }
     return n;
 }
 
-static Immersion ImmerseShape(const m2World* world, int32_t shape, m2Transform xf, double surface)
+// A shape against the surface, all of it relative to the body's origin:
+// the outline only turned to the world, never moved to the body's world
+// position, and the surface given as its height above that origin. In
+// world coordinates, a body far from the world origin would sum its
+// moments from large floats that cancel, and the force would depend on
+// where in the world the body floats.
+static Immersion ImmerseShape(const m2World* world, int32_t shape, m2Rot q, double surface)
 {
     const m2ShapeGeometry* g = &world->shapes.shapeGeometry[shape];
     m2Vec2 outline[M2_OUTLINE_MAX];
     int32_t n = 0;
     if (g->type == m2_circleShape)
     {
-        m2Vec2 c = Rotate(xf.q, g->circle.center);
-        return ImmerseCircle((m2Vec2){c.x + (float)xf.p.x, c.y + (float)xf.p.y}, g->circle.radius,
-                             surface);
+        return ImmerseCircle(Rotate(q, g->circle.center), g->circle.radius, surface);
     }
     if (g->type == m2_capsuleShape)
     {
         m2Polygon core =
             m2MakeSegmentProxy(g->capsule.point1, g->capsule.point2, g->capsule.radius);
-        n = RoundedOutline(core.vertices, core.normals, 2, core.radius, xf, outline);
+        n = RoundedOutline(core.vertices, core.normals, 2, core.radius, q, outline);
     }
     else if (g->type == m2_polygonShape && g->polygon.radius > 0.0f)
     {
         n = RoundedOutline(g->polygon.vertices, g->polygon.normals, g->polygon.count,
-                           g->polygon.radius, xf, outline);
+                           g->polygon.radius, q, outline);
     }
     else if (g->type == m2_polygonShape)
     {
         for (int32_t i = 0; i < g->polygon.count; ++i)
         {
-            m2Vec2 w = Rotate(xf.q, g->polygon.vertices[i]);
-            outline[n++] = (m2Vec2){w.x + (float)xf.p.x, w.y + (float)xf.p.y};
+            outline[n++] = Rotate(q, g->polygon.vertices[i]);
         }
     }
     return n >= 3 ? ImmerseOutline(outline, n, surface) : s_dry;
@@ -464,10 +468,11 @@ static bool InWater(const m2World* world, int32_t b, int32_t v)
 static void Soak(m2World* world, int32_t b, int32_t vol)
 {
     m2Transform xf = world->bodies.transforms[b];
+    double surface = world->volumes.wvSurface[vol] - xf.p.y; // above the body's origin
     Immersion wet = s_dry;
     for (int32_t s = world->bodies.bodyShapeHead[b]; s != -1; s = world->shapes.shapeNext[s])
     {
-        Immersion part = ImmerseShape(world, s, xf, world->volumes.wvSurface[vol]);
+        Immersion part = ImmerseShape(world, s, xf.q, surface);
         wet.area += part.area;
         wet.centroid.x += part.area * part.centroid.x;
         wet.centroid.y += part.area * part.centroid.y;
@@ -477,8 +482,7 @@ static void Soak(m2World* world, int32_t b, int32_t vol)
         return;
     }
     m2Vec2 center = Rotate(xf.q, world->bodies.localCenters[b]);
-    m2Vec2 arm = {wet.centroid.x / wet.area - ((float)xf.p.x + center.x),
-                  wet.centroid.y / wet.area - ((float)xf.p.y + center.y)};
+    m2Vec2 arm = {wet.centroid.x / wet.area - center.x, wet.centroid.y / wet.area - center.y};
     float w = world->bodies.angularVelocities[b];
     m2Vec2 v = world->bodies.linearVelocities[b];
     m2Vec2 flow = world->volumes.wvFlow[vol];
