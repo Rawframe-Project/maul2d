@@ -9,6 +9,13 @@ minor release, and its entry says what changes. A snapshot or journal
 tape is read within the minor version that wrote it and refused
 across minor versions.
 
+## [1.1.0](https://github.com/Rawframe-Project/maul2d/compare/v1.0.1...v1.1.0) (2026-11-03)
+
+
+### Added
+
+* **geometry:** flip thin triangles before the decomposition merges them ([#299](https://github.com/Rawframe-Project/maul2d/issues/299)) ([da373a4](https://github.com/Rawframe-Project/maul2d/commit/da373a42837d2597889eec6fdfbc86e32be24370)), closes [#297](https://github.com/Rawframe-Project/maul2d/issues/297)
+
 ## [1.0.1](https://github.com/Rawframe-Project/maul2d/compare/v1.0.0...v1.0.1) (2026-11-03)
 
 This release keeps every piece of an outline that `m2DecomposeOutline` splits when three of its corners lie on one straight line, as they do in a sprite outline traced on a grid. No golden line moves.
