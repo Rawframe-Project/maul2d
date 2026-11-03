@@ -2841,9 +2841,65 @@ static void TestJointSwitches(void)
     m2DestroyWorld(world);
 }
 
+// A wheel joint's spring switches off and on; a weld's angular spring
+// hertz set to 0 reads back 0; a negative or NaN break limit counts one
+// misuse and keeps the limits it had; m2Joint_IsValid with a null world
+// is false.
+static void TestJointSwitchesAndRefusals(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 8;
+    def.jointCapacity = 4;
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(world, &bd);
+    bd.type = m2_dynamicBody;
+    bd.position = (m2Pos2){0.0, 1.0};
+    m2BodyId wheel = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Circle tire = {{0.0f, 0.0f}, 0.25f};
+    NewCircleShape(world, wheel, &sd, &tire);
+
+    m2WheelJointDef wd = m2DefaultWheelJointDef();
+    wd.bodyIdA = ground;
+    wd.bodyIdB = wheel;
+    m2JointId axle = NewWheelJoint(world, &wd);
+    m2Joint_EnableSpring(world, axle, false);
+    bool off = !m2Joint_IsSpringEnabled(world, axle);
+    m2Joint_EnableSpring(world, axle, true);
+    CHECK(off && m2Joint_IsSpringEnabled(world, axle),
+          "a wheel joint's spring switches off and on");
+    Step(world, 1.0f / 60.0f, 4);
+
+    m2WeldJointDef weld = m2DefaultWeldJointDef();
+    weld.bodyIdA = ground;
+    weld.bodyIdB = wheel;
+    m2JointId beam = NewWeldJoint(world, &weld);
+    m2WeldJoint_SetAngularSpringHertz(world, beam, 4.0f);
+    Step(world, 1.0f / 60.0f, 4);
+    m2WeldJoint_SetAngularSpringHertz(world, beam, 0.0f);
+    CHECK(m2WeldJoint_GetAngularSpringHertz(world, beam) == 0.0f,
+          "a weld's angular spring hertz set to 0 reads back 0");
+    Step(world, 1.0f / 60.0f, 4);
+
+    m2Joint_SetBreakLimits(world, beam, 100.0f, 50.0f);
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+    m2Joint_SetBreakLimits(world, beam, NAN, 10.0f);
+    m2Joint_SetBreakLimits(world, beam, 10.0f, -1.0f);
+    float force = 0.0f;
+    float torque = 0.0f;
+    m2Joint_GetBreakLimits(world, beam, &force, &torque);
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 2 && force == 100.0f &&
+              torque == 50.0f,
+          "a NaN or negative break limit counts one misuse each and keeps the limits");
+    CHECK(!m2Joint_IsValid(NULL, beam), "m2Joint_IsValid with a null world is false");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
     TestFarApartJointsStayFinite();
+    TestJointSwitchesAndRefusals();
     TestVanishingSpringsStayFinite();
     TestBallPendulumHolds();
     TestLongArmsHold();

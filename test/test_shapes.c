@@ -797,9 +797,38 @@ static void TestGeometrySettersMatchCreation(void)
     free(tape);
 }
 
+// A circle, capsule or segment shape with no geometry is refused with
+// m2_errorInvalid and the null id, and counts one misuse each.
+static void TestNullGeometryIsRefused(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2BodyId body = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+    m2ShapeId circle = {7, 7};
+    m2ShapeId capsule = {7, 7};
+    m2ShapeId segment = {7, 7};
+    CHECK(m2CreateCircleShape(world, body, &sd, NULL, &circle) == m2_errorInvalid &&
+              circle.index1 == 0,
+          "a circle shape with no circle is m2_errorInvalid and the null id");
+    CHECK(m2CreateCapsuleShape(world, body, &sd, NULL, &capsule) == m2_errorInvalid &&
+              capsule.index1 == 0,
+          "and so is a capsule shape with no capsule");
+    CHECK(m2CreateSegmentShape(world, body, &sd, NULL, &segment) == m2_errorInvalid &&
+              segment.index1 == 0,
+          "and a segment shape with no segment");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 3 &&
+              m2Body_GetShapes(world, body, NULL, 0) == 0,
+          "each counts one misuse and adds no shape");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
     TestGrownStaticShapeCollides();
+    TestNullGeometryIsRefused();
     TestGeometrySettersMatchCreation();
     TestLocalLengthsAreBounded();
     TestOutlineThatNearlyTouchesIsRefused();
