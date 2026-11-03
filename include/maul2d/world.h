@@ -147,7 +147,7 @@ extern "C"
     /// Returns a world def with the library's defaults, a valid cookie and
     /// the ABI version of the headers the program is built with. It is
     /// built in the program, so m2CreateWorld can refuse a def made for
-    /// another release's binary interface.
+    /// another minor version's binary interface.
     ///
     /// @return The default def.
     /// @par Thread safety
@@ -488,9 +488,9 @@ extern "C"
     /// snapshot's instant, bit for bit, and the event streams clear. End
     /// events a destroy or a disable queued for the next step are state:
     /// the snapshot carries them, and the next step delivers them. Only
-    /// the release that wrote a snapshot reads it (M2_ABI_VERSION). The
-    /// buffer is checked before any byte lands: a header from another
-    /// release, build or world shape, an index or count out of range,
+    /// the minor version that wrote a snapshot reads it (M2_ABI_VERSION).
+    /// The buffer is checked before any byte lands: a header from another
+    /// minor version, build or world shape, an index or count out of range,
     /// flags that are not flags and non-finite state are refused, and the
     /// world stays as it was. The checks make every index safe; they do not
     /// rebuild every structural invariant (tree shape, list links), so
@@ -500,10 +500,10 @@ extern "C"
     /// @param world   The world.
     /// @param buffer  The snapshot.
     /// @param size    Its length, in bytes.
-    /// @return m2_success; m2_errorVersion for a snapshot another release
-    ///         or build wrote, and m2_errorFormat for other bytes that fail
-    ///         the checks, a world of another shape included, neither of
-    ///         which counts misuse; m2_errorInvalid for a null buffer, which
+    /// @return m2_success; m2_errorVersion for a snapshot another minor
+    ///         version or build wrote, and m2_errorFormat for other bytes
+    ///         that fail the checks, a world of another shape included,
+    ///         neither of which counts misuse; m2_errorInvalid for a null buffer, which
     ///         counts one; m2_errorBusy from host code the world is running.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
@@ -726,20 +726,20 @@ extern "C"
     /// its calls refuses (a void call included), or that recreates an
     /// object under another id than the recording saw, is refused and the
     /// world stays as it was, its event streams and counters included; only
-    /// misuse by host code the replay ran stays counted. Only the release
-    /// that wrote a tape replays it (M2_ABI_VERSION); a tape from another
-    /// release, build or world shape is refused too.
+    /// misuse by host code the replay ran stays counted. Only the minor
+    /// version that wrote a tape replays it (M2_ABI_VERSION); a tape from
+    /// another minor version, build or world shape is refused too.
     ///
     /// @param world  The world.
     /// @param data   The tape.
     /// @param size   Its length, in bytes.
     /// @return m2_success; m2_errorVersion for a tape, or its embedded
-    ///         snapshot, another release or build wrote, and m2_errorFormat
-    ///         for another tape that fails its checks (a record the world
-    ///         refuses included), neither of which counts misuse;
-    ///         m2_errorInvalid for a null data pointer or a size a size_t
-    ///         cannot hold, which counts one; m2_errorState while the world
-    ///         is recording; m2_errorBusy from host code the world is
+    ///         snapshot, another minor version or build wrote, and
+    ///         m2_errorFormat for another tape that fails its checks (a
+    ///         record the world refuses included), neither of which counts
+    ///         misuse; m2_errorInvalid for a null data pointer or a size a
+    ///         size_t cannot hold, which counts one; m2_errorState while the
+    ///         world is recording; m2_errorBusy from host code the world is
     ///         running; m2_errorCapacity when the allocator cannot give the
     ///         replay its scratch memory.
     /// @par Thread safety

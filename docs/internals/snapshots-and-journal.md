@@ -20,7 +20,7 @@ Every state format starts with the same 16 bytes, shared with maul3d, each a lit
 A reader checks in this order:
 
 - Bytes shorter than the prefix, or with another magic, are not this format: `m2_errorFormat`.
-- Another ABI version or format number means another release wrote them: `m2_errorVersion`.
+- Another ABI version means another minor version wrote them, and another format number another format: `m2_errorVersion`.
 - Another header size, or bytes too short to hold the header, are corrupt: `m2_errorFormat`.
 - The format's own fields follow. Another build hash is `m2_errorVersion`; another world shape is `m2_errorFormat`.
 

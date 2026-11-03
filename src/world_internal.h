@@ -449,7 +449,7 @@ m2Result m2CheckWriter(const m2World* world);
 
 // The 16 bytes every state format starts with, the snapshot's and the
 // journal tape's alike, in the layout maul3d shares: the format's magic,
-// the M2_ABI_VERSION of the release that wrote it, the format's own
+// the M2_ABI_VERSION of the minor version that wrote it, the format's own
 // number and the size of the whole header. Little-endian like the rest.
 typedef struct m2StatePrefix
 {
@@ -482,10 +482,10 @@ static inline bool m2SizeFitsMemory(int64_t bytes)
 
 // Checks the prefix of untrusted bytes, in the order every state format
 // shares: too short or another magic is m2_errorFormat, since the bytes
-// are not this format; another release or format number is
-// m2_errorVersion, since only the release that wrote them reads them; a
-// header size that is not this format's, or bytes too short to hold it,
-// is m2_errorFormat. Counts nothing: the bytes are untrusted.
+// are not this format; another ABI version or format number is
+// m2_errorVersion, since only the minor version that wrote them reads
+// them; a header size that is not this format's, or bytes too short to
+// hold it, is m2_errorFormat. Counts nothing: the bytes are untrusted.
 m2Result m2CheckStatePrefix(const void* bytes, int64_t size, uint32_t magic, uint32_t formatVersion,
                             int32_t headerBytes);
 

@@ -106,8 +106,8 @@ extern "C"
         // A journal call in the wrong recording state: a start while
         // recording, a stop or a replay that does not fit it.
         m2_errorState = -6,
-        // A def, a snapshot or a journal tape comes from another binary
-        // interface or release than the library's (M2_ABI_VERSION).
+        // A def, a snapshot or a journal tape comes from another minor
+        // version (M2_ABI_VERSION) or build than the library's.
         m2_errorVersion = -7,
         // A snapshot's or a journal tape's bytes fail their checks:
         // damaged, truncated, from another world shape, or a record the
