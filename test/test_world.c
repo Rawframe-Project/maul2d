@@ -3630,6 +3630,69 @@ static void TestFloatingDraft(void)
     m2DestroyWorld(world);
 }
 
+// Where a half-density box and rounded box come to rest in water whose
+// surface is at y = 0, placed x meters from the world origin.
+static void RestingDepths(double x, double* boxY, double* roundedY)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    def.waterVolumeCapacity = 1;
+    m2World* world = NewWorld(&def);
+    m2WaterVolumeDef fd = m2DefaultWaterVolumeDef();
+    fd.bounds = (m2WorldAabb){{x - 20.0, -20.0}, {x + 20.0, 20.0}};
+    fd.surface = 0.0;
+    fd.density = 2.0f;
+    fd.linearDrag = 3.0f;
+    fd.angularDrag = 3.0f;
+    NewWaterVolume(world, &fd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    sd.density = 1.0f;
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    bd.motionLocks.angularZ = true;
+    bd.position = (m2Pos2){x - 2.0, 0.2};
+    m2BodyId box = NewBody(world, &bd);
+    m2Polygon square = m2MakeBox(0.5f, 0.5f);
+    NewPolygonShape(world, box, &sd, &square);
+    bd.position = (m2Pos2){x + 2.0, 0.2};
+    m2BodyId crate = NewBody(world, &bd);
+    m2Vec2 core[4] = {{-0.25f, -0.15f}, {0.25f, -0.15f}, {0.25f, 0.15f}, {-0.25f, 0.15f}};
+    m2Polygon rounded = MakePolygon(core, 4, 0.15f);
+    NewPolygonShape(world, crate, &sd, &rounded);
+    for (int32_t i = 0; i < 900; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+    }
+    *boxY = m2Body_GetPosition(world, box).y;
+    *roundedY = m2Body_GetPosition(world, crate).y;
+    m2DestroyWorld(world);
+}
+
+// World positions are 64-bit and unbounded, so water lifts a body the
+// same wherever it floats: 10, 100 and 10,000 km from the world origin,
+// a box and a rounded box rest within a nanometer of the depth they rest
+// at beside it.
+static void TestFloatingFarOut(void)
+{
+    double boxHere = 0.0;
+    double roundedHere = 0.0;
+    RestingDepths(0.0, &boxHere, &roundedHere);
+    CHECK(fabs(boxHere) < 0.01 && fabs(roundedHere) < 0.01,
+          "beside the origin, both float about half under");
+    const double distances[3] = {1.0e4, 1.0e5, 1.0e7};
+    for (int32_t i = 0; i < 3; ++i)
+    {
+        double boxThere = 0.0;
+        double roundedThere = 0.0;
+        RestingDepths(distances[i], &boxThere, &roundedThere);
+        CHECK(fabs(boxThere - boxHere) < 1.0e-9,
+              "far out, the box rests where it does beside the origin");
+        CHECK(fabs(roundedThere - roundedHere) < 1.0e-9,
+              "far out, the rounded box rests where it does beside the origin");
+    }
+}
+
 static void TestWaterVolume(void)
 {
     m2WorldDef def = m2DefaultWorldDef();
@@ -4795,6 +4858,7 @@ int main(void)
     TestShatterBody();
     TestWaterVolume();
     TestFloatingDraft();
+    TestFloatingFarOut();
     TestHashParts();
     TestValidateAndCounters();
     TestLeftoverBasket();
