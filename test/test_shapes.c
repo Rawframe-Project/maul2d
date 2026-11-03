@@ -307,6 +307,26 @@ static void TestDecomposeOutline(void)
     m2DestroyWorld(world);
 }
 
+// An outline with three corners on one straight line, as a sprite traced
+// on a grid has: (2.3, -2.7), (1.8, -0.2) and (1.3, 2.3) lie on one line,
+// but in float the middle one turns by a hair. Its pieces cover the whole
+// outline, 17.86 square meters, and none fuses across that corner into a
+// piece the polygon checks refuse.
+static void TestDecomposeKeepsStraightRuns(void)
+{
+    m2Vec2 outline[6] = {{1.8f, -0.2f},  {1.3f, 2.3f},   {-1.5f, 3.0f},
+                         {-1.4f, -0.3f}, {-1.9f, -2.8f}, {2.3f, -2.7f}};
+    m2Polygon pieces[8];
+    int32_t n = DecomposeOutline(outline, 6, pieces, 8);
+    CHECK(n >= 1 && n <= 4, "the outline splits into one to four pieces");
+    float area = 0.0f;
+    for (int32_t i = 0; i < n && i < 8; ++i)
+    {
+        area += PieceArea(&pieces[i]);
+    }
+    CHECK(area > 17.855f && area < 17.865f, "the pieces keep the outline's 17.86 square meters");
+}
+
 // How far the farthest of the points lies outside the polygon's edges.
 static float FarthestOutside(const m2Polygon* polygon, const m2Vec2* points, int32_t count)
 {
@@ -842,6 +862,7 @@ int main(void)
     TestComputeHull();
     TestHullKeepsEveryPoint();
     TestDecomposeOutline();
+    TestDecomposeKeepsStraightRuns();
     TestGeometryReadback();
     TestAabbAndMass();
 
