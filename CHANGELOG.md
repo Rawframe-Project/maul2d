@@ -11,10 +11,14 @@ across minor versions.
 
 ## [1.0.0](https://github.com/Rawframe-Project/maul2d/compare/v0.11.4...v1.0.0) (2026-11-03)
 
+This release settles maul2d at 1.0.0. No golden line moves, and no library behavior changes. What changes is the promise ([#293](https://github.com/Rawframe-Project/maul2d/pull/293)): from 1.0.0, a minor release only adds to the API, a patch release only fixes, and there is no 2.0.0. A release that changes results is a minor release, and its entry says what changes. A snapshot or journal tape is read within the minor version that wrote it and refused across minor versions. The other pull requests in this release add tests and move a CI pin; none changes library code.
 
-### Documentation
+### Changed
 
-* state the 1.y versioning rule and release 1.0.0 ([#293](https://github.com/Rawframe-Project/maul2d/issues/293)) ([b5e40a1](https://github.com/Rawframe-Project/maul2d/commit/b5e40a1ac894987c9ae453b8d3e5380779655ce9)), closes [#292](https://github.com/Rawframe-Project/maul2d/issues/292)
+- The 1.y versioning rule ([#293](https://github.com/Rawframe-Project/maul2d/pull/293)). A change that gives existing inputs a different result is titled `feat`, or `fix` when it corrects a result the documentation already promised, and its body and the release notes say what changes. maul2d adds one stricter rule: a release whose `test/hashes.txt` differs from the last tag's is cut as a minor, so a snapshot or tape replays onto the same bits or is refused, and `tools/check_patch_results.py` enforces it. `docs/operations/release.md` says how the minor is cut: a `fix` that moves a golden line ends its body with `Release-As: X.Y.0`. `README.md`, `docs/internals/overview.md`, `docs/internals/snapshots-and-journal.md`, `docs/user/rollback-and-replay.md`, `docs/user/getting-started.md`, the `CHANGELOG.md` header and the `///` blocks of `m2DefaultWorldDef`, `m2World_Restore` and `m2World_ReplayJournal` state the rule.
+- The binary interface ([#293](https://github.com/Rawframe-Project/maul2d/pull/293)). From 1.0, `M2_ABI_VERSION` is the major and minor version, the shared library's `SOVERSION` is `1.Y`, and the CMake package accepts any later 1.y. Before 1.0 `M2_ABI_VERSION` was the whole version, and only the release that wrote a snapshot or tape read it, so 1.0.0 refuses 0.11.4's snapshots and tapes with `m2_errorVersion`.
+- The pull request title check runs the shared workflow at `.github` v0.0.45 ([#289](https://github.com/Rawframe-Project/maul2d/pull/289)), which refuses a `!` title or a `BREAKING CHANGE:` footer once `.release-please-manifest.json` is at 1.x.
+- Results: no golden line moves ([#281](https://github.com/Rawframe-Project/maul2d/pull/281), [#283](https://github.com/Rawframe-Project/maul2d/pull/283), [#285](https://github.com/Rawframe-Project/maul2d/pull/285), [#287](https://github.com/Rawframe-Project/maul2d/pull/287), [#293](https://github.com/Rawframe-Project/maul2d/pull/293)).
 
 ## [0.11.4](https://github.com/Rawframe-Project/maul2d/compare/v0.11.3...v0.11.4) (2026-11-02)
 
