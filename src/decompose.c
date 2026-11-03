@@ -139,6 +139,20 @@ static bool DecompSimple(const m2Vec2* points, int32_t count)
     return true;
 }
 
+// Whether a piece passes the polygon checks every shape does. The
+// convexity test of the merge works in double, the checks in float: a
+// corner that turns by a hair in double can be straight or reflex in
+// float.
+static bool DecompPieceValid(const m2Vec2* points, const m2DecompPiece* piece)
+{
+    m2Vec2 verts[M2_MAX_POLYGON_VERTICES];
+    for (int32_t k = 0; k < piece->n; ++k)
+    {
+        verts[k] = points[piece->idx[k]];
+    }
+    return m2BuildPolygon(verts, piece->n, 0.0f).count != 0;
+}
+
 // The decomposition behind m2DecomposeOutline: the true piece total, or
 // -1 for an outline it refuses.
 // NOLINTNEXTLINE(readability-function-cognitive-complexity): one ring: clip ears, merge, validate
@@ -245,8 +259,10 @@ static int32_t Decompose(const m2Vec2* points, int32_t count, m2Polygon* pieces,
     }
 
     // Merge pass: fuse two pieces across a shared edge whenever the
-    // union stays strictly convex and at most 8 vertices. Ascending
-    // pair order, restart after every fuse: canonical.
+    // union stays strictly convex, at most 8 vertices and passes the
+    // polygon checks, so a fuse never turns two kept pieces into one the
+    // validation below drops. Ascending pair order, restart after every
+    // fuse: canonical.
     m2DecompPiece work[M2_MAX_OUTLINE_POINTS - 2];
     int32_t pieceCount = triangleCount;
     for (int32_t t = 0; t < triangleCount; ++t)
@@ -304,7 +320,7 @@ static int32_t Decompose(const m2Vec2* points, int32_t count, m2Polygon* pieces,
                         m2Vec2 c = points[merged.idx[(k + 2) % merged.n]];
                         convex = DecompCross(a, b, c) > 0.0;
                     }
-                    if (!convex)
+                    if (!convex || !DecompPieceValid(points, &merged))
                     {
                         continue;
                     }
