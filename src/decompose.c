@@ -232,8 +232,11 @@ static bool DecompFlip(const m2Vec2* points, int32_t* s, int32_t* o, int32_t e)
 
 // Raises the triangulation's worst triangles (Lawson's local
 // optimization, with the quality above for the angle), so a long, thin
-// triangle the ears cut becomes two that fuse into pieces validation
-// keeps. Each pass walks triangles and their edges in ascending order and
+// triangle the ears cut usually becomes two that fuse into pieces
+// validation keeps. Nothing guarantees it: a sliver with no strictly
+// convex quad around an inner edge, or whose flip does not raise the
+// worse quality, stays, and the merge and validation below treat it as
+// before. Each pass walks triangles and their edges in ascending order and
 // flips every inner diagonal that qualifies. It ends: a quality depends
 // only on its three corners, and a flip replaces two triangles whose
 // worse quality is q by two whose qualities both exceed q, so the
