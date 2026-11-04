@@ -9,6 +9,19 @@ minor release, and its entry says what changes. A snapshot or journal
 tape is read within the minor version that wrote it and refused
 across minor versions.
 
+## [1.2.1](https://github.com/Rawframe-Project/maul2d/compare/v1.2.0...v1.2.1) (2026-11-04)
+
+This release makes a static shape that a host moves into a sleeping body touch it on the next step, and makes `m2World_Restore` refuse contact pairs the broadphase never makes. No golden line moves, and the snapshot and journal formats keep their versions.
+
+### Changed
+
+- Results: no golden line moves ([#319](https://github.com/Rawframe-Project/maul2d/pull/319)). Only a pair that a host call moves out of date gets a new manifold: a static shape moved into a sleeping body it already held a pair with. A pair whose shapes did not really move computes the same manifold as before.
+
+### Fixed
+
+- A static shape that a host moves into a sleeping body touches it ([#319](https://github.com/Rawframe-Project/maul2d/pull/319)). The step copies a pair's manifold forward without computing it when both bodies are static or asleep. `m2Body_SetTransform` and geometry setters such as `m2Shape_SetPolygon` move a static shape without waking a sleeper it does not touch, so when the two already held a pair, its old manifold stayed. A static wall teleported or widened into a sleeping box reported no contact points, no touching flag and no begin event, and moving the wall again did not wake the box. A pair with a moved shape now gets a fresh manifold, the one the same wall moved in from far away gets.
+- `m2World_Restore` refuses a pair the broadphase never makes ([#315](https://github.com/Rawframe-Project/maul2d/pull/315)): two shapes a mask or a negative group keeps apart, two sensors, two segments, a static shape with a kinematic one, two static shapes with a sensor among them, or the shapes of two bodies a joint without connected collision joins. The step kept such a pair until one of its shapes left its fat box, so the restored world pushed apart shapes the host keeps apart and reported a sensor inside another sensor. Two overlapping boxes pinned without connected collision ended 0.667 m apart after 30 steps with such a pair, instead of 0.6 m. A pair with a moved shape is still accepted, and so is a pair whose shapes drifted apart within their fat boxes.
+
 ## [1.2.0](https://github.com/Rawframe-Project/maul2d/compare/v1.1.0...v1.2.0) (2026-11-04)
 
 This release makes a water volume lift a body the same wherever the body is. Far from the world origin, buoyancy used to lose most of its digits: 100 km out, a floating box was thrown hundreds of meters into the air. Four golden lines move, and the snapshot and journal formats keep their versions, but as in every minor release, snapshots and tapes written by 1.1.0 are refused with `m2_errorVersion`.
