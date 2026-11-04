@@ -482,6 +482,10 @@ M2_PIN_SIZE(m2OpWaterSurface, 16);
 M2_PIN_AT(m2OpWaterSurface, id, 0);
 M2_PIN_AT(m2OpWaterSurface, surface, 8);
 
+M2_PIN_SIZE(m2OpWaterUserData, 16);
+M2_PIN_AT(m2OpWaterUserData, id, 0);
+M2_PIN_AT(m2OpWaterUserData, userData, 8);
+
 M2_PIN_SIZE(m2OpShatterHeader, 16);
 M2_PIN_AT(m2OpShatterHeader, body, 0);
 M2_PIN_AT(m2OpShatterHeader, pieceCount, 8);

@@ -541,9 +541,9 @@ static void ExpectWordRefused(m2World* world, const uint8_t* bytes, int64_t size
 // carries its minor's ABI version, which the reader checks before any
 // record, so the reader of the minor before refuses it with
 // m2_errorVersion as it refuses every tape of another minor. Here a tape
-// holds the motor joint's budget records; stamped with the previous
-// minor's ABI version it is refused and changes nothing, and as written
-// it replays them.
+// holds the motor joint's budget records and a water volume's game data;
+// stamped with the previous minor's ABI version it is refused and changes
+// nothing, and as written it replays them.
 static void TestNewRecordsNeedTheirMinor(void)
 {
     CHECK(M2_VERSION_MAJOR == 1 && M2_VERSION_MINOR > 0, "a 1.y release has a minor before it");
@@ -552,9 +552,13 @@ static void TestNewRecordsNeedTheirMinor(void)
     def.bodyCapacity = 4;
     def.shapeCapacity = 4;
     def.jointCapacity = 2;
+    def.waterVolumeCapacity = 1;
     m2World* world = NewWorld(&def);
     m2BodyDef ad = m2DefaultBodyDef();
     ad.position = (m2Pos2){0.0, 4.0};
+    m2WaterVolumeDef vd = m2DefaultWaterVolumeDef();
+    vd.bounds = (m2WorldAabb){{-10.0, -10.0}, {10.0, -5.0}};
+    m2WaterVolumeId pool = NewWaterVolume(world, &vd);
     m2MotorJointDef md = m2DefaultMotorJointDef();
     md.bodyIdA = NewBody(world, &ad);
     md.bodyIdB = AddBox(world, 0.0, 4.0);
@@ -563,6 +567,7 @@ static void TestNewRecordsNeedTheirMinor(void)
     StartJournal(world, tape, (int32_t)sizeof(tape));
     m2MotorJoint_SetMaxForce(world, motor, 40.0f);
     m2MotorJoint_SetMaxTorque(world, motor, 15.0f);
+    m2WaterVolume_SetUserData(world, pool, 0xC0FFEEu);
     Step(world, 1.0f / 60.0f, 4);
     int64_t tapeBytes = StopJournal(world);
     CHECK(tapeBytes > 0, "the tape is recorded");
@@ -574,7 +579,8 @@ static void TestNewRecordsNeedTheirMinor(void)
         CHECK(ReplayJournal(reader, tape, tapeBytes) &&
                   m2World_Hash(reader) == m2World_Hash(world) &&
                   m2MotorJoint_GetMaxForce(reader, motor) == 40.0f &&
-                  m2MotorJoint_GetMaxTorque(reader, motor) == 15.0f,
+                  m2MotorJoint_GetMaxTorque(reader, motor) == 15.0f &&
+                  m2WaterVolume_GetUserData(reader, pool) == 0xC0FFEEu,
               "this minor replays them");
         m2DestroyWorld(reader);
     }

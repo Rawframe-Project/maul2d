@@ -432,6 +432,29 @@ uint64_t m2WaterVolume_GetUserData(const m2World* world, m2WaterVolumeId volumeI
     return world->volumes.wvUserData[index];
 }
 
+void m2WaterVolume_SetUserData(m2World* world, m2WaterVolumeId volumeId, uint64_t userData)
+{
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
+    int32_t index = WvSlot(world, volumeId);
+    if (index < 0)
+    {
+        m2Refuse(world, m2_errorInvalid);
+        return;
+    }
+    if (world->recorder.journalActive != 0)
+    {
+        m2OpWaterUserData record;
+        memset(&record, 0, sizeof(record));
+        record.id = volumeId;
+        record.userData = userData;
+        m2JournalRecord(world, m2_opWaterUserData, &record, (int32_t)sizeof(record));
+    }
+    world->volumes.wvUserData[index] = userData;
+}
+
 // The squared radius of gyration the angular drag takes, at most twice
 // M2_LOCAL_LIMIT squared.
 #define M2_MAX_GYRATION2 (4.0f * M2_LOCAL_LIMIT * M2_LOCAL_LIMIT)

@@ -423,6 +423,12 @@ static bool ApplySetWaterSurface(m2ReplayCursor* r, const m2OpPayload* p)
     return true;
 }
 
+static bool ApplyWaterUserData(m2ReplayCursor* r, const m2OpPayload* p)
+{
+    m2WaterVolume_SetUserData(r->world, p->waterUserData.id, p->waterUserData.userData);
+    return true;
+}
+
 // World-level ops.
 
 static bool ApplySetGravity(m2ReplayCursor* r, const m2OpPayload* p)
@@ -606,6 +612,7 @@ static const m2JournalCommand s_commands[m2_opCount] = {
     M2_COMMAND(m2_opDestroyWaterVolume, m2WaterVolumeId, ApplyDestroyWaterVolume),
     M2_COMMAND(m2_opSetWaterSurface, m2OpWaterSurface, ApplySetWaterSurface),
     M2_COMMAND(m2_opSetWind, m2OpSetWind, ApplySetWind),
+    M2_COMMAND(m2_opWaterUserData, m2OpWaterUserData, ApplyWaterUserData),
 };
 
 #undef M2_COMMAND

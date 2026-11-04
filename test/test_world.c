@@ -2404,6 +2404,7 @@ static void SweepWorldWriters(Sweep* sw)
     m2WaterVolumeId volume = m2_nullWaterVolumeId;
     M2_SWEEP_STATUS(m2CreateWaterVolume(w, &vd, &volume));
     M2_SWEEP_VOID(m2WaterVolume_SetSurface(w, sw->volume, 2.0));
+    M2_SWEEP_VOID(m2WaterVolume_SetUserData(w, sw->volume, 2));
     M2_SWEEP_STATUS(m2DestroyWaterVolume(w, sw->volume));
     m2ExplosionDef ed = m2DefaultExplosionDef();
     M2_SWEEP_VOID(m2World_SetGravity(w, (m2Vec2){0.0f, 5.0f}));
@@ -2541,7 +2542,7 @@ static void TestEveryWriterRefusesInHostCode(void)
     twin.control = true;
     uint64_t twinMisuse = m2World_GetCounters(twin.world).misuseCount;
     SweepWriters(&twin);
-    CHECK(twin.voidCalls == 67 && twin.statusCalls == 0,
+    CHECK(twin.voidCalls == 68 && twin.statusCalls == 0,
           "the control made every void call but the destroy");
     CHECK(m2World_GetCounters(twin.world).misuseCount == twinMisuse,
           "and the world accepted each one, counting no misuse");
@@ -2564,7 +2565,7 @@ static void TestEveryWriterRefusesInHostCode(void)
     draw.drawAabbs = true;
     draw.context = &sw;
     m2World_Draw(sw.world, &draw);
-    CHECK(sw.calls > 0 && sw.statusCalls == 33 && sw.voidCalls == 68,
+    CHECK(sw.calls > 0 && sw.statusCalls == 33 && sw.voidCalls == 69,
           "the draw swept every writer");
     CHECK(sw.busy == sw.statusCalls, "every status writer said m2_errorBusy");
     CHECK(m2World_GetCounters(sw.world).misuseCount ==
@@ -3149,7 +3150,8 @@ static void TestStaleIdsCountInEveryOtherCall(void)
     m2Chain_SetFriction(world, chain, 0.5f);
     m2Chain_SetRestitution(world, chain, 0.5f);
     m2WaterVolume_SetSurface(world, volume, 0.5);
-    CHECK(m2World_GetCounters(world).misuseCount == misuse + 3,
+    m2WaterVolume_SetUserData(world, volume, 5u);
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 4,
           "a stale chain or volume counts once per call");
     CHECK(m2World_Hash(world) == before, "and no refused writer changed the world");
     m2DestroyWorld(world);
@@ -3791,6 +3793,11 @@ static void TestWaterVolume(void)
     CHECK(m2WaterVolume_IsValid(world, vol), "the volume is live");
     CHECK(m2WaterVolume_GetSurface(world, vol) == 0.0, "the surface reads back");
     CHECK(m2WaterVolume_GetUserData(world, vol) == 42, "userData reads back");
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+    m2WaterVolume_SetUserData(world, vol, UINT64_MAX);
+    CHECK(m2WaterVolume_GetUserData(world, vol) == UINT64_MAX &&
+              m2World_GetCounters(world).misuseCount == misuse,
+          "and changes to any value");
 
     m2Polygon box = m2MakeBox(0.5f, 0.5f);
     m2BodyDef ld = m2DefaultBodyDef();
@@ -3862,6 +3869,7 @@ static void TestWaterVolume(void)
         Step(rec, 1.0f / 60.0f, 4);
     }
     m2WaterVolume_SetSurface(rec, rv, 1.0);
+    m2WaterVolume_SetUserData(rec, rv, 0xFEEDu);
     for (int32_t i = 0; i < 60; ++i)
     {
         Step(rec, 1.0f / 60.0f, 4);
@@ -3871,6 +3879,7 @@ static void TestWaterVolume(void)
     m2World* fresh = NewWorld(&def);
     CHECK(ReplayJournal(fresh, tape, used), "the buoyancy tape replays");
     CHECK(m2World_Hash(fresh) == recorded, "the recorded float replays bit for bit");
+    CHECK(m2WaterVolume_GetUserData(fresh, rv) == 0xFEEDu, "and so does the volume's game data");
     m2DestroyWorld(fresh);
     m2DestroyWorld(rec);
     free(tape);
