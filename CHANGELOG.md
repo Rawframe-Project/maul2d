@@ -9,6 +9,14 @@ minor release, and its entry says what changes. A snapshot or journal
 tape is read within the minor version that wrote it and refused
 across minor versions.
 
+## [1.2.1](https://github.com/Rawframe-Project/maul2d/compare/v1.2.0...v1.2.1) (2026-11-04)
+
+
+### Fixed
+
+* **collision:** rebuild frozen contacts after a static shape moves ([#319](https://github.com/Rawframe-Project/maul2d/issues/319)) ([b0565b4](https://github.com/Rawframe-Project/maul2d/commit/b0565b448952592df296a42ee466f0fdf35f24eb)), closes [#316](https://github.com/Rawframe-Project/maul2d/issues/316)
+* **snapshot:** refuse pairs the broadphase never makes ([#315](https://github.com/Rawframe-Project/maul2d/issues/315)) ([2e004f4](https://github.com/Rawframe-Project/maul2d/commit/2e004f4a53cedb5ec560a7b96a53bc36dbd09b45)), closes [#314](https://github.com/Rawframe-Project/maul2d/issues/314)
+
 ## [1.2.0](https://github.com/Rawframe-Project/maul2d/compare/v1.1.0...v1.2.0) (2026-11-04)
 
 This release makes a water volume lift a body the same wherever the body is. Far from the world origin, buoyancy used to lose most of its digits: 100 km out, a floating box was thrown hundreds of meters into the air. Four golden lines move, and the snapshot and journal formats keep their versions, but as in every minor release, snapshots and tapes written by 1.1.0 are refused with `m2_errorVersion`.
