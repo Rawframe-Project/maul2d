@@ -678,6 +678,17 @@ extern "C"
     /// several readers at once.
     M2_API uint64_t m2WaterVolume_GetUserData(const m2World* world, m2WaterVolumeId volumeId);
 
+    /// Sets a volume's opaque game data, kept through snapshots and journals.
+    ///
+    /// @param world     The world.
+    /// @param volumeId  The volume; a stale id changes nothing and counts one
+    ///                  misuse.
+    /// @param userData  Any value.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
+    M2_API void m2WaterVolume_SetUserData(m2World* world, m2WaterVolumeId volumeId,
+                                          uint64_t userData);
+
     /// Returns a journal tape's fixed cost: its header and the snapshot it
     /// embeds. Size a tape as this plus room for the operations.
     ///

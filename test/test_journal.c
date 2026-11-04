@@ -266,6 +266,7 @@ static void RunSession(m2World* world, uint8_t* journal, int64_t capacity, int64
     poolDef.surface = -1.0;
     m2WaterVolumeId pool = NewWaterVolume(world, &poolDef); // op 61
     m2WaterVolume_SetSurface(world, pool, 0.5);             // op 63
+    m2WaterVolume_SetUserData(world, pool, 31);             // op 65
     m2BodyDef drd = m2DefaultBodyDef();
     drd.position = (m2Pos2){-4.0, 6.0};
     m2BodyId drHook = NewBody(world, &drd);

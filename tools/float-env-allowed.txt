@@ -51,6 +51,7 @@ validity, types, flags, ids and user data:
     m2Chain_IsLoop
     m2Chain_IsValid
     m2WaterVolume_GetUserData
+    m2WaterVolume_SetUserData
     m2WaterVolume_IsValid
     m2Joint_GetBodyA
     m2Joint_GetBodyB
