@@ -2,13 +2,14 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // The pair part of an incoming snapshot's structural check
-// (snapshot_check.c): the moved list, the pairs and the end events queued
-// for the next step. Like the rest of the check, it reads the bytes in
-// place and bounds every index it reads.
+// (snapshot_check.c): the moved list, the pairs, the manifolds of frozen
+// pairs and the end events queued for the next step. Like the rest of the check, it reads the bytes
+// in place and bounds every index it reads.
 
 #include "snapshot_pairs.h"
 
 #include "broadphase.h"
+#include "contact.h"
 #include "geometry.h"
 #include "snapshot_read.h"
 #include "world_state.h"
@@ -199,6 +200,128 @@ static bool CheckKeptPairs(m2World* world, const uint8_t* in)
     return true;
 }
 
+// The incoming arrays that say whether a shape's end of a pair is frozen,
+// and what its manifold is computed from.
+typedef struct IncomingEnds
+{
+    const uint8_t* inMoved;
+    const uint8_t* shapeBody;
+    const uint8_t* geometries;
+    const uint8_t* types;
+    const uint8_t* asleep;
+    const uint8_t* sleepStreak;
+    const uint8_t* transforms;
+} IncomingEnds;
+
+// A frozen end, as the step's contact update reads one: not moved since
+// the last step, and static or asleep for two step ends. The shape is
+// live, so its body is live and in range: CheckPairs and CheckShapeLists
+// ran first.
+static bool IncomingFrozen(const IncomingEnds* e, int32_t shape)
+{
+    int32_t body = ReadI32(e->shapeBody, shape);
+    return e->inMoved[shape] == 0 && (e->types[body] == (uint8_t)m2_staticBody ||
+                                      (e->types[body] == (uint8_t)m2_dynamicBody &&
+                                       e->asleep[body] != 0 && e->sleepStreak[body] >= 2));
+}
+
+// The manifold the step computes for a pair of shapes at their bodies'
+// incoming poses.
+static m2Manifold IncomingManifold(const IncomingEnds* e, int32_t a, int32_t b)
+{
+    m2ShapeGeometry ga;
+    m2ShapeGeometry gb;
+    memcpy(&ga, e->geometries + (size_t)a * sizeof(ga), sizeof(ga));
+    memcpy(&gb, e->geometries + (size_t)b * sizeof(gb), sizeof(gb));
+    m2Transform xfA;
+    m2Transform xfB;
+    memcpy(&xfA, e->transforms + (size_t)ReadI32(e->shapeBody, a) * sizeof(xfA), sizeof(xfA));
+    memcpy(&xfB, e->transforms + (size_t)ReadI32(e->shapeBody, b) * sizeof(xfB), sizeof(xfB));
+    return m2ComputeManifold(&ga, &gb, m2MakeRelativePose(xfA, xfB));
+}
+
+// Whether two floats have the same bits: -0 differs from 0, and a NaN
+// matches only its own pattern.
+static bool SameBits(float x, float y)
+{
+    uint32_t a;
+    uint32_t b;
+    memcpy(&a, &x, sizeof(a));
+    memcpy(&b, &y, sizeof(b));
+    return a == b;
+}
+
+static bool SameVecBits(m2Vec2 x, m2Vec2 y)
+{
+    return SameBits(x.x, y.x) && SameBits(x.y, y.y);
+}
+
+// Whether two manifolds hold the same contact, bit for bit: the normal and
+// each point's anchors, separation and feature id. The impulses and the
+// persisted bit are left out.
+static bool SameContact(const m2Manifold* x, const m2Manifold* y)
+{
+    if (x->pointCount != y->pointCount || !SameVecBits(x->normal, y->normal))
+    {
+        return false;
+    }
+    for (int32_t k = 0; k < x->pointCount; ++k)
+    {
+        const m2ManifoldPoint* p = &x->points[k];
+        const m2ManifoldPoint* q = &y->points[k];
+        if (!SameVecBits(p->anchorA, q->anchorA) || !SameVecBits(p->anchorB, q->anchorB) ||
+            !SameBits(p->separation, q->separation) || p->id != q->id ||
+            (p->flags & ~1u) != (q->flags & ~1u))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Each pair's touching flag is its manifold's: the step sets every flag
+// from the point count, and nothing between steps changes one without
+// the other. A frozen pair holds the manifold its shapes give at their
+// bodies' poses, since the step copies it forward instead of computing
+// it; only its impulses, which the solver accumulates, and the persisted
+// bit are the snapshot's own. Every snapshot a world writes keeps the
+// rule: a host call that moves a shape wakes its sleeping body or marks
+// the shape moved, and a body falling asleep computes its manifolds one
+// more step before they freeze.
+static bool CheckFrozenManifolds(const m2World* world, const uint8_t* in)
+{
+    const IncomingEnds ends = {M2_IN(broadphase.inMoved),   M2_IN(shapes.shapeBody),
+                               M2_IN(shapes.shapeGeometry), M2_IN(bodies.types),
+                               M2_IN(bodies.asleep),        M2_IN(bodies.sleepStreak),
+                               M2_IN(bodies.transforms)};
+    const uint8_t* keys = M2_IN(contacts.pairKeys);
+    const uint8_t* touching = M2_IN(contacts.pairTouching);
+    const uint8_t* manifolds = M2_IN(contacts.manifolds);
+    int32_t count = InlineI32(world, in, &world->contacts.pairCount);
+    for (int32_t i = 0; i < count; ++i)
+    {
+        m2Manifold stored;
+        memcpy(&stored, manifolds + (size_t)i * sizeof(stored), sizeof(stored));
+        if ((touching[i] != 0) != (stored.pointCount > 0))
+        {
+            return false;
+        }
+        uint64_t key = ReadU64(keys, i);
+        int32_t a = (int32_t)(key >> 32);
+        int32_t b = (int32_t)(key & 0xFFFFFFFFu);
+        if (!IncomingFrozen(&ends, a) || !IncomingFrozen(&ends, b))
+        {
+            continue;
+        }
+        m2Manifold fresh = IncomingManifold(&ends, a, b);
+        if (!SameContact(&stored, &fresh))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 // Whether `count` queued end events, laid out as m2ContactEndEvent and
 // m2SensorEndEvent both are, each carry the step count and name two shape
 // slots of this world.
@@ -242,5 +365,5 @@ static bool CheckQueuedEnds(const m2World* world, const uint8_t* in)
 bool m2SnapshotCheckPairs(m2World* world, const uint8_t* in)
 {
     return CheckMoved(world, in) && CheckPairs(world, in) && CheckKeptPairs(world, in) &&
-           CheckQueuedEnds(world, in);
+           CheckFrozenManifolds(world, in) && CheckQueuedEnds(world, in);
 }

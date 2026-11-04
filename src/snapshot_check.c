@@ -22,13 +22,17 @@
 //   - each pair the next step keeps is one the broadphase would make, by
 //     the shapes' kinds, their bodies' types and filters and the joints
 //     between their bodies;
+//   - each pair's touching flag is its manifold's, and each frozen pair,
+//     both ends unmoved and static or asleep for two step ends, holds the
+//     manifold its shapes give at their bodies' poses: the step copies it
+//     forward instead of computing it;
 //   - each end event queued for the next step carries the step count and
 //     names two shape slots;
 //   - each shape of a static or sleeping body lies inside its fat box at
 //     the body's pose: the step refits no such box before it, or a host,
 //     queries it.
-// The moved list, the pairs and the queued end events are checked in
-// snapshot_pairs.c. The bytes may be unaligned, so every read goes through
+// The moved list, the pairs, the frozen manifolds and the queued end
+// events are checked in snapshot_pairs.c. The bytes may be unaligned, so every read goes through
 // memcpy (snapshot_read.h). Every
 // index read is bounded here too, though m2StateValidate already put each
 // one within its pool, so the check stands on its own. The only memory
