@@ -1682,6 +1682,153 @@ static m2World* RatchetScene(m2JointId* ratchetOut, m2BodyId* wheelOut)
     return world;
 }
 
+// A platform hung on a motor joint from a static anchor, its budgets
+// from the def, or a box falling alone when hung is false. Returns the
+// platform.
+static m2BodyId BudgetScene(m2World** worldOut, bool hung, float maxForce, float maxTorque,
+                            m2JointId* jointOut)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    def.jointCapacity = 2;
+    m2World* world = NewWorld(&def);
+    m2BodyDef ad = m2DefaultBodyDef();
+    ad.position = (m2Pos2){0.0, 4.0};
+    m2BodyId anchor = NewBody(world, &ad);
+    m2BodyDef pd = m2DefaultBodyDef();
+    pd.type = m2_dynamicBody;
+    pd.position = (m2Pos2){0.0, 4.0};
+    m2BodyId platform = NewBody(world, &pd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon deck = m2MakeBox(0.8f, 0.1f);
+    NewPolygonShape(world, platform, &sd, &deck);
+    *jointOut = m2_nullJointId;
+    if (hung)
+    {
+        m2MotorJointDef mj = m2DefaultMotorJointDef();
+        mj.bodyIdA = anchor;
+        mj.bodyIdB = platform;
+        mj.maxForce = maxForce;
+        mj.maxTorque = maxTorque;
+        *jointOut = NewMotorJoint(world, &mj);
+    }
+    *worldOut = world;
+    return platform;
+}
+
+// A motor joint's budgets change at run time: set before the first step,
+// they leave the world as a def with those budgets makes it, and a zero
+// force budget lets the platform fall as a box with no joint does.
+static void TestMotorJointBudgets(void)
+{
+    m2World* set;
+    m2JointId setJoint;
+    m2BodyId setPlatform = BudgetScene(&set, true, 200.0f, 50.0f, &setJoint);
+    m2World* made;
+    m2JointId madeJoint;
+    BudgetScene(&made, true, 0.0f, 7.0f, &madeJoint);
+    m2World* alone;
+    m2JointId none;
+    m2BodyId fallen = BudgetScene(&alone, false, 0.0f, 0.0f, &none);
+
+    uint64_t misuse = m2World_GetCounters(set).misuseCount;
+    m2MotorJoint_SetMaxForce(set, setJoint, 0.0f);
+    m2MotorJoint_SetMaxTorque(set, setJoint, 7.0f);
+    CHECK(m2World_GetCounters(set).misuseCount == misuse, "a motor joint takes both budgets");
+    CHECK(m2MotorJoint_GetMaxForce(set, setJoint) == 0.0f &&
+              m2MotorJoint_GetMaxTorque(set, setJoint) == 7.0f,
+          "the budgets read back");
+    CHECK(m2Joint_GetMaxMotorEffort(set, setJoint) == 7.0f,
+          "the torque budget is the motor budget m2Joint_SetMaxMotorEffort sets");
+    CHECK(m2World_Hash(set) == m2World_Hash(made), "the world is the one the def makes");
+    for (int32_t i = 0; i < 60; ++i)
+    {
+        Step(set, 1.0f / 60.0f, 4);
+        Step(made, 1.0f / 60.0f, 4);
+        Step(alone, 1.0f / 60.0f, 4);
+    }
+    CHECK(m2World_Hash(set) == m2World_Hash(made), "and steps as it does");
+    m2Pos2 at = m2Body_GetPosition(set, setPlatform);
+    m2Pos2 dropped = m2Body_GetPosition(alone, fallen);
+    CHECK(at.x == dropped.x && at.y == dropped.y && at.y < 3.0,
+          "with no force budget the platform falls as a box with no joint");
+
+    m2MotorJoint_SetMaxForce(set, setJoint, 200.0f);
+    m2MotorJoint_SetMaxTorque(set, setJoint, 50.0f);
+    for (int32_t i = 0; i < 120; ++i)
+    {
+        Step(set, 1.0f / 60.0f, 4);
+    }
+    at = m2Body_GetPosition(set, setPlatform);
+    CHECK(at.y > 3.9 && at.y < 4.1, "a force budget again pulls it back to the anchor");
+    m2DestroyWorld(alone);
+    m2DestroyWorld(made);
+    m2DestroyWorld(set);
+}
+
+// The budget calls take a motor joint and a budget from 0 to
+// M2_FORCE_LIMIT; anything else changes nothing and counts one misuse.
+// A budget change wakes the platform.
+static void TestMotorJointBudgetsRefuse(void)
+{
+    m2World* world;
+    m2JointId motor;
+    m2BodyId platform = BudgetScene(&world, true, 200.0f, 50.0f, &motor);
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2BodyId base = NewBody(world, &bd);
+    bd.type = m2_dynamicBody;
+    m2BodyId arm = NewBody(world, &bd);
+    m2RevoluteJointDef rd = m2DefaultRevoluteJointDef();
+    rd.bodyIdA = base;
+    rd.bodyIdB = arm;
+    rd.maxMotorEffort = 3.0f;
+    m2JointId hinge = NewRevoluteJoint(world, &rd);
+
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+    m2MotorJoint_SetMaxForce(world, hinge, 1.0f);
+    m2MotorJoint_SetMaxTorque(world, hinge, 1.0f);
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 2 &&
+              m2Joint_GetMaxMotorEffort(world, hinge) == 3.0f,
+          "a revolute joint takes neither budget call, and each counts one misuse");
+    CHECK(m2MotorJoint_GetMaxTorque(world, hinge) == 0.0f &&
+              m2World_GetCounters(world).misuseCount == misuse + 3,
+          "nor the torque read");
+
+    const float bad[] = {-1.0f, NAN, nextafterf(M2_FORCE_LIMIT, INFINITY)};
+    for (int32_t i = 0; i < 3; ++i)
+    {
+        m2MotorJoint_SetMaxForce(world, motor, bad[i]);
+        m2MotorJoint_SetMaxTorque(world, motor, bad[i]);
+    }
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 9 &&
+              m2MotorJoint_GetMaxForce(world, motor) == 200.0f &&
+              m2MotorJoint_GetMaxTorque(world, motor) == 50.0f,
+          "a negative, NaN or too large budget changes nothing and counts one misuse");
+    m2MotorJoint_SetMaxForce(world, motor, M2_FORCE_LIMIT);
+    m2MotorJoint_SetMaxTorque(world, motor, M2_FORCE_LIMIT);
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 9 &&
+              m2MotorJoint_GetMaxForce(world, motor) == M2_FORCE_LIMIT &&
+              m2MotorJoint_GetMaxTorque(world, motor) == M2_FORCE_LIMIT,
+          "M2_FORCE_LIMIT itself is taken");
+
+    m2Body_SetAwake(world, platform, false);
+    m2MotorJoint_SetMaxForce(world, motor, 10.0f);
+    CHECK(m2Body_IsAwake(world, platform), "a force budget change wakes the platform");
+    m2Body_SetAwake(world, platform, false);
+    m2MotorJoint_SetMaxTorque(world, motor, 10.0f);
+    CHECK(m2Body_IsAwake(world, platform), "and so does a torque budget change");
+
+    DestroyJoint(world, motor);
+    misuse = m2World_GetCounters(world).misuseCount;
+    m2MotorJoint_SetMaxForce(world, motor, 1.0f);
+    m2MotorJoint_SetMaxTorque(world, motor, 1.0f);
+    CHECK(m2MotorJoint_GetMaxTorque(world, motor) == 0.0f &&
+              m2World_GetCounters(world).misuseCount == misuse + 3,
+          "a stale id counts one misuse for each call");
+    m2DestroyWorld(world);
+}
+
 // Motor and limit parameters belong to the revolute, prismatic and wheel
 // joints (the motor joint's torque budget rides the max motor channel).
 // On any other joint they are refused and counted: a ratchet keeps its
@@ -3053,6 +3200,8 @@ int main(void)
     TestConnectedCollisionAndFilterJoint();
     TestJointSwitches();
     TestMotorAndMouseJoints();
+    TestMotorJointBudgets();
+    TestMotorJointBudgetsRefuse();
     TestMotorSpring();
     TestDistanceRange();
     TestDistanceSpringToggleReadsBack();

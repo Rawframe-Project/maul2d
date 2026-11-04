@@ -175,6 +175,8 @@ static void RunSession(m2World* world, uint8_t* journal, int64_t capacity, int64
     chase.maxTorque = 20.0f;
     m2JointId chaser = NewMotorJoint(world, &chase);
     m2MotorJoint_SetOffsets(world, chaser, (m2Vec2){0.5f, 0.5f}, 0.1f); // op 33
+    m2MotorJoint_SetMaxForce(world, chaser, 40.0f);                     // param 19
+    m2MotorJoint_SetMaxTorque(world, chaser, 15.0f);                    // param 1
     m2MouseJointDef grip = m2DefaultMouseJointDef();                    // op 32
     grip.bodyIdA = floor;
     grip.bodyIdB = ram;

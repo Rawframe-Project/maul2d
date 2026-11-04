@@ -187,6 +187,37 @@ void m2MotorJoint_SetOffsets(m2World* world, m2JointId jointId, m2Vec2 linearOff
     m2FloatEnvLeave(env);
 }
 
+// Both budgets ride the joint parameter channel; the type check comes
+// first, so another joint type counts one misuse and the force channel
+// and the shared motor budget take a motor joint only.
+static M2_NOINLINE void MotorJointSetBudgetWorker(m2World* world, m2JointId jointId, uint8_t param,
+                                                  float budget)
+{
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
+    if (m2TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint) < 0)
+    {
+        return; // TypedJointSlot refused
+    }
+    m2SetJointParamInternal(world, jointId, param, budget);
+}
+
+void m2MotorJoint_SetMaxForce(m2World* world, m2JointId jointId, float maxForce)
+{
+    uint64_t env = m2FloatEnvEnter();
+    MotorJointSetBudgetWorker(world, jointId, m2_jointParamMotorMaxForce, maxForce);
+    m2FloatEnvLeave(env);
+}
+
+void m2MotorJoint_SetMaxTorque(m2World* world, m2JointId jointId, float maxTorque)
+{
+    uint64_t env = m2FloatEnvEnter();
+    MotorJointSetBudgetWorker(world, jointId, m2_jointParamMaxMotor, maxTorque);
+    m2FloatEnvLeave(env);
+}
+
 static M2_NOINLINE m2Vec2 MotorJointGetLinearOffsetWorker(const m2World* world, m2JointId jointId)
 {
     int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
@@ -226,6 +257,20 @@ float m2MotorJoint_GetMaxForce(const m2World* world, m2JointId jointId)
 {
     uint64_t env = m2FloatEnvEnter();
     float result = MotorJointGetMaxForceWorker(world, jointId);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+static M2_NOINLINE float MotorJointGetMaxTorqueWorker(const m2World* world, m2JointId jointId)
+{
+    int32_t index = m2TypedJointSlot(world, jointId, (uint8_t)m2_motorJoint);
+    return index >= 0 ? world->joints.jointMaxMotor[index] : 0.0f;
+}
+
+float m2MotorJoint_GetMaxTorque(const m2World* world, m2JointId jointId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = MotorJointGetMaxTorqueWorker(world, jointId);
     m2FloatEnvLeave(env);
     return result;
 }

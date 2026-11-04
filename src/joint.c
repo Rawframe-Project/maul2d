@@ -272,6 +272,8 @@ static bool JointParamValid(uint8_t type, uint8_t param, float value)
                (type == (uint8_t)m2_revoluteJoint ? m2ValidAngle(value) : m2ValidReach(value));
     case m2_jointParamMaxMotor:
         return (M2_MAX_MOTOR_KINDS & (1u << type)) != 0 && m2ValidMaxForce(value);
+    case m2_jointParamMotorMaxForce:
+        return type == (uint8_t)m2_motorJoint && m2ValidMaxForce(value);
     case m2_jointParamBreakForce:
     case m2_jointParamBreakTorque:
         return m2ValidBreakLimit(value);
@@ -349,6 +351,9 @@ static void ApplyJointParam(m2World* world, int32_t index, uint8_t param, float 
         break;
     case m2_jointParamMaxMotor:
         j->jointMaxMotor[index] = value;
+        break;
+    case m2_jointParamMotorMaxForce:
+        j->jointLength[index] = value; // the motor joint's force budget
         break;
     case m2_jointParamEnableMotor:
         j->jointFlags[index] = value != 0.0f ? (j->jointFlags[index] | M2_JOINT_MOTOR)
