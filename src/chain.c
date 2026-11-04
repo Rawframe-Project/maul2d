@@ -167,6 +167,8 @@ static M2_NOINLINE m2Result CreateChainWorker(m2World* world, m2BodyId bodyId,
     world->chains.chainAlive[chainIndex] = 1;
     world->chains.chainBody[chainIndex] = bodyIndex;
     world->chains.chainLoop[chainIndex] = def->isLoop ? 1 : 0;
+    world->chains.chainFriction[chainIndex] = def->friction;
+    world->chains.chainRestitution[chainIndex] = def->restitution;
     if (chainIndex + 1 > world->chains.maxChainIndex)
     {
         world->chains.maxChainIndex = chainIndex + 1;
@@ -298,6 +300,14 @@ static void ChainMaterialInternal(m2World* world, m2ChainId chainId, int32_t cha
         record.value = value;
         m2JournalRecord(world, op, &record, (int32_t)sizeof(record));
     }
+    if (op == m2_opChainFriction)
+    {
+        world->chains.chainFriction[chainIndex] = value;
+    }
+    else
+    {
+        world->chains.chainRestitution[chainIndex] = value;
+    }
     int32_t body = world->chains.chainBody[chainIndex];
     for (int32_t s = world->bodies.bodyShapeHead[body]; s != -1; s = world->shapes.shapeNext[s])
     {
@@ -359,6 +369,34 @@ void m2Chain_SetRestitution(m2World* world, m2ChainId chainId, float restitution
     uint64_t env = m2FloatEnvEnter();
     ChainSetRestitutionWorker(world, chainId, restitution);
     m2FloatEnvLeave(env);
+}
+
+static M2_NOINLINE float ChainGetMaterialWorker(const m2World* world, m2ChainId chainId,
+                                                bool friction)
+{
+    int32_t index = world != NULL ? ChainSlot(world, chainId) : -1;
+    if (index < 0)
+    {
+        m2Refuse(world, m2_errorInvalid);
+        return 0.0f;
+    }
+    return friction ? world->chains.chainFriction[index] : world->chains.chainRestitution[index];
+}
+
+float m2Chain_GetFriction(const m2World* world, m2ChainId chainId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = ChainGetMaterialWorker(world, chainId, true);
+    m2FloatEnvLeave(env);
+    return result;
+}
+
+float m2Chain_GetRestitution(const m2World* world, m2ChainId chainId)
+{
+    uint64_t env = m2FloatEnvEnter();
+    float result = ChainGetMaterialWorker(world, chainId, false);
+    m2FloatEnvLeave(env);
+    return result;
 }
 
 int32_t m2Chain_GetShapes(const m2World* world, m2ChainId chainId, m2ShapeId* idsOut,

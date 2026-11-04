@@ -1488,7 +1488,11 @@ static void TestSmallBasket(void)
     m2ChainDef chain = m2DefaultChainDef();
     chain.points = pts;
     chain.count = 5;
+    chain.friction = 0.3f;
+    chain.restitution = 0.2f;
     m2ChainId ledge = NewChain(world, floor, &chain);
+    CHECK(m2Chain_GetFriction(world, ledge) == 0.3f && m2Chain_GetRestitution(world, ledge) == 0.2f,
+          "a chain's material reads back as its def gave it");
     m2Chain_SetFriction(world, ledge, 0.85f);
     m2Chain_SetRestitution(world, ledge, 0.35f);
     m2ShapeId links[4];
@@ -1500,6 +1504,41 @@ static void TestSmallBasket(void)
                  m2Shape_GetRestitution(world, links[i]) == 0.35f;
     }
     CHECK(allSet, "chain materials reach every link");
+    CHECK(m2Chain_GetFriction(world, ledge) == 0.85f &&
+              m2Chain_GetRestitution(world, ledge) == 0.35f,
+          "and as the chain setters last set it");
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+    m2Chain_SetFriction(world, ledge, -1.0f);
+    m2Chain_SetRestitution(world, ledge, 1.5f);
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 2 &&
+              m2Chain_GetFriction(world, ledge) == 0.85f &&
+              m2Chain_GetRestitution(world, ledge) == 0.35f,
+          "a refused value leaves the chain's material as it is");
+    m2Shape_SetFriction(world, links[0], 0.1f);
+    m2Shape_SetRestitution(world, links[0], 0.9f);
+    CHECK(m2Shape_GetFriction(world, links[0]) == 0.1f &&
+              m2Chain_GetFriction(world, ledge) == 0.85f &&
+              m2Chain_GetRestitution(world, ledge) == 0.35f,
+          "retuning one link leaves the chain's own material");
+    CHECK(m2DestroyShape(world, links[0]) == m2_success &&
+              m2DestroyShape(world, links[1]) == m2_success &&
+              m2Chain_GetSegmentCount(world, ledge) == 0,
+          "the chain's links go");
+    CHECK(m2Chain_GetFriction(world, ledge) == 0.85f &&
+              m2Chain_GetRestitution(world, ledge) == 0.35f,
+          "and the chain keeps its material without them");
+    m2Chain_SetFriction(world, ledge, 0.4f);
+    CHECK(m2Chain_GetFriction(world, ledge) == 0.4f, "which a chain with no links still takes");
+    int64_t size = m2World_GetSnapshotSize(world);
+    void* snapshot = malloc((size_t)size);
+    CHECK(snapshot != NULL && Snapshot(world, snapshot, size) == size, "the snapshot is taken");
+    m2Chain_SetFriction(world, ledge, 0.6f);
+    m2Chain_SetRestitution(world, ledge, 0.7f);
+    CHECK(snapshot != NULL && Restore(world, snapshot, size) &&
+              m2Chain_GetFriction(world, ledge) == 0.4f &&
+              m2Chain_GetRestitution(world, ledge) == 0.35f,
+          "a restore brings the chain's material back");
+    free(snapshot);
 
     m2DestroyWorld(world);
 }
@@ -3023,12 +3062,14 @@ static void TestStaleIdsCountInEveryCall(void)
     CHECK(m2WaterVolume_GetSurface(world, volume) == 0.0, "a stale volume has no surface");
     CHECK(m2WaterVolume_GetUserData(world, volume) == 0, "nor data");
     CHECK(m2Chain_GetShapes(world, chain, NULL, 0) == 0, "a stale chain has no links");
+    CHECK(m2Chain_GetFriction(world, chain) == 0.0f, "nor friction");
+    CHECK(m2Chain_GetRestitution(world, chain) == 0.0f, "nor restitution");
     m2Vec2 local = m2Body_GetLocalPointVelocity(world, body, (m2Vec2){1.0f, 0.0f});
     m2Vec2 global = m2Body_GetWorldPointVelocity(world, body, (m2Pos2){1.0, 0.0});
     CHECK(local.x == 0.0f && local.y == 0.0f && global.x == 0.0f && global.y == 0.0f,
           "a stale body's points do not move");
-    CHECK(m2World_GetCounters(world).misuseCount == misuse + 19,
-          "each of the 19 calls counts once");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 21,
+          "each of the 21 calls counts once");
     m2DestroyWorld(world);
 }
 
