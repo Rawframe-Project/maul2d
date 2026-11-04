@@ -30,7 +30,7 @@ This release makes a water volume lift a body the same wherever the body is. Far
 
 ## [1.1.0](https://github.com/Rawframe-Project/maul2d/compare/v1.0.1...v1.1.0) (2026-11-03)
 
-This release changes how `m2DecomposeOutline` triangulates an outline, so the long, thin triangles its ear clipping cuts no longer drop out of the pieces. Most concave outlines get new pieces of the same area, and fewer of them. No golden line moves.
+This release changes how `m2DecomposeOutline` triangulates an outline, so the long, thin triangles its ear clipping cuts no longer drop out of the pieces. Most concave outlines get new pieces of the same area, and fewer of them. No golden line moves, and the snapshot and journal formats keep their versions, but as in every minor release, snapshots and tapes written by 1.0.1 are refused with `m2_errorVersion`.
 
 ### Changed
 
