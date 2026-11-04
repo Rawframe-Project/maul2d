@@ -69,7 +69,7 @@ When every dynamic body sleeps and nothing kinematic moves, the world hibernates
 - **Collision:** `dynamic_tree.c` and `broadphase.c`, `contact.c` (pairs and events), `manifold.c`, `distance.c`, `geometry.c` (shape math, hulls, mass), `decompose.c` (an outline into convex pieces), `ccd.c`.
 - **Solver:** `solver.c` (the substep order), `contact_solver.c`, `contact_kernel.c` (the SIMD lanes), `graph_color.c`, `joint_solver.c`, `joint_row.c`, `island.c`, `parallel.c` (the task hooks).
 - **Queries:** `query*.c`, `ray_cast.c`, `mover.c`.
-- **Recording:** `snapshot.c`, `snapshot_check.c` (how an incoming snapshot's arrays fit together), `journal.c`, `journal_replay.c`. See [snapshots-and-journal.md](snapshots-and-journal.md).
+- **Recording:** `snapshot.c`, `snapshot_check.c` and `snapshot_pairs.c` (how an incoming snapshot's arrays fit together), `journal.c`, `journal_replay.c`. See [snapshots-and-journal.md](snapshots-and-journal.md).
 - **Family files:** `cpu.c` and `cpu.h`, `hash.c`, `simd.h`, synced from the organization's `.github` repository and never edited here.
 
 ## Assertions

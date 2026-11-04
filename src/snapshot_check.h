@@ -16,7 +16,8 @@
 // True when the block, already accepted by m2StateValidate, describes a
 // world no later call or step can drive out of its pools: free queues,
 // owner lists, the broadphase trees, the moved list and the pairs all
-// agree. Reads the block in place and writes only world->restoreMarks.
+// agree. Reads the block in place and writes only world->restoreMarks and
+// world->contacts.pairScratch.
 bool m2SnapshotCheck(m2World* world, const uint8_t* in);
 
 #endif // MAUL2D_SRC_SNAPSHOT_CHECK_H

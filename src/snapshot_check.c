@@ -19,15 +19,20 @@
 //     their children, and its free list holds every other node;
 //   - the moved list and its flags agree, and the pairs are ordered and
 //     join live shapes in the broadphase;
+//   - each pair the next step keeps is one the broadphase would make, by
+//     the shapes' kinds, their bodies' types and filters and the joints
+//     between their bodies;
 //   - each end event queued for the next step carries the step count and
 //     names two shape slots;
 //   - each shape of a static or sleeping body lies inside its fat box at
 //     the body's pose: the step refits no such box before it, or a host,
 //     queries it.
-// The bytes may be unaligned, so every read goes through memcpy. Every
+// The moved list, the pairs and the queued end events are checked in
+// snapshot_pairs.c. The bytes may be unaligned, so every read goes through
+// memcpy (snapshot_read.h). Every
 // index read is bounded here too, though m2StateValidate already put each
 // one within its pool, so the check stands on its own. The only memory
-// written is the world's restoreMarks scratch.
+// written is the world's restoreMarks and pairScratch scratch.
 
 #include "snapshot_check.h"
 
@@ -36,57 +41,13 @@
 #include "geometry.h"
 #include "joint.h"
 #include "mass.h"
+#include "snapshot_pairs.h"
+#include "snapshot_read.h"
 #include "world_state.h"
 
 #include "maul2d/base.h"
 
 #include <string.h>
-
-// --- Reading the incoming bytes ---------------------------------------------
-
-static bool InPool(int32_t index, int32_t capacity)
-{
-    return index >= 0 && index < capacity;
-}
-
-static int32_t ReadI32(const uint8_t* array, int32_t index)
-{
-    int32_t value;
-    memcpy(&value, array + (size_t)index * sizeof(value), sizeof(value));
-    return value;
-}
-
-static float ReadF32(const uint8_t* array, int32_t index)
-{
-    float value;
-    memcpy(&value, array + (size_t)index * sizeof(value), sizeof(value));
-    return value;
-}
-
-static uint32_t ReadU32(const uint8_t* array, int32_t index)
-{
-    uint32_t value;
-    memcpy(&value, array + (size_t)index * sizeof(value), sizeof(value));
-    return value;
-}
-
-static uint64_t ReadU64(const uint8_t* array, int32_t index)
-{
-    uint64_t value;
-    memcpy(&value, array + (size_t)index * sizeof(value), sizeof(value));
-    return value;
-}
-
-static m2TreeNode ReadNode(const uint8_t* nodes, int32_t index)
-{
-    m2TreeNode node;
-    memcpy(&node, nodes + (size_t)index * sizeof(node), sizeof(node));
-    return node;
-}
-
-// The incoming copy of a field; every field this file reads is snapshot
-// state in every world that has its pool.
-#define M2_IN(field) m2StateIncoming(world, in, (const void*)&world->field)
 
 // --- Free queues ------------------------------------------------------------
 
@@ -159,11 +120,6 @@ static int32_t CheckPool(uint8_t* marks, const Pool* pool)
         marks[slot] = 1;
     }
     return live;
-}
-
-static int32_t InlineI32(const m2World* world, const uint8_t* in, const void* field)
-{
-    return ReadI32(m2StateIncoming(world, in, field), 0);
 }
 
 // Each end of `count` links, `ends` arrays of particle slots, is a live
@@ -822,107 +778,6 @@ static bool CheckTrees(const m2World* world, const uint8_t* in)
     return true;
 }
 
-// --- Moved shapes and pairs -------------------------------------------------
-
-// The moved list holds distinct shapes, and the flags mark exactly them.
-static bool CheckMoved(m2World* world, const uint8_t* in)
-{
-    const uint8_t* moved = M2_IN(broadphase.moved);
-    const uint8_t* inMoved = M2_IN(broadphase.inMoved);
-    int32_t count = InlineI32(world, in, &world->broadphase.movedCount);
-    if (count < 0 || count > world->shapes.shapeCapacity)
-    {
-        return false;
-    }
-    uint8_t* marks = world->restoreMarks;
-    memset(marks, 0, (size_t)world->shapes.shapeCapacity);
-    for (int32_t k = 0; k < count; ++k)
-    {
-        int32_t s = ReadI32(moved, k);
-        if (!InPool(s, world->shapes.shapeCapacity) || marks[s] != 0 || inMoved[s] == 0)
-        {
-            return false;
-        }
-        marks[s] = 1;
-    }
-    int32_t flagged = 0;
-    for (int32_t s = 0; s < world->shapes.shapeCapacity; ++s)
-    {
-        flagged += inMoved[s] != 0 ? 1 : 0;
-    }
-    return flagged == count;
-}
-
-// Pairs are in strictly increasing key order, and each joins two live
-// shapes of different bodies, both in the broadphase.
-static bool CheckPairs(const m2World* world, const uint8_t* in)
-{
-    const uint8_t* keys = M2_IN(contacts.pairKeys);
-    const uint8_t* touching = M2_IN(contacts.pairTouching);
-    const uint8_t* shapeAlive = M2_IN(shapes.shapeAlive);
-    const uint8_t* shapeBody = M2_IN(shapes.shapeBody);
-    const uint8_t* proxyIds = M2_IN(broadphase.proxyIds);
-    int32_t count = InlineI32(world, in, &world->contacts.pairCount);
-    if (count < 0 || count > world->contacts.pairCapacity)
-    {
-        return false;
-    }
-    uint64_t previous = 0;
-    for (int32_t i = 0; i < count; ++i)
-    {
-        uint64_t key = ReadU64(keys, i);
-        int32_t a = (int32_t)(key >> 32);
-        int32_t b = (int32_t)(key & 0xFFFFFFFFu);
-        if (a < 0 || b >= world->shapes.shapeCapacity || (i > 0 && key <= previous) || a >= b ||
-            touching[i] > 1 || shapeAlive[a] == 0 || shapeAlive[b] == 0 ||
-            ReadI32(proxyIds, a) == M2_NULL_NODE || ReadI32(proxyIds, b) == M2_NULL_NODE ||
-            ReadI32(shapeBody, a) == ReadI32(shapeBody, b))
-        {
-            return false;
-        }
-        previous = key;
-    }
-    return true;
-}
-
-// Whether `count` queued end events, laid out as m2ContactEndEvent and
-// m2SensorEndEvent both are, each carry the step count and name two shape
-// slots of this world.
-static bool QueuedEndsValid(const m2World* world, const uint8_t* events, int32_t count,
-                            uint64_t step)
-{
-    if (count < 0 || count > world->contacts.pairCapacity)
-    {
-        return false;
-    }
-    uint32_t capacity = (uint32_t)world->shapes.shapeCapacity;
-    for (int32_t i = 0; i < count; ++i)
-    {
-        m2ContactEndEvent e;
-        memcpy(&e, events + (size_t)i * sizeof(e), sizeof(e));
-        if (e.shapeIdA.index1 < 1 || e.shapeIdA.index1 > capacity || e.shapeIdB.index1 < 1 ||
-            e.shapeIdB.index1 > capacity || e.step != step)
-        {
-            return false;
-        }
-    }
-    return true;
-}
-
-// The end events a destroy or a disable queued since the last step: each
-// was queued at the snapshot's step count and names two shape slots, so
-// the next step hands the host no id outside its pools.
-static bool CheckQueuedEnds(const m2World* world, const uint8_t* in)
-{
-    _Static_assert(sizeof(m2ContactEndEvent) == sizeof(m2SensorEndEvent),
-                   "both queues share one layout");
-    uint64_t step = ReadU64(M2_IN(stepCount), 0);
-    return QueuedEndsValid(world, M2_IN(events.pendingEndEvents),
-                           InlineI32(world, in, &world->events.pendingEndCount), step) &&
-           QueuedEndsValid(world, M2_IN(events.pendingSensorEnd),
-                           InlineI32(world, in, &world->events.pendingSensorEndCount), step);
-}
-
 // The boxes the step will not refit before it queries them: those of
 // static bodies, which never move in a step, and of sleeping dynamic
 // bodies, which a world refits as they fall asleep. Each must hold its
@@ -973,6 +828,6 @@ bool m2SnapshotCheck(m2World* world, const uint8_t* in)
 {
     return CheckPools(world, in) && CheckShapeLists(world, in) && CheckChains(world, in) &&
            CheckJoints(world, in) && CheckGeometry(world, in) && CheckMass(world, in) &&
-           CheckTrees(world, in) && CheckMoved(world, in) && CheckPairs(world, in) &&
-           CheckQueuedEnds(world, in) && CheckRestingBoxes(world, in) && CheckFlagBits(world, in);
+           CheckTrees(world, in) && m2SnapshotCheckPairs(world, in) &&
+           CheckRestingBoxes(world, in) && CheckFlagBits(world, in);
 }
