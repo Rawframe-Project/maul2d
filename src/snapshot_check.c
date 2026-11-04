@@ -29,6 +29,8 @@
 //     forward instead of computing it;
 //   - each end event queued for the next step carries the step count and
 //     names two shape slots;
+//   - each static body and each sleeping body is still, and only a dynamic
+//     body sleeps;
 //   - each shape of a static or sleeping body lies inside its fat box at
 //     the body's pose: the step refits no such box before it, or a host,
 //     queries it.
@@ -804,6 +806,37 @@ static bool CheckTrees(const m2World* world, const uint8_t* in)
     return true;
 }
 
+// Bodies the world holds still: a static body never moves, since its def
+// carries no velocity, the velocity setters refuse it and a type change to
+// static zeroes its velocities; a sleeping body is dynamic and still, since
+// only a dynamic body sleeps, both ways into sleep zero its velocities and
+// every call that moves a body wakes it. The step reads both: the solver
+// takes a static body's velocity, and waking keeps a sleeper's.
+static bool CheckStillBodies(const m2World* world, const uint8_t* in)
+{
+    const uint8_t* alive = M2_IN(bodies.alive);
+    const uint8_t* types = M2_IN(bodies.types);
+    const uint8_t* asleep = M2_IN(bodies.asleep);
+    const uint8_t* linear = M2_IN(bodies.linearVelocities);
+    const uint8_t* angular = M2_IN(bodies.angularVelocities);
+    for (int32_t b = 0; b < world->bodies.bodyCapacity; ++b)
+    {
+        bool still = types[b] == (uint8_t)m2_staticBody || asleep[b] != 0;
+        if (alive[b] == 0 || !still)
+        {
+            continue;
+        }
+        // An m2Vec2 is two floats.
+        bool moves = ReadF32(linear, 2 * b) != 0.0f || ReadF32(linear, 2 * b + 1) != 0.0f ||
+                     ReadF32(angular, b) != 0.0f;
+        if (moves || (asleep[b] != 0 && types[b] != (uint8_t)m2_dynamicBody))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 // The boxes the step will not refit before it queries them: those of
 // static bodies, which never move in a step, and of sleeping dynamic
 // bodies, which a world refits as they fall asleep. Each must hold its
@@ -855,5 +888,5 @@ bool m2SnapshotCheck(m2World* world, const uint8_t* in)
     return CheckPools(world, in) && CheckShapeLists(world, in) && CheckChains(world, in) &&
            CheckJoints(world, in) && CheckGeometry(world, in) && CheckMass(world, in) &&
            CheckTrees(world, in) && m2SnapshotCheckPairs(world, in) &&
-           CheckRestingBoxes(world, in) && CheckFlagBits(world, in);
+           CheckRestingBoxes(world, in) && CheckStillBodies(world, in) && CheckFlagBits(world, in);
 }
