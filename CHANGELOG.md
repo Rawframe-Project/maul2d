@@ -9,6 +9,13 @@ minor release, and its entry says what changes. A snapshot or journal
 tape is read within the minor version that wrote it and refused
 across minor versions.
 
+## [1.2.0](https://github.com/Rawframe-Project/maul2d/compare/v1.1.0...v1.2.0) (2026-11-04)
+
+
+### Fixed
+
+* **fluid:** lift a floating body the same wherever it is ([#302](https://github.com/Rawframe-Project/maul2d/issues/302)) ([7972668](https://github.com/Rawframe-Project/maul2d/commit/7972668e8fbb7fb0445a3fee13f117fd828a0221)), closes [#301](https://github.com/Rawframe-Project/maul2d/issues/301)
+
 ## [1.1.0](https://github.com/Rawframe-Project/maul2d/compare/v1.0.1...v1.1.0) (2026-11-03)
 
 This release changes how `m2DecomposeOutline` triangulates an outline, so the long, thin triangles its ear clipping cuts no longer drop out of the pieces. Most concave outlines get new pieces of the same area, and fewer of them. No golden line moves.
