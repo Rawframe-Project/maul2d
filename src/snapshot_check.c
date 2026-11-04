@@ -19,6 +19,8 @@
 //     their children, and its free list holds every other node;
 //   - the moved list and its flags agree, and the pairs are ordered and
 //     join live shapes in the broadphase;
+//   - each pair the next step keeps is one the broadphase would make, by
+//     the shapes' kinds and filters and the joints between their bodies;
 //   - each end event queued for the next step carries the step count and
 //     names two shape slots;
 //   - each shape of a static or sleeping body lies inside its fat box at
@@ -27,10 +29,11 @@
 // The bytes may be unaligned, so every read goes through memcpy. Every
 // index read is bounded here too, though m2StateValidate already put each
 // one within its pool, so the check stands on its own. The only memory
-// written is the world's restoreMarks scratch.
+// written is the world's restoreMarks and pairScratch scratch.
 
 #include "snapshot_check.h"
 
+#include "broadphase.h"
 #include "core.h"
 #include "dynamic_tree.h"
 #include "geometry.h"
@@ -40,6 +43,8 @@
 
 #include "maul2d/base.h"
 
+#include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
 
 // --- Reading the incoming bytes ---------------------------------------------
@@ -885,6 +890,125 @@ static bool CheckPairs(const m2World* world, const uint8_t* in)
     return true;
 }
 
+// One shape as the pair rules read it, from the incoming bytes.
+typedef struct IncomingFilters
+{
+    const uint8_t* categories; // uint64 per shape
+    const uint8_t* masks;      // uint64 per shape
+    const uint8_t* groups;     // int32 per shape
+    const uint8_t* sensors;
+    const uint8_t* geometries;
+    const uint8_t* shapeBody;
+    const uint8_t* bodyTypes;
+} IncomingFilters;
+
+// The shape is live, so its body is live and in range: CheckPairs and
+// CheckShapeLists ran first.
+static m2PairSide IncomingSide(const IncomingFilters* f, int32_t shape)
+{
+    int32_t type;
+    memcpy(&type,
+           f->geometries + (size_t)shape * sizeof(m2ShapeGeometry) +
+               offsetof(m2ShapeGeometry, type),
+           sizeof(type));
+    int32_t body = ReadI32(f->shapeBody, shape);
+    m2PairSide side = {
+        ReadU64(f->categories, shape), ReadU64(f->masks, shape),
+        ReadI32(f->groups, shape),     type,
+        f->sensors[shape] != 0,        f->bodyTypes[body] == (uint8_t)m2_dynamicBody};
+    return side;
+}
+
+static uint64_t BodyPairKey(int32_t a, int32_t b)
+{
+    return a < b ? ((uint64_t)(uint32_t)a << 32) | (uint32_t)b
+                 : ((uint64_t)(uint32_t)b << 32) | (uint32_t)a;
+}
+
+static int CompareKeys(const void* a, const void* b)
+{
+    uint64_t x;
+    uint64_t y;
+    memcpy(&x, a, sizeof(x));
+    memcpy(&y, b, sizeof(y));
+    return (x > y) - (x < y);
+}
+
+// Whether `key`, two bodies, is among the `count` sorted keys.
+static bool HasKey(const uint64_t* keys, int32_t count, uint64_t key)
+{
+    int32_t lo = 0;
+    int32_t hi = count - 1;
+    while (lo <= hi)
+    {
+        int32_t mid = lo + (hi - lo) / 2;
+        if (keys[mid] == key)
+        {
+            return true;
+        }
+        if (keys[mid] < key)
+        {
+            lo = mid + 1;
+        }
+        else
+        {
+            hi = mid - 1;
+        }
+    }
+    return false;
+}
+
+// The pairs the next step keeps, those with no moved shape, are pairs the
+// broadphase would make: their kinds and filters let them pair, and no
+// joint without connected collision joins their bodies. A host call that
+// changes any of these between steps marks the shapes moved, and the step
+// drops their pairs before it reads one. The kept pairs' bodies go into
+// pairScratch, sorted, for the joints to look up.
+static bool CheckKeptPairs(m2World* world, const uint8_t* in)
+{
+    const IncomingFilters filters = {M2_IN(shapes.shapeCategory), M2_IN(shapes.shapeMask),
+                                     M2_IN(shapes.shapeGroup),    M2_IN(shapes.shapeSensor),
+                                     M2_IN(shapes.shapeGeometry), M2_IN(shapes.shapeBody),
+                                     M2_IN(bodies.types)};
+    const uint8_t* keys = M2_IN(contacts.pairKeys);
+    const uint8_t* inMoved = M2_IN(broadphase.inMoved);
+    int32_t count = InlineI32(world, in, &world->contacts.pairCount);
+    uint64_t* bodyPairs = world->contacts.pairScratch;
+    int32_t kept = 0;
+    for (int32_t i = 0; i < count; ++i)
+    {
+        uint64_t key = ReadU64(keys, i);
+        int32_t a = (int32_t)(key >> 32);
+        int32_t b = (int32_t)(key & 0xFFFFFFFFu);
+        if (inMoved[a] != 0 || inMoved[b] != 0)
+        {
+            continue;
+        }
+        m2PairSide sideA = IncomingSide(&filters, a);
+        m2PairSide sideB = IncomingSide(&filters, b);
+        if (!m2SidesMayPair(&sideA, &sideB))
+        {
+            return false;
+        }
+        bodyPairs[kept] = BodyPairKey(ReadI32(filters.shapeBody, a), ReadI32(filters.shapeBody, b));
+        kept += 1;
+    }
+    qsort(bodyPairs, (size_t)kept, sizeof(uint64_t), CompareKeys);
+    const uint8_t* jointAlive = M2_IN(joints.jointAlive);
+    const uint8_t* collide = M2_IN(joints.jointCollide);
+    const uint8_t* bodyA = M2_IN(joints.jointBodyA);
+    const uint8_t* bodyB = M2_IN(joints.jointBodyB);
+    for (int32_t j = 0; j < world->joints.jointCapacity; ++j)
+    {
+        if (jointAlive[j] != 0 && collide[j] == 0 &&
+            HasKey(bodyPairs, kept, BodyPairKey(ReadI32(bodyA, j), ReadI32(bodyB, j))))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 // Whether `count` queued end events, laid out as m2ContactEndEvent and
 // m2SensorEndEvent both are, each carry the step count and name two shape
 // slots of this world.
@@ -974,5 +1098,6 @@ bool m2SnapshotCheck(m2World* world, const uint8_t* in)
     return CheckPools(world, in) && CheckShapeLists(world, in) && CheckChains(world, in) &&
            CheckJoints(world, in) && CheckGeometry(world, in) && CheckMass(world, in) &&
            CheckTrees(world, in) && CheckMoved(world, in) && CheckPairs(world, in) &&
-           CheckQueuedEnds(world, in) && CheckRestingBoxes(world, in) && CheckFlagBits(world, in);
+           CheckKeptPairs(world, in) && CheckQueuedEnds(world, in) &&
+           CheckRestingBoxes(world, in) && CheckFlagBits(world, in);
 }

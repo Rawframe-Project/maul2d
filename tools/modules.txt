@@ -63,7 +63,7 @@ shape: broadphase distance fpenv island journal mass object_ids proxies world_in
 shape_read: fpenv object_ids shape world_internal
 simd:
 snapshot: fpenv joint joint_edges journal snapshot_check world_internal world_state
-snapshot_check: core dynamic_tree geometry joint mass world_internal world_state
+snapshot_check: broadphase core dynamic_tree geometry joint mass world_internal world_state
 solver: ccd contact_solver joint joint_solver rotation world_internal
 solver_base: core
 state_checks: core dynamic_tree geometry
