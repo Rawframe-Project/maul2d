@@ -103,6 +103,7 @@ enum
     m2_bodyParamEnableSleep = 4,
     m2_bodyParamLockLinearX = 5,
     m2_bodyParamLockLinearY = 6,
+    m2_bodyParamSleepThreshold = 7,
     m2_bodyParamCount
 };
 

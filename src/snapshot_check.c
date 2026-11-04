@@ -837,6 +837,22 @@ static bool CheckStillBodies(const m2World* world, const uint8_t* in)
     return true;
 }
 
+// Every live body keeps a positive sleep threshold: its def and its
+// setter store the default for 0. With 0, a body would never rest.
+static bool CheckSleepThresholds(const m2World* world, const uint8_t* in)
+{
+    const uint8_t* alive = M2_IN(bodies.alive);
+    const uint8_t* thresholds = M2_IN(bodies.sleepThresholds);
+    for (int32_t b = 0; b < world->bodies.bodyCapacity; ++b)
+    {
+        if (alive[b] != 0 && !(ReadF32(thresholds, b) > 0.0f))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 // The boxes the step will not refit before it queries them: those of
 // static bodies, which never move in a step, and of sleeping dynamic
 // bodies, which a world refits as they fall asleep. Each must hold its
@@ -888,5 +904,6 @@ bool m2SnapshotCheck(m2World* world, const uint8_t* in)
     return CheckPools(world, in) && CheckShapeLists(world, in) && CheckChains(world, in) &&
            CheckJoints(world, in) && CheckGeometry(world, in) && CheckMass(world, in) &&
            CheckTrees(world, in) && m2SnapshotCheckPairs(world, in) &&
-           CheckRestingBoxes(world, in) && CheckStillBodies(world, in) && CheckFlagBits(world, in);
+           CheckRestingBoxes(world, in) && CheckStillBodies(world, in) &&
+           CheckSleepThresholds(world, in) && CheckFlagBits(world, in);
 }

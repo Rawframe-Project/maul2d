@@ -169,6 +169,7 @@ M2_PIN_AT(m2BodyDef, dominance, 61);
 M2_PIN_AT(m2BodyDef, enableBullet, 62);
 M2_PIN_AT(m2BodyDef, userData, 64);
 M2_PIN_AT(m2BodyDef, internalValue, 72);
+M2_PIN_AT(m2BodyDef, sleepThreshold, 76);
 
 M2_PIN_SIZE(m2MassData, 16);
 M2_PIN_AT(m2MassData, mass, 0);

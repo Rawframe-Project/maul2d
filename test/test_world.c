@@ -2325,6 +2325,7 @@ static void SweepBodyWriters(Sweep* sw)
     M2_SWEEP_VOID(m2Body_SetGravityScale(w, b, 2.0f));
     M2_SWEEP_VOID(m2Body_SetMotionLocks(w, b, (m2MotionLocks){true, true, true}));
     M2_SWEEP_VOID(m2Body_EnableSleep(w, b, false));
+    M2_SWEEP_VOID(m2Body_SetSleepThreshold(w, b, 0.1f));
     M2_SWEEP_VOID(m2Body_SetType(w, b, m2_kinematicBody)); // last: a kinematic body takes no force
 }
 
@@ -2581,7 +2582,7 @@ static void TestEveryWriterRefusesInHostCode(void)
     twin.control = true;
     uint64_t twinMisuse = m2World_GetCounters(twin.world).misuseCount;
     SweepWriters(&twin);
-    CHECK(twin.voidCalls == 68 && twin.statusCalls == 0,
+    CHECK(twin.voidCalls == 69 && twin.statusCalls == 0,
           "the control made every void call but the destroy");
     CHECK(m2World_GetCounters(twin.world).misuseCount == twinMisuse,
           "and the world accepted each one, counting no misuse");
@@ -2604,7 +2605,7 @@ static void TestEveryWriterRefusesInHostCode(void)
     draw.drawAabbs = true;
     draw.context = &sw;
     m2World_Draw(sw.world, &draw);
-    CHECK(sw.calls > 0 && sw.statusCalls == 33 && sw.voidCalls == 69,
+    CHECK(sw.calls > 0 && sw.statusCalls == 33 && sw.voidCalls == 70,
           "the draw swept every writer");
     CHECK(sw.busy == sw.statusCalls, "every status writer said m2_errorBusy");
     CHECK(m2World_GetCounters(sw.world).misuseCount ==
@@ -3048,7 +3049,9 @@ static void TestStaleIdsCountInEveryCall(void)
     m2Body_SetAwake(world, body, true);
     m2Body_Enable(world, body, false);
     m2Body_Enable(world, body, true);
+    m2Body_SetSleepThreshold(world, body, 0.1f);
     CHECK(!m2Body_IsEnabled(world, body), "a stale body is not enabled");
+    CHECK(m2Body_GetSleepThreshold(world, body) == 0.0f, "nor a sleep threshold");
     CHECK(m2Body_GetLinearDamping(world, body) == 0.0f, "nor damped");
     CHECK(m2Body_GetAngularDamping(world, body) == 0.0f, "in either way");
     CHECK(!m2Body_GetMotionLocks(world, body).linearX, "nor locked");
@@ -4622,6 +4625,10 @@ static void ChangeGravityScale(const HashScene* s)
 {
     m2Body_SetGravityScale(s->world, s->a, 0.5f);
 }
+static void ChangeSleepThreshold(const HashScene* s)
+{
+    m2Body_SetSleepThreshold(s->world, s->a, 0.5f);
+}
 static void ChangeLinearDamping(const HashScene* s)
 {
     m2Body_SetLinearDamping(s->world, s->a, 0.5f);
@@ -4760,6 +4767,7 @@ static void TestHashCoversEverySetting(void)
         {"world sleeping", HASH_SCENE_PLAIN, ChangeSleeping, PART_WORLD},
         {"gravity scale", HASH_SCENE_PLAIN, ChangeGravityScale, PART_BODIES},
         {"linear damping", HASH_SCENE_PLAIN, ChangeLinearDamping, PART_BODIES},
+        {"sleep threshold", HASH_SCENE_PLAIN, ChangeSleepThreshold, PART_BODIES},
         {"angular damping", HASH_SCENE_PLAIN, ChangeAngularDamping, PART_BODIES},
         {"motion locks", HASH_SCENE_PLAIN, ChangeMotionLocks, PART_BODIES},
         {"dominance", HASH_SCENE_PLAIN, ChangeDominance, PART_BODIES},

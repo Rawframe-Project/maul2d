@@ -89,6 +89,7 @@ stored values read back as they are (M2_BODY_GETTER and M2_GEOMETRY_GETTER):
     m2Body_GetLinearVelocity
     m2Body_GetPosition
     m2Body_GetRotation
+    m2Body_GetSleepThreshold
     m2Body_GetTransform
     m2CapsuleShape_GetCapsule
     m2ChainSegmentShape_GetChainSegment

@@ -54,6 +54,7 @@ static void RunSession(m2World* world, uint8_t* journal, int64_t capacity, int64
         m2BodyDef bd = m2DefaultBodyDef();
         bd.type = m2_dynamicBody;
         bd.position = (m2Pos2){-4.0 + 1.1 * (double)i, 2.0 + 0.4 * (double)i};
+        bd.sleepThreshold = i == 5 ? 0.08f : 0.0f; // one create record carries a threshold
         m2BodyId body = NewBody(world, &bd);
         m2ShapeDef sd = m2DefaultShapeDef();
         sd.restitution = 0.3f;
@@ -166,6 +167,7 @@ static void RunSession(m2World* world, uint8_t* journal, int64_t capacity, int64
     m2Body_ApplyTorque(world, bob, 0.8f);                                   // op 29
     m2Body_SetLinearDamping(world, bob, 0.2f);                              // op 25
     m2Body_SetMotionLocks(world, bob, (m2MotionLocks){false, false, true}); // op 25
+    m2Body_SetSleepThreshold(world, bob, 0.2f);                             // param 7
     m2World_EnableSleep(world, false);                                      // op 26
     m2World_EnableSleep(world, true);
     m2MotorJointDef chase = m2DefaultMotorJointDef(); // op 31
@@ -868,6 +870,7 @@ static void FilledBodyDef(m2BodyDef* to, const m2BodyDef* from, uint8_t fill)
     to->enableBullet = from->enableBullet;
     to->userData = from->userData;
     to->internalValue = from->internalValue;
+    to->sleepThreshold = from->sleepThreshold;
 }
 
 static void FilledShapeDef(m2ShapeDef* to, const m2ShapeDef* from, uint8_t fill)
