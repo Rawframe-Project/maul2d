@@ -2,8 +2,8 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // The SIMD backend report and the CPU check (cpu.c), for the library's
-// own sources. A library may also declare the first two in its public
-// header.
+// own sources. A library may also declare any of the three in its
+// public header.
 
 #ifndef MAUL2D_SRC_CPU_H
 #define MAUL2D_SRC_CPU_H
@@ -23,6 +23,7 @@ bool m2IsCpuBackendSupported(void);
 // when backend is not null and returns whether this CPU runs it (when it
 // does not, the build should be configured scalar). Safe from any thread;
 // it keeps no state.
+// NOLINTNEXTLINE(readability-redundant-declaration): base.h may declare it
 bool m2CheckCpu(const char** backend);
 
 #endif

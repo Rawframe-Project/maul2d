@@ -110,24 +110,21 @@ all_c_files() {
 # findings the other shows. The header filter is given on the command
 # line: clang-tidy-20 takes it from the configuration of the directory
 # above the one it runs in, which has none, and would drop every finding
-# in our headers as non-user code. It is anchored at the source directory
-# the build tree records, the path its compile commands name, so it also
-# leaves out the headers of dependencies fetched under out/.
-header_filter() { # build directory
-    local root
-    root=$(sed -n 's/^CMAKE_HOME_DIRECTORY:INTERNAL=//p' "$1/CMakeCache.txt")
-    printf '^%s/(src|include)/' "$(printf '%s' "$root" | sed 's/[][\.*^$+?(){}|]/\\&/g')"
-}
-
+# in our headers as non-user code. tools/tidy_filter.sh anchors it at the
+# source directory the build tree records, so it also leaves out the
+# headers of dependencies fetched under out/. It is assigned on its own
+# line, so a failure there stops the check instead of passing an empty
+# filter.
 tidy() { # files
-    local build
+    local build filter
     for build in Release Debug; do
         step "clang-tidy, $build, on $# files"
         cmake --preset linux-clang-20 -B "out/check-tidy-$build" -DCMAKE_BUILD_TYPE=$build \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DMAUL2D_BUILD_TESTS=OFF -DMAUL2D_BUILD_BENCH=OFF \
             -DMAUL2D_BUILD_SAMPLES=OFF >/dev/null
+        filter=$(tools/tidy_filter.sh "out/check-tidy-$build")
         printf '%s\n' "$@" | xargs -P "$jobs" -n 1 clang-tidy-20 -p "out/check-tidy-$build" --quiet \
-            --header-filter="$(header_filter "out/check-tidy-$build")" --warnings-as-errors='*'
+            --header-filter="$filter" --warnings-as-errors='*'
     done
 }
 
