@@ -25,9 +25,10 @@ static bool Moving(const m2World* world, int32_t i)
            world->bodies.asleep[i] == 0 && world->bodies.disabled[i] == 0;
 }
 
-// A body's locked linear axes hold still: their velocity is zeroed where
-// the solve begins and again where the position consumes it. A locked
-// rotation needs nothing here; its inverse inertia is zero.
+// A body's locked axes hold still: their velocity is zeroed where the
+// solve begins and again where the position consumes it. A locked
+// rotation's inverse inertia is zero, so no contact, joint or torque spins
+// it, but m2Body_SetAngularVelocity can, and the zero holds it then too.
 static void HoldLockedAxes(m2World* world, int32_t i)
 {
     uint8_t locks = world->bodies.motionLocks[i];
@@ -38,6 +39,10 @@ static void HoldLockedAxes(m2World* world, int32_t i)
     if (locks & M2_LOCK_LINEAR_Y)
     {
         world->bodies.linearVelocities[i].y = 0.0f;
+    }
+    if (world->bodies.fixedRotations[i] != 0)
+    {
+        world->bodies.angularVelocities[i] = 0.0f;
     }
 }
 

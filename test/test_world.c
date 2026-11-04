@@ -1190,6 +1190,27 @@ static void TestBodyDynamicsPack(void)
     Step(world, 1.0f / 60.0f, 4);
     CHECK(m2Body_GetAngularVelocity(world, upright) == 0.0f, "an angular lock never spins");
     CHECK(m2Body_GetMotionLocks(world, upright).angularZ, "and reads back");
+    // A spin set on the locked body holds still too, as a velocity set
+    // along a locked linear axis does, and reads 0 after the step.
+    m2Rot before = m2Body_GetRotation(world, upright);
+    m2Body_SetAngularVelocity(world, upright, 3.0f);
+    Step(world, 1.0f / 60.0f, 4);
+    m2Rot after = m2Body_GetRotation(world, upright);
+    CHECK(after.c == before.c && after.s == before.s &&
+              m2Body_GetAngularVelocity(world, upright) == 0.0f,
+          "a spin set on an angular lock never turns it");
+    m2BodyDef turntable = m2DefaultBodyDef();
+    turntable.type = m2_kinematicBody;
+    turntable.position = (m2Pos2){-5.0, 10.0};
+    turntable.motionLocks.angularZ = true;
+    m2BodyId platter = NewBody(world, &turntable);
+    NewPolygonShape(world, platter, &sd, &unit);
+    m2Body_SetAngularVelocity(world, platter, 3.0f);
+    Step(world, 1.0f / 60.0f, 4);
+    m2Rot platterQ = m2Body_GetRotation(world, platter);
+    CHECK(platterQ.c == 1.0f && platterQ.s == 0.0f &&
+              m2Body_GetAngularVelocity(world, platter) == 0.0f,
+          "nor a kinematic body's");
     m2Body_SetMotionLocks(world, upright, (m2MotionLocks){false, false, false});
     m2Body_ApplyLinearImpulseAtPoint(world, upright, (m2Vec2){0.0f, 2.0f}, (m2Pos2){5.4, 10.0});
     Step(world, 1.0f / 60.0f, 4);
