@@ -3,7 +3,7 @@
 //
 // Core: the elementary math against libm, the pinned min, max and abs
 // semantics, the SIMD backend report, the version and result names, the
-// world def checks and the world's allocator.
+// result attribute, the world def checks and the world's allocator.
 
 #include "helpers.h"
 #include "test_harness.h"
@@ -15,6 +15,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+// The suites build as C23, where every compiler the family takes has
+// [[nodiscard]], so M2_NODISCARD expands to it and a dropped status
+// warns (GCC 14 reports its C23 as 202000L).
+#define TEXT(x)     #x
+#define EXPANDED(x) TEXT(x)
+static_assert(sizeof(EXPANDED(M2_NODISCARD)) > 1, "M2_NODISCARD is the attribute in C23");
 
 // --- 1. Accuracy against libm ------------------------------------------------
 
