@@ -322,6 +322,20 @@ typedef struct m2UpdateContactsCtx
     m2World* world;
 } m2UpdateContactsCtx;
 
+// A frozen end: not moved since the last step, and static or asleep for
+// two step ends, so its transform and geometry are those its manifolds
+// were computed from. A kinematic end never freezes (its velocity can
+// change without stepping). A host moves a static shape without waking
+// the sleepers it does not touch, so a moved shape thaws its pairs.
+static bool ShapeIsFrozen(const m2World* world, int32_t shape)
+{
+    int32_t body = world->shapes.shapeBody[shape];
+    return world->broadphase.inMoved[shape] == 0 &&
+           (world->bodies.types[body] == (uint8_t)m2_staticBody ||
+            (world->bodies.types[body] == (uint8_t)m2_dynamicBody &&
+             world->bodies.asleep[body] != 0 && world->bodies.sleepStreak[body] >= 2));
+}
+
 // Each pair writes only its own manifold slot, so the range splits
 // freely across workers without touching the arithmetic.
 // NOLINTNEXTLINE(readability-function-cognitive-complexity): per-pair manifold kernel
@@ -333,22 +347,10 @@ static void UpdateContactsRange(int32_t begin, int32_t end, void* userCtx)
         int32_t shapeA = (int32_t)(world->contacts.pairKeys[i] >> 32);
         int32_t shapeB = (int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu);
 
-        // Frozen pair: both ends static or sleeping, so transforms and
-        // geometry are untouched and the stored manifold is exactly
-        // what ComputeManifold would return - skip the arithmetic,
-        // keep the bits. A kinematic end never freezes (its velocity
-        // can change without stepping).
-        int32_t frozenBodyA = world->shapes.shapeBody[shapeA];
-        int32_t frozenBodyB = world->shapes.shapeBody[shapeB];
-        bool frozenA =
-            world->bodies.types[frozenBodyA] == (uint8_t)m2_staticBody ||
-            (world->bodies.types[frozenBodyA] == (uint8_t)m2_dynamicBody &&
-             world->bodies.asleep[frozenBodyA] != 0 && world->bodies.sleepStreak[frozenBodyA] >= 2);
-        bool frozenB =
-            world->bodies.types[frozenBodyB] == (uint8_t)m2_staticBody ||
-            (world->bodies.types[frozenBodyB] == (uint8_t)m2_dynamicBody &&
-             world->bodies.asleep[frozenBodyB] != 0 && world->bodies.sleepStreak[frozenBodyB] >= 2);
-        if (frozenA && frozenB)
+        // Frozen pair: the stored manifold is exactly what
+        // ComputeManifold would return - skip the arithmetic, keep the
+        // bits.
+        if (ShapeIsFrozen(world, shapeA) && ShapeIsFrozen(world, shapeB))
         {
             int32_t flo = 0;
             int32_t fhi = world->contacts.oldPairCount - 1;

@@ -297,7 +297,10 @@ void m2UpdatePairs(m2World* world)
             }
         }
     }
+}
 
+void m2ClearMoved(m2World* world)
+{
     for (int32_t m = 0; m < world->broadphase.movedCount; ++m)
     {
         world->broadphase.inMoved[world->broadphase.moved[m]] = 0;
