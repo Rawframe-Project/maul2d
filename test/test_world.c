@@ -3630,6 +3630,63 @@ static void TestFloatingDraft(void)
     m2DestroyWorld(world);
 }
 
+// A rounded regular octagon turns an eighth of a turn at each corner,
+// little enough that the water fans each corner in two steps. Fully
+// under still water, its lift is the water's density times the fan's
+// area, so at half the water's density it gains g dt upward in one step
+// when the fan keeps the corners' true area; 1e-4 square meters lost at
+// each corner costs about 4e-4 m/s. At the surface it floats with its
+// center on the waterline, as the rounded box above does.
+static void TestFloatingRoundedOctagon(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    def.waterVolumeCapacity = 2;
+    m2World* world = NewWorld(&def);
+    m2WaterVolumeDef fd = m2DefaultWaterVolumeDef();
+    fd.bounds = (m2WorldAabb){{-20.0, -20.0}, {20.0, 20.0}};
+    fd.surface = 0.0;
+    fd.density = 2.0f;
+    fd.linearDrag = 3.0f;
+    fd.angularDrag = 3.0f;
+    NewWaterVolume(world, &fd);
+    m2WaterVolumeDef still = fd;
+    still.bounds = (m2WorldAabb){{30.0, -20.0}, {50.0, 20.0}};
+    still.linearDrag = 0.0f;
+    still.angularDrag = 0.0f;
+    NewWaterVolume(world, &still);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    sd.density = 1.0f;
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    bd.motionLocks.angularZ = true;
+    bd.position = (m2Pos2){0.0, 0.3};
+    m2BodyId buoy = NewBody(world, &bd);
+    bd.position = (m2Pos2){40.0, -5.0};
+    m2BodyId diver = NewBody(world, &bd);
+    m2Vec2 core[8];
+    for (int32_t i = 0; i < 8; ++i)
+    {
+        double angle = ((double)i + 0.5) * 3.14159265358979 / 4.0;
+        core[i] = (m2Vec2){(float)(0.4 * cos(angle)), (float)(0.4 * sin(angle))};
+    }
+    m2Polygon octagon = MakePolygon(core, 8, 0.1f);
+    NewPolygonShape(world, buoy, &sd, &octagon);
+    NewPolygonShape(world, diver, &sd, &octagon);
+    Step(world, 1.0f / 60.0f, 4);
+    double rise = -(double)m2World_GetGravity(world).y / 60.0;
+    CHECK(fabs((double)m2Body_GetLinearVelocity(world, diver).y - rise) < 1.0e-5,
+          "under water, a half-density rounded octagon gains g dt: its corners keep their area");
+    for (int32_t i = 1; i < 900; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+    }
+    double y = m2Body_GetPosition(world, buoy).y;
+    CHECK(fabs(y) < 0.005, "a half-density rounded octagon floats half under");
+    m2DestroyWorld(world);
+}
+
 // Where a half-density box and rounded box come to rest in water whose
 // surface is at y = 0, placed x meters from the world origin.
 static void RestingDepths(double x, double* boxY, double* roundedY)
@@ -4858,6 +4915,7 @@ int main(void)
     TestShatterBody();
     TestWaterVolume();
     TestFloatingDraft();
+    TestFloatingRoundedOctagon();
     TestFloatingFarOut();
     TestHashParts();
     TestValidateAndCounters();
