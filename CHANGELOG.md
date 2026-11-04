@@ -9,6 +9,22 @@ minor release, and its entry says what changes. A snapshot or journal
 tape is read within the minor version that wrote it and refused
 across minor versions.
 
+## [1.2.2](https://github.com/Rawframe-Project/maul2d/compare/v1.2.1...v1.2.2) (2026-11-04)
+
+This release makes a body whose rotation is locked hold still whatever spin the host gives it, and makes `m2World_Restore` refuse three more kinds of state that the step would act on wrongly. No golden line moves, and the snapshot and journal formats keep their versions. One kind of snapshot written by 1.2.0 is now refused: see the frozen pairs below.
+
+### Changed
+
+- Results: no golden line moves ([#327](https://github.com/Rawframe-Project/maul2d/pull/327)). Only a body whose rotation is locked, and which `m2Body_SetAngularVelocity` gives a spin, moves differently: it no longer turns.
+- `m2World_Restore` refuses one kind of snapshot that 1.2.0 wrote ([#320](https://github.com/Rawframe-Project/maul2d/pull/320)): one taken after a static shape was moved into a sleeping body it already paired with, and the world stepped since. 1.2.0 and 1.2.1 restored it and kept the stale contact. 1.2.2 refuses it with `m2_errorFormat`.
+
+### Fixed
+
+- A body whose rotation is locked holds still ([#327](https://github.com/Rawframe-Project/maul2d/pull/327)). `m2MotionLocks` promises that a locked axis's velocity is zeroed each substep, but the solver zeroed only the linear axes. A locked body given a spin with `m2Body_SetAngularVelocity` turned at it, and nothing slowed it down: a dynamic box and a kinematic one, each given 3 rad/s, had turned 3 rad after 60 steps. The step now zeroes a locked rotation's angular velocity as it does a locked linear axis's, so it reads 0 after the step. `m2Body_SetAngularVelocity` still stores the spin between steps.
+- `m2World_Restore` holds each frozen pair to the manifold its shapes give ([#320](https://github.com/Rawframe-Project/maul2d/pull/320)). The step copies forward the manifold of a pair whose shapes are unmoved and whose bodies are each static or asleep for two step ends, and the touching flag decides which bodies a host call wakes. So a snapshot could say that two resting bodies do not touch. Two boxes slept in a stack, and the snapshot gave their pair 0 points: when the host teleported the lower box away, the upper one stayed asleep in the air at y 1.9991 instead of falling to y 0.9999. A restore now refuses a touching flag that disagrees with its manifold's point count, and a frozen pair whose manifold is not the one its shapes give at their bodies' poses. Only its impulses and its persisted bit may differ.
+- `m2World_Restore` refuses a still body that moves ([#323](https://github.com/Rawframe-Project/maul2d/pull/323)): a static body with a velocity, a sleeping body with a velocity, and a non-dynamic body marked asleep. A static floor with a velocity dragged the box on it like a conveyor belt, a sleeping box with a velocity shot off when woken, and a kinematic platform marked asleep stood still while `m2Body_IsAwake` reported it awake. A static body made with a velocity of -0, which its def accepts, still restores.
+- `m2World_Restore` refuses a water volume whose box has no area ([#325](https://github.com/Rawframe-Project/maul2d/pull/325)). `m2CreateWaterVolume` refuses such a box and no call changes it later, so only a snapshot could make one. The volume never acted: a box floating at y -0.2464 sank to y -6.5433. The restore and the create now put the box to the same test.
+
 ## [1.2.1](https://github.com/Rawframe-Project/maul2d/compare/v1.2.0...v1.2.1) (2026-11-04)
 
 This release makes a static shape that a host moves into a sleeping body touch it on the next step, and makes `m2World_Restore` refuse contact pairs the broadphase never makes. No golden line moves, and the snapshot and journal formats keep their versions.
