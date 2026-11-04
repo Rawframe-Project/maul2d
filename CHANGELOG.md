@@ -11,7 +11,7 @@ across minor versions.
 
 ## [1.2.0](https://github.com/Rawframe-Project/maul2d/compare/v1.1.0...v1.2.0) (2026-11-04)
 
-This release makes a water volume lift a body the same wherever the body is. Far from the world origin, buoyancy used to lose most of its digits: 100 km out, a floating box was thrown hundreds of meters into the air. Four golden lines move, and the snapshot and journal formats keep their versions.
+This release makes a water volume lift a body the same wherever the body is. Far from the world origin, buoyancy used to lose most of its digits: 100 km out, a floating box was thrown hundreds of meters into the air. Four golden lines move, and the snapshot and journal formats keep their versions, but as in every minor release, snapshots and tapes written by 1.1.0 are refused with `m2_errorVersion`.
 
 ### Changed
 
