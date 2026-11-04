@@ -11,10 +11,22 @@ across minor versions.
 
 ## [1.2.0](https://github.com/Rawframe-Project/maul2d/compare/v1.1.0...v1.2.0) (2026-11-04)
 
+This release makes a water volume lift a body the same wherever the body is. Far from the world origin, buoyancy used to lose most of its digits: 100 km out, a floating box was thrown hundreds of meters into the air. Four golden lines move, and the snapshot and journal formats keep their versions.
+
+### Changed
+
+- **Results:** four golden lines move, the same in the scalar and AVX2 builds ([#302](https://github.com/Rawframe-Project/maul2d/pull/302)): `FLUID`, `ROLLBACK`, `ROLLBACK_SNAPSHOT` and `JOURNAL`. Each runs a water volume. The golden fluid scene floats two crates in a pool 8 to 16 m from the origin (`FLUID`, and `ROLLBACK`, whose world holds the same scene), and the seeded API walk (`JOURNAL`) drops its bodies into a pool reaching 14 m either side of the origin. At that distance, world-space float sums round differently from body-relative ones, so the forces change in their last bits and the worlds step to other bits. `ROLLBACK_SNAPSHOT` hashes the bytes of a snapshot of that world; only the values inside it differ. The other nine lines hold. A body near the origin floats as before to within rounding.
 
 ### Fixed
 
-* **fluid:** lift a floating body the same wherever it is ([#302](https://github.com/Rawframe-Project/maul2d/issues/302)) ([7972668](https://github.com/Rawframe-Project/maul2d/commit/7972668e8fbb7fb0445a3fee13f117fd828a0221)), closes [#301](https://github.com/Rawframe-Project/maul2d/issues/301)
+- A water volume lifts a body the same wherever it is ([#302](https://github.com/Rawframe-Project/maul2d/pull/302)). Each shape's outline was built in world coordinates as 32-bit floats, and the submerged polygon's area and centroid were summed as a triangle fan about the world origin, so far from the origin the terms cancelled. Every outline is now built relative to the body's origin, and the world position enters once, as the 64-bit difference between the surface and the body's height. A 1 m box of density 1 dropped into water of density 2, its height after 120 steps of 1/60 s:
+
+  | x | 1.1.0 | 1.2.0 |
+  |---|---|---|
+  | 0 | -0.122 | -0.122 |
+  | 10,000 | -0.049 | -0.122 |
+  | 100,000 | 765.8 | -0.122 |
+  | 10,000,000 | -19.8 | -0.122 |
 
 ## [1.1.0](https://github.com/Rawframe-Project/maul2d/compare/v1.0.1...v1.1.0) (2026-11-03)
 
