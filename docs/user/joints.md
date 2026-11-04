@@ -14,7 +14,7 @@ Motors and limits belong to the revolute, prismatic and wheel joints. `m2Joint_S
 
 ## The utility joints
 
-- **Motor** drives body B's pose toward an offset from body A within a force and a torque budget. A moving platform calls `m2MotorJoint_SetOffsets` every frame and the physics stays correct; `m2Joint_SetMaxMotorEffort` sets its torque budget.
+- **Motor** drives body B's pose toward an offset from body A within a force and a torque budget. A moving platform calls `m2MotorJoint_SetOffsets` every frame and the physics stays correct; `m2MotorJoint_SetMaxForce` and `m2MotorJoint_SetMaxTorque` change its budgets at run time.
 - **Mouse** is a soft spring pulling a point of body B toward a world target (`m2MouseJoint_SetTarget`): dragging, deterministic and journaled. The point it holds is where the target lies on B at creation, within `M2_LOCAL_LIMIT` of B; a target farther away returns `m2_errorLimit`. The spring has B's own mass, so it pulls equally hard in every direction, whichever point of B it holds.
 - **Filter** has no constraint: it switches collision off between its two bodies while it lives. Destroying it turns collision back on, with begin events where the bodies overlap.
 - **Gear** couples two spins at a ratio, positive for meshed cogs and negative for belts. Its phase is exact across any number of turns. Pin each body with its own joint; the gear only owns rotation.

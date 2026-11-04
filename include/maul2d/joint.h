@@ -9,8 +9,8 @@
 // offsets, a distance joint's length) does the same on a joint of
 // another type. Motors and limits belong to the revolute, prismatic and
 // wheel joints; m2Joint_SetMaxMotorEffort also sets a motor joint's torque
-// budget. Every setter is journaled, and one that changes how a joint
-// pulls wakes the bodies it moves.
+// budget, as m2MotorJoint_SetMaxTorque does. Every setter is journaled, and one that changes how a
+// joint pulls wakes the bodies it moves.
 
 #ifndef MAUL2D_JOINT_H
 #define MAUL2D_JOINT_H
@@ -1062,9 +1062,9 @@ extern "C"
     M2_API float m2Joint_GetAngularSeparation(const m2World* world, m2JointId jointId);
 
     /// Moves a motor joint's target, as a moving platform does every frame.
-    /// The torque budget is set with m2Joint_SetMaxMotorEffort. Another joint
-    /// type, an angular offset beyond M2_ANGLE_LIMIT or a linear offset beyond
-    /// M2_LOCAL_LIMIT counts one misuse.
+    /// The budgets are set with m2MotorJoint_SetMaxForce and
+    /// m2MotorJoint_SetMaxTorque. Another joint type, an angular offset beyond M2_ANGLE_LIMIT or a
+    /// linear offset beyond M2_LOCAL_LIMIT counts one misuse.
     ///
     /// @param world          The world.
     /// @param jointId        A motor joint.
@@ -1074,6 +1074,29 @@ extern "C"
     /// Safe from any thread; a world is used by one thread at a time.
     M2_API void m2MotorJoint_SetOffsets(m2World* world, m2JointId jointId, m2Vec2 linearOffset,
                                         float angularOffset);
+
+    /// Sets a motor joint's force budget, the most force its point rows
+    /// apply to hold B at its offset. Another joint type, or a budget
+    /// outside 0 to M2_FORCE_LIMIT, counts one misuse.
+    ///
+    /// @param world     The world.
+    /// @param jointId   A motor joint.
+    /// @param maxForce  The budget, N.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
+    M2_API void m2MotorJoint_SetMaxForce(m2World* world, m2JointId jointId, float maxForce);
+
+    /// Sets a motor joint's torque budget, the most torque its angle row
+    /// applies to hold B at its angular offset; the same budget
+    /// m2Joint_SetMaxMotorEffort sets. Another joint type, or a budget
+    /// outside 0 to M2_FORCE_LIMIT, counts one misuse.
+    ///
+    /// @param world      The world.
+    /// @param jointId    A motor joint.
+    /// @param maxTorque  The budget, N m.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
+    M2_API void m2MotorJoint_SetMaxTorque(m2World* world, m2JointId jointId, float maxTorque);
 
     /// Reads a motor joint's linear offset.
     ///
@@ -1104,6 +1127,16 @@ extern "C"
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
     M2_API float m2MotorJoint_GetMaxForce(const m2World* world, m2JointId jointId);
+
+    /// Reads a motor joint's torque budget.
+    ///
+    /// @param world    The world.
+    /// @param jointId  A motor joint.
+    /// @return The torque, N m; 0 for another joint type or a stale id.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M2_API float m2MotorJoint_GetMaxTorque(const m2World* world, m2JointId jointId);
 
     /// Reads a motor joint's correction factor.
     ///

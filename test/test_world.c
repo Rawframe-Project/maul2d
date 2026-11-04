@@ -2342,6 +2342,8 @@ static void SweepJointWriters(Sweep* sw)
     M2_SWEEP_VOID(m2Joint_EnableConnectedCollision(w, weld, true));
     M2_SWEEP_VOID(m2Joint_SetUserData(w, weld, 9));
     M2_SWEEP_VOID(m2MotorJoint_SetOffsets(w, sw->motor, (m2Vec2){1.0f, 0.0f}, 0.5f));
+    M2_SWEEP_VOID(m2MotorJoint_SetMaxForce(w, sw->motor, 2.0f));
+    M2_SWEEP_VOID(m2MotorJoint_SetMaxTorque(w, sw->motor, 2.0f));
     M2_SWEEP_VOID(m2GearJoint_SetRatio(w, sw->gear, 2.0f));
     M2_SWEEP_VOID(m2PulleyJoint_SetRatio(w, sw->pulley, 2.0f));
     M2_SWEEP_VOID(m2MouseJoint_SetTarget(w, sw->mouse, (m2Pos2){1.0, 1.0}));
@@ -2539,7 +2541,7 @@ static void TestEveryWriterRefusesInHostCode(void)
     twin.control = true;
     uint64_t twinMisuse = m2World_GetCounters(twin.world).misuseCount;
     SweepWriters(&twin);
-    CHECK(twin.voidCalls == 65 && twin.statusCalls == 0,
+    CHECK(twin.voidCalls == 67 && twin.statusCalls == 0,
           "the control made every void call but the destroy");
     CHECK(m2World_GetCounters(twin.world).misuseCount == twinMisuse,
           "and the world accepted each one, counting no misuse");
@@ -2562,7 +2564,7 @@ static void TestEveryWriterRefusesInHostCode(void)
     draw.drawAabbs = true;
     draw.context = &sw;
     m2World_Draw(sw.world, &draw);
-    CHECK(sw.calls > 0 && sw.statusCalls == 33 && sw.voidCalls == 66,
+    CHECK(sw.calls > 0 && sw.statusCalls == 33 && sw.voidCalls == 68,
           "the draw swept every writer");
     CHECK(sw.busy == sw.statusCalls, "every status writer said m2_errorBusy");
     CHECK(m2World_GetCounters(sw.world).misuseCount ==
@@ -4682,6 +4684,14 @@ static void ChangeMotorOffsets(const HashScene* s)
 {
     m2MotorJoint_SetOffsets(s->world, s->motor, (m2Vec2){-1.0f, 3.0f}, 0.5f);
 }
+static void ChangeMotorForce(const HashScene* s)
+{
+    m2MotorJoint_SetMaxForce(s->world, s->motor, 3.0f);
+}
+static void ChangeMotorTorque(const HashScene* s)
+{
+    m2MotorJoint_SetMaxTorque(s->world, s->motor, 3.0f);
+}
 static void ChangeGearRatio(const HashScene* s)
 {
     m2GearJoint_SetRatio(s->world, s->gear, 2.0f);
@@ -4727,6 +4737,8 @@ static void TestHashCoversEverySetting(void)
         {"length range", HASH_SCENE_PLAIN, ChangeLengthRange, PART_JOINTS},
         {"mouse target", HASH_SCENE_PLAIN, ChangeMouseTarget, PART_JOINTS},
         {"motor offsets", HASH_SCENE_PLAIN, ChangeMotorOffsets, PART_JOINTS},
+        {"motor force budget", HASH_SCENE_PLAIN, ChangeMotorForce, PART_JOINTS},
+        {"motor torque budget", HASH_SCENE_PLAIN, ChangeMotorTorque, PART_JOINTS},
         {"gear ratio", HASH_SCENE_PLAIN, ChangeGearRatio, PART_JOINTS},
         {"pulley ratio", HASH_SCENE_PLAIN, ChangePulleyRatio, PART_JOINTS},
         {"collide connected", HASH_SCENE_COLLIDE, NULL, PART_JOINTS},

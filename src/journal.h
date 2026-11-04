@@ -134,6 +134,7 @@ enum
     m2_jointParamPulleyRatio = 16,
     m2_jointParamEnableSpring = 17,       // distance and wheel; resets the spring's impulses
     m2_jointParamConnectedCollision = 18, // every kind but the filter joint
+    m2_jointParamMotorMaxForce = 19,      // motor only
     m2_jointParamCount
 };
 

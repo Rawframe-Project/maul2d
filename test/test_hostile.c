@@ -537,6 +537,88 @@ static void ExpectWordRefused(m2World* world, const uint8_t* bytes, int64_t size
     free(edited);
 }
 
+// A record a minor adds leaves M2_JOURNAL_VERSION as it is: the tape
+// carries its minor's ABI version, which the reader checks before any
+// record, so the reader of the minor before refuses it with
+// m2_errorVersion as it refuses every tape of another minor. Here a tape
+// holds the motor joint's budget records; stamped with the previous
+// minor's ABI version it is refused and changes nothing, and as written
+// it replays them.
+static void TestNewRecordsNeedTheirMinor(void)
+{
+    CHECK(M2_VERSION_MAJOR == 1 && M2_VERSION_MINOR > 0, "a 1.y release has a minor before it");
+    const uint32_t previousMinor = M2_ABI_VERSION - 1u;
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    def.jointCapacity = 2;
+    m2World* world = NewWorld(&def);
+    m2BodyDef ad = m2DefaultBodyDef();
+    ad.position = (m2Pos2){0.0, 4.0};
+    m2MotorJointDef md = m2DefaultMotorJointDef();
+    md.bodyIdA = NewBody(world, &ad);
+    md.bodyIdB = AddBox(world, 0.0, 4.0);
+    m2JointId motor = NewMotorJoint(world, &md);
+    uint8_t tape[1 << 16];
+    StartJournal(world, tape, (int32_t)sizeof(tape));
+    m2MotorJoint_SetMaxForce(world, motor, 40.0f);
+    m2MotorJoint_SetMaxTorque(world, motor, 15.0f);
+    Step(world, 1.0f / 60.0f, 4);
+    int64_t tapeBytes = StopJournal(world);
+    CHECK(tapeBytes > 0, "the tape is recorded");
+    if (tapeBytes > 0)
+    {
+        m2World* reader = NewWorld(&def);
+        ExpectWordRefused(reader, tape, tapeBytes, true, PREFIX_ABI, previousMinor, m2_errorVersion,
+                          "the previous minor refuses a tape holding the new records");
+        CHECK(ReplayJournal(reader, tape, tapeBytes) &&
+                  m2World_Hash(reader) == m2World_Hash(world) &&
+                  m2MotorJoint_GetMaxForce(reader, motor) == 40.0f &&
+                  m2MotorJoint_GetMaxTorque(reader, motor) == 15.0f,
+              "this minor replays them");
+        m2DestroyWorld(reader);
+    }
+    m2DestroyWorld(world);
+}
+
+// The motor force channel takes a motor joint alone, on replay too: a
+// tape that turns the channel on a revolute joint, whose matching field
+// holds no force budget, is a malformed tape and changes nothing.
+static void TestMotorForceChannelTakesMotorsOnly(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    def.jointCapacity = 2;
+    m2World* world = NewWorld(&def);
+    m2BodyDef ad = m2DefaultBodyDef();
+    m2BodyId anchor = NewBody(world, &ad);
+    m2BodyId box = AddBox(world, 0.0, 1.0);
+    m2MotorJointDef md = m2DefaultMotorJointDef();
+    md.bodyIdA = anchor;
+    md.bodyIdB = box;
+    m2JointId motor = NewMotorJoint(world, &md);
+    m2RevoluteJointDef rd = m2DefaultRevoluteJointDef();
+    rd.bodyIdA = anchor;
+    rd.bodyIdB = box;
+    m2JointId hinge = NewRevoluteJoint(world, &rd);
+    uint8_t tape[1 << 16];
+    StartJournal(world, tape, (int32_t)sizeof(tape));
+    m2MotorJoint_SetMaxForce(world, motor, 40.0f);
+    int64_t bytes = StopJournal(world);
+    // The last record is op 16 (joint param) and a 16-byte payload: the
+    // joint at offset 0, the channel byte at offset 12.
+    CHECK(bytes > 17 && tape[bytes - 17] == 16 && tape[bytes - 4] == 19,
+          "the tape ends in a motor force record");
+    if (bytes > 17)
+    {
+        memcpy(tape + bytes - 16, &hinge, sizeof(hinge));
+        ExpectRefused(world, tape, bytes, true, m2_errorFormat,
+                      "the motor force channel on a revolute joint is a malformed tape");
+    }
+    m2DestroyWorld(world);
+}
+
 // Offers the first `keep` bytes of state bytes, in an allocation of
 // exactly that size, so AddressSanitizer catches a reader that looks past
 // the end. Each cut is refused as m2_errorFormat.
@@ -1857,6 +1939,8 @@ int main(void)
     TestChainRefusals();
     TestJournalDefenses();
     TestOtherReleasesAreRefused();
+    TestNewRecordsNeedTheirMinor();
+    TestMotorForceChannelTakesMotorsOnly();
     TestParameterChannels();
     TestHostileQueries();
     TestHostileJointDefs();
