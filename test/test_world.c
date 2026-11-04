@@ -3071,8 +3071,8 @@ static void TestStaleIdsCountInEveryCall(void)
     m2Vec2 global = m2Body_GetWorldPointVelocity(world, body, (m2Pos2){1.0, 0.0});
     CHECK(local.x == 0.0f && local.y == 0.0f && global.x == 0.0f && global.y == 0.0f,
           "a stale body's points do not move");
-    CHECK(m2World_GetCounters(world).misuseCount == misuse + 21,
-          "each of the 21 calls counts once");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 23,
+          "each of the 23 calls counts once");
     m2DestroyWorld(world);
 }
 
