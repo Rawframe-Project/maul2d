@@ -263,6 +263,8 @@ static const m2StateArray s_state[] = {
     M2_STATE_CHECKED(chains.chainBody, int32_t, chain, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
                      indexOrNone, body),
     M2_STATE_CHECKED(chains.chainLoop, uint8_t, chain, 0, M2_STATE_SNAPSHOT, bool, one),
+    M2_STATE_CHECKED(chains.chainFriction, float, chain, 0, M2_STATE_SNAPSHOT, coefficient, one),
+    M2_STATE_CHECKED(chains.chainRestitution, float, chain, 0, M2_STATE_SNAPSHOT, restitution, one),
     M2_STATE_ARRAY(chains.chainGenerations, uint32_t, chain, 0, M2_STATE_SNAPSHOT),
     M2_STATE_CHECKED(chains.chainFreeQueue, int32_t, chain, 0, M2_STATE_SNAPSHOT, index, shape),
     M2_STATE_INLINE_CHECKED(broadphase.trees, M2_STATE_SNAPSHOT, tree, treeNode),

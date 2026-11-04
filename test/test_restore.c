@@ -859,7 +859,8 @@ static void TestWorldAndBodyBounds(const Scene* scene)
     ExpectLower(scene, (Bound){"torque", &w->bodies.torques, body, -M2_FORCE_LIMIT});
 }
 
-// Shape materials in a slot no shape uses, whose mass no body takes.
+// Shape materials in a slot no shape uses, whose mass no body takes, and
+// the ground chain's own material, which the step never reads.
 static void TestShapeAndParticleBounds(const Scene* scene)
 {
     const m2World* w = scene->world;
@@ -871,6 +872,11 @@ static void TestShapeAndParticleBounds(const Scene* scene)
     ExpectLower(scene, (Bound){"restitution", &w->shapes.shapeRestitution, shape, 0.0f});
     ExpectUpper(scene,
                 (Bound){"tangent speed", &w->shapes.shapeTangentSpeed, shape, M2_SPEED_LIMIT});
+    ExpectUpper(scene,
+                (Bound){"chain friction", &w->chains.chainFriction, 0, M2_COEFFICIENT_LIMIT});
+    ExpectLower(scene, (Bound){"chain friction", &w->chains.chainFriction, 0, 0.0f});
+    ExpectUpper(scene, (Bound){"chain restitution", &w->chains.chainRestitution, 0, 1.0f});
+    ExpectLower(scene, (Bound){"chain restitution", &w->chains.chainRestitution, 0, 0.0f});
     ExpectLower(scene,
                 (Bound){"particle velocity", &w->particles.particleVelocities, 0, -M2_SPEED_LIMIT});
     ExpectUpper(scene, (Bound){"volume density", &w->volumes.wvDensity, 0, M2_DENSITY_LIMIT});

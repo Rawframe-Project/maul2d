@@ -22,7 +22,7 @@
 
 #define M2_SNAPSHOT_MAGIC M2_STATE_MAGIC('M', '2', 'S', 'N')
 
-#define M2_SNAPSHOT_VERSION 8u
+#define M2_SNAPSHOT_VERSION 9u
 
 // --- Snapshot -------------------------------------------------------------------
 

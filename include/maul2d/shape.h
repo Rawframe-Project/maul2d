@@ -724,6 +724,31 @@ extern "C"
     /// Safe from any thread; a world is used by one thread at a time.
     M2_API void m2Chain_SetRestitution(m2World* world, m2ChainId chainId, float restitution);
 
+    /// Reads a chain's friction: the chain's own material, as its def or
+    /// m2Chain_SetFriction last set it, not any link's. m2Shape_SetFriction
+    /// on one link changes that link alone and leaves this value as it is.
+    ///
+    /// @param world    The world.
+    /// @param chainId  The chain; a stale id counts one misuse.
+    /// @return The friction; 0 for a stale id.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M2_API float m2Chain_GetFriction(const m2World* world, m2ChainId chainId);
+
+    /// Reads a chain's restitution: the chain's own material, as its def or
+    /// m2Chain_SetRestitution last set it, not any link's.
+    /// m2Shape_SetRestitution on one link changes that link alone and leaves
+    /// this value as it is.
+    ///
+    /// @param world    The world.
+    /// @param chainId  The chain; a stale id counts one misuse.
+    /// @return The restitution; 0 for a stale id.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M2_API float m2Chain_GetRestitution(const m2World* world, m2ChainId chainId);
+
     /// Reads the body a shape is attached to.
     ///
     /// @param world    The world.
