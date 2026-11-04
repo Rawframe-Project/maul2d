@@ -1965,6 +1965,107 @@ static void TestFrozenContactsTheWorldWrites(void)
     m2DestroyWorld(world);
 }
 
+// --- Water volume boxes ------------------------------------------------------
+
+// Two pools and a slot never used, whose box keeps its zeros: a pool a box
+// floats in, and one with the widest box a def takes.
+static Scene MakePoolScene(void)
+{
+    Scene scene;
+    memset(&scene, 0, sizeof(scene));
+    m2WorldDef def = m2DefaultWorldDef();
+    def.waterVolumeCapacity = 3;
+    scene.world = NewWorld(&def);
+    m2WaterVolumeDef pool = m2DefaultWaterVolumeDef();
+    pool.bounds = (m2WorldAabb){{-10.0, -10.0}, {10.0, 0.0}};
+    pool.density = 2.0f;
+    NewWaterVolume(scene.world, &pool);
+    pool.bounds = (m2WorldAabb){{-DBL_MAX, -DBL_MAX}, {DBL_MAX, -1.0e300}};
+    NewWaterVolume(scene.world, &pool);
+    m2BodyDef boxDef = m2DefaultBodyDef();
+    boxDef.type = m2_dynamicBody;
+    boxDef.position = (m2Pos2){0.0, -0.5};
+    scene.boxA = NewBody(scene.world, &boxDef);
+    m2ShapeDef shapeDef = m2DefaultShapeDef();
+    m2Polygon square = m2MakeBox(0.5f, 0.5f);
+    NewPolygonShape(scene.world, scene.boxA, &shapeDef, &square);
+    for (int32_t i = 0; i < 10; ++i)
+    {
+        Step(scene.world, 1.0f / 60.0f, 4);
+    }
+    scene.size = m2World_GetSnapshotSize(scene.world);
+    scene.valid = (uint8_t*)malloc((size_t)scene.size);
+    CHECK(scene.valid != NULL && Snapshot(scene.world, scene.valid, scene.size) == scene.size,
+          "the pool scene snapshots");
+    scene.headerBytes = (int32_t)(scene.size - (int64_t)m2StateWalk(scene.world, NULL, NULL, 2));
+    return scene;
+}
+
+static void PutPoolBox(const Scene* scene, uint8_t* block, m2Pos2 lower, m2Pos2 upper)
+{
+    memcpy(At(scene, block, &scene->world->volumes.wvLower), &lower, sizeof(lower));
+    memcpy(At(scene, block, &scene->world->volumes.wvUpper), &upper, sizeof(upper));
+}
+
+static void PoolInverted(const Scene* scene, uint8_t* block)
+{
+    PutPoolBox(scene, block, (m2Pos2){10.0, 0.0}, (m2Pos2){-10.0, -10.0});
+}
+
+static void PoolWithoutWidth(const Scene* scene, uint8_t* block)
+{
+    PutPoolBox(scene, block, (m2Pos2){3.0, -10.0}, (m2Pos2){3.0, 0.0});
+}
+
+static void PoolWithoutHeight(const Scene* scene, uint8_t* block)
+{
+    PutPoolBox(scene, block, (m2Pos2){-10.0, -2.0}, (m2Pos2){10.0, -2.0});
+}
+
+// The thinnest box a def takes: one double wide and one double high.
+static void PoolThinnest(const Scene* scene, uint8_t* block)
+{
+    PutPoolBox(scene, block, (m2Pos2){nextafter(3.0, 0.0), nextafter(-2.0, -3.0)},
+               (m2Pos2){3.0, -2.0});
+}
+
+// A water volume's box has area, as its def must, and no call changes it:
+// a box without area holds no body's origin, so the volume would never
+// act. Slots no volume holds are not read.
+static void TestWaterBoxes(void)
+{
+    Scene scene = MakePoolScene();
+    CHECK(Restore(scene.world, scene.valid, scene.size),
+          "the pools restore, the widest box among them and an unused slot beside");
+    ExpectRefused(&scene, PoolInverted, "a pool whose corners are swapped is refused");
+    ExpectRefused(&scene, PoolWithoutWidth, "a pool without width is refused");
+    ExpectRefused(&scene, PoolWithoutHeight, "a pool without height is refused");
+    uint8_t* bytes = (uint8_t*)malloc((size_t)scene.size);
+    CHECK(bytes != NULL, "a copy of the pool snapshot");
+    if (bytes != NULL)
+    {
+        memcpy(bytes, scene.valid, (size_t)scene.size);
+        PoolThinnest(&scene, bytes + scene.headerBytes);
+        CHECK(Restore(scene.world, bytes, scene.size), "the thinnest pool a def takes restores");
+        free(bytes);
+    }
+    FreeScene(&scene);
+
+    // The create draws the same line.
+    m2WorldDef worldDef = m2DefaultWorldDef();
+    worldDef.waterVolumeCapacity = 1;
+    m2World* fresh = NewWorld(&worldDef);
+    m2WaterVolumeDef pool = m2DefaultWaterVolumeDef();
+    m2WaterVolumeId id;
+    pool.bounds = (m2WorldAabb){{3.0, -10.0}, {3.0, 0.0}};
+    bool flatRefused = m2CreateWaterVolume(fresh, &pool, &id) == m2_errorInvalid;
+    pool.bounds = (m2WorldAabb){{nextafter(3.0, 0.0), nextafter(-2.0, -3.0)}, {3.0, -2.0}};
+    bool thinMade = m2CreateWaterVolume(fresh, &pool, &id) == m2_success;
+    CHECK(flatRefused && thinMade,
+          "the create refuses the pool without width and takes the thinnest, as a restore does");
+    m2DestroyWorld(fresh);
+}
+
 static void TestCheckStandsAlone(void)
 {
     Scene scene = MakeScene();
@@ -2794,6 +2895,7 @@ int main(void)
     TestPairsApartWithinTheMargin();
     TestFrozenContacts();
     TestFrozenContactsTheWorldWrites();
+    TestWaterBoxes();
     TestFuzzFinds();
     TestRangeBounds();
     TestJointKindBounds();

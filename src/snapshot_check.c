@@ -14,6 +14,7 @@
 //     keeps there, in the ranges its def and setters give them;
 //   - each body's mass data is what its shapes give it, bit for bit, or
 //     an override m2Body_SetMassData would have accepted;
+//   - each live water volume's box has area, as its def must;
 //   - each broadphase tree is a balanced tree whose leaves are exactly the
 //     live shapes of enabled bodies of its type, with boxes that contain
 //     their children, and its free list holds every other node;
@@ -40,6 +41,7 @@
 
 #include "snapshot_check.h"
 
+#include "buoyancy.h"
 #include "core.h"
 #include "dynamic_tree.h"
 #include "geometry.h"
@@ -242,6 +244,26 @@ static bool CheckParticleLinks(const m2World* world, const uint8_t* in)
            LinkShapesInRange(world, in);
 }
 
+// Each live water volume's box passes the test m2CreateWaterVolume puts its
+// def's box to (m2WaterBoxValid), since no call changes the box later.
+static bool VolumeBoxesHaveArea(const m2World* world, const uint8_t* in)
+{
+    const uint8_t* alive = M2_IN(volumes.wvAlive);
+    const uint8_t* lowers = M2_IN(volumes.wvLower);
+    const uint8_t* uppers = M2_IN(volumes.wvUpper);
+    for (int32_t v = 0; v < world->volumes.wvCapacity; ++v)
+    {
+        m2WorldAabb box;
+        memcpy(&box.lowerBound, lowers + (size_t)v * sizeof(m2Pos2), sizeof(m2Pos2));
+        memcpy(&box.upperBound, uppers + (size_t)v * sizeof(m2Pos2), sizeof(m2Pos2));
+        if (alive[v] != 0 && !m2WaterBoxValid(box))
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 // The particle and water volume pools, which exist only in worlds that
 // have them.
 static bool CheckFluidPools(m2World* world, const uint8_t* in)
@@ -278,7 +300,7 @@ static bool CheckFluidPools(m2World* world, const uint8_t* in)
                               0,
                               InlineI32(world, in, &world->volumes.wvRetiredCount),
                               InlineI32(world, in, &world->volumes.maxWvIndex)};
-        if (CheckPool(marks, &volumes) < 0)
+        if (CheckPool(marks, &volumes) < 0 || !VolumeBoxesHaveArea(world, in))
         {
             return false;
         }
