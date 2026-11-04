@@ -529,6 +529,7 @@ static void StepWorld(m2World* world, float dt, int32_t substepCount)
     m2UpdatePairs(world);
     uint64_t tPairs = m2TimeNowNs();
     m2UpdateContacts(world);
+    m2ClearMoved(world);
     uint64_t tContacts = m2TimeNowNs();
     EmitTouchEvents(world);
 

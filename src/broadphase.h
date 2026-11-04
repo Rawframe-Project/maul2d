@@ -10,6 +10,9 @@
 
 void m2RefilterJointedBodies(m2World* world, int32_t bodyA, int32_t bodyB);
 void m2UpdatePairs(m2World* world);
+// Empties the moved list. The step calls it after the contact update,
+// which reads the moved flags to tell which frozen pairs moved.
+void m2ClearMoved(m2World* world);
 void m2PrunePairsOfShape(m2World* world, int32_t shapeIndex);
 
 #endif // MAUL2D_SRC_BROADPHASE_H

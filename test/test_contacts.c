@@ -753,6 +753,127 @@ static void TestEventEdgesAndSensorPairs(void)
     m2DestroyWorld(world);
 }
 
+// What the step after a static wall moves into a sleeping box reports.
+typedef struct WallContact
+{
+    m2ContactData data; // the box-wall contact, zeros without one
+    int32_t begins;     // begin events naming the wall
+    int32_t touching;   // touching pairs, from the counters
+    bool woke;          // the box wakes when the wall moves again
+} WallContact;
+
+// A unit box resting on the ground at the origin, its shape made with its
+// body.
+static m2BodyId SleeperBox(m2World* world)
+{
+    m2BodyDef def = m2DefaultBodyDef();
+    def.type = m2_dynamicBody;
+    def.position = (m2Pos2){0.0, 1.0};
+    m2BodyId box = NewBody(world, &def);
+    m2ShapeDef shapeDef = m2DefaultShapeDef();
+    m2Polygon square = m2MakeBox(0.5f, 0.5f);
+    NewPolygonShape(world, box, &shapeDef, &square);
+    return box;
+}
+
+// A box sleeps on the ground, its right edge at x 0.5. A static wall box
+// starts beside it at x 1.15, close enough to pair but not to touch, or
+// far away at x 5. One host call then makes it overlap the box by 0.1 m:
+// a teleport to x 0.9, or, at x 1.15, a polygon of half width 0.75. The
+// wall is made before the box or after it, so it takes either end of the
+// pair.
+static WallContact WallIntoSleeper(bool beside, bool widen, bool wallFirst)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    m2BodyDef bodyDef = m2DefaultBodyDef();
+    m2ShapeDef shapeDef = m2DefaultShapeDef();
+    m2Polygon floor = m2MakeBox(10.0f, 0.5f);
+    NewPolygonShape(world, NewBody(world, &bodyDef), &shapeDef, &floor);
+    m2BodyId box = wallFirst ? m2_nullBodyId : SleeperBox(world);
+    bodyDef.position = (m2Pos2){beside ? 1.15 : 5.0, 1.0};
+    m2BodyId wall = NewBody(world, &bodyDef);
+    m2Polygon square = m2MakeBox(0.5f, 0.5f);
+    m2ShapeId wallShape = NewPolygonShape(world, wall, &shapeDef, &square);
+    if (wallFirst)
+    {
+        box = SleeperBox(world);
+    }
+    for (int32_t i = 0; i < 200; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(!m2Body_IsAwake(world, box), "the box falls asleep beside the wall");
+
+    m2Rot upright = {1.0f, 0.0f};
+    if (widen)
+    {
+        m2Polygon wide = m2MakeBox(0.75f, 0.5f);
+        m2Shape_SetPolygon(world, wallShape, &wide);
+        if (!beside)
+        {
+            m2Body_SetTransform(world, wall, (m2Pos2){1.15, 1.0}, upright);
+        }
+    }
+    else
+    {
+        m2Body_SetTransform(world, wall, (m2Pos2){0.9, 1.0}, upright);
+    }
+    Step(world, 1.0f / 60.0f, 4);
+
+    WallContact report;
+    memset(&report, 0, sizeof(report));
+    m2ContactData data[4];
+    int32_t count = m2World_GetContactData(world, data, 4);
+    for (int32_t i = 0; i < count && i < 4; ++i)
+    {
+        if (data[i].shapeIdA.index1 == wallShape.index1 ||
+            data[i].shapeIdB.index1 == wallShape.index1)
+        {
+            report.data = data[i];
+        }
+    }
+    m2ContactEvents events = m2World_GetContactEvents(world);
+    for (int32_t i = 0; i < events.beginCount; ++i)
+    {
+        report.begins += events.beginEvents[i].shapeIdA.index1 == wallShape.index1 ||
+                         events.beginEvents[i].shapeIdB.index1 == wallShape.index1;
+    }
+    report.touching = m2World_GetCounters(world).touchingCount;
+    m2Body_SetTransform(world, wall, m2Body_GetPosition(world, wall), upright);
+    report.woke = m2Body_IsAwake(world, box);
+    m2DestroyWorld(world);
+    return report;
+}
+
+static void ExpectWallTouches(bool widen, bool wallFirst, const char* fromAfar,
+                              const char* fromBeside)
+{
+    WallContact far = WallIntoSleeper(false, widen, wallFirst);
+    WallContact near = WallIntoSleeper(true, widen, wallFirst);
+    CHECK(far.data.pointCount == 2 && far.begins == 1 && far.touching == 2 && far.woke, fromAfar);
+    CHECK(memcmp(&near.data, &far.data, sizeof(near.data)) == 0 && near.begins == 1 &&
+              near.touching == 2 && near.woke,
+          fromBeside);
+}
+
+// The step copies a pair's manifold forward while both its bodies are
+// static or asleep. A host moves a static shape without waking a sleeper
+// it does not touch, so a pair the two already held gets a fresh manifold,
+// the one a pair new to the step gets: the same points, the touching flag
+// and the begin event, and a later move of the wall wakes the box.
+static void TestStaticShapeMovedIntoASleeper(void)
+{
+    ExpectWallTouches(false, true, "a wall teleported in from afar touches the sleeping box",
+                      "a wall teleported from beside it touches it the same way");
+    ExpectWallTouches(false, false, "a wall made after the box, teleported in, touches it",
+                      "a wall made after the box, teleported from beside it, touches it");
+    ExpectWallTouches(true, true, "a wall from afar, widened into the sleeping box, touches it",
+                      "a wall widened where it stands touches it the same way");
+    ExpectWallTouches(true, false, "a wall made after the box, widened from afar, touches it",
+                      "a wall made after the box, widened where it stands, touches it");
+}
+
 int main(void)
 {
     TestCollisionFilters();
@@ -767,6 +888,7 @@ int main(void)
     TestFilterRollback();
     TestBoxRestsOnSegmentsInEitherSlot();
     TestShapesWithoutAreaNeverCollide();
+    TestStaticShapeMovedIntoASleeper();
 
     if (s_failures > 0)
     {
