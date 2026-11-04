@@ -110,23 +110,33 @@ jobs:
       # compile out, and with them live. Each hides findings the other
       # shows: a value read only by an assertion is a dead store once it
       # compiles out, and a live assertion's branches count toward a
-      # function's complexity.
+      # function's complexity. The header filter is given on the command
+      # line: clang-tidy-20 takes it from the configuration of the
+      # directory above the one it runs in, which has none, and would drop
+      # every finding in our headers as non-user code. It is anchored at the
+      # source directory the build tree records, regex-escaped, so it also
+      # leaves out the headers of dependencies fetched under out/.
       - name: clang-tidy, assertions compiled out
         run: |
           cmake --preset linux-clang-20 -B out/tidy -DCMAKE_EXPORT_COMPILE_COMMANDS=ON \
             -DMAUL2D_BUILD_TESTS=OFF -DMAUL2D_BUILD_BENCH=OFF -DMAUL2D_BUILD_SAMPLES=OFF
+          root=$(sed -n 's/^CMAKE_HOME_DIRECTORY:INTERNAL=//p' out/tidy/CMakeCache.txt)
+          filter="^$(printf '%s' "$root" | sed 's/[][\.*^$+?(){}|]/\\&/g')/(src|include)/"
           files=$(git ls-files 'src/*.c')
           [ -n "$files" ] || { echo "::error::no files for clang-tidy"; exit 1; }
-          echo "$files" | xargs -P "$(nproc)" -n 1 clang-tidy-20 -p out/tidy --quiet --warnings-as-errors='*'
+          echo "$files" | xargs -P "$(nproc)" -n 1 clang-tidy-20 -p out/tidy --quiet \
+            --header-filter="$filter" --warnings-as-errors='*'
       - name: clang-tidy, assertions live
         run: |
           cmake --preset linux-clang-20 -B out/tidy-asserts -DCMAKE_BUILD_TYPE=Debug \
             -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DMAUL2D_BUILD_TESTS=OFF -DMAUL2D_BUILD_BENCH=OFF \
             -DMAUL2D_BUILD_SAMPLES=OFF
+          root=$(sed -n 's/^CMAKE_HOME_DIRECTORY:INTERNAL=//p' out/tidy-asserts/CMakeCache.txt)
+          filter="^$(printf '%s' "$root" | sed 's/[][\.*^$+?(){}|]/\\&/g')/(src|include)/"
           files=$(git ls-files 'src/*.c')
           [ -n "$files" ] || { echo "::error::no files for clang-tidy"; exit 1; }
           echo "$files" | xargs -P "$(nproc)" -n 1 clang-tidy-20 -p out/tidy-asserts --quiet \
-            --warnings-as-errors='*'
+            --header-filter="$filter" --warnings-as-errors='*'
 
   # Every cell builds with warnings as errors and runs the whole suite, the
   # golden test and the header tests included: x86-64 with the AVX2

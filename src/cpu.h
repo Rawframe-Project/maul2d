@@ -12,9 +12,11 @@
 
 // The backend the library's vector code was built for: "avx2", "neon"
 // or "scalar". The string is static.
+// NOLINTNEXTLINE(readability-redundant-declaration): base.h may declare it
 const char* m2GetSimdBackend(void);
 
 // Whether this CPU runs the built backend.
+// NOLINTNEXTLINE(readability-redundant-declaration): base.h may declare it
 bool m2IsCpuBackendSupported(void);
 
 // The CPU check without a world: stores the backend's name in *backend
