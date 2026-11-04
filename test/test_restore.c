@@ -625,11 +625,14 @@ static void GravityAtTheEdge(const Scene* scene, uint8_t* block)
     Gravity(scene, block, -M2_GRAVITY_SCALE_LIMIT, M2_ACCEL_LIMIT);
 }
 
+// The box moves through the wind, so it is awake: a sleeping body is
+// still.
 static void WindDrag(const Scene* scene, uint8_t* block, float drag)
 {
     PutWorld(scene, block, &scene->world->windLinearDrag, &drag, sizeof(drag));
     PutBodyVec(scene, block, &scene->world->bodies.linearVelocities, scene->boxA,
                (m2Vec2){10.0f, 0.0f});
+    At(scene, block, &scene->world->bodies.asleep)[scene->boxA.index1 - 1] = 0;
 }
 
 static void WindDragPast(const Scene* scene, uint8_t* block)
@@ -834,6 +837,10 @@ static void TestWorldAndBodyBounds(const Scene* scene)
     const m2World* w = scene->world;
     size_t body = (size_t)(scene->boxA.index1 - 1) * sizeof(float);
     size_t bodyVec = (size_t)(scene->boxA.index1 - 1) * sizeof(m2Vec2);
+    // The kinematic lift carries the speed edges: the boxes have landed and
+    // sleep, and a sleeping body is still.
+    size_t lift = (size_t)(scene->lift.index1 - 1) * sizeof(float);
+    size_t liftVec = (size_t)(scene->lift.index1 - 1) * sizeof(m2Vec2);
     float maxInvH = (float)M2_MAX_SUBSTEPS / M2_MIN_STEP;
     ExpectUpper(scene, (Bound){"gravity", &w->gravity, 4, M2_ACCEL_LIMIT});
     ExpectUpper(scene, (Bound){"wind velocity", &w->windVelocity, 0, M2_SPEED_LIMIT});
@@ -842,8 +849,8 @@ static void TestWorldAndBodyBounds(const Scene* scene)
     ExpectUpper(scene, (Bound){"1 / substep", &w->lastInvH, 0, maxInvH});
     ExpectLower(scene, (Bound){"1 / substep", &w->lastInvH, 0, 1.0f / M2_STEP_LIMIT});
     ExpectUpper(scene,
-                (Bound){"velocity", &w->bodies.linearVelocities, bodyVec + 4, M2_SPEED_LIMIT});
-    ExpectLower(scene, (Bound){"spin", &w->bodies.angularVelocities, body, -M2_SPEED_LIMIT});
+                (Bound){"velocity", &w->bodies.linearVelocities, liftVec + 4, M2_SPEED_LIMIT});
+    ExpectLower(scene, (Bound){"spin", &w->bodies.angularVelocities, lift, -M2_SPEED_LIMIT});
     ExpectLower(scene,
                 (Bound){"gravity scale", &w->bodies.gravityScales, body, -M2_GRAVITY_SCALE_LIMIT});
     ExpectUpper(scene, (Bound){"linear damping", &w->bodies.linearDampings, body, M2_RATE_LIMIT});
@@ -1965,6 +1972,154 @@ static void TestFrozenContactsTheWorldWrites(void)
     m2DestroyWorld(world);
 }
 
+// --- Still bodies ------------------------------------------------------------
+
+// A static floor, made with a velocity of -0, which its def takes as none;
+// a box asleep on it; a box sliding along it; and a kinematic platform
+// moving overhead.
+static Scene MakeStillScene(void)
+{
+    Scene scene;
+    memset(&scene, 0, sizeof(scene));
+    m2WorldDef def = m2DefaultWorldDef();
+    scene.world = NewWorld(&def);
+    m2World* world = scene.world;
+    m2ShapeDef shapeDef = m2DefaultShapeDef();
+    m2BodyDef floorDef = m2DefaultBodyDef();
+    floorDef.linearVelocity = (m2Vec2){-0.0f, 0.0f};
+    scene.ground = NewBody(world, &floorDef);
+    m2Polygon floor = m2MakeBox(20.0f, 0.5f);
+    NewPolygonShape(world, scene.ground, &shapeDef, &floor);
+    m2Polygon square = m2MakeBox(0.5f, 0.5f);
+    m2BodyDef boxDef = m2DefaultBodyDef();
+    boxDef.type = m2_dynamicBody;
+    boxDef.position = (m2Pos2){0.0, 1.0};
+    scene.boxA = NewBody(world, &boxDef);
+    NewPolygonShape(world, scene.boxA, &shapeDef, &square);
+    boxDef.position = (m2Pos2){-10.0, 1.0};
+    boxDef.enableSleep = false;
+    scene.boxB = NewBody(world, &boxDef);
+    NewPolygonShape(world, scene.boxB, &shapeDef, &square);
+    m2BodyDef liftDef = m2DefaultBodyDef();
+    liftDef.type = m2_kinematicBody;
+    liftDef.position = (m2Pos2){0.0, 5.0};
+    liftDef.linearVelocity = (m2Vec2){0.5f, 0.0f};
+    scene.lift = NewBody(world, &liftDef);
+    NewPolygonShape(world, scene.lift, &shapeDef, &square);
+    for (int32_t i = 0; i < 120; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+    }
+    m2Body_SetLinearVelocity(world, scene.boxB, (m2Vec2){2.0f, 0.0f});
+    CHECK(!m2Body_IsAwake(world, scene.boxA) && m2Body_IsAwake(world, scene.boxB),
+          "one box sleeps on the floor and the other slides");
+    scene.size = m2World_GetSnapshotSize(world);
+    scene.valid = (uint8_t*)malloc((size_t)scene.size);
+    CHECK(scene.valid != NULL && Snapshot(world, scene.valid, scene.size) == scene.size,
+          "the still scene snapshots");
+    scene.headerBytes = (int32_t)(scene.size - (int64_t)m2StateWalk(world, NULL, NULL, 2));
+    return scene;
+}
+
+static void PutVelocity(const Scene* scene, uint8_t* block, m2BodyId body, m2Vec2 v, float w)
+{
+    const m2World* world = scene->world;
+    int32_t b = (int32_t)body.index1 - 1;
+    memcpy(At(scene, block, &world->bodies.linearVelocities) + (size_t)b * sizeof(v), &v,
+           sizeof(v));
+    memcpy(At(scene, block, &world->bodies.angularVelocities) + (size_t)b * sizeof(w), &w,
+           sizeof(w));
+}
+
+static void PutAsleep(const Scene* scene, uint8_t* block, m2BodyId body)
+{
+    At(scene, block, &scene->world->bodies.asleep)[body.index1 - 1] = 1;
+}
+
+static void FloorSlides(const Scene* scene, uint8_t* block)
+{
+    PutVelocity(scene, block, scene->ground, (m2Vec2){5.0f, 0.0f}, 0.0f);
+}
+
+static void FloorSpins(const Scene* scene, uint8_t* block)
+{
+    PutVelocity(scene, block, scene->ground, (m2Vec2){0.0f, 0.0f}, 1.0f);
+}
+
+static void SleeperFalls(const Scene* scene, uint8_t* block)
+{
+    PutVelocity(scene, block, scene->boxA, (m2Vec2){0.0f, -1.0f}, 0.0f);
+}
+
+static void SleeperSpins(const Scene* scene, uint8_t* block)
+{
+    PutVelocity(scene, block, scene->boxA, (m2Vec2){0.0f, 0.0f}, -2.0f);
+}
+
+static void LiftSleeps(const Scene* scene, uint8_t* block)
+{
+    PutAsleep(scene, block, scene->lift);
+}
+
+static void FloorSleeps(const Scene* scene, uint8_t* block)
+{
+    PutAsleep(scene, block, scene->ground);
+}
+
+// What a world may hold: a kinematic body and an awake box moving faster.
+static void LiftSpeedsUp(const Scene* scene, uint8_t* block)
+{
+    PutVelocity(scene, block, scene->lift, (m2Vec2){3.0f, -1.0f}, 2.0f);
+}
+
+static void SliderSpeedsUp(const Scene* scene, uint8_t* block)
+{
+    PutVelocity(scene, block, scene->boxB, (m2Vec2){4.0f, 1.0f}, -1.0f);
+}
+
+static void ExpectStillRestores(const Scene* scene, Edit edit, const char* what)
+{
+    uint8_t* bytes = (uint8_t*)malloc((size_t)scene->size);
+    CHECK(bytes != NULL, "a copy of the still snapshot");
+    if (bytes == NULL)
+    {
+        return;
+    }
+    memcpy(bytes, scene->valid, (size_t)scene->size);
+    edit(scene, bytes + scene->headerBytes);
+    CHECK(Restore(scene->world, bytes, scene->size), what);
+    free(bytes);
+    CHECK(Restore(scene->world, scene->valid, scene->size), "the still scene restores again");
+}
+
+// A static body and a sleeping one are still, and only a dynamic body
+// sleeps: the solver reads a static body's velocity, waking keeps a
+// sleeper's, and the step does not move a kinematic body marked asleep.
+static void TestStillBodies(void)
+{
+    Scene scene = MakeStillScene();
+    CHECK(Restore(scene.world, scene.valid, scene.size),
+          "the still scene restores, its floor made with a velocity of -0");
+    ExpectRefused(&scene, FloorSlides, "a static floor that slides is refused");
+    ExpectRefused(&scene, FloorSpins, "a static floor that spins is refused");
+    ExpectRefused(&scene, SleeperFalls, "a sleeping box that falls is refused");
+    ExpectRefused(&scene, SleeperSpins, "a sleeping box that spins is refused");
+    ExpectRefused(&scene, LiftSleeps, "a kinematic body asleep is refused");
+    ExpectRefused(&scene, FloorSleeps, "a static body asleep is refused");
+    ExpectStillRestores(&scene, LiftSpeedsUp, "a kinematic body restores at another velocity");
+    ExpectStillRestores(&scene, SliderSpeedsUp, "an awake box restores at another velocity");
+
+    m2Body_SetAwake(scene.world, scene.boxB, false);
+    CHECK(RestoresItself(scene.world), "a snapshot after a box is put to sleep by hand restores");
+    m2Body_SetAwake(scene.world, scene.boxB, true);
+    m2Body_SetLinearVelocity(scene.world, scene.boxB, (m2Vec2){2.0f, 0.0f});
+    m2Body_SetType(scene.world, scene.boxB, m2_staticBody);
+    m2Body_SetType(scene.world, scene.lift, m2_staticBody);
+    CHECK(RestoresItself(scene.world),
+          "a snapshot after a sliding box and a moving platform turn static restores");
+    FreeScene(&scene);
+}
+
 static void TestCheckStandsAlone(void)
 {
     Scene scene = MakeScene();
@@ -2794,6 +2949,7 @@ int main(void)
     TestPairsApartWithinTheMargin();
     TestFrozenContacts();
     TestFrozenContactsTheWorldWrites();
+    TestStillBodies();
     TestFuzzFinds();
     TestRangeBounds();
     TestJointKindBounds();
