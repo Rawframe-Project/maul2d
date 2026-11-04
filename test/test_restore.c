@@ -1683,6 +1683,288 @@ static void TestPairsApartWithinTheMargin(void)
     m2DestroyWorld(world);
 }
 
+// --- Frozen contacts ----------------------------------------------------------
+
+static int32_t s_stackPair;  // the two stacked boxes: frozen
+static int32_t s_ballPair;   // the ball on the chain floor: frozen
+static int32_t s_sensorPair; // the ball in the static sensor: frozen
+static int32_t s_liftPair;   // the box on the kinematic slab: never frozen
+
+// The pair slot of two shapes, or -1.
+static int32_t PairOf(const m2World* world, m2ShapeId x, m2ShapeId y)
+{
+    uint64_t a = (uint64_t)(x.index1 - 1);
+    uint64_t b = (uint64_t)(y.index1 - 1);
+    uint64_t key = a < b ? (a << 32) | b : (b << 32) | a;
+    for (int32_t i = 0; i < world->contacts.pairCount; ++i)
+    {
+        if (world->contacts.pairKeys[i] == key)
+        {
+            return i;
+        }
+    }
+    return -1;
+}
+
+static m2ShapeId RestingBox(m2World* world, m2BodyType type, double x, double y, float half)
+{
+    m2BodyDef def = m2DefaultBodyDef();
+    def.type = type;
+    def.position = (m2Pos2){x, y};
+    m2ShapeDef shapeDef = m2DefaultShapeDef();
+    m2Polygon box = m2MakeBox(half, 0.5f);
+    return NewPolygonShape(world, NewBody(world, &def), &shapeDef, &box);
+}
+
+// Everything sleeps: on a one-sided chain floor, a stack of two boxes, a
+// ball inside a static sensor and a capsule; beside it, a box on a still
+// kinematic slab, a pair that never freezes. Each body has slept through
+// two step ends, so the step copies the frozen pairs' manifolds forward.
+static Scene MakeRestingScene(void)
+{
+    Scene scene;
+    memset(&scene, 0, sizeof(scene));
+    m2WorldDef def = m2DefaultWorldDef();
+    scene.world = NewWorld(&def);
+    m2World* world = scene.world;
+    m2BodyDef groundDef = m2DefaultBodyDef();
+    scene.ground = NewBody(world, &groundDef);
+    m2Vec2 floor[4] = {{10.0f, 0.0f}, {8.0f, 0.0f}, {-8.0f, 0.0f}, {-10.0f, 0.0f}};
+    m2ChainDef chainDef = m2DefaultChainDef();
+    chainDef.points = floor;
+    chainDef.count = 4;
+    NewChain(world, scene.ground, &chainDef);
+    m2ShapeId low = RestingBox(world, m2_dynamicBody, 0.0, 0.5, 0.5f);
+    m2ShapeId high = RestingBox(world, m2_dynamicBody, 0.0, 1.5, 0.5f);
+    m2BodyDef ballDef = m2DefaultBodyDef();
+    ballDef.type = m2_dynamicBody;
+    ballDef.position = (m2Pos2){-4.0, 0.5};
+    m2ShapeDef shapeDef = m2DefaultShapeDef();
+    m2Circle round = {{0.0f, 0.0f}, 0.5f};
+    m2ShapeId ball = NewCircleShape(world, NewBody(world, &ballDef), &shapeDef, &round);
+    m2BodyDef zoneDef = m2DefaultBodyDef();
+    zoneDef.position = (m2Pos2){-4.0, 0.5};
+    m2ShapeDef sensorDef = m2DefaultShapeDef();
+    sensorDef.isSensor = true;
+    m2Circle zone = {{0.0f, 0.0f}, 1.0f};
+    m2ShapeId sensor = NewCircleShape(world, NewBody(world, &zoneDef), &sensorDef, &zone);
+    m2BodyDef capsuleDef = m2DefaultBodyDef();
+    capsuleDef.type = m2_dynamicBody;
+    capsuleDef.position = (m2Pos2){4.0, 0.3};
+    m2Capsule lying = {{-0.5f, 0.0f}, {0.5f, 0.0f}, 0.3f};
+    NewCapsuleShape(world, NewBody(world, &capsuleDef), &shapeDef, &lying);
+    m2ShapeId slab = RestingBox(world, m2_kinematicBody, 12.0, 0.0, 1.0f);
+    m2ShapeId rider = RestingBox(world, m2_dynamicBody, 12.0, 1.0, 0.5f);
+    for (int32_t i = 0; i < 300; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+    }
+    bool frozen = true;
+    for (int32_t b = 0; b < world->bodies.maxBodyIndex; ++b)
+    {
+        frozen = frozen && (world->bodies.types[b] != (uint8_t)m2_dynamicBody ||
+                            (world->bodies.asleep[b] != 0 && world->bodies.sleepStreak[b] == 2));
+    }
+    CHECK(frozen && world->broadphase.movedCount == 0,
+          "every body of the resting scene has slept two step ends");
+    s_stackPair = PairOf(world, low, high);
+    s_ballPair = -1; // the chain segment under the ball
+    for (int32_t i = 0; i < world->contacts.pairCount; ++i)
+    {
+        int32_t a = (int32_t)(world->contacts.pairKeys[i] >> 32);
+        int32_t b = (int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu);
+        bool withBall = a == (int32_t)ball.index1 - 1 || b == (int32_t)ball.index1 - 1;
+        bool withChain = world->shapes.shapeChain[a] >= 0 || world->shapes.shapeChain[b] >= 0;
+        if (withBall && withChain && world->contacts.manifolds[i].pointCount > 0)
+        {
+            s_ballPair = i;
+        }
+    }
+    s_sensorPair = PairOf(world, ball, sensor);
+    s_liftPair = PairOf(world, slab, rider);
+    CHECK(s_stackPair >= 0 && s_ballPair >= 0 && s_sensorPair >= 0 && s_liftPair >= 0 &&
+              world->contacts.manifolds[s_stackPair].pointCount == 2 &&
+              world->contacts.manifolds[s_ballPair].pointCount == 1 &&
+              world->contacts.manifolds[s_sensorPair].pointCount > 0 &&
+              world->contacts.manifolds[s_liftPair].pointCount == 2,
+          "the stack, the ball, the sensor and the slab each hold a touching pair");
+    scene.size = m2World_GetSnapshotSize(world);
+    scene.valid = (uint8_t*)malloc((size_t)scene.size);
+    CHECK(scene.valid != NULL && Snapshot(world, scene.valid, scene.size) == scene.size,
+          "the resting scene snapshots");
+    scene.headerBytes = (int32_t)(scene.size - (int64_t)m2StateWalk(world, NULL, NULL, 2));
+    return scene;
+}
+
+static m2Manifold GetManifold(const Scene* scene, uint8_t* block, int32_t pair)
+{
+    m2Manifold m;
+    memcpy(&m, At(scene, block, &scene->world->contacts.manifolds) + (size_t)pair * sizeof(m),
+           sizeof(m));
+    return m;
+}
+
+static void PutManifold(const Scene* scene, uint8_t* block, int32_t pair, const m2Manifold* m)
+{
+    memcpy(At(scene, block, &scene->world->contacts.manifolds) + (size_t)pair * sizeof(*m), m,
+           sizeof(*m));
+}
+
+// The stack's pair says the boxes no longer touch, its flag agreeing.
+static void StackApart(const Scene* scene, uint8_t* block)
+{
+    m2Manifold m = GetManifold(scene, block, s_stackPair);
+    m.pointCount = 0;
+    PutManifold(scene, block, s_stackPair, &m);
+    At(scene, block, &scene->world->contacts.pairTouching)[s_stackPair] = 0;
+}
+
+static void StackSunk(const Scene* scene, uint8_t* block)
+{
+    m2Manifold m = GetManifold(scene, block, s_stackPair);
+    m.points[1].separation -= 0.05f;
+    PutManifold(scene, block, s_stackPair, &m);
+}
+
+static void StackTurned(const Scene* scene, uint8_t* block)
+{
+    m2Manifold m = GetManifold(scene, block, s_stackPair);
+    m.normal = (m2Vec2){-m.normal.x, -m.normal.y};
+    PutManifold(scene, block, s_stackPair, &m);
+}
+
+static void StackRenamed(const Scene* scene, uint8_t* block)
+{
+    m2Manifold m = GetManifold(scene, block, s_stackPair);
+    m.points[0].id ^= 1u;
+    PutManifold(scene, block, s_stackPair, &m);
+}
+
+static void BallShifted(const Scene* scene, uint8_t* block)
+{
+    m2Manifold m = GetManifold(scene, block, s_ballPair);
+    m.points[0].anchorA.y += 0.01f;
+    PutManifold(scene, block, s_ballPair, &m);
+}
+
+static void StackShifted(const Scene* scene, uint8_t* block)
+{
+    m2Manifold m = GetManifold(scene, block, s_stackPair);
+    m.points[1].anchorB.x += 0.01f;
+    PutManifold(scene, block, s_stackPair, &m);
+}
+
+// The ball's overlap with the sensor says it left, its flag agreeing.
+static void SensorLeft(const Scene* scene, uint8_t* block)
+{
+    m2Manifold m = GetManifold(scene, block, s_sensorPair);
+    m.pointCount = 0;
+    PutManifold(scene, block, s_sensorPair, &m);
+    At(scene, block, &scene->world->contacts.pairTouching)[s_sensorPair] = 0;
+}
+
+static void LiftFlagLies(const Scene* scene, uint8_t* block)
+{
+    At(scene, block, &scene->world->contacts.pairTouching)[s_liftPair] = 0;
+}
+
+// What the snapshot's own state may hold: the stack's impulses and
+// persisted bits, and the manifold of a pair the next step computes.
+static void StackImpulses(const Scene* scene, uint8_t* block)
+{
+    m2Manifold m = GetManifold(scene, block, s_stackPair);
+    m.points[0].normalImpulse += 1.0f;
+    m.points[1].tangentImpulse += 0.5f;
+    m.points[0].flags ^= 1u;
+    PutManifold(scene, block, s_stackPair, &m);
+}
+
+static void LiftSunk(const Scene* scene, uint8_t* block)
+{
+    m2Manifold m = GetManifold(scene, block, s_liftPair);
+    m.points[0].separation -= 0.05f;
+    PutManifold(scene, block, s_liftPair, &m);
+}
+
+static void ExpectRestingRestores(const Scene* scene, Edit edit, const char* what)
+{
+    uint8_t* bytes = (uint8_t*)malloc((size_t)scene->size);
+    CHECK(bytes != NULL, "a copy of the resting snapshot");
+    if (bytes == NULL)
+    {
+        return;
+    }
+    memcpy(bytes, scene->valid, (size_t)scene->size);
+    edit(scene, bytes + scene->headerBytes);
+    CHECK(Restore(scene->world, bytes, scene->size), what);
+    free(bytes);
+    CHECK(Restore(scene->world, scene->valid, scene->size), "the resting scene restores again");
+}
+
+// The step copies a frozen pair's manifold forward, and a host call wakes
+// only the bodies a moved body touches: a stack that says it does not
+// touch would leave its top box asleep in the air once the bottom one is
+// moved away. A restore holds every frozen pair to the manifold its
+// shapes give, and every touching flag to its manifold.
+static void TestFrozenContacts(void)
+{
+    Scene scene = MakeRestingScene();
+    CHECK(Restore(scene.world, scene.valid, scene.size), "the resting scene restores");
+    ExpectRefused(&scene, StackApart, "a resting stack that says it does not touch is refused");
+    ExpectRefused(&scene, StackSunk, "a resting contact at another depth is refused");
+    ExpectRefused(&scene, StackTurned, "a resting contact with another normal is refused");
+    ExpectRefused(&scene, StackRenamed, "a resting contact with another feature is refused");
+    ExpectRefused(&scene, StackShifted, "a resting contact at another point is refused");
+    ExpectRefused(&scene, BallShifted, "a ball on the chain at another point is refused");
+    ExpectRefused(&scene, SensorLeft, "a sleeping ball that says it left its sensor is refused");
+    ExpectRefused(&scene, LiftFlagLies, "a touching flag its contact does not give is refused");
+    ExpectRestingRestores(&scene, StackImpulses,
+                          "a resting contact restores with its own impulses and persisted bits");
+    ExpectRestingRestores(&scene, LiftSunk,
+                          "a contact the next step computes restores whatever its depth");
+    FreeScene(&scene);
+}
+
+// The snapshots a world writes as its contacts freeze or thaw restore: the
+// step a stack falls asleep, when its manifolds are one solve old, and
+// the moment a static wall is teleported into a sleeping box, before the
+// step gives their pair a fresh manifold.
+static void TestFrozenContactsTheWorldWrites(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    m2BodyDef groundDef = m2DefaultBodyDef();
+    m2ShapeDef shapeDef = m2DefaultShapeDef();
+    m2Polygon slab = m2MakeBox(10.0f, 0.5f);
+    NewPolygonShape(world, NewBody(world, &groundDef), &shapeDef, &slab);
+    m2ShapeId wall = RestingBox(world, m2_staticBody, 1.15, 1.0, 0.5f);
+    m2ShapeId low = RestingBox(world, m2_dynamicBody, 0.0, 1.0, 0.5f);
+    RestingBox(world, m2_dynamicBody, 0.0, 2.0, 0.5f);
+    m2BodyId lowBody = m2Shape_GetBody(world, low);
+    bool fellAsleep = false;
+    for (int32_t i = 0; i < 300 && !fellAsleep; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+        fellAsleep = !m2Body_IsAwake(world, lowBody);
+    }
+    CHECK(fellAsleep && world->bodies.sleepStreak[lowBody.index1 - 1] == 1,
+          "the stack falls asleep this step");
+    CHECK(RestoresItself(world), "a snapshot the step a stack falls asleep restores");
+    for (int32_t i = 0; i < 3; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+    }
+    m2BodyId wallBody = m2Shape_GetBody(world, wall);
+    m2Body_SetTransform(world, wallBody, (m2Pos2){0.9, 1.0}, m2Body_GetRotation(world, wallBody));
+    CHECK(!m2Body_IsAwake(world, lowBody) && RestoresItself(world),
+          "a snapshot after a static wall is teleported into a sleeping box restores");
+    Step(world, 1.0f / 60.0f, 4);
+    CHECK(world->contacts.manifolds[PairOf(world, wall, low)].pointCount == 2 &&
+              RestoresItself(world),
+          "the next step gives the pair its contact, and the world restores");
+    m2DestroyWorld(world);
+}
+
 static void TestCheckStandsAlone(void)
 {
     Scene scene = MakeScene();
@@ -2510,6 +2792,8 @@ int main(void)
     TestPairsTheBroadphaseNeverMakes();
     TestPairsLeftForTheNextStep();
     TestPairsApartWithinTheMargin();
+    TestFrozenContacts();
+    TestFrozenContactsTheWorldWrites();
     TestFuzzFinds();
     TestRangeBounds();
     TestJointKindBounds();

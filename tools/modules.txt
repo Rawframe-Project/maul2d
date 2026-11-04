@@ -64,7 +64,7 @@ shape_read: fpenv object_ids shape world_internal
 simd:
 snapshot: fpenv joint joint_edges journal snapshot_check world_internal world_state
 snapshot_check: core dynamic_tree geometry joint mass snapshot_pairs snapshot_read world_internal world_state
-snapshot_pairs: broadphase geometry snapshot_read world_internal world_state
+snapshot_pairs: broadphase contact geometry snapshot_read world_internal world_state
 snapshot_read: dynamic_tree world_internal world_state
 solver: ccd contact_solver joint joint_solver rotation world_internal
 solver_base: core

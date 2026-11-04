@@ -13,7 +13,8 @@
 
 // True when the block's moved list matches its flags, its pairs are in
 // order, join live shapes in the broadphase and, where the next step keeps
-// them, are pairs the broadphase would make, and its queued end events
+// them, are pairs the broadphase would make, its touching flags and frozen
+// pairs' manifolds are those its shapes give, and its queued end events
 // carry the step count and name shape slots. The trees and shape lists
 // have passed m2SnapshotCheck first. Writes only world->restoreMarks and
 // world->contacts.pairScratch.

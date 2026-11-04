@@ -111,12 +111,8 @@ void m2EmitSensorBegin(m2World* world, int32_t shapeA, int32_t shapeB)
 
 // --- Contacts -------------------------------------------------------
 
-// Relative pose of shape B's body in shape A's body frame: the single
-// f64 -> f32 crossing for the contact stage.
-static m2RelativePose MakeRelativePose(const m2World* world, int32_t bodyA, int32_t bodyB)
+m2RelativePose m2MakeRelativePose(m2Transform xfA, m2Transform xfB)
 {
-    m2Transform xfA = world->bodies.transforms[bodyA];
-    m2Transform xfB = world->bodies.transforms[bodyB];
     float dx = (float)(xfB.p.x - xfA.p.x);
     float dy = (float)(xfB.p.y - xfA.p.y);
     m2RelativePose pose;
@@ -204,22 +200,20 @@ static void ApplyChainLaws(m2Manifold* manifold, const m2ChainSegment* chain)
     manifold->pointCount = kept;
 }
 
-static m2Manifold ComputeManifoldRaw(const m2World* world, int32_t shapeA, int32_t shapeB,
+static m2Manifold ComputeManifoldRaw(const m2ShapeGeometry* ga, const m2ShapeGeometry* gb,
                                      m2RelativePose pose);
 
-static m2Manifold ComputeManifold(const m2World* world, int32_t shapeA, int32_t shapeB,
-                                  m2RelativePose pose)
+m2Manifold m2ComputeManifold(const m2ShapeGeometry* ga, const m2ShapeGeometry* gb,
+                             m2RelativePose pose)
 {
-    const m2ShapeGeometry* ga = &world->shapes.shapeGeometry[shapeA];
-    const m2ShapeGeometry* gb = &world->shapes.shapeGeometry[shapeB];
     if (gb->type == m2_chainSegmentShape && ga->type != m2_chainSegmentShape)
     {
         // Canonical: the chain plays shape A so its laws apply in its
         // own frame; the manifold flips back on the way out.
-        m2Manifold m = ComputeManifold(world, shapeB, shapeA, InvertPose(pose));
+        m2Manifold m = m2ComputeManifold(gb, ga, InvertPose(pose));
         return FlipManifold(m, pose);
     }
-    m2Manifold m = ComputeManifoldRaw(world, shapeA, shapeB, pose);
+    m2Manifold m = ComputeManifoldRaw(ga, gb, pose);
     if (ga->type == m2_chainSegmentShape)
     {
         ApplyChainLaws(&m, &ga->chainSegment);
@@ -227,11 +221,9 @@ static m2Manifold ComputeManifold(const m2World* world, int32_t shapeA, int32_t 
     return m;
 }
 
-static m2Manifold ComputeManifoldRaw(const m2World* world, int32_t shapeA, int32_t shapeB,
+static m2Manifold ComputeManifoldRaw(const m2ShapeGeometry* ga, const m2ShapeGeometry* gb,
                                      m2RelativePose pose)
 {
-    const m2ShapeGeometry* ga = &world->shapes.shapeGeometry[shapeA];
-    const m2ShapeGeometry* gb = &world->shapes.shapeGeometry[shapeB];
 
     if (ga->type == m2_circleShape && gb->type == m2_circleShape)
     {
@@ -348,7 +340,7 @@ static void UpdateContactsRange(int32_t begin, int32_t end, void* userCtx)
         int32_t shapeB = (int32_t)(world->contacts.pairKeys[i] & 0xFFFFFFFFu);
 
         // Frozen pair: the stored manifold is exactly what
-        // ComputeManifold would return - skip the arithmetic, keep the
+        // m2ComputeManifold would return - skip the arithmetic, keep the
         // bits.
         if (ShapeIsFrozen(world, shapeA) && ShapeIsFrozen(world, shapeB))
         {
@@ -386,9 +378,11 @@ static void UpdateContactsRange(int32_t begin, int32_t end, void* userCtx)
             // fall through and compute once.
         }
 
-        m2RelativePose pose = MakeRelativePose(world, world->shapes.shapeBody[shapeA],
-                                               world->shapes.shapeBody[shapeB]);
-        m2Manifold fresh = ComputeManifold(world, shapeA, shapeB, pose);
+        m2RelativePose pose =
+            m2MakeRelativePose(world->bodies.transforms[world->shapes.shapeBody[shapeA]],
+                               world->bodies.transforms[world->shapes.shapeBody[shapeB]]);
+        m2Manifold fresh = m2ComputeManifold(&world->shapes.shapeGeometry[shapeA],
+                                             &world->shapes.shapeGeometry[shapeB], pose);
 
         // Locate the previous manifold for this pair (both lists sorted;
         // binary search keeps this O(P log P) worst case).
