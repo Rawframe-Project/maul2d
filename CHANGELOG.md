@@ -9,6 +9,16 @@ minor release, and its entry says what changes. A snapshot or journal
 tape is read within the minor version that wrote it and refused
 across minor versions.
 
+## [1.2.2](https://github.com/Rawframe-Project/maul2d/compare/v1.2.1...v1.2.2) (2026-11-04)
+
+
+### Fixed
+
+* **snapshot:** hold frozen pairs to the manifold their shapes give ([#320](https://github.com/Rawframe-Project/maul2d/issues/320)) ([e068920](https://github.com/Rawframe-Project/maul2d/commit/e0689208a9b2183f042c4f10d19444e518615e24)), closes [#317](https://github.com/Rawframe-Project/maul2d/issues/317)
+* **snapshot:** refuse a still body that moves ([#323](https://github.com/Rawframe-Project/maul2d/issues/323)) ([b33343c](https://github.com/Rawframe-Project/maul2d/commit/b33343c9ec932a352192d9ed70455e4d2ac477e7)), closes [#321](https://github.com/Rawframe-Project/maul2d/issues/321)
+* **snapshot:** refuse a water volume whose box has no area ([#325](https://github.com/Rawframe-Project/maul2d/issues/325)) ([7a63517](https://github.com/Rawframe-Project/maul2d/commit/7a635172d2ef80dc7d12d5e6c8a5e8614704f10b)), closes [#324](https://github.com/Rawframe-Project/maul2d/issues/324)
+* **solver:** hold a locked rotation still ([#327](https://github.com/Rawframe-Project/maul2d/issues/327)) ([c8f0af7](https://github.com/Rawframe-Project/maul2d/commit/c8f0af7eef8e93cc2d30852855022c50436caa41)), closes [#326](https://github.com/Rawframe-Project/maul2d/issues/326)
+
 ## [1.2.1](https://github.com/Rawframe-Project/maul2d/compare/v1.2.0...v1.2.1) (2026-11-04)
 
 This release makes a static shape that a host moves into a sleeping body touch it on the next step, and makes `m2World_Restore` refuse contact pairs the broadphase never makes. No golden line moves, and the snapshot and journal formats keep their versions.
