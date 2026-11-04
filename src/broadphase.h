@@ -16,13 +16,13 @@ typedef struct m2PairSide
     int32_t group;
     int32_t type; // m2ShapeType
     bool sensor;
-    bool dynamic; // on a dynamic body
+    uint8_t bodyType; // m2BodyType of its body
 } m2PairSide;
 
 m2PairSide m2ShapePairSide(const m2World* world, int32_t shapeIndex);
 
 // Whether the broadphase pairs two shapes of different bodies by their
-// kinds and filters. The joints between their bodies have the last word
+// kinds, their bodies' types and their filters. The joints between their bodies have the last word
 // (m2JointsForbidPair).
 bool m2SidesMayPair(const m2PairSide* a, const m2PairSide* b);
 

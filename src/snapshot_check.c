@@ -20,7 +20,8 @@
 //   - the moved list and its flags agree, and the pairs are ordered and
 //     join live shapes in the broadphase;
 //   - each pair the next step keeps is one the broadphase would make, by
-//     the shapes' kinds and filters and the joints between their bodies;
+//     the shapes' kinds, their bodies' types and filters and the joints
+//     between their bodies;
 //   - each end event queued for the next step carries the step count and
 //     names two shape slots;
 //   - each shape of a static or sleeping body lies inside its fat box at

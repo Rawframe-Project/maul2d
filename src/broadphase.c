@@ -54,37 +54,38 @@ static int CompareI32(const void* a, const void* b)
     return ia < ib ? -1 : (ia > ib ? 1 : 0);
 }
 
-static bool ShapeIsDynamic(const m2World* world, int32_t shapeIndex)
-{
-    return world->bodies.types[world->shapes.shapeBody[shapeIndex]] == (uint8_t)m2_dynamicBody;
-}
-
 m2PairSide m2ShapePairSide(const m2World* world, int32_t shapeIndex)
 {
-    m2PairSide side = {
-        world->shapes.shapeCategory[shapeIndex],    world->shapes.shapeMask[shapeIndex],
-        world->shapes.shapeGroup[shapeIndex],       world->shapes.shapeGeometry[shapeIndex].type,
-        world->shapes.shapeSensor[shapeIndex] != 0, ShapeIsDynamic(world, shapeIndex)};
+    m2PairSide side = {world->shapes.shapeCategory[shapeIndex],
+                       world->shapes.shapeMask[shapeIndex],
+                       world->shapes.shapeGroup[shapeIndex],
+                       world->shapes.shapeGeometry[shapeIndex].type,
+                       world->shapes.shapeSensor[shapeIndex] != 0,
+                       world->bodies.types[world->shapes.shapeBody[shapeIndex]]};
     return side;
 }
 
-// Two non-dynamic shapes pair only through a sensor, and two sensors never
-// detect each other. Two shapes without area, a segment or a chain segment
-// against another, never hold each other: two lines have no inside to push
-// each other out of, so a body that meets one faster than the contact
-// margin per step passes through it. A sensor among them still pairs. Then
-// the filters: one group decides alone, a negative one keeping the two
-// apart and a positive one pairing them; otherwise each shape's category
-// must be in the other's mask.
+// Two shapes on static bodies never pair, a sensor among them or not: a
+// static mover queries only the dynamic tree. Two non-dynamic shapes pair
+// only through a sensor, and two sensors never detect each other. Two
+// shapes without area, a segment or a chain segment against another, never
+// hold each other: two lines have no inside to push each other out of, so a
+// body that meets one faster than the contact margin per step passes
+// through it. A sensor among them still pairs. Then the filters: one group
+// decides alone, a negative one keeping the two apart and a positive one
+// pairing them; otherwise each shape's category must be in the other's
+// mask.
 bool m2SidesMayPair(const m2PairSide* a, const m2PairSide* b)
 {
-    if (a->sensor && b->sensor)
+    if ((a->sensor && b->sensor) ||
+        (a->bodyType == (uint8_t)m2_staticBody && b->bodyType == (uint8_t)m2_staticBody))
     {
         return false;
     }
+    bool dynamic = a->bodyType == (uint8_t)m2_dynamicBody || b->bodyType == (uint8_t)m2_dynamicBody;
     bool lineA = a->type == (int32_t)m2_segmentShape || a->type == (int32_t)m2_chainSegmentShape;
     bool lineB = b->type == (int32_t)m2_segmentShape || b->type == (int32_t)m2_chainSegmentShape;
-    if (!a->sensor && !b->sensor && (!(a->dynamic || b->dynamic) || (lineA && lineB)))
+    if (!a->sensor && !b->sensor && (!dynamic || (lineA && lineB)))
     {
         return false;
     }
@@ -132,7 +133,7 @@ void m2UpdatePairs(m2World* world)
             world->broadphase.treeNodes[treeIndex][world->broadphase.proxyIds[shapeIndex]].aabb;
 
         m2PairSide moverSide = m2ShapePairSide(world, shapeIndex);
-        bool moverDynamic = moverSide.dynamic;
+        bool moverDynamic = moverSide.bodyType == (uint8_t)m2_dynamicBody;
         // Kinematic movers sweep every tree: a kinematic character
         // walking through a static trigger zone is the most ordinary
         // sensor story there is. Static movers only exist via

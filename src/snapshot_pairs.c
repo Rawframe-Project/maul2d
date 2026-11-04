@@ -102,10 +102,9 @@ static m2PairSide IncomingSide(const IncomingFilters* f, int32_t shape)
                offsetof(m2ShapeGeometry, type),
            sizeof(type));
     int32_t body = ReadI32(f->shapeBody, shape);
-    m2PairSide side = {
-        ReadU64(f->categories, shape), ReadU64(f->masks, shape),
-        ReadI32(f->groups, shape),     type,
-        f->sensors[shape] != 0,        f->bodyTypes[body] == (uint8_t)m2_dynamicBody};
+    m2PairSide side = {ReadU64(f->categories, shape), ReadU64(f->masks, shape),
+                       ReadI32(f->groups, shape),     type,
+                       f->sensors[shape] != 0,        f->bodyTypes[body]};
     return side;
 }
 
@@ -149,11 +148,12 @@ static bool HasKey(const uint64_t* keys, int32_t count, uint64_t key)
 }
 
 // The pairs the next step keeps, those with no moved shape, are pairs the
-// broadphase would make: their kinds and filters let them pair, and no
-// joint without connected collision joins their bodies. A host call that
-// changes any of these between steps marks the shapes moved, and the step
-// drops their pairs before it reads one. The kept pairs' bodies go into
-// pairScratch, sorted, for the joints to look up.
+// broadphase would make: their kinds, their bodies' types and their
+// filters let them pair, and no joint without connected collision joins
+// their bodies. A host call that changes any of these between steps marks
+// the shapes moved, and the step drops their pairs before it reads one.
+// The kept pairs' bodies go into pairScratch, sorted, for the joints to
+// look up.
 static bool CheckKeptPairs(m2World* world, const uint8_t* in)
 {
     const IncomingFilters filters = {M2_IN(shapes.shapeCategory), M2_IN(shapes.shapeMask),

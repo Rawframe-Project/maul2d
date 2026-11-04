@@ -1420,6 +1420,7 @@ typedef enum PairShape
     pairLineToo,   // a segment on pairPlain's body
     pairTeamA,     // dynamic, group 2, its mask 0
     pairTeamB,     // dynamic, group 2, its mask 0
+    pairStill,     // a sensor on a static body
     pairDeafLast,  // dynamic, its mask 0, in the highest slot
     pairShapeCount,
 } PairShape;
@@ -1500,6 +1501,12 @@ static Scene MakePairScene(void)
     team.maskBits = 0;
     PairBox(&scene, PairBody(&scene, m2_dynamicBody, 32.0), pairTeamA, &team);
     PairBox(&scene, PairBody(&scene, m2_dynamicBody, 36.0), pairTeamB, &team);
+    m2ShapeDef still = m2DefaultShapeDef();
+    still.isSensor = true;
+    m2Circle zone = {{0.0f, 0.0f}, 1.0f};
+    m2BodyId stillBody = PairBody(&scene, m2_staticBody, 44.0);
+    s_pairShapes[pairStill] =
+        (int32_t)NewCircleShape(scene.world, stillBody, &still, &zone).index1 - 1;
     PairBox(&scene, PairBody(&scene, m2_dynamicBody, 40.0), pairDeafLast, &deaf);
     Step(scene.world, 1.0f / 60.0f, 4);
     CHECK(scene.world->contacts.pairCount == 0 && scene.world->broadphase.movedCount == 0,
@@ -1556,11 +1563,15 @@ static void TestPairsTheBroadphaseNeverMakes(void)
     ExpectPairRestores(&scene, pairBox, pairPlain, "a pair of two plain boxes restores");
     ExpectPairRestores(&scene, pairGround, pairBox, "a box on the ground restores");
     ExpectPairRestores(&scene, pairGround, pairSensor, "a sensor on the ground restores");
+    ExpectPairRestores(&scene, pairLift, pairStill,
+                       "a kinematic shape in a static sensor restores");
     ExpectPairRestores(&scene, pairTeamA, pairTeamB,
                        "a pair in one positive group restores whatever the masks");
     ExpectPairRestores(&scene, pairLoner, pairPlain,
                        "a pair of bodies pinned with connected collision restores");
     ExpectPairRefused(&scene, pairGround, pairLift, "a static and a kinematic shape are refused");
+    ExpectPairRefused(&scene, pairGround, pairStill,
+                      "two static shapes are refused, a sensor among them");
     ExpectPairRefused(&scene, pairSensor, pairSensorToo, "two sensors are refused");
     ExpectPairRefused(&scene, pairLine, pairLineToo, "two segments are refused");
     ExpectPairRefused(&scene, pairLoner, pairLonerToo, "one negative group is refused");
@@ -1621,6 +1632,54 @@ static void TestPairsLeftForTheNextStep(void)
     Step(world, 1.0f / 60.0f, 4);
     CHECK(world->contacts.pairCount == 0 && RestoresItself(world),
           "the next step drops the three pairs, and the world restores");
+    m2DestroyWorld(world);
+}
+
+// Two boxes that touched drift apart slowly: their own boxes no longer
+// overlap, but each stays inside its fat box, so no shape moves and the
+// step keeps the pair. A snapshot of that world restores with the pair and
+// continues as the world does.
+static void TestPairsApartWithinTheMargin(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.gravity = (m2Vec2){0.0f, 0.0f};
+    m2World* world = NewWorld(&def);
+    m2BodyDef boxDef = m2DefaultBodyDef();
+    boxDef.type = m2_dynamicBody;
+    m2ShapeDef shapeDef = m2DefaultShapeDef();
+    m2Polygon square = m2MakeBox(0.5f, 0.5f);
+    m2ShapeId shapes[2];
+    for (int32_t i = 0; i < 2; ++i)
+    {
+        boxDef.position = (m2Pos2){(double)i, 0.0};
+        boxDef.linearVelocity = (m2Vec2){i == 0 ? -0.3f : 0.3f, 0.0f};
+        shapes[i] = NewPolygonShape(world, NewBody(world, &boxDef), &shapeDef, &square);
+    }
+    for (int32_t i = 0; i < 10; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+    }
+    m2WorldAabb left = m2Shape_GetAabb(world, shapes[0]);
+    m2WorldAabb right = m2Shape_GetAabb(world, shapes[1]);
+    CHECK(left.upperBound.x < right.lowerBound.x, "the two boxes no longer overlap");
+    CHECK(world->contacts.pairCount == 1 && world->broadphase.movedCount == 0,
+          "no shape left its fat box, and the step keeps the pair");
+
+    int64_t size = m2World_GetSnapshotSize(world);
+    uint8_t* bytes = (uint8_t*)malloc((size_t)size);
+    CHECK(bytes != NULL && Snapshot(world, bytes, size) == size, "the world snapshots");
+    if (bytes == NULL)
+    {
+        m2DestroyWorld(world);
+        return;
+    }
+    Step(world, 1.0f / 60.0f, 4);
+    uint64_t hash = m2World_Hash(world);
+    CHECK(Restore(world, bytes, size) && world->contacts.pairCount == 1,
+          "the snapshot restores with the pair");
+    Step(world, 1.0f / 60.0f, 4);
+    CHECK(m2World_Hash(world) == hash, "the restored world continues as the world did");
+    free(bytes);
     m2DestroyWorld(world);
 }
 
@@ -2450,6 +2509,7 @@ int main(void)
     TestParticleLinksJoinLiveParticles();
     TestPairsTheBroadphaseNeverMakes();
     TestPairsLeftForTheNextStep();
+    TestPairsApartWithinTheMargin();
     TestFuzzFinds();
     TestRangeBounds();
     TestJointKindBounds();
