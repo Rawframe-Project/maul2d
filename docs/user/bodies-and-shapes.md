@@ -71,4 +71,4 @@ m2Result broke = m2Body_Shatter(world, wall, pieces, pieceCount, fragments, 8, &
 
 ## Explosions
 
-`m2World_Explode` is one blast: every dynamic shape within reach gets an outward impulse at its closest point, at full strength inside the radius and fading to zero across the falloff band, filtered by category. It is one journal operation.
+`m2World_Explode` is one blast: every dynamic shape within reach gets an outward impulse at its closest point, at full strength inside the radius and fading to zero across the falloff band, filtered by category. A shape with the blast inside it is pushed out through its body's center of mass; a blast at the center of mass itself pushes nothing. It is one journal operation.
