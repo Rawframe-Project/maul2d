@@ -11,10 +11,16 @@ across minor versions.
 
 ## [1.3.1](https://github.com/Rawframe-Project/maul2d/compare/v1.3.0...v1.3.1) (2026-11-05)
 
+This release makes the compiler check that the library never drops the result of one of its own internal `bool` functions by mistake. Nothing a program sees changes: no golden line moves, and the snapshot and journal formats keep their versions.
 
 ### Fixed
 
-* **family:** mark every internal bool function nodiscard ([#342](https://github.com/Rawframe-Project/maul2d/issues/342)) ([e077bc6](https://github.com/Rawframe-Project/maul2d/commit/e077bc64ad2ddddf104ff8811ed8bbd1db2c0ed2)), closes [#341](https://github.com/Rawframe-Project/maul2d/issues/341)
+- Every internal function that returns `bool` carries `M2_NODISCARD` ([#342](https://github.com/Rawframe-Project/maul2d/pull/342)). 231 of them lacked it, so a call that dropped such a result could go on past a refusal, or with an out value left unset, and no compiler warned. With the mark, GCC 14 found 25 calls that drop a result. Each one is meant to, so each now says so with `(void)`:
+  - 19 setters, whose parameter channel has already counted the misuse;
+  - 5 second writes of a pair, which cannot fail once the first has passed;
+  - 1 corner contact step in the polygon manifold, whose result nothing reads.
+
+  `tools/check_nodiscard.py` keeps every new internal `bool` function marked.
 
 ## [1.3.0](https://github.com/Rawframe-Project/maul2d/compare/v1.2.2...v1.3.0) (2026-11-05)
 
