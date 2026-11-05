@@ -1682,6 +1682,33 @@ static void TestSegmentShapePointQueries(void)
     m2DestroyWorld(world);
 }
 
+// A point inside a shape, or within its radius, is its own closest point;
+// one just outside comes back on the surface.
+static void TestClosestPointFromInside(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 2;
+    def.shapeCapacity = 2;
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.position = (m2Pos2){0.0, 5.0};
+    m2BodyId ground = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon block = m2MakeBox(1.0f, 1.0f);
+    m2ShapeId box = NewPolygonShape(world, ground, &sd, &block);
+    m2Capsule rod = {{3.0f, 0.0f}, {5.0f, 0.0f}, 0.5f};
+    m2ShapeId capsule = NewCapsuleShape(world, ground, &sd, &rod);
+    m2Pos2 inside = m2Shape_GetClosestPoint(world, box, (m2Pos2){0.25, 5.5});
+    CHECK(inside.x == 0.25 && inside.y == 5.5, "a point inside the box comes back as it is");
+    m2Pos2 rounded = m2Shape_GetClosestPoint(world, capsule, (m2Pos2){4.0, 5.25});
+    CHECK(rounded.x == 4.0 && rounded.y == 5.25,
+          "so does a point within the capsule's radius of its core");
+    m2Pos2 outside = m2Shape_GetClosestPoint(world, box, (m2Pos2){1.5, 5.5});
+    CHECK(outside.x > 0.9999 && outside.x < 1.0001 && outside.y > 5.4999 && outside.y < 5.5001,
+          "a point just outside comes back on the surface");
+    m2DestroyWorld(world);
+}
+
 // Dominance: the higher body cannot be
 // pushed by the lower one in contacts, statics outrank everyone,
 // joints stay symmetric.
@@ -4976,6 +5003,7 @@ static void TestJointEdgesThatWrapAreRefused(void)
 
 int main(void)
 {
+    TestClosestPointFromInside();
     TestReplayScratchRefusedIsCapacity();
     TestJointEdgesThatWrapAreRefused();
     TestHashSeesTheBroadphase();
