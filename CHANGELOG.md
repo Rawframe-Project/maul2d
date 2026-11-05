@@ -9,6 +9,45 @@ minor release, and its entry says what changes. A snapshot or journal
 tape is read within the minor version that wrote it and refused
 across minor versions.
 
+## [1.3.0](https://github.com/Rawframe-Project/maul2d/compare/v1.2.2...v1.3.0) (2026-11-05)
+
+This release adds four calls and settings from the 1.0 API review: a motor joint's budgets change at run time, a water volume's game data changes after creation, a chain's material reads back, and each body has its own sleep threshold. It also makes `M2_NODISCARD` warn under GCC 14's C23. Every golden line moves, but only by value: no result moves. `M2_SNAPSHOT_VERSION` goes from 8 to 9 and `M2_JOURNAL_VERSION` from 9 to 10. As in every minor release, snapshots and tapes written by 1.2 are refused with `m2_errorVersion`.
+
+### Changed
+
+- **Results:** every golden line moves, by value only, the same in the scalar and AVX2 builds ([#336](https://github.com/Rawframe-Project/maul2d/pull/336), [#338](https://github.com/Rawframe-Project/maul2d/pull/338)). No result moves.
+  - The 11 world hash lines move because the world hash now covers each body's sleep threshold. Built with that array left out of the hash, they print 1.2.2's values.
+  - `ROLLBACK_SNAPSHOT` hashes a snapshot's bytes, which gain the chain material arrays and the sleep thresholds. `JOURNAL_TAPE` hashes a tape's bytes, which carry the new journal version, the thresholds in the body create records and an embedded snapshot.
+
+  | Line | 1.2.2 | 1.3.0 |
+  |---|---|---|
+  | `BENCH_CHAIN2000` | `2554521beecb135f` | `d4b1f43baa177ee7` |
+  | `BENCH_CHAIN30` | `c9fd2db3a2d15e08` | `068decfc106c5ea2` |
+  | `BENCH_JOINTFARM` | `043d06bccfc7f9b2` | `4d97fda24df98301` |
+  | `BENCH_PYRAMID15` | `6b9d8f0f43cf9b65` | `d16323c55ce611c3` |
+  | `BENCH_PYRAMID30` | `68a747f0547301f5` | `03c4be656058313a` |
+  | `BENCH_WATER` | `12a22f226b422370` | `49f8b8fd5d013281` |
+  | `CONTACTS` | `be1739f64f0dffe3` | `6d21a40bb3c38814` |
+  | `FLUID` | `8543bafd11159c27` | `89566f4410d4b11c` |
+  | `JOURNAL` | `47d5b04946d9c7fa` | `3479f22aa69c1583` |
+  | `JOURNAL_TAPE` | `404c15ec9f9ac99d` | `5a657a1f11dfaf87` |
+  | `ROLLBACK` | `8d7a22907589d94c` | `5c83e1c8a5f16470` |
+  | `ROLLBACK_SNAPSHOT` | `a8990daefb7deb76` | `9efe5ede9e675fd2` |
+  | `STACK` | `ee8019b97eba97d3` | `b3238ceb722bb991` |
+
+- **Formats:** `M2_SNAPSHOT_VERSION` goes from 8 to 9 ([#336](https://github.com/Rawframe-Project/maul2d/pull/336)): the snapshot gains each chain's friction and restitution, and each body's sleep threshold ([#338](https://github.com/Rawframe-Project/maul2d/pull/338)). `M2_JOURNAL_VERSION` goes from 9 to 10 ([#338](https://github.com/Rawframe-Project/maul2d/pull/338)): the body create record now holds the def's sleep threshold, in bytes that were zero. The record stays 88 bytes. The new records of [#329](https://github.com/Rawframe-Project/maul2d/pull/329) and [#332](https://github.com/Rawframe-Project/maul2d/pull/332) leave the journal version as it is, since the reader checks the tape's `M2_ABI_VERSION` before any record.
+
+### Added
+
+- A body's sleep threshold ([#338](https://github.com/Rawframe-Project/maul2d/pull/338)). `m2BodyDef.sleepThreshold` sets the speed below which a body counts as resting, 0 for the default 0.05 m/s, and `m2Body_SetSleepThreshold` changes it later. The spin limit scales with it: 0.12 rad/s times the threshold over 0.05. `m2Body_GetSleepThreshold` reads it back. A body at the default sleeps on the same bits as before. The def stays 80 bytes: the field takes what was its trailing padding.
+- `m2Chain_GetFriction` and `m2Chain_GetRestitution` ([#336](https://github.com/Rawframe-Project/maul2d/pull/336)). A chain keeps its own material, as its def or `m2Chain_SetFriction` and `m2Chain_SetRestitution` last set it, not any link's: `m2Shape_SetFriction` on one link does not change it. A restore checks it with the ranges the def and the setters use.
+- `m2MotorJoint_SetMaxForce`, `m2MotorJoint_SetMaxTorque` and `m2MotorJoint_GetMaxTorque` ([#329](https://github.com/Rawframe-Project/maul2d/pull/329)). A motor joint's budgets change at run time, so a platform can let go of its rider or grip harder without being made again. Each setter takes 0 to `M2_FORCE_LIMIT`, wakes both bodies, and counts one misuse on another joint type.
+- `m2WaterVolume_SetUserData` ([#332](https://github.com/Rawframe-Project/maul2d/pull/332)). A water volume's game data changes after creation, so the volume keeps its id.
+
+### Fixed
+
+- `M2_NODISCARD` is the attribute under GCC 14's C23 too ([#334](https://github.com/Rawframe-Project/maul2d/pull/334)). In C it waited for `__STDC_VERSION__` 202311L, but GCC 14 reports 202000L in its C23 mode. So under GCC the macro was empty, and a program could drop any status from the library without a warning. It now takes the attribute in any dialect after C17 whose compiler has it.
+
 ## [1.2.2](https://github.com/Rawframe-Project/maul2d/compare/v1.2.1...v1.2.2) (2026-11-04)
 
 This release makes a body whose rotation is locked hold still whatever spin the host gives it, and makes `m2World_Restore` refuse three more kinds of state that the step would act on wrongly. No golden line moves, and the snapshot and journal formats keep their versions. One kind of snapshot written by 1.2.0 is now refused: see the frozen pairs below.
