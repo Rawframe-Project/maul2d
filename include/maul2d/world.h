@@ -262,7 +262,10 @@ extern "C"
     /// One blast. Every dynamic, non-sensor shape whose category passes
     /// maskBits and whose closest point lies within radius + falloff gets
     /// an outward impulse at that point: full strength inside radius,
-    /// fading to zero across the falloff band.
+    /// fading to zero across the falloff band. A shape with the blast inside
+    /// it, its rounding included, is pushed in the direction from the blast
+    /// to its body's center of mass; a blast inside it at the center of mass
+    /// itself pushes nothing.
     typedef struct m2ExplosionDef
     {
         m2Pos2 position;
