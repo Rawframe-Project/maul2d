@@ -9,6 +9,21 @@ minor release, and its entry says what changes. A snapshot or journal
 tape is read within the minor version that wrote it and refused
 across minor versions.
 
+## [1.3.0](https://github.com/Rawframe-Project/maul2d/compare/v1.2.2...v1.3.0) (2026-11-05)
+
+
+### Added
+
+* **api:** read a chain's own friction and restitution ([#336](https://github.com/Rawframe-Project/maul2d/issues/336)) ([42326e7](https://github.com/Rawframe-Project/maul2d/commit/42326e73396bef1216ee565786edf2b04872d8ac)), closes [#335](https://github.com/Rawframe-Project/maul2d/issues/335)
+* **fluid:** set a water volume's game data after creation ([#332](https://github.com/Rawframe-Project/maul2d/issues/332)) ([7b8139c](https://github.com/Rawframe-Project/maul2d/commit/7b8139c52abb9bc62ff986bbd9002ad984ea4209)), closes [#331](https://github.com/Rawframe-Project/maul2d/issues/331)
+* **joints:** set a motor joint's force and torque budgets at run time ([#329](https://github.com/Rawframe-Project/maul2d/issues/329)) ([486c3af](https://github.com/Rawframe-Project/maul2d/commit/486c3af7325b185273ee9019c833fead08efdd9c)), closes [#328](https://github.com/Rawframe-Project/maul2d/issues/328)
+* **world:** give each body its own sleep threshold ([#338](https://github.com/Rawframe-Project/maul2d/issues/338)) ([0e9621b](https://github.com/Rawframe-Project/maul2d/commit/0e9621baa496e48b4016af2651433949c305ba01)), closes [#337](https://github.com/Rawframe-Project/maul2d/issues/337)
+
+
+### Fixed
+
+* **api:** make M2_NODISCARD the attribute under GCC 14's C23 too ([#334](https://github.com/Rawframe-Project/maul2d/issues/334)) ([2844749](https://github.com/Rawframe-Project/maul2d/commit/28447493e736e8ca6674073a6a2635cb30458a52)), closes [#333](https://github.com/Rawframe-Project/maul2d/issues/333)
+
 ## [1.2.2](https://github.com/Rawframe-Project/maul2d/compare/v1.2.1...v1.2.2) (2026-11-04)
 
 This release makes a body whose rotation is locked hold still whatever spin the host gives it, and makes `m2World_Restore` refuse three more kinds of state that the step would act on wrongly. No golden line moves, and the snapshot and journal formats keep their versions. One kind of snapshot written by 1.2.0 is now refused: see the frozen pairs below.
