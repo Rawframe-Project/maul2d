@@ -325,7 +325,9 @@ static void TestSegmentBulletStops(void)
     AddWall(world, 0.0, 0.05f, 5.0f);
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
-    bd.position = (m2Pos2){-10.0, 0.0};
+    // One step moves it 10 m: unswept, it would land at x = 0.2, past
+    // the wall, not on the wall's center.
+    bd.position = (m2Pos2){-9.8, 0.0};
     bd.linearVelocity = (m2Vec2){600.0f, 0.0f};
     bd.enableBullet = true;
     m2BodyId bullet = NewBody(world, &bd);
@@ -339,6 +341,33 @@ static void TestSegmentBulletStops(void)
         Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2Body_GetPosition(world, bullet).x < 0.0, "a segment bullet stops at a thin wall");
+    m2DestroyWorld(world);
+}
+
+static void TestCapsuleBulletStops(void)
+{
+    // A bullet whose only shape is a capsule is swept by the circle that
+    // holds the capsule, its radius included: it stops at a thin wall.
+    m2WorldDef def = m2DefaultWorldDef();
+    def.gravity = (m2Vec2){0.0f, 0.0f};
+    m2World* world = NewWorld(&def);
+    AddWall(world, 0.0, 0.05f, 5.0f);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    // One step moves it 10 m: unswept, it would land at x = 0.2, past
+    // the wall, not on the wall's center.
+    bd.position = (m2Pos2){-9.8, 0.0};
+    bd.linearVelocity = (m2Vec2){600.0f, 0.0f};
+    bd.enableBullet = true;
+    m2BodyId bullet = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Capsule rod = {{0.0f, -0.5f}, {0.0f, 0.5f}, 0.05f};
+    NewCapsuleShape(world, bullet, &sd, &rod);
+    for (int32_t i = 0; i < 30; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(m2Body_GetPosition(world, bullet).x < 0.0, "a capsule bullet stops at a thin wall");
     m2DestroyWorld(world);
 }
 
@@ -386,6 +415,7 @@ static void TestBulletStopsAtEveryPostShape(void)
 int main(void)
 {
     TestSegmentBulletStops();
+    TestCapsuleBulletStops();
     TestBulletStopsAtEveryPostShape();
     TestCrowdedSweepIgnoresTreeHistory();
     TestBulletStopsBehindACrowd();

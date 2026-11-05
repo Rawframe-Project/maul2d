@@ -1745,6 +1745,7 @@ static void TestValidateAndCounters(void)
         Step(world, 1.0f / 60.0f, 4);
     }
     CHECK(m2World_Validate(world), "a healthy world validates");
+    CHECK(!m2World_Validate(NULL), "a null world does not");
     uint64_t before = m2World_Hash(world);
     m2World_Validate(world);
     CHECK(m2World_Hash(world) == before, "the validator is a pure reader");
