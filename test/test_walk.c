@@ -40,6 +40,7 @@ int main(int argc, char** argv)
     {
         extraSeeds = 0;
     }
+    s_walkLateWriters = true;
     uint8_t* journal = malloc(WALK_JOURNAL_CAPACITY);
     int32_t regressionCount = (int32_t)(sizeof(s_regressionSeeds) / sizeof(s_regressionSeeds[0]));
     for (int32_t i = 0; i < regressionCount; ++i)

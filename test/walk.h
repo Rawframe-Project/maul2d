@@ -176,8 +176,119 @@ static m2ShapeId RandomShape(m2World* world)
     return ids[Pick((uint32_t)n)];
 }
 
+// The writers 1.3.0 added, on a path the canonical seeds never take:
+// test_walk.c and fuzz_walk.c set it, test_golden.c does not, so the
+// promises cover these writers while M2_JOURNAL_HASH stays as pinned.
+static bool s_walkLateWriters;
+
+// The pool RunScenario makes; the walk never destroys it.
+static m2WaterVolumeId s_walkPool;
+
+static void DoLateWriterOp(m2World* world)
+{
+    uint32_t which = Pick(5);
+    if (which == 0)
+    {
+        m2BodyId body = RandomBody(world);
+        if (body.index1 != 0)
+        {
+            static const float thresholds[5] = {0.0f, 0.02f, 0.05f, 0.2f, 0.6f};
+            m2Body_SetSleepThreshold(world, body, thresholds[Pick(5)]);
+        }
+        return;
+    }
+    if (which == 1)
+    {
+        if (m2World_GetCounters(world).bodyCount >= 15)
+        {
+            return;
+        }
+        m2BodyDef bd = m2DefaultBodyDef();
+        bd.type = m2_dynamicBody;
+        double px = PickCoord();
+        double py = (double)Pick(80) * 0.1;
+        bd.position = (m2Pos2){px, py};
+        bd.sleepThreshold = (float)Pick(16) * 0.04f; // 0 is the default
+        NewBody(world, &bd);
+        return;
+    }
+    if (which == 2)
+    {
+        m2ChainId ids[8];
+        int32_t n = m2World_GetChains(world, ids, 8);
+        n = n < 8 ? n : 8;
+        if (n == 0)
+        {
+            return;
+        }
+        m2ChainId chain = ids[Pick((uint32_t)n)];
+        float value = PickUnit() * 0.9f;
+        if (Pick(2) == 0)
+        {
+            m2Chain_SetFriction(world, chain, value);
+        }
+        else
+        {
+            m2Chain_SetRestitution(world, chain, value);
+        }
+        return;
+    }
+    if (which == 3)
+    {
+        m2WaterVolume_SetUserData(world, s_walkPool, (uint64_t)Pick(1000));
+        return;
+    }
+    // A motor joint, picked among the motor joints alone; with none, one
+    // is made that pulls its bodies 2 m apart, so its budgets bind.
+    m2JointId ids[8];
+    int32_t n = m2World_GetJoints(world, ids, 8);
+    n = n < 8 ? n : 8;
+    int32_t motors = 0;
+    for (int32_t i = 0; i < n; ++i)
+    {
+        if (m2Joint_GetType(world, ids[i]) == m2_motorJoint)
+        {
+            ids[motors++] = ids[i];
+        }
+    }
+    if (motors == 0)
+    {
+        m2BodyId a = RandomBody(world);
+        m2BodyId b = RandomBody(world);
+        if (m2World_GetCounters(world).jointCount >= 7 || a.index1 == 0 || b.index1 == 0 ||
+            a.index1 == b.index1)
+        {
+            return;
+        }
+        m2MotorJointDef jd = m2DefaultMotorJointDef();
+        jd.bodyIdA = a;
+        jd.bodyIdB = b;
+        jd.linearOffset = (m2Vec2){2.0f, 0.0f};
+        jd.maxForce = 20.0f;
+        jd.maxTorque = 5.0f;
+        NewMotorJoint(world, &jd);
+        return;
+    }
+    m2JointId joint = ids[Pick((uint32_t)motors)];
+    static const float budgets[5] = {0.0f, 1.0f, 5.0f, 50.0f, 400.0f};
+    float budget = budgets[Pick(5)];
+    if (Pick(2) == 0)
+    {
+        m2MotorJoint_SetMaxForce(world, joint, budget);
+    }
+    else
+    {
+        m2MotorJoint_SetMaxTorque(world, joint, budget * 0.25f);
+    }
+}
+
 static void DoRandomOp(m2World* world)
 {
+    if (s_walkLateWriters && Pick(10) == 0)
+    {
+        DoLateWriterOp(world);
+        return;
+    }
     m2Counters counters = m2World_GetCounters(world);
     uint32_t roll = Pick(100);
 
@@ -872,7 +983,7 @@ static uint64_t RunScenario(uint64_t seed, uint8_t* journal, int32_t journalCapa
     pool.bounds = (m2WorldAabb){{-14.0, -3.0}, {14.0, 2.0}};
     pool.surface = 0.0;
     pool.flow = (m2Vec2){0.3f, 0.0f};
-    NewWaterVolume(world, &pool);
+    s_walkPool = NewWaterVolume(world, &pool);
 
     for (int32_t i = 0; i < 300; ++i)
     {
@@ -893,6 +1004,11 @@ static uint64_t RunScenario(uint64_t seed, uint8_t* journal, int32_t journalCapa
         m2World* fresh = NewWorld(&def);
         CHECK(ReplayJournal(fresh, journal, bytes), "the walk replays");
         CHECK(m2World_Hash(fresh) == endHash, "replay lands on the recorded bits");
+        // The world hash leaves out what the step never reads, such as
+        // the pool's game data.
+        CHECK(m2WaterVolume_GetUserData(fresh, s_walkPool) ==
+                  m2WaterVolume_GetUserData(world, s_walkPool),
+              "replay restores the pool's game data");
         m2DestroyWorld(fresh);
     }
 
