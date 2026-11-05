@@ -325,7 +325,9 @@ static void TestSegmentBulletStops(void)
     AddWall(world, 0.0, 0.05f, 5.0f);
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
-    bd.position = (m2Pos2){-10.0, 0.0};
+    // One step moves it 10 m: unswept, it would land at x = 0.2, past
+    // the wall, not on the wall's center.
+    bd.position = (m2Pos2){-9.8, 0.0};
     bd.linearVelocity = (m2Vec2){600.0f, 0.0f};
     bd.enableBullet = true;
     m2BodyId bullet = NewBody(world, &bd);
@@ -352,7 +354,9 @@ static void TestCapsuleBulletStops(void)
     AddWall(world, 0.0, 0.05f, 5.0f);
     m2BodyDef bd = m2DefaultBodyDef();
     bd.type = m2_dynamicBody;
-    bd.position = (m2Pos2){-10.0, 0.0};
+    // One step moves it 10 m: unswept, it would land at x = 0.2, past
+    // the wall, not on the wall's center.
+    bd.position = (m2Pos2){-9.8, 0.0};
     bd.linearVelocity = (m2Vec2){600.0f, 0.0f};
     bd.enableBullet = true;
     m2BodyId bullet = NewBody(world, &bd);

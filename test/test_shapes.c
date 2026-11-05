@@ -874,6 +874,8 @@ static void TestHullRefusesTooLittle(void)
     m2Polygon hull = m2MakeBox(2.0f, 2.0f);
     CHECK(m2ComputeHull(NULL, 3, 0.0f, &hull) == m2_errorInvalid, "a null cloud is refused");
     CHECK(m2ComputeHull(cloud, 2, 0.0f, &hull) == m2_errorInvalid, "and two points");
+    CHECK(m2ComputeHull(cloud, 2, 1.0e30f, &hull) == m2_errorInvalid,
+          "two points are too few before the radius is checked");
     CHECK(m2ComputeHull(cloud, 3, 0.0f, NULL) == m2_errorInvalid, "and a null output");
     CHECK(hull.count == 4 && hull.vertices[0].x == -2.0f, "each leaves the output as it was");
     CHECK(m2ComputeHull(cloud, 3, 0.0f, &hull) == m2_success && hull.count == 3,
