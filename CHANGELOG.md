@@ -9,6 +9,13 @@ minor release, and its entry says what changes. A snapshot or journal
 tape is read within the minor version that wrote it and refused
 across minor versions.
 
+## [1.3.1](https://github.com/Rawframe-Project/maul2d/compare/v1.3.0...v1.3.1) (2026-11-05)
+
+
+### Fixed
+
+* **family:** mark every internal bool function nodiscard ([#342](https://github.com/Rawframe-Project/maul2d/issues/342)) ([e077bc6](https://github.com/Rawframe-Project/maul2d/commit/e077bc64ad2ddddf104ff8811ed8bbd1db2c0ed2)), closes [#341](https://github.com/Rawframe-Project/maul2d/issues/341)
+
 ## [1.3.0](https://github.com/Rawframe-Project/maul2d/compare/v1.2.2...v1.3.0) (2026-11-05)
 
 This release adds four calls and settings from the 1.0 API review: a motor joint's budgets change at run time, a water volume's game data changes after creation, a chain's material reads back, and each body has its own sleep threshold. It also makes `M2_NODISCARD` warn under GCC 14's C23. Every golden line moves, but only by value: no result moves. `M2_SNAPSHOT_VERSION` goes from 8 to 9 and `M2_JOURNAL_VERSION` from 9 to 10. As in every minor release, snapshots and tapes written by 1.2 are refused with `m2_errorVersion`.
