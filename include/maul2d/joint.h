@@ -787,7 +787,8 @@ extern "C"
     ///
     /// @param world    The world.
     /// @param jointId  A prismatic or wheel joint.
-    /// @return The unit axis; zero for another joint type or a stale id.
+    /// @return The unit axis; zero for another joint type or a stale id,
+    ///         which count one misuse.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
