@@ -794,12 +794,14 @@ extern "C"
     M2_API bool m2Shape_TestPoint(const m2World* world, m2ShapeId shapeId, m2Pos2 point);
 
     /// Finds the point of a shape's surface nearest a world point, radius
-    /// included.
+    /// included. A point inside the shape, or within its radius, is its own
+    /// nearest point and comes back as it is.
     ///
     /// @param world    The world.
     /// @param shapeId  The shape; a stale id counts one misuse.
     /// @param point    The world point.
-    /// @return The nearest surface point; the origin for a stale id.
+    /// @return The nearest surface point, or the point itself when it is
+    ///         inside; the origin for a stale id.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
