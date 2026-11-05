@@ -14,7 +14,7 @@ The frame helpers (`m2Body_GetWorldPoint`, `m2Body_GetLocalPoint`, the vector an
 
 ## Sleep
 
-Bodies that come to rest sleep in islands: everything connected by contacts or joints sleeps and wakes together. When every dynamic body sleeps and nothing kinematic moves, a step costs almost nothing and changes nothing. Everything that should wake a body does: impulses, forces, teleports, type, filter and mass changes, a gravity change, a destroyed neighbor, a broken joint, water, a conveyor that changes speed.
+Bodies that come to rest sleep in islands: everything connected by contacts or joints sleeps and wakes together. A body rests below 0.05 m/s and 0.12 rad/s; `sleepThreshold` in its def, or `m2Body_SetSleepThreshold`, sets another resting speed, and the spin limit scales with it. When every dynamic body sleeps and nothing kinematic moves, a step costs almost nothing and changes nothing. Everything that should wake a body does: impulses, forces, teleports, type, filter and mass changes, a gravity change, a destroyed neighbor, a broken joint, water, a conveyor that changes speed.
 
 `m2Body_EnableSleep(world, body, false)` keeps one body awake for good, and `m2World_EnableSleep(world, false)` wakes everyone and keeps them awake.
 

@@ -8,6 +8,15 @@
 
 #include "world_internal.h"
 
+#define M2_SLEEP_LINEAR_TOLERANCE  0.05f // m/s: the default sleep threshold
+#define M2_SLEEP_ANGULAR_TOLERANCE 0.12f // rad/s at the default threshold
+
+// The threshold a body keeps for one a caller gives: 0 is the default.
+static inline float m2ResolveSleepThreshold(float threshold)
+{
+    return threshold > 0.0f ? threshold : M2_SLEEP_LINEAR_TOLERANCE;
+}
+
 // Wakes whole islands touched by an awake body, then puts islands to
 // sleep once every body in them has rested long enough.
 void m2UpdateIslandsAndWake(m2World* world);

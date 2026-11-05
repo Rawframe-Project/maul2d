@@ -63,6 +63,7 @@ extern "C"
         bool enableBullet;           // continuous collision against non-bullets
         M2_ALIGN8 uint64_t userData; // opaque, kept through snapshots and journals
         int32_t internalValue;       // the cookie m2DefaultBodyDef sets
+        float sleepThreshold;        // resting speed, m/s; 0 = the default 0.05
     } m2BodyDef;
 
     /// Returns a body def: a static, enabled body at the origin with
@@ -83,7 +84,8 @@ extern "C"
     ///                 zero for a static body; its rotation not zero, and
     ///                 normalized to its direction; its gravity scale
     ///                 within M2_GRAVITY_SCALE_LIMIT; its dampings from 0
-    ///                 to M2_RATE_LIMIT.
+    ///                 to M2_RATE_LIMIT; its sleep threshold from 0 to
+    ///                 M2_SPEED_LIMIT.
     /// @param bodyOut  Receives the body; the null id on failure.
     /// @return m2_success; m2_errorInvalid for a null argument, a def not
     ///         from m2DefaultBodyDef, a NaN or a field outside its domain,
@@ -706,6 +708,33 @@ extern "C"
     /// Safe from any thread; a world is used by one thread at a time, or by
     /// several readers at once.
     M2_API bool m2Body_IsSleepEnabled(const m2World* world, m2BodyId bodyId);
+
+    /// Sets the speed below which a body counts as resting. A body rests
+    /// while its speed is below the threshold t and its spin below
+    /// 0.12 rad/s times t / 0.05; resting for half a second with the rest
+    /// of its island, it falls asleep. 0 gives the default, 0.05 m/s and so
+    /// 0.12 rad/s. A kinematic body below its threshold does not wake what
+    /// it touches. The change applies from the next step: a sleeping body
+    /// stays asleep. A stale id, or a threshold outside 0 to
+    /// M2_SPEED_LIMIT, changes nothing and counts one misuse. Journaled.
+    ///
+    /// @param world      The world.
+    /// @param bodyId     The body.
+    /// @param threshold  The resting speed, m/s; 0 for the default.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time.
+    M2_API void m2Body_SetSleepThreshold(m2World* world, m2BodyId bodyId, float threshold);
+
+    /// Reads the speed below which a body counts as resting.
+    ///
+    /// @param world   The world.
+    /// @param bodyId  The body; a stale id counts one misuse.
+    /// @return The threshold, m/s: 0.05 for a body given the default;
+    ///         0 for a stale id.
+    /// @par Thread safety
+    /// Safe from any thread; a world is used by one thread at a time, or by
+    /// several readers at once.
+    M2_API float m2Body_GetSleepThreshold(const m2World* world, m2BodyId bodyId);
 
     /// Applies an angular impulse, changing the angular velocity at once.
     /// The body wakes, and its spin saturates at M2_SPEED_LIMIT. A stale id, a

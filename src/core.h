@@ -250,6 +250,12 @@ static inline m2Result m2CheckMaxForce(float x)
 {
     return m2CheckNonNegative(x, M2_FORCE_LIMIT);
 }
+// A body's sleep threshold as a caller gives it: a resting speed, 0 for
+// the default.
+static inline m2Result m2CheckSleepThreshold(float x)
+{
+    return m2CheckNonNegative(x, M2_SPEED_LIMIT);
+}
 static inline m2Result m2CheckImpulse(float x)
 {
     return m2CheckWithin(x, M2_IMPULSE_LIMIT);
@@ -366,6 +372,10 @@ static inline bool m2ValidForceVec(m2Vec2 f)
 static inline bool m2ValidMaxForce(float x)
 {
     return m2CheckMaxForce(x) == m2_success;
+}
+static inline bool m2ValidSleepThreshold(float x)
+{
+    return m2CheckSleepThreshold(x) == m2_success;
 }
 static inline bool m2ValidImpulse(float x)
 {

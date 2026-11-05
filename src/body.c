@@ -55,7 +55,8 @@ static m2Result BodyDefCheck(const m2BodyDef* def)
     result = m2BothChecks(result, m2CheckSpeed(def->angularVelocity));
     result = m2BothChecks(result, m2CheckGravityScale(def->gravityScale));
     result = m2BothChecks(result, m2CheckRate(def->linearDamping));
-    return m2BothChecks(result, m2CheckRate(def->angularDamping));
+    result = m2BothChecks(result, m2CheckRate(def->angularDamping));
+    return m2BothChecks(result, m2CheckSleepThreshold(def->sleepThreshold));
 }
 
 // A static body never moves, so its def carries no velocity, as its
@@ -91,6 +92,7 @@ static void RecordBodyDef(m2BodyDef* out, const m2BodyDef* def)
     out->enableBullet = def->enableBullet;
     out->userData = def->userData;
     out->internalValue = def->internalValue;
+    out->sleepThreshold = def->sleepThreshold;
 }
 
 static M2_NOINLINE m2Result CreateBodyWorker(m2World* world, const m2BodyDef* def,
@@ -140,6 +142,7 @@ static M2_NOINLINE m2Result CreateBodyWorker(m2World* world, const m2BodyDef* de
         (uint8_t)((def->motionLocks.linearX ? M2_LOCK_LINEAR_X : 0u) |
                   (def->motionLocks.linearY ? M2_LOCK_LINEAR_Y : 0u));
     world->bodies.sleepEnables[index] = def->enableSleep ? 1 : 0;
+    world->bodies.sleepThresholds[index] = m2ResolveSleepThreshold(def->sleepThreshold);
     world->bodies.forces[index] = (m2Vec2){0.0f, 0.0f};
     world->bodies.torques[index] = 0.0f;
     world->bodies.disabled[index] = def->enable ? 0 : 1;
@@ -314,6 +317,8 @@ static bool BodyParamValid(uint8_t param, float value)
     case m2_bodyParamLockLinearX:
     case m2_bodyParamLockLinearY:
         return value == 0.0f || value == 1.0f;
+    case m2_bodyParamSleepThreshold:
+        return m2ValidSleepThreshold(value);
     default:
         return false;
     }
@@ -349,6 +354,9 @@ bool m2SetBodyParamInternal(m2World* world, m2BodyId bodyId, uint8_t param, floa
         break;
     case m2_bodyParamGravityScale:
         world->bodies.gravityScales[index] = value;
+        break;
+    case m2_bodyParamSleepThreshold:
+        world->bodies.sleepThresholds[index] = m2ResolveSleepThreshold(value);
         break;
     case m2_bodyParamFixedRotation:
         // Fixed rotation is a mass property: inertia recomputes, spin
@@ -512,6 +520,25 @@ void m2Body_EnableSleep(m2World* world, m2BodyId bodyId, bool flag)
 }
 
 M2_BODY_GETTER(bool, m2Body_IsSleepEnabled, world->bodies.sleepEnables[index] != 0, false)
+
+static M2_NOINLINE void BodySetSleepThresholdWorker(m2World* world, m2BodyId bodyId,
+                                                    float threshold)
+{
+    if (m2CheckWriter(world) != m2_success)
+    {
+        return;
+    }
+    m2SetBodyParamInternal(world, bodyId, m2_bodyParamSleepThreshold, threshold);
+}
+
+void m2Body_SetSleepThreshold(m2World* world, m2BodyId bodyId, float threshold)
+{
+    uint64_t env = m2FloatEnvEnter();
+    BodySetSleepThresholdWorker(world, bodyId, threshold);
+    m2FloatEnvLeave(env);
+}
+
+M2_BODY_GETTER(float, m2Body_GetSleepThreshold, world->bodies.sleepThresholds[index], 0.0f)
 
 static M2_NOINLINE void BodySetTypeWorker(m2World* world, m2BodyId bodyId, m2BodyType type)
 {

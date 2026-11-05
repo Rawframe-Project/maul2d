@@ -13,6 +13,7 @@
 #include "maul2d/base.h"
 #include "maul2d/maul2d.h"
 
+#include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -266,8 +267,149 @@ static void TestTeleportWakesBystanders(void)
     m2DestroyWorld(world);
 }
 
+// A box alone in a world without gravity, gliding and spinning at the
+// given rates, which nothing slows: its rates hold their bits until it
+// sleeps.
+static m2World* GlideWorld(float speed, float spin, float threshold, m2BodyId* boxOut)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    def.gravity = (m2Vec2){0.0f, 0.0f};
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    bd.linearVelocity = (m2Vec2){speed, 0.0f};
+    bd.angularVelocity = spin;
+    bd.sleepThreshold = threshold;
+    *boxOut = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon unit = m2MakeBox(0.5f, 0.5f);
+    NewPolygonShape(world, *boxOut, &sd, &unit);
+    return world;
+}
+
+// Whether the glide falls asleep within a second.
+static bool GlideSleeps(float speed, float spin, float threshold)
+{
+    m2BodyId box;
+    m2World* world = GlideWorld(speed, spin, threshold, &box);
+    for (int32_t i = 0; i < 60; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+    }
+    bool asleep = !m2Body_IsAwake(world, box);
+    m2DestroyWorld(world);
+    return asleep;
+}
+
+// A body rests below its threshold t and below a spin of 0.12 rad/s times
+// t / 0.05; 0 in the def, or to the setter, is the default 0.05 m/s.
+static void TestSleepThreshold(void)
+{
+    m2BodyId box;
+    m2World* world = GlideWorld(0.0f, 0.0f, 0.0f, &box);
+    CHECK(m2Body_GetSleepThreshold(world, box) == 0.05f, "a def's 0 is the default, 0.05 m/s");
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+    m2Body_SetSleepThreshold(world, box, 0.3f);
+    CHECK(m2Body_GetSleepThreshold(world, box) == 0.3f, "the setter's threshold reads back");
+    m2Body_SetSleepThreshold(world, box, 0.0f);
+    CHECK(m2Body_GetSleepThreshold(world, box) == 0.05f &&
+              m2World_GetCounters(world).misuseCount == misuse,
+          "and its 0 is the default too");
+    m2Body_SetSleepThreshold(world, box, M2_SPEED_LIMIT);
+    CHECK(m2Body_GetSleepThreshold(world, box) == M2_SPEED_LIMIT &&
+              m2World_GetCounters(world).misuseCount == misuse,
+          "M2_SPEED_LIMIT is taken");
+    const float bad[] = {-1.0f, -0.0f, NAN, nextafterf(M2_SPEED_LIMIT, INFINITY)};
+    for (int32_t i = 0; i < 4; ++i)
+    {
+        m2Body_SetSleepThreshold(world, box, bad[i]);
+    }
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 3 &&
+              m2Body_GetSleepThreshold(world, box) == 0.05f,
+          "a negative, NaN or too large threshold changes nothing and counts one misuse; -0 is 0");
+    m2DestroyWorld(world);
+
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2WorldDef wd = m2DefaultWorldDef();
+    m2World* creates = NewWorld(&wd);
+    m2BodyId made = m2_nullBodyId;
+    bd.sleepThreshold = -1.0f;
+    CHECK(m2CreateBody(creates, &bd, &made) == m2_errorInvalid,
+          "a def with a negative threshold is refused");
+    bd.sleepThreshold = nextafterf(M2_SPEED_LIMIT, INFINITY);
+    CHECK(m2CreateBody(creates, &bd, &made) == m2_errorLimit, "and one past M2_SPEED_LIMIT");
+    bd.sleepThreshold = M2_SPEED_LIMIT;
+    CHECK(m2CreateBody(creates, &bd, &made) == m2_success &&
+              m2Body_GetSleepThreshold(creates, made) == M2_SPEED_LIMIT,
+          "M2_SPEED_LIMIT itself is made");
+    m2DestroyWorld(creates);
+
+    // The speed compares strictly, at exact squares: 0.25 m/s is not below
+    // 0.25 and is below the next float up.
+    CHECK(!GlideSleeps(0.25f, 0.0f, 0.0f), "a glide at 0.25 m/s stays awake at the default");
+    CHECK(!GlideSleeps(0.25f, 0.0f, 0.25f), "and at a threshold of 0.25 m/s");
+    CHECK(GlideSleeps(0.25f, 0.0f, nextafterf(0.25f, 1.0f)), "and sleeps at the next float up");
+    // The spin limit scales: 0.3 rad/s is past 0.12 and 0.24, inside 0.6.
+    CHECK(!GlideSleeps(0.0f, 0.3f, 0.0f), "a spin of 0.3 rad/s stays awake at the default");
+    CHECK(!GlideSleeps(0.0f, 0.3f, 0.1f), "and at 0.1 m/s, a limit of 0.24 rad/s");
+    CHECK(GlideSleeps(0.0f, 0.3f, 0.25f), "and sleeps at 0.25 m/s, a limit of 0.6 rad/s");
+    CHECK(GlideSleeps(0.0f, -0.3f, 0.25f), "either way round");
+    CHECK(!GlideSleeps(0.0f, -0.3f, 0.1f), "and stays awake past the limit either way round");
+}
+
+// A box rides a kinematic belt that slides at 0.25 m/s and rests on it
+// below its own threshold. A moving kinematic body wakes what sleeps on
+// it; below its own threshold the belt counts as still. Returns whether
+// the rider, once asleep, woke again within two seconds.
+static bool BeltWakesRider(float beltThreshold)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    m2World* world = NewWorld(&def);
+    m2BodyDef kd = m2DefaultBodyDef();
+    kd.type = m2_kinematicBody;
+    kd.position = (m2Pos2){0.0, -0.5};
+    kd.linearVelocity = (m2Vec2){0.25f, 0.0f};
+    kd.sleepThreshold = beltThreshold;
+    m2BodyId belt = NewBody(world, &kd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon slab = m2MakeBox(20.0f, 0.5f);
+    NewPolygonShape(world, belt, &sd, &slab);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    bd.position = (m2Pos2){0.0, 0.5};
+    bd.linearVelocity = (m2Vec2){0.25f, 0.0f};
+    bd.sleepThreshold = 0.3f;
+    m2BodyId rider = NewBody(world, &bd);
+    m2Polygon unit = m2MakeBox(0.5f, 0.5f);
+    NewPolygonShape(world, rider, &sd, &unit);
+    bool slept = false;
+    bool woke = false;
+    for (int32_t i = 0; i < 120; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+        bool awake = m2Body_IsAwake(world, rider);
+        woke = woke || (slept && awake);
+        slept = slept || !awake;
+    }
+    CHECK(slept, "the rider falls asleep on the belt");
+    m2DestroyWorld(world);
+    return woke;
+}
+
+static void TestKinematicBelowItsThreshold(void)
+{
+    CHECK(BeltWakesRider(0.0f), "a belt at the default wakes its sleeping rider");
+    CHECK(!BeltWakesRider(0.3f), "a belt below its threshold lets it sleep");
+}
+
 int main(void)
 {
+    TestSleepThreshold();
+    TestKinematicBelowItsThreshold();
     TestTeleportWakesBystanders();
     TestTowerSleeps();
     TestPyramidSleeps();

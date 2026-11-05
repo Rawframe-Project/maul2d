@@ -857,6 +857,13 @@ static void TestWorldAndBodyBounds(const Scene* scene)
     ExpectLower(scene, (Bound){"angular damping", &w->bodies.angularDampings, body, 0.0f});
     ExpectUpper(scene, (Bound){"force", &w->bodies.forces, bodyVec, M2_FORCE_LIMIT});
     ExpectLower(scene, (Bound){"torque", &w->bodies.torques, body, -M2_FORCE_LIMIT});
+    ExpectUpper(scene,
+                (Bound){"sleep threshold", &w->bodies.sleepThresholds, body, M2_SPEED_LIMIT});
+    // A live body's threshold is positive; the slots no body holds keep 0
+    // in the valid snapshot.
+    CHECK(RestoreWithFloat(scene, &w->bodies.sleepThresholds, body, 0.0f) == m2_errorFormat &&
+              RestoreWithFloat(scene, &w->bodies.sleepThresholds, body, -0.0f) == m2_errorFormat,
+          "a live body with no sleep threshold is refused");
 }
 
 // Shape materials in a slot no shape uses, whose mass no body takes, and

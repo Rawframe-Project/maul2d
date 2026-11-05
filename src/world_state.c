@@ -251,6 +251,8 @@ static const m2StateArray s_state[] = {
     M2_STATE_ARRAY(bodies.motionLocks, uint8_t, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH),
     M2_STATE_CHECKED(bodies.sleepEnables, uint8_t, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH, bool,
                      one),
+    M2_STATE_CHECKED(bodies.sleepThresholds, float, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH,
+                     sleepThreshold, one),
     M2_STATE_CHECKED(bodies.forces, m2Vec2, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH, force, one),
     M2_STATE_CHECKED(bodies.torques, float, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH, force, one),
     M2_STATE_CHECKED(bodies.disabled, uint8_t, body, 0, M2_STATE_SNAPSHOT | M2_STATE_HASH, bool,

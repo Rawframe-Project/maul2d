@@ -93,7 +93,7 @@ Each header documents every function: what it does, each argument, each status i
 
 ## What it leaves out
 
-Some features of other engines are absent by decision. Pre-solve callbacks run program code in the middle of a step, which breaks replay by construction; chains, filters, sensors and the filter joint cover the usual cases deterministically. Solver settings (contact stiffness, speculative distance, warm starting) and per-body sleep thresholds stay fixed, because the physics is part of the determinism contract. There is no way to turn off determinism, the sleep bookkeeping or the pairing of begin and end events.
+Some features of other engines are absent by decision. Pre-solve callbacks run program code in the middle of a step, which breaks replay by construction; chains, filters, sensors and the filter joint cover the usual cases deterministically. Solver settings (contact stiffness, speculative distance, warm starting) stay fixed, because the physics is part of the determinism contract. There is no way to turn off determinism, the sleep bookkeeping or the pairing of begin and end events.
 
 ## Samples and the testbed
 

@@ -541,9 +541,10 @@ static void ExpectWordRefused(m2World* world, const uint8_t* bytes, int64_t size
 // carries its minor's ABI version, which the reader checks before any
 // record, so the reader of the minor before refuses it with
 // m2_errorVersion as it refuses every tape of another minor. Here a tape
-// holds the motor joint's budget records and a water volume's game data;
-// stamped with the previous minor's ABI version it is refused and changes
-// nothing, and as written it replays them.
+// holds the motor joint's budget records, a water volume's game data and a
+// body's sleep threshold, from its def and from its setter; stamped with
+// the previous minor's ABI version it is refused and changes nothing, and
+// as written it replays them.
 static void TestNewRecordsNeedTheirMinor(void)
 {
     CHECK(M2_VERSION_MAJOR == 1 && M2_VERSION_MINOR > 0, "a 1.y release has a minor before it");
@@ -568,6 +569,11 @@ static void TestNewRecordsNeedTheirMinor(void)
     m2MotorJoint_SetMaxForce(world, motor, 40.0f);
     m2MotorJoint_SetMaxTorque(world, motor, 15.0f);
     m2WaterVolume_SetUserData(world, pool, 0xC0FFEEu);
+    m2BodyDef sd = m2DefaultBodyDef();
+    sd.position = (m2Pos2){4.0, 4.0};
+    sd.sleepThreshold = 0.25f;
+    m2BodyId slow = NewBody(world, &sd);
+    m2Body_SetSleepThreshold(world, md.bodyIdB, 0.125f);
     Step(world, 1.0f / 60.0f, 4);
     int64_t tapeBytes = StopJournal(world);
     CHECK(tapeBytes > 0, "the tape is recorded");
@@ -580,7 +586,9 @@ static void TestNewRecordsNeedTheirMinor(void)
                   m2World_Hash(reader) == m2World_Hash(world) &&
                   m2MotorJoint_GetMaxForce(reader, motor) == 40.0f &&
                   m2MotorJoint_GetMaxTorque(reader, motor) == 15.0f &&
-                  m2WaterVolume_GetUserData(reader, pool) == 0xC0FFEEu,
+                  m2WaterVolume_GetUserData(reader, pool) == 0xC0FFEEu &&
+                  m2Body_GetSleepThreshold(reader, slow) == 0.25f &&
+                  m2Body_GetSleepThreshold(reader, md.bodyIdB) == 0.125f,
               "this minor replays them");
         m2DestroyWorld(reader);
     }

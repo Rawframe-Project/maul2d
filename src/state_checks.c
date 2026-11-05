@@ -214,6 +214,8 @@ static bool CheckRange(const uint8_t* data, size_t bytes, m2Check check)
         return CheckFloats(data, bytes, m2ValidForce);
     case m2_check_maxForce:
         return CheckFloats(data, bytes, m2ValidMaxForce);
+    case m2_check_sleepThreshold:
+        return CheckFloats(data, bytes, m2ValidSleepThreshold);
     case m2_check_impulse:
         return CheckFloats(data, bytes, m2ValidImpulse);
     case m2_check_breakLimit:

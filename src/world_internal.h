@@ -52,6 +52,7 @@ typedef struct m2Bodies
     uint8_t* massOverrides;  // mass data from m2Body_SetMassData, not the shapes
     uint8_t* motionLocks;    // M2_LOCK_LINEAR_X | M2_LOCK_LINEAR_Y (snapshot state)
     uint8_t* sleepEnables;   // 0 = this body never sleeps (snapshot state)
+    float* sleepThresholds;  // resting speed, m/s; never 0 for a live body
     m2Vec2* forces;          // accumulated, cleared at step end (snapshot state)
     uint8_t* disabled;       // 1 = outside simulation, shapes proxy-less (snapshot state)
     int8_t* dominances;      // contact priority (snapshot state)
