@@ -400,6 +400,44 @@ static bool BeltWakesRider(float beltThreshold)
     return woke;
 }
 
+// A threshold set on a sleeping body leaves it asleep, and governs once
+// the body wakes: a glide at 0.03 m/s rests at the default 0.05 m/s and
+// stays awake below 0.02 m/s.
+static bool GlideAfterThreshold(float threshold, bool* stillAsleep)
+{
+    m2BodyId box;
+    m2World* world = GlideWorld(0.03f, 0.0f, 0.0f, &box);
+    for (int32_t i = 0; i < 60; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+    }
+    CHECK(!m2Body_IsAwake(world, box), "the glide at 0.03 m/s sleeps at the default");
+    m2Body_SetSleepThreshold(world, box, threshold);
+    bool asleep = !m2Body_IsAwake(world, box);
+    for (int32_t i = 0; i < 30; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+    }
+    *stillAsleep = asleep && !m2Body_IsAwake(world, box);
+    m2Body_SetLinearVelocity(world, box, (m2Vec2){0.03f, 0.0f});
+    for (int32_t i = 0; i < 60; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+    }
+    bool sleepsAgain = !m2Body_IsAwake(world, box);
+    m2DestroyWorld(world);
+    return sleepsAgain;
+}
+
+static void TestThresholdOnASleepingBody(void)
+{
+    bool stillAsleep = false;
+    CHECK(!GlideAfterThreshold(0.02f, &stillAsleep) && stillAsleep,
+          "a sleeping body given 0.02 m/s stays asleep, and once woken at 0.03 m/s stays awake");
+    CHECK(GlideAfterThreshold(0.05f, &stillAsleep) && stillAsleep,
+          "given the default again, it stays asleep and, once woken, sleeps again");
+}
+
 static void TestKinematicBelowItsThreshold(void)
 {
     CHECK(BeltWakesRider(0.0f), "a belt at the default wakes its sleeping rider");
@@ -410,6 +448,7 @@ int main(void)
 {
     TestSleepThreshold();
     TestKinematicBelowItsThreshold();
+    TestThresholdOnASleepingBody();
     TestTeleportWakesBystanders();
     TestTowerSleeps();
     TestPyramidSleeps();
