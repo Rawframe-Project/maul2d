@@ -86,10 +86,12 @@ endfunction()
 # the family requires. ROOT and NAME default to the project's
 # source directory and name; cmake/HeaderCheck passes them to check a
 # library's headers alone. MSVC's cl has no C23 mode (its /std:clatest is
-# a draft mode), so the C23 check is skipped there. In C++17 the
-# library's <PP>_NODISCARD, found in base.h, must not be empty. A macro,
-# because enable_language must run at directory scope. Without a C++
-# compiler the C++ checks are skipped.
+# a draft mode), so the C23 check is skipped there. In C23 and C++17 the
+# library's <PP>_NODISCARD, found in base.h, must not be empty: GCC 14
+# reports its C23 as 202000L, so a macro that waits for 202311L would
+# leave a dropped status unwarned there. A macro, because enable_language
+# must run at directory scope. Without a C++ compiler the C++ checks are
+# skipped.
 macro(maul_add_header_tests)
     cmake_parse_arguments(MAUL_HT "" "ROOT;NAME" "" ${ARGN})
     if(NOT MAUL_HT_ROOT)
@@ -131,6 +133,13 @@ macro(maul_add_header_tests)
              "static_assert(sizeof(MAUL_TEXT(${maul_nodiscard})) > 1,\n"
              "              \"${maul_nodiscard} is empty in C++17\");\n")
         list(APPEND maul_cxx_sources ${maul_header_dir}/cxx_nodiscard.cpp)
+        file(WRITE ${maul_header_dir}/c23_nodiscard.c
+             "#include \"${MAUL_HT_NAME}/base.h\"\n"
+             "#define MAUL_TEXT(x) MAUL_TEXT_OF(x)\n"
+             "#define MAUL_TEXT_OF(x) #x\n"
+             "static_assert(sizeof(MAUL_TEXT(${maul_nodiscard})) > 1,\n"
+             "              \"${maul_nodiscard} is empty in C23\");\n")
+        list(APPEND maul_c23_sources ${maul_header_dir}/c23_nodiscard.c)
     endif()
     if(MSVC)
         set(maul_header_flags /W4 /WX)

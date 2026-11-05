@@ -36,7 +36,7 @@ The libraries are one product family: a program may link several of them, and a 
 
 - Library code is C23: checked integer arithmetic, `nullptr`, `constexpr` objects and fixed-width enumerations make it safer and clearer. It uses only what the compiler provides; `<stdbit.h>` comes from the C library, is missing on some targets, and is not used. Bit operations go through compiler builtins.
 - Public headers are written in the common subset of C17 and C++17, which is also valid C23, because every consumer's compiler reads them. Attributes only newer dialects accept sit behind library macros (`PP_NODISCARD`). An enumeration whose size matters in a public struct is a `typedef` of a fixed-width integer with named constants.
-- MSVC keeps `__cplusplus` at 199711L unless `/Zc:__cplusplus` is given, so the nodiscard macro also reads `_MSVC_LANG`.
+- MSVC keeps `__cplusplus` at 199711L unless `/Zc:__cplusplus` is given, so the nodiscard macro also reads `_MSVC_LANG`. In C it takes the attribute in any dialect after C17 whose compiler has it (`__has_c_attribute(nodiscard)`), since GCC 14 reports its C23 as `__STDC_VERSION__` 202000L, not 202311L. The header tests check that the macro is not empty in C23 and C++17.
 - Minimum compilers are GCC 14 and Clang 19. On Windows the library is built with `clang-cl`, which Visual Studio installs and which produces compatible objects; MSVC's `cl` compiles the headers but not the sources.
 
 ## Errors and assertions
