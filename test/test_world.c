@@ -1384,6 +1384,53 @@ static void TestDormancyMassAndExplosions(void)
     m2DestroyWorld(world);
 }
 
+// A blast whose center lies inside a shape pushes the body away from its
+// center of mass, through the blast point; one at the center of mass has
+// no direction to push in and leaves the body as it was.
+static void TestBlastInsideAShape(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 2;
+    def.shapeCapacity = 2;
+    def.gravity = (m2Vec2){0.0f, 0.0f};
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    m2BodyId box = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon unit = m2MakeBox(0.5f, 0.5f);
+    NewPolygonShape(world, box, &sd, &unit);
+    m2ExplosionDef boom = m2DefaultExplosionDef();
+    boom.position = (m2Pos2){0.25, 0.0};
+    m2World_Explode(world, &boom);
+    m2Vec2 v = m2Body_GetLinearVelocity(world, box);
+    CHECK(v.x < -0.5f && v.y == 0.0f && m2Body_GetAngularVelocity(world, box) == 0.0f,
+          "a blast inside the box, right of its center, pushes it straight left");
+    m2Body_SetLinearVelocity(world, box, (m2Vec2){0.0f, 0.0f});
+    uint64_t hash = m2World_Hash(world);
+    boom.position = (m2Pos2){0.0, 0.0};
+    m2World_Explode(world, &boom);
+    v = m2Body_GetLinearVelocity(world, box);
+    CHECK(v.x == 0.0f && v.y == 0.0f && m2Body_GetAngularVelocity(world, box) == 0.0f &&
+              m2World_Hash(world) == hash,
+          "a blast at its center of mass leaves it still");
+    m2DestroyWorld(world);
+}
+
+// The world readers that take a null world read zero.
+static void TestNullWorldReadsZero(void)
+{
+    m2Profile profile = m2World_GetProfile(NULL);
+    m2Counters counters = m2World_GetCounters(NULL);
+    CHECK(profile.step == 0.0f && profile.broadphase == 0.0f && profile.narrowphase == 0.0f &&
+              profile.solve == 0.0f && profile.sleep == 0.0f,
+          "a null world's profile is zeroed");
+    CHECK(m2World_GetKineticEnergy(NULL) == 0.0, "a null world has no kinetic energy");
+    CHECK(counters.bodyCount == 0 && counters.shapeCount == 0 && counters.jointCount == 0 &&
+              counters.misuseCount == 0,
+          "a null world's counters are zeroed");
+}
+
 // Small-basket readers and mutators (parity sprint 4b): frame
 // helpers, the per-body joint walk, runtime geometry, and chain
 // materials.
@@ -4976,6 +5023,8 @@ static void TestJointEdgesThatWrapAreRefused(void)
 
 int main(void)
 {
+    TestBlastInsideAShape();
+    TestNullWorldReadsZero();
     TestReplayScratchRefusedIsCapacity();
     TestJointEdgesThatWrapAreRefused();
     TestHashSeesTheBroadphase();
