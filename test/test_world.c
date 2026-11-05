@@ -1384,8 +1384,9 @@ static void TestDormancyMassAndExplosions(void)
     m2DestroyWorld(world);
 }
 
-// A shape with the blast inside it is pushed out through its body's
-// center of mass; a blast at the center of mass itself pushes nothing.
+// A shape with the blast inside it, its rounding included, is pushed in
+// the direction from the blast to its body's center of mass; a blast
+// inside it at the center of mass itself pushes nothing.
 static void TestBlastInsideAShape(void)
 {
     m2WorldDef def = m2DefaultWorldDef();

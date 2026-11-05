@@ -263,8 +263,9 @@ extern "C"
     /// maskBits and whose closest point lies within radius + falloff gets
     /// an outward impulse at that point: full strength inside radius,
     /// fading to zero across the falloff band. A shape with the blast inside
-    /// it is pushed out through its body's center of mass; a blast at the
-    /// center of mass itself pushes nothing.
+    /// it, its rounding included, is pushed in the direction from the blast
+    /// to its body's center of mass; a blast inside it at the center of mass
+    /// itself pushes nothing.
     typedef struct m2ExplosionDef
     {
         m2Pos2 position;
