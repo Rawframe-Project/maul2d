@@ -3377,8 +3377,57 @@ static void TestJointArgumentRefusals(void)
     m2DestroyWorld(world);
 }
 
+// A joint reader asked for what the joint's kind does not carry reads zero
+// and counts one misuse: the axis of a revolute joint, a filter joint's
+// spring, a distance joint's constraint stiffness, a revolute joint's weld
+// spring. A revolute joint's own spring reads back.
+static void TestJointReadersCheckTheKind(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    def.jointCapacity = 4;
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(world, &bd);
+    bd.type = m2_dynamicBody;
+    bd.position = (m2Pos2){0.0, 1.0};
+    m2BodyId box = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon unit = m2MakeBox(0.5f, 0.5f);
+    NewPolygonShape(world, box, &sd, &unit);
+    m2RevoluteJointDef rd = m2DefaultRevoluteJointDef();
+    rd.bodyIdA = ground;
+    rd.bodyIdB = box;
+    m2JointId pin = NewRevoluteJoint(world, &rd);
+    m2Joint_SetSpringHertz(world, pin, 3.0f);
+    m2FilterJointDef fd = m2DefaultFilterJointDef();
+    fd.bodyIdA = ground;
+    fd.bodyIdB = box;
+    m2JointId filter = NewFilterJoint(world, &fd);
+    m2DistanceJointDef dd = m2DefaultDistanceJointDef();
+    dd.bodyIdA = ground;
+    dd.bodyIdB = box;
+    m2JointId rope = NewDistanceJoint(world, &dd);
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+
+    m2Vec2 axis = m2Joint_GetLocalAxisA(world, pin);
+    CHECK(axis.x == 0.0f && axis.y == 0.0f, "a revolute joint has no axis to read");
+    CHECK(m2Joint_GetSpringHertz(world, filter) == 0.0f, "a filter joint has no spring");
+    CHECK(m2Joint_GetConstraintHertz(world, rope) == 0.0f,
+          "a distance joint has no constraint stiffness");
+    CHECK(m2WeldJoint_GetLinearSpringHertz(world, pin) == 0.0f,
+          "a revolute joint has no weld spring");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 4, "each counting one misuse");
+    CHECK(m2Joint_GetSpringHertz(world, pin) == 3.0f &&
+              m2World_GetCounters(world).misuseCount == misuse + 4,
+          "a revolute joint's own spring reads back and counts nothing");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
+    TestJointReadersCheckTheKind();
     TestJointCreatesAtCapacity();
     TestJointArgumentRefusals();
     TestFarApartJointsStayFinite();
