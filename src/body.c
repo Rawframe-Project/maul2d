@@ -61,7 +61,7 @@ static m2Result BodyDefCheck(const m2BodyDef* def)
 
 // A static body never moves, so its def carries no velocity, as its
 // velocity setters take none.
-static bool StaticDefIsStill(const m2BodyDef* def)
+M2_NODISCARD static bool StaticDefIsStill(const m2BodyDef* def)
 {
     return def->type != m2_staticBody ||
            (def->linearVelocity.x == 0.0f && def->linearVelocity.y == 0.0f &&
@@ -303,7 +303,7 @@ M2_BODY_GETTER(uint64_t, m2Body_GetUserData, world->bodies.userData[index], 0)
 // The value contract of each body parameter channel. Live setters and
 // replay both pass through it, so a tape can never write what the API
 // would refuse.
-static bool BodyParamValid(uint8_t param, float value)
+M2_NODISCARD static bool BodyParamValid(uint8_t param, float value)
 {
     switch (param)
     {
@@ -407,7 +407,7 @@ static M2_NOINLINE void BodySetLinearDampingWorker(m2World* world, m2BodyId body
     {
         return;
     }
-    m2SetBodyParamInternal(world, bodyId, m2_bodyParamLinearDamping, damping);
+    (void)m2SetBodyParamInternal(world, bodyId, m2_bodyParamLinearDamping, damping);
 }
 
 void m2Body_SetLinearDamping(m2World* world, m2BodyId bodyId, float damping)
@@ -425,7 +425,7 @@ static M2_NOINLINE void BodySetAngularDampingWorker(m2World* world, m2BodyId bod
     {
         return;
     }
-    m2SetBodyParamInternal(world, bodyId, m2_bodyParamAngularDamping, damping);
+    (void)m2SetBodyParamInternal(world, bodyId, m2_bodyParamAngularDamping, damping);
 }
 
 void m2Body_SetAngularDamping(m2World* world, m2BodyId bodyId, float damping)
@@ -443,7 +443,7 @@ static M2_NOINLINE void BodySetGravityScaleWorker(m2World* world, m2BodyId bodyI
     {
         return;
     }
-    m2SetBodyParamInternal(world, bodyId, m2_bodyParamGravityScale, scale);
+    (void)m2SetBodyParamInternal(world, bodyId, m2_bodyParamGravityScale, scale);
 }
 
 void m2Body_SetGravityScale(m2World* world, m2BodyId bodyId, float scale)
@@ -465,9 +465,10 @@ static M2_NOINLINE void BodySetMotionLocksWorker(m2World* world, m2BodyId bodyId
     // A stale id refuses once, on the first channel.
     if (m2SetBodyParamInternal(world, bodyId, m2_bodyParamLockLinearX, locks.linearX ? 1.0f : 0.0f))
     {
-        m2SetBodyParamInternal(world, bodyId, m2_bodyParamLockLinearY, locks.linearY ? 1.0f : 0.0f);
-        m2SetBodyParamInternal(world, bodyId, m2_bodyParamFixedRotation,
-                               locks.angularZ ? 1.0f : 0.0f);
+        (void)m2SetBodyParamInternal(world, bodyId, m2_bodyParamLockLinearY,
+                                     locks.linearY ? 1.0f : 0.0f);
+        (void)m2SetBodyParamInternal(world, bodyId, m2_bodyParamFixedRotation,
+                                     locks.angularZ ? 1.0f : 0.0f);
     }
 }
 
@@ -509,7 +510,7 @@ static M2_NOINLINE void BodyEnableSleepWorker(m2World* world, m2BodyId bodyId, b
     {
         return;
     }
-    m2SetBodyParamInternal(world, bodyId, m2_bodyParamEnableSleep, flag ? 1.0f : 0.0f);
+    (void)m2SetBodyParamInternal(world, bodyId, m2_bodyParamEnableSleep, flag ? 1.0f : 0.0f);
 }
 
 void m2Body_EnableSleep(m2World* world, m2BodyId bodyId, bool flag)
@@ -528,7 +529,7 @@ static M2_NOINLINE void BodySetSleepThresholdWorker(m2World* world, m2BodyId bod
     {
         return;
     }
-    m2SetBodyParamInternal(world, bodyId, m2_bodyParamSleepThreshold, threshold);
+    (void)m2SetBodyParamInternal(world, bodyId, m2_bodyParamSleepThreshold, threshold);
 }
 
 void m2Body_SetSleepThreshold(m2World* world, m2BodyId bodyId, float threshold)
@@ -841,7 +842,7 @@ void m2Body_SetDominance(m2World* world, m2BodyId bodyId, int8_t dominance)
 // inverse does, as the inverse of a mass of FLT_MAX does. The inertia is
 // taken about the center as given, so no shift from another point cancels
 // a small one away; 0 gives a body that cannot turn.
-static bool MassDataInverses(m2MassData massData, float* invMass, float* invInertia)
+M2_NODISCARD static bool MassDataInverses(m2MassData massData, float* invMass, float* invInertia)
 {
     if (!m2ValidMass(massData.mass) || !m2LocalVec2(massData.center) ||
         !m2ValidInertia(massData.centralInertia))

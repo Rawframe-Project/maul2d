@@ -18,6 +18,6 @@
 // carry the step count and name shape slots. The trees and shape lists
 // have passed m2SnapshotCheck first. Writes only world->restoreMarks and
 // world->contacts.pairScratch.
-bool m2SnapshotCheckPairs(m2World* world, const uint8_t* in);
+M2_NODISCARD bool m2SnapshotCheckPairs(m2World* world, const uint8_t* in);
 
 #endif // MAUL2D_SRC_SNAPSHOT_PAIRS_H

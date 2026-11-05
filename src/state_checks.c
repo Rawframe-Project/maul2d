@@ -23,12 +23,12 @@ static int32_t ReadInt32(const uint8_t* bytes)
     return value;
 }
 
-static bool InRange(int64_t value, int64_t lo, int64_t hi)
+M2_NODISCARD static bool InRange(int64_t value, int64_t lo, int64_t hi)
 {
     return value >= lo && value <= hi;
 }
 
-static bool CheckIndices(const uint8_t* data, size_t count, int64_t lo, int64_t range)
+M2_NODISCARD static bool CheckIndices(const uint8_t* data, size_t count, int64_t lo, int64_t range)
 {
     for (size_t i = 0; i < count; ++i)
     {
@@ -40,7 +40,7 @@ static bool CheckIndices(const uint8_t* data, size_t count, int64_t lo, int64_t 
     return true;
 }
 
-static bool CheckBytes(const uint8_t* data, size_t count, uint8_t max)
+M2_NODISCARD static bool CheckBytes(const uint8_t* data, size_t count, uint8_t max)
 {
     for (size_t i = 0; i < count; ++i)
     {
@@ -52,7 +52,7 @@ static bool CheckBytes(const uint8_t* data, size_t count, uint8_t max)
     return true;
 }
 
-static bool CheckGeometry(const uint8_t* data, size_t count)
+M2_NODISCARD static bool CheckGeometry(const uint8_t* data, size_t count)
 {
     for (size_t i = 0; i < count; ++i)
     {
@@ -69,7 +69,7 @@ static bool CheckGeometry(const uint8_t* data, size_t count)
 
 // A point count that fits, finite geometry, and the accumulated impulses
 // within M2_IMPULSE_LIMIT, where the solver holds them.
-static bool CheckManifolds(const uint8_t* data, size_t count)
+M2_NODISCARD static bool CheckManifolds(const uint8_t* data, size_t count)
 {
     for (size_t i = 0; i < count; ++i)
     {
@@ -93,7 +93,7 @@ static bool CheckManifolds(const uint8_t* data, size_t count)
     return true;
 }
 
-static bool CheckPairKeys(const uint8_t* data, size_t count, int64_t shapes)
+M2_NODISCARD static bool CheckPairKeys(const uint8_t* data, size_t count, int64_t shapes)
 {
     for (size_t i = 0; i < count; ++i)
     {
@@ -107,7 +107,7 @@ static bool CheckPairKeys(const uint8_t* data, size_t count, int64_t shapes)
     return true;
 }
 
-static bool CheckTrees(const uint8_t* data, size_t bytes, int64_t nodes)
+M2_NODISCARD static bool CheckTrees(const uint8_t* data, size_t bytes, int64_t nodes)
 {
     for (size_t at = 0; at + sizeof(m2DynamicTree) <= bytes; at += sizeof(m2DynamicTree))
     {
@@ -122,7 +122,8 @@ static bool CheckTrees(const uint8_t* data, size_t bytes, int64_t nodes)
     return true;
 }
 
-static bool CheckTreeNodes(const uint8_t* data, size_t count, int64_t nodes, int64_t shapes)
+M2_NODISCARD static bool CheckTreeNodes(const uint8_t* data, size_t count, int64_t nodes,
+                                        int64_t shapes)
 {
     for (size_t i = 0; i < count; ++i)
     {
@@ -137,7 +138,7 @@ static bool CheckTreeNodes(const uint8_t* data, size_t count, int64_t nodes, int
     return true;
 }
 
-static bool CheckFinite(const uint8_t* data, size_t bytes, size_t width)
+M2_NODISCARD static bool CheckFinite(const uint8_t* data, size_t bytes, size_t width)
 {
     for (size_t at = 0; at + width <= bytes; at += width)
     {
@@ -163,7 +164,7 @@ static bool CheckFinite(const uint8_t* data, size_t bytes, size_t width)
 }
 
 // Every float of the block passes valid.
-static bool CheckFloats(const uint8_t* data, size_t bytes, bool (*valid)(float))
+M2_NODISCARD static bool CheckFloats(const uint8_t* data, size_t bytes, bool (*valid)(float))
 {
     for (size_t at = 0; at + sizeof(float) <= bytes; at += sizeof(float))
     {
@@ -178,7 +179,7 @@ static bool CheckFloats(const uint8_t* data, size_t bytes, bool (*valid)(float))
 }
 
 // One axis of an acceleration, through the vector's own validator.
-static bool AccelerationAxisValid(float x)
+M2_NODISCARD static bool AccelerationAxisValid(float x)
 {
     return m2ValidAcceleration((m2Vec2){x, 0.0f});
 }
@@ -187,12 +188,12 @@ static bool AccelerationAxisValid(float x)
 // substepCount / dt for a step m2World_Step accepts. Dividing by a power
 // of two is exact, so the largest a step stores rounds to exactly the
 // bound.
-static bool InverseStepValid(float x)
+M2_NODISCARD static bool InverseStepValid(float x)
 {
     return x == 0.0f || m2WithinF(x, 1.0f / M2_STEP_LIMIT, (float)M2_MAX_SUBSTEPS / M2_MIN_STEP);
 }
 
-static bool CheckRange(const uint8_t* data, size_t bytes, m2Check check)
+M2_NODISCARD static bool CheckRange(const uint8_t* data, size_t bytes, m2Check check)
 {
     switch (check)
     {
@@ -227,7 +228,7 @@ static bool CheckRange(const uint8_t* data, size_t bytes, m2Check check)
     }
 }
 
-static bool CheckLocal(const uint8_t* data, size_t bytes)
+M2_NODISCARD static bool CheckLocal(const uint8_t* data, size_t bytes)
 {
     for (size_t at = 0; at + sizeof(float) <= bytes; at += sizeof(float))
     {
@@ -241,7 +242,7 @@ static bool CheckLocal(const uint8_t* data, size_t bytes)
     return true;
 }
 
-static bool CheckTransforms(const uint8_t* data, size_t count)
+M2_NODISCARD static bool CheckTransforms(const uint8_t* data, size_t count)
 {
     for (size_t i = 0; i < count; ++i)
     {

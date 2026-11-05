@@ -366,7 +366,7 @@ static int32_t ShapeSlotChecked(const m2World* world, m2ShapeId shapeId)
 // One journaled channel for shape materials (op 22).
 // The value contract of each shape parameter channel, shared by the
 // live setters and replay.
-static bool ShapeParamValid(uint8_t param, float value)
+M2_NODISCARD static bool ShapeParamValid(uint8_t param, float value)
 {
     switch (param)
     {
@@ -447,7 +447,7 @@ static M2_NOINLINE void ShapeSetTangentSpeedWorker(m2World* world, m2ShapeId sha
     {
         return;
     }
-    m2SetShapeParamInternal(world, shapeId, m2_shapeParamTangentSpeed, speed);
+    (void)m2SetShapeParamInternal(world, shapeId, m2_shapeParamTangentSpeed, speed);
 }
 
 void m2Shape_SetTangentSpeed(m2World* world, m2ShapeId shapeId, float speed)
@@ -484,7 +484,7 @@ static M2_NOINLINE void ShapeSetFrictionWorker(m2World* world, m2ShapeId shapeId
     {
         return;
     }
-    m2SetShapeParamInternal(world, shapeId, m2_shapeParamFriction, friction);
+    (void)m2SetShapeParamInternal(world, shapeId, m2_shapeParamFriction, friction);
 }
 
 void m2Shape_SetFriction(m2World* world, m2ShapeId shapeId, float friction)
@@ -501,7 +501,7 @@ static M2_NOINLINE void ShapeSetRestitutionWorker(m2World* world, m2ShapeId shap
     {
         return;
     }
-    m2SetShapeParamInternal(world, shapeId, m2_shapeParamRestitution, restitution);
+    (void)m2SetShapeParamInternal(world, shapeId, m2_shapeParamRestitution, restitution);
 }
 
 void m2Shape_SetRestitution(m2World* world, m2ShapeId shapeId, float restitution)
@@ -764,7 +764,8 @@ void m2Shape_SetSegment(m2World* world, m2ShapeId shapeId, const m2Segment* segm
     m2FloatEnvLeave(env);
 }
 
-static M2_NOINLINE bool ShapeTestPointWorker(const m2World* world, m2ShapeId shapeId, m2Pos2 point)
+M2_NODISCARD static M2_NOINLINE bool ShapeTestPointWorker(const m2World* world, m2ShapeId shapeId,
+                                                          m2Pos2 point)
 {
     int32_t index = world != NULL ? m2ShapeSlot(world, shapeId) : -1;
     if (index < 0)

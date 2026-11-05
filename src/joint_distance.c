@@ -157,7 +157,7 @@ static M2_NOINLINE void DistanceJointSetLengthWorker(m2World* world, m2JointId j
     {
         return;
     }
-    m2SetJointParamInternal(world, jointId, m2_jointParamLength, length);
+    (void)m2SetJointParamInternal(world, jointId, m2_jointParamLength, length);
 }
 
 void m2DistanceJoint_SetLength(m2World* world, m2JointId jointId, float length)
@@ -186,7 +186,7 @@ static M2_NOINLINE void DistanceJointSetLengthRangeWorker(m2World* world, m2Join
     float upper = lo < hi ? hi : lo;
     if (m2SetJointParamInternal(world, jointId, m2_jointParamMinLength, lower))
     {
-        m2SetJointParamInternal(world, jointId, m2_jointParamMaxLength, upper);
+        (void)m2SetJointParamInternal(world, jointId, m2_jointParamMaxLength, upper);
     }
 }
 

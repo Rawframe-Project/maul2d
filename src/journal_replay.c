@@ -22,134 +22,134 @@
 // Ids are compared by slot and generation.
 #define M2_SAME_ID(a, b) ((a).index1 == (b).index1 && (a).generation == (b).generation)
 
-static bool ApplyStep(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyStep(m2ReplayCursor* r, const m2OpPayload* p)
 {
     return m2World_Step(r->world, p->step.dt, p->step.substepCount) == m2_success;
 }
 
-static bool ApplyCreateBody(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyCreateBody(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2BodyId id = m2_nullBodyId;
     return m2CreateBody(r->world, &p->createBody.def, &id) == m2_success &&
            M2_SAME_ID(id, p->createBody.expected);
 }
 
-static bool ApplyDestroyBody(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyDestroyBody(m2ReplayCursor* r, const m2OpPayload* p)
 {
     return m2DestroyBody(r->world, p->bodyId) == m2_success;
 }
 
-static bool ApplyDisableBody(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyDisableBody(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Body_Enable(r->world, p->bodyId, false);
     return true;
 }
 
-static bool ApplyEnableBody(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyEnableBody(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Body_Enable(r->world, p->bodyId, true);
     return true;
 }
 
-static bool ApplyMassFromShapes(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyMassFromShapes(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Body_ApplyMassFromShapes(r->world, p->bodyId);
     return true;
 }
 
-static bool ApplySetLinearVelocity(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplySetLinearVelocity(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Body_SetLinearVelocity(r->world, p->bodyVec.body, p->bodyVec.value);
     return true;
 }
 
-static bool ApplyApplyForceCenter(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyApplyForceCenter(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Body_ApplyForce(r->world, p->bodyVec.body, p->bodyVec.value);
     return true;
 }
 
-static bool ApplyImpulseCenter(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyImpulseCenter(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Body_ApplyLinearImpulse(r->world, p->bodyVec.body, p->bodyVec.value);
     return true;
 }
 
-static bool ApplySetAngularVelocity(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplySetAngularVelocity(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Body_SetAngularVelocity(r->world, p->bodyFloat.body, p->bodyFloat.value);
     return true;
 }
 
-static bool ApplyApplyTorque(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyApplyTorque(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Body_ApplyTorque(r->world, p->bodyFloat.body, p->bodyFloat.value);
     return true;
 }
 
-static bool ApplyAngularImpulse(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyAngularImpulse(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Body_ApplyAngularImpulse(r->world, p->bodyFloat.body, p->bodyFloat.value);
     return true;
 }
 
-static bool ApplyLinearImpulse(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyLinearImpulse(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Body_ApplyLinearImpulseAtPoint(r->world, p->bodyPoint.body, p->bodyPoint.value,
                                      p->bodyPoint.point);
     return true;
 }
 
-static bool ApplyApplyForce(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyApplyForce(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Body_ApplyForceAtPoint(r->world, p->bodyPoint.body, p->bodyPoint.value, p->bodyPoint.point);
     return true;
 }
 
-static bool ApplyBodyParam(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyBodyParam(m2ReplayCursor* r, const m2OpPayload* p)
 {
     return m2SetBodyParamInternal(r->world, p->bodyParam.body, p->bodyParam.param,
                                   p->bodyParam.value);
 }
 
-static bool ApplySetType(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplySetType(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Body_SetType(r->world, p->bodyByte.body, (m2BodyType)p->bodyByte.value);
     return true;
 }
 
-static bool ApplySetAwake(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplySetAwake(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Body_SetAwake(r->world, p->bodyByte.body, p->bodyByte.value != 0);
     return true;
 }
 
-static bool ApplySetBullet(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplySetBullet(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Body_EnableBullet(r->world, p->bodyByte.body, p->bodyByte.value != 0);
     return true;
 }
 
-static bool ApplySetDominance(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplySetDominance(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Body_SetDominance(r->world, p->bodyByte.body, (int8_t)p->bodyByte.value);
     return true;
 }
 
-static bool ApplyBodyUserData(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyBodyUserData(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Body_SetUserData(r->world, p->bodyUserData.body, p->bodyUserData.userData);
     return true;
 }
 
-static bool ApplySetTransform(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplySetTransform(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Body_SetTransform(r->world, p->setTransform.body, p->setTransform.position,
                         p->setTransform.rotation);
     return true;
 }
 
-static bool ApplySetMassData(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplySetMassData(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Body_SetMassData(r->world, p->setMassData.body, p->setMassData.data);
     return true;
@@ -157,7 +157,7 @@ static bool ApplySetMassData(m2ReplayCursor* r, const m2OpPayload* p)
 
 // Shapes.
 
-static bool ApplyCreateShape(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyCreateShape(m2ReplayCursor* r, const m2OpPayload* p)
 {
     const m2OpCreateShape* op = &p->createShape;
     m2BodyId body = op->body;
@@ -183,31 +183,31 @@ static bool ApplyCreateShape(m2ReplayCursor* r, const m2OpPayload* p)
     return made == m2_success && M2_SAME_ID(id, op->expected);
 }
 
-static bool ApplyDestroyShape(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyDestroyShape(m2ReplayCursor* r, const m2OpPayload* p)
 {
     return m2DestroyShape(r->world, p->shapeId) == m2_success;
 }
 
-static bool ApplyShapeParam(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyShapeParam(m2ReplayCursor* r, const m2OpPayload* p)
 {
     return m2SetShapeParamInternal(r->world, p->shapeParam.shape, p->shapeParam.param,
                                    p->shapeParam.value);
 }
 
-static bool ApplySetDensity(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplySetDensity(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Shape_SetDensity(r->world, p->shapeFloat.shape, p->shapeFloat.value);
     return true;
 }
 
-static bool ApplySetFilter(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplySetFilter(m2ReplayCursor* r, const m2OpPayload* p)
 {
     const m2OpSetFilter* op = &p->setFilter;
     m2Shape_SetFilter(r->world, op->shape, op->categoryBits, op->maskBits, op->groupIndex);
     return true;
 }
 
-static bool ApplySetGeometry(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplySetGeometry(m2ReplayCursor* r, const m2OpPayload* p)
 {
     const m2OpSetGeometry* op = &p->setGeometry;
     m2ShapeId shape = op->shape;
@@ -230,7 +230,7 @@ static bool ApplySetGeometry(m2ReplayCursor* r, const m2OpPayload* p)
     }
 }
 
-static bool ApplyShapeUserData(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyShapeUserData(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Shape_SetUserData(r->world, p->shapeUserData.shape, p->shapeUserData.userData);
     return true;
@@ -246,7 +246,7 @@ bool m2ReplayTailFits(const m2ReplayCursor* r, int32_t count, int32_t elementByt
 
 // Chains.
 
-static bool ApplyCreateChain(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyCreateChain(m2ReplayCursor* r, const m2OpPayload* p)
 {
     const m2OpChainHeader* op = &p->chainHeader;
     int64_t pointBytes = 0;
@@ -280,18 +280,18 @@ static bool ApplyCreateChain(m2ReplayCursor* r, const m2OpPayload* p)
            m2Chain_GetSegmentCount(r->world, chain) == op->createdCount;
 }
 
-static bool ApplyDestroyChain(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyDestroyChain(m2ReplayCursor* r, const m2OpPayload* p)
 {
     return m2DestroyChain(r->world, p->chainId) == m2_success;
 }
 
-static bool ApplyChainFriction(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyChainFriction(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Chain_SetFriction(r->world, p->chainFloat.chain, p->chainFloat.value);
     return true;
 }
 
-static bool ApplyChainRestitution(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyChainRestitution(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Chain_SetRestitution(r->world, p->chainFloat.chain, p->chainFloat.value);
     return true;
@@ -323,31 +323,31 @@ M2_APPLY_CREATE_JOINT(Ratchet)
 
 #undef M2_APPLY_CREATE_JOINT
 
-static bool ApplyDestroyJoint(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyDestroyJoint(m2ReplayCursor* r, const m2OpPayload* p)
 {
     return m2DestroyJoint(r->world, p->jointId) == m2_success;
 }
 
-static bool ApplySetJointParam(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplySetJointParam(m2ReplayCursor* r, const m2OpPayload* p)
 {
     return m2SetJointParamInternal(r->world, p->jointParam.joint, p->jointParam.param,
                                    p->jointParam.value);
 }
 
-static bool ApplyJointUserData(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyJointUserData(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Joint_SetUserData(r->world, p->jointUserData.joint, p->jointUserData.userData);
     return true;
 }
 
-static bool ApplyMotorOffsets(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyMotorOffsets(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2MotorJoint_SetOffsets(r->world, p->motorOffsets.joint, p->motorOffsets.linear,
                             p->motorOffsets.angular);
     return true;
 }
 
-static bool ApplyMouseTarget(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyMouseTarget(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2MouseJoint_SetTarget(r->world, p->mouseTarget.joint, p->mouseTarget.target);
     return true;
@@ -365,7 +365,7 @@ static m2ParticleDef RecordedParticleDef(m2Pos2 position, m2Vec2 velocity, uint3
     return def;
 }
 
-static bool ApplyCreateParticle(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyCreateParticle(m2ReplayCursor* r, const m2OpPayload* p)
 {
     const m2OpCreateParticle* op = &p->createParticle;
     m2ParticleDef def = RecordedParticleDef(op->position, op->velocity, op->flags);
@@ -373,7 +373,7 @@ static bool ApplyCreateParticle(m2ReplayCursor* r, const m2OpPayload* p)
     return m2CreateParticle(r->world, &def, &id) == m2_success && id.index1 == op->expected.index1;
 }
 
-static bool ApplyFillParticles(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyFillParticles(m2ReplayCursor* r, const m2OpPayload* p)
 {
     const m2OpFillParticles* op = &p->fillParticles;
     m2ParticleDef def = RecordedParticleDef(op->position, op->velocity, op->flags);
@@ -382,48 +382,48 @@ static bool ApplyFillParticles(m2ReplayCursor* r, const m2OpPayload* p)
     return (result == m2_success || result == m2_errorCapacity) && made == op->expected;
 }
 
-static bool ApplyDestroyParticle(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyDestroyParticle(m2ReplayCursor* r, const m2OpPayload* p)
 {
     return m2DestroyParticle(r->world, p->particleId) == m2_success;
 }
 
-static bool ApplySetParticleVelocity(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplySetParticleVelocity(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Particle_SetVelocity(r->world, p->particleVec.id, p->particleVec.value);
     return true;
 }
 
-static bool ApplySetParticleLifetime(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplySetParticleLifetime(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Particle_SetLifetime(r->world, p->particleFloat.id, p->particleFloat.value);
     return true;
 }
 
-static bool ApplySetParticleUserData(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplySetParticleUserData(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2Particle_SetUserData(r->world, p->particleUserData.id, p->particleUserData.userData);
     return true;
 }
 
-static bool ApplyCreateWaterVolume(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyCreateWaterVolume(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2WaterVolumeId id = m2_nullWaterVolumeId;
     return m2CreateWaterVolume(r->world, &p->createWaterVolume.def, &id) == m2_success &&
            id.index1 == p->createWaterVolume.expected.index1;
 }
 
-static bool ApplyDestroyWaterVolume(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyDestroyWaterVolume(m2ReplayCursor* r, const m2OpPayload* p)
 {
     return m2DestroyWaterVolume(r->world, p->waterVolumeId) == m2_success;
 }
 
-static bool ApplySetWaterSurface(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplySetWaterSurface(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2WaterVolume_SetSurface(r->world, p->waterSurface.id, p->waterSurface.surface);
     return true;
 }
 
-static bool ApplyWaterUserData(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyWaterUserData(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2WaterVolume_SetUserData(r->world, p->waterUserData.id, p->waterUserData.userData);
     return true;
@@ -431,31 +431,31 @@ static bool ApplyWaterUserData(m2ReplayCursor* r, const m2OpPayload* p)
 
 // World-level ops.
 
-static bool ApplySetGravity(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplySetGravity(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2World_SetGravity(r->world, p->vec.value);
     return true;
 }
 
-static bool ApplySetWind(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplySetWind(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2World_SetWind(r->world, p->setWind.velocity, p->setWind.linearDrag);
     return true;
 }
 
-static bool ApplyEnableSleep(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyEnableSleep(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2World_EnableSleep(r->world, p->flag.flag != 0);
     return true;
 }
 
-static bool ApplyExplode(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyExplode(m2ReplayCursor* r, const m2OpPayload* p)
 {
     m2World_Explode(r->world, &p->explosion);
     return true;
 }
 
-static bool ApplyRestore(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyRestore(m2ReplayCursor* r, const m2OpPayload* p)
 {
     int64_t bytes = p->restoreSize;
     if (bytes <= 0 || bytes > r->size - r->offset)
@@ -470,7 +470,7 @@ static bool ApplyRestore(m2ReplayCursor* r, const m2OpPayload* p)
     return true;
 }
 
-static bool ApplyShatterBody(m2ReplayCursor* r, const m2OpPayload* p)
+M2_NODISCARD static bool ApplyShatterBody(m2ReplayCursor* r, const m2OpPayload* p)
 {
     const m2OpShatterHeader* op = &p->shatterHeader;
     int64_t pieceBytes = 0;

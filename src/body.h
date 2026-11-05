@@ -12,7 +12,8 @@
 #define M2_BODY_COOKIE (M2_COOKIE ^ ((int32_t)sizeof(m2BodyDef) << 8) ^ 2)
 
 // The journaled parameter channel (codes in journal.h).
-bool m2SetBodyParamInternal(m2World* world, m2BodyId bodyId, uint8_t param, float value);
+M2_NODISCARD bool m2SetBodyParamInternal(m2World* world, m2BodyId bodyId, uint8_t param,
+                                         float value);
 
 // Holds a body's velocity within M2_SPEED_LIMIT after an impulse, a blast
 // or a shatter, as the solver does after each of its pushes.

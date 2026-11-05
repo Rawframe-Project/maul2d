@@ -37,7 +37,7 @@ size_t m2ContactBlockScratchBytes(int32_t pairCapacity)
     return ckd_mul(&bytes, blocks, sizeof(m2ContactBlock)) ? SIZE_MAX : bytes;
 }
 
-static bool IsDynamic(const m2World* world, int32_t body)
+M2_NODISCARD static bool IsDynamic(const m2World* world, int32_t body)
 {
     return world->bodies.types[body] == (uint8_t)m2_dynamicBody;
 }
@@ -114,7 +114,7 @@ static void PrepareMaterial(const m2World* world, m2ContactConstraint* c, int32_
 
 // True when the pair is solved this step: no sensor, something can move,
 // and at least one side is awake.
-static bool PairSolves(const m2World* world, int32_t shapeA, int32_t shapeB)
+M2_NODISCARD static bool PairSolves(const m2World* world, int32_t shapeA, int32_t shapeB)
 {
     if (world->shapes.shapeSensor[shapeA] != 0 || world->shapes.shapeSensor[shapeB] != 0)
     {

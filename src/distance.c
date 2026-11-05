@@ -151,7 +151,7 @@ static m2Vec2 Blend(const Simplex* s, bool pointsOfA)
     return p;
 }
 
-static bool Repeats(const Simplex* s, int32_t ia, int32_t ib)
+M2_NODISCARD static bool Repeats(const Simplex* s, int32_t ia, int32_t ib)
 {
     for (int32_t i = 0; i < s->count; ++i)
     {

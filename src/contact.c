@@ -319,7 +319,7 @@ typedef struct m2UpdateContactsCtx
 // were computed from. A kinematic end never freezes (its velocity can
 // change without stepping). A host moves a static shape without waking
 // the sleepers it does not touch, so a moved shape thaws its pairs.
-static bool ShapeIsFrozen(const m2World* world, int32_t shape)
+M2_NODISCARD static bool ShapeIsFrozen(const m2World* world, int32_t shape)
 {
     int32_t body = world->shapes.shapeBody[shape];
     return world->broadphase.inMoved[shape] == 0 &&

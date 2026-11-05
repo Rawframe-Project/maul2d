@@ -100,7 +100,7 @@ bool m2SidesMayPair(const m2PairSide* a, const m2PairSide* b)
 // untouched remainder.
 // Which trees a moved shape queries: dynamic and kinematic movers sweep
 // every tree, static movers (teleports) only the dynamic one.
-static bool MoverSeesTree(const m2World* world, int32_t shapeIndex, int32_t tree)
+M2_NODISCARD static bool MoverSeesTree(const m2World* world, int32_t shapeIndex, int32_t tree)
 {
     return world->bodies.types[world->shapes.shapeBody[shapeIndex]] != (uint8_t)m2_staticBody ||
            tree == (int32_t)m2_dynamicBody;

@@ -41,7 +41,7 @@ The libraries are one product family: a program may link several of them, and a 
 
 ## Errors and assertions
 
-- A function that can fail returns a status from the library's closed result enum, success being zero, and `PP_NODISCARD` comes first in its declaration because C++ accepts a standard attribute only there. What it produces goes through out-parameters. Where the position of a failure matters (validation, decoding, parsing) it returns a small struct with the status and the byte offset. `PGetResultName` names any status.
+- A function that can fail returns a status from the library's closed result enum, success being zero, and `PP_NODISCARD` comes first in its declaration because C++ accepts a standard attribute only there. Every internal function that returns `bool` carries `PP_NODISCARD` too, whether its `false` refuses or answers: a caller that drops it goes on past a refusal or with an out value left unset. A call that means to drop one says so with `(void)`. What it produces goes through out-parameters. Where the position of a failure matters (validation, decoding, parsing) it returns a small struct with the status and the byte offset. `PGetResultName` names any status.
 - A status means the same in every library, so a program that links several and logs a raw value reads it one way. An error the family shares has one name, one meaning and one value everywhere:
   - `P_errorInvalid` -1: an argument a correct program never passes: a null pointer, an object of the wrong kind, a value outside the documented range of its parameter, a combination the call does not take.
   - `P_errorCapacity` -2: room is too small for the result: a pool sized at creation, a caller's buffer, the allocator, or a limit the caller set on a pool, a buffer or the work (a triangle budget, points per transition). More room would succeed.
@@ -162,6 +162,7 @@ The libraries are one product family: a program may link several of them, and a 
 | Every public function enters the floating-point environment through a wrapper of one shape, or is allowed by name with a reason | `tools/check_float_env.py` |
 | A shared build exports the public functions only | `tools/check_exports.py`, registered by `maul_add_exports_test()` in `cmake/Testing.cmake`, which names the headers a build leaves out and the functions the program defines |
 | File and function lengths, complexity exceptions | `tools/check_lengths.py` |
+| Every internal function returning `bool` carries `PP_NODISCARD`; a declaration in a shape the check cannot read fails | `tools/check_nodiscard.py`, with its self-test |
 | Public documentation blocks and thread safety statements, in the library's headers and each part's | `tools/check_docs.py` |
 | Documentation snippets run by tests | `tools/check_guide.py` |
 | No sleeps, wall-clock reads, retries or unexplained skips in tests; every test labeled | `tools/check_test_hygiene.py`, with its self-test over `tools/test_hygiene/` |

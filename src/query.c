@@ -67,7 +67,7 @@ typedef struct m2RayState
 // either box axis or the segment's normal separates them (the separating
 // axis test for a segment and a box). Everything runs in f64, so worlds
 // far from the origin cull exactly.
-static bool RayMissesNode(const m2RayState* ray, m2Aabb box)
+M2_NODISCARD static bool RayMissesNode(const m2RayState* ray, m2Aabb box)
 {
     double ax = ray->origin.x;
     double ay = ray->origin.y;
@@ -185,9 +185,10 @@ static m2QueryHit CastRayClosest(const m2World* world, m2Pos2 origin, m2Vec2 tra
     return result;
 }
 
-static M2_NOINLINE bool WorldCastRayClosestWorker(const m2World* world, m2Pos2 origin,
-                                                  m2Vec2 translation, m2QueryFilter filter,
-                                                  m2CastHit* hitOut)
+M2_NODISCARD static M2_NOINLINE bool WorldCastRayClosestWorker(const m2World* world, m2Pos2 origin,
+                                                               m2Vec2 translation,
+                                                               m2QueryFilter filter,
+                                                               m2CastHit* hitOut)
 {
     return m2ClearHit(world, hitOut) &&
            m2DeliverHit(CastRayClosest(world, origin, translation, filter), hitOut);
@@ -498,9 +499,9 @@ static m2QueryHit CastCircleClosest(const m2World* world, const m2Circle* circle
     return CastProxyClosest(world, &p, origin, translation, filter);
 }
 
-static M2_NOINLINE bool WorldCastCircleClosestWorker(const m2World* world, const m2Circle* circle,
-                                                     m2Transform origin, m2Vec2 translation,
-                                                     m2QueryFilter filter, m2CastHit* hitOut)
+M2_NODISCARD static M2_NOINLINE bool
+WorldCastCircleClosestWorker(const m2World* world, const m2Circle* circle, m2Transform origin,
+                             m2Vec2 translation, m2QueryFilter filter, m2CastHit* hitOut)
 {
     return m2ClearHit(world, hitOut) &&
            m2DeliverHit(CastCircleClosest(world, circle, origin, translation, filter), hitOut);
@@ -522,10 +523,9 @@ static m2QueryHit CastCapsuleClosest(const m2World* world, const m2Capsule* caps
     return CastProxyClosest(world, &p, origin, translation, filter);
 }
 
-static M2_NOINLINE bool WorldCastCapsuleClosestWorker(const m2World* world,
-                                                      const m2Capsule* capsule, m2Transform origin,
-                                                      m2Vec2 translation, m2QueryFilter filter,
-                                                      m2CastHit* hitOut)
+M2_NODISCARD static M2_NOINLINE bool
+WorldCastCapsuleClosestWorker(const m2World* world, const m2Capsule* capsule, m2Transform origin,
+                              m2Vec2 translation, m2QueryFilter filter, m2CastHit* hitOut)
 {
     return m2ClearHit(world, hitOut) &&
            m2DeliverHit(CastCapsuleClosest(world, capsule, origin, translation, filter), hitOut);
@@ -548,10 +548,9 @@ static m2QueryHit CastPolygonClosest(const m2World* world, const m2Polygon* poly
     return CastProxyClosest(world, &p, origin, translation, filter);
 }
 
-static M2_NOINLINE bool WorldCastPolygonClosestWorker(const m2World* world,
-                                                      const m2Polygon* polygon, m2Transform origin,
-                                                      m2Vec2 translation, m2QueryFilter filter,
-                                                      m2CastHit* hitOut)
+M2_NODISCARD static M2_NOINLINE bool
+WorldCastPolygonClosestWorker(const m2World* world, const m2Polygon* polygon, m2Transform origin,
+                              m2Vec2 translation, m2QueryFilter filter, m2CastHit* hitOut)
 {
     return m2ClearHit(world, hitOut) &&
            m2DeliverHit(CastPolygonClosest(world, polygon, origin, translation, filter), hitOut);
@@ -672,8 +671,9 @@ static m2QueryHit ShapeCastRay(const m2World* world, m2ShapeId shapeId, m2Pos2 o
     return result;
 }
 
-static M2_NOINLINE bool ShapeCastRayWorker(const m2World* world, m2ShapeId shapeId, m2Pos2 origin,
-                                           m2Vec2 translation, m2CastHit* hitOut)
+M2_NODISCARD static M2_NOINLINE bool ShapeCastRayWorker(const m2World* world, m2ShapeId shapeId,
+                                                        m2Pos2 origin, m2Vec2 translation,
+                                                        m2CastHit* hitOut)
 {
     return m2ClearHit(world, hitOut) &&
            m2DeliverHit(ShapeCastRay(world, shapeId, origin, translation), hitOut);
@@ -722,8 +722,8 @@ static int32_t InsertHitSorted(m2CastHit* hits, int32_t kept, int32_t capacity, 
 
 // One tree leaf of m2World_CastRayAll: false when the shape is dead,
 // filtered out or missed, else the hit in world space.
-static bool RayHitOnShape(const m2World* world, int32_t shapeIndex, m2Pos2 origin,
-                          m2Vec2 translation, m2QueryFilter filter, m2CastHit* out)
+M2_NODISCARD static bool RayHitOnShape(const m2World* world, int32_t shapeIndex, m2Pos2 origin,
+                                       m2Vec2 translation, m2QueryFilter filter, m2CastHit* out)
 {
     if (world->shapes.shapeAlive[shapeIndex] == 0 || !m2QueryShouldSee(world, shapeIndex, filter))
     {
@@ -817,8 +817,9 @@ int32_t m2World_CastRayAll(const m2World* world, m2Pos2 origin, m2Vec2 translati
 
 // One candidate of CastProxyAll: false when the shape is dead, filtered
 // out, behind a chain's ghost side or missed, else the hit in world space.
-static bool ProxyHitOnShape(const m2World* world, int32_t shapeIndex, const m2ProxyQuery* q,
-                            m2Transform pose, m2QueryFilter filter, m2CastHit* out)
+M2_NODISCARD static bool ProxyHitOnShape(const m2World* world, int32_t shapeIndex,
+                                         const m2ProxyQuery* q, m2Transform pose,
+                                         m2QueryFilter filter, m2CastHit* out)
 {
     if (world->shapes.shapeAlive[shapeIndex] == 0 || !m2QueryShouldSee(world, shapeIndex, filter))
     {

@@ -19,6 +19,7 @@ m2Result m2CreateShape(m2World* world, m2BodyId bodyId, const m2ShapeDef* def,
 #define M2_SHAPE_COOKIE (M2_COOKIE ^ ((int32_t)sizeof(m2ShapeDef) << 8) ^ 3)
 
 // The journaled parameter channel (codes in journal.h).
-bool m2SetShapeParamInternal(m2World* world, m2ShapeId shapeId, uint8_t param, float value);
+M2_NODISCARD bool m2SetShapeParamInternal(m2World* world, m2ShapeId shapeId, uint8_t param,
+                                          float value);
 
 #endif // MAUL2D_SRC_SHAPE_H

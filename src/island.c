@@ -52,7 +52,7 @@ static void Union(int32_t* parent, int32_t a, int32_t b)
 // limit is exactly M2_SLEEP_ANGULAR_TOLERANCE and t * t is the default's
 // own square, the bits of a compare against the constants. A form such as
 // t * 2.4f rounds to another float at the default and moves results.
-static bool BodySlow(const m2World* world, int32_t i)
+M2_NODISCARD static bool BodySlow(const m2World* world, int32_t i)
 {
     m2Vec2 v = world->bodies.linearVelocities[i];
     float w = world->bodies.angularVelocities[i];
@@ -163,7 +163,7 @@ void m2UpdateIslandsAndWake(m2World* world)
 }
 
 // The bodies the sleep pass accounts: alive, dynamic and awake.
-static bool AwakeDynamic(const m2World* world, int32_t i)
+M2_NODISCARD static bool AwakeDynamic(const m2World* world, int32_t i)
 {
     return world->bodies.alive[i] != 0 && world->bodies.types[i] == (uint8_t)m2_dynamicBody &&
            world->bodies.asleep[i] == 0;

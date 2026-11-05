@@ -334,8 +334,8 @@ static m2Manifold ClipToFace(const m2Polygon* ref, const m2Polygon* inc, int32_t
 // Rounded polygons apart from each other can touch corner to corner,
 // closer than any clipped point: one point on the line between the two
 // corners replaces the clip then.
-static bool CornerContact(const m2Polygon* la, const m2Polygon* lb, int32_t edgeA, int32_t edgeB,
-                          m2Manifold* manifold)
+M2_NODISCARD static bool CornerContact(const m2Polygon* la, const m2Polygon* lb, int32_t edgeA,
+                                       int32_t edgeB, m2Manifold* manifold)
 {
     int32_t a2 = edgeA + 1 < la->count ? edgeA + 1 : 0;
     int32_t b2 = edgeB + 1 < lb->count ? edgeB + 1 : 0;
@@ -393,7 +393,7 @@ m2Manifold m2CollidePolygons(const m2Polygon* a, const m2Polygon* b, m2RelativeP
     m2Manifold manifold = ClipToFace(ref, inc, face, edge, flip);
     if (m2MaxF(fa.separation, fb.separation) > M2_MANIFOLD_TOLERANCE)
     {
-        CornerContact(&la, &lb, flip ? edge : face, flip ? face : edge, &manifold);
+        (void)CornerContact(&la, &lb, flip ? edge : face, flip ? face : edge, &manifold);
     }
     // Two points always run along the tangent (the normal turned
     // counterclockwise), whichever polygon holds the reference face: the

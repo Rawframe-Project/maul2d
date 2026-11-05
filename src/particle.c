@@ -395,7 +395,7 @@ typedef struct FillBatch
     int32_t currRow[M2_MAX_FILL_COLUMNS];
 } FillBatch;
 
-static bool InsidePolygon(const m2Polygon* polygon, float x, float y)
+M2_NODISCARD static bool InsidePolygon(const m2Polygon* polygon, float x, float y)
 {
     for (int32_t i = 0; i < polygon->count; ++i)
     {
@@ -477,8 +477,8 @@ static void AddFillSprings(m2World* world, const FillBatch* batch)
 }
 
 // Emits one lattice row; false once the pool is full.
-static bool FillRow(m2World* world, FillBatch* batch, const m2Polygon* polygon, float minX,
-                    float maxX, float y, const m2OpFillParticles* op)
+M2_NODISCARD static bool FillRow(m2World* world, FillBatch* batch, const m2Polygon* polygon,
+                                 float minX, float maxX, float y, const m2OpFillParticles* op)
 {
     for (int32_t i = 0; i < M2_MAX_FILL_COLUMNS; ++i)
     {
@@ -534,8 +534,8 @@ static void PolygonBounds(const m2Polygon* polygon, m2Vec2* lower, m2Vec2* upper
 // says whether the pool ran out. The whole fill is one journal op with the
 // inner creates suppressed: replay rebuilds the springs and triads from
 // the op.
-static bool FillLattice(m2World* world, FillBatch* batch, const m2Polygon* region, m2Vec2 lower,
-                        m2Vec2 upper, const m2OpFillParticles* op)
+M2_NODISCARD static bool FillLattice(m2World* world, FillBatch* batch, const m2Polygon* region,
+                                     m2Vec2 lower, m2Vec2 upper, const m2OpFillParticles* op)
 {
     uint8_t journalWas = world->recorder.journalActive;
     world->recorder.journalActive = 0;

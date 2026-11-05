@@ -179,7 +179,7 @@ static void KeepFirst(m2LocalHit* best, m2LocalHit candidate)
 }
 
 // True when p lies within radius of the polygon's core.
-static bool InsideRounded(m2Vec2 p, const m2Polygon* poly)
+M2_NODISCARD static bool InsideRounded(m2Vec2 p, const m2Polygon* poly)
 {
     float inside = -3.4e38f;
     float nearest = 3.4e38f;

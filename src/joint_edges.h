@@ -17,6 +17,6 @@ void m2UnlinkJoint(m2World* world, int32_t joint);
 void m2RebuildJointEdges(m2World* world);
 
 // Whether a joint between the two bodies forbids their collision.
-bool m2JointsForbidPair(const m2World* world, int32_t bodyA, int32_t bodyB);
+M2_NODISCARD bool m2JointsForbidPair(const m2World* world, int32_t bodyA, int32_t bodyB);
 
 #endif // MAUL2D_SRC_JOINT_EDGES_H

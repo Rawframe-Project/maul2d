@@ -21,7 +21,7 @@
 #include <string.h>
 
 // The moved list holds distinct shapes, and the flags mark exactly them.
-static bool CheckMoved(m2World* world, const uint8_t* in)
+M2_NODISCARD static bool CheckMoved(m2World* world, const uint8_t* in)
 {
     const uint8_t* moved = M2_IN(broadphase.moved);
     const uint8_t* inMoved = M2_IN(broadphase.inMoved);
@@ -51,7 +51,7 @@ static bool CheckMoved(m2World* world, const uint8_t* in)
 
 // Pairs are in strictly increasing key order, and each joins two live
 // shapes of different bodies, both in the broadphase.
-static bool CheckPairs(const m2World* world, const uint8_t* in)
+M2_NODISCARD static bool CheckPairs(const m2World* world, const uint8_t* in)
 {
     const uint8_t* keys = M2_IN(contacts.pairKeys);
     const uint8_t* touching = M2_IN(contacts.pairTouching);
@@ -125,7 +125,7 @@ static int CompareKeys(const void* a, const void* b)
 }
 
 // Whether `key`, two bodies, is among the `count` sorted keys.
-static bool HasKey(const uint64_t* keys, int32_t count, uint64_t key)
+M2_NODISCARD static bool HasKey(const uint64_t* keys, int32_t count, uint64_t key)
 {
     int32_t lo = 0;
     int32_t hi = count - 1;
@@ -155,7 +155,7 @@ static bool HasKey(const uint64_t* keys, int32_t count, uint64_t key)
 // the shapes moved, and the step drops their pairs before it reads one.
 // The kept pairs' bodies go into pairScratch, sorted, for the joints to
 // look up.
-static bool CheckKeptPairs(m2World* world, const uint8_t* in)
+M2_NODISCARD static bool CheckKeptPairs(m2World* world, const uint8_t* in)
 {
     const IncomingFilters filters = {M2_IN(shapes.shapeCategory), M2_IN(shapes.shapeMask),
                                      M2_IN(shapes.shapeGroup),    M2_IN(shapes.shapeSensor),
@@ -217,7 +217,7 @@ typedef struct IncomingEnds
 // the last step, and static or asleep for two step ends. The shape is
 // live, so its body is live and in range: CheckPairs and CheckShapeLists
 // ran first.
-static bool IncomingFrozen(const IncomingEnds* e, int32_t shape)
+M2_NODISCARD static bool IncomingFrozen(const IncomingEnds* e, int32_t shape)
 {
     int32_t body = ReadI32(e->shapeBody, shape);
     return e->inMoved[shape] == 0 && (e->types[body] == (uint8_t)m2_staticBody ||
@@ -242,7 +242,7 @@ static m2Manifold IncomingManifold(const IncomingEnds* e, int32_t a, int32_t b)
 
 // Whether two floats have the same bits: -0 differs from 0, and a NaN
 // matches only its own pattern.
-static bool SameBits(float x, float y)
+M2_NODISCARD static bool SameBits(float x, float y)
 {
     uint32_t a;
     uint32_t b;
@@ -251,7 +251,7 @@ static bool SameBits(float x, float y)
     return a == b;
 }
 
-static bool SameVecBits(m2Vec2 x, m2Vec2 y)
+M2_NODISCARD static bool SameVecBits(m2Vec2 x, m2Vec2 y)
 {
     return SameBits(x.x, y.x) && SameBits(x.y, y.y);
 }
@@ -259,7 +259,7 @@ static bool SameVecBits(m2Vec2 x, m2Vec2 y)
 // Whether two manifolds hold the same contact, bit for bit: the normal and
 // each point's anchors, separation and feature id. The impulses and the
 // persisted bit are left out.
-static bool SameContact(const m2Manifold* x, const m2Manifold* y)
+M2_NODISCARD static bool SameContact(const m2Manifold* x, const m2Manifold* y)
 {
     if (x->pointCount != y->pointCount || !SameVecBits(x->normal, y->normal))
     {
@@ -288,7 +288,7 @@ static bool SameContact(const m2Manifold* x, const m2Manifold* y)
 // rule: a host call that moves a shape wakes its sleeping body or marks
 // the shape moved, and a body falling asleep computes its manifolds one
 // more step before they freeze.
-static bool CheckFrozenManifolds(const m2World* world, const uint8_t* in)
+M2_NODISCARD static bool CheckFrozenManifolds(const m2World* world, const uint8_t* in)
 {
     const IncomingEnds ends = {M2_IN(broadphase.inMoved),   M2_IN(shapes.shapeBody),
                                M2_IN(shapes.shapeGeometry), M2_IN(bodies.types),
@@ -325,8 +325,8 @@ static bool CheckFrozenManifolds(const m2World* world, const uint8_t* in)
 // Whether `count` queued end events, laid out as m2ContactEndEvent and
 // m2SensorEndEvent both are, each carry the step count and name two shape
 // slots of this world.
-static bool QueuedEndsValid(const m2World* world, const uint8_t* events, int32_t count,
-                            uint64_t step)
+M2_NODISCARD static bool QueuedEndsValid(const m2World* world, const uint8_t* events, int32_t count,
+                                         uint64_t step)
 {
     if (count < 0 || count > world->contacts.pairCapacity)
     {
@@ -349,7 +349,7 @@ static bool QueuedEndsValid(const m2World* world, const uint8_t* events, int32_t
 // The end events a destroy or a disable queued since the last step: each
 // was queued at the snapshot's step count and names two shape slots, so
 // the next step hands the host no id outside its pools.
-static bool CheckQueuedEnds(const m2World* world, const uint8_t* in)
+M2_NODISCARD static bool CheckQueuedEnds(const m2World* world, const uint8_t* in)
 {
     _Static_assert(sizeof(m2ContactEndEvent) == sizeof(m2SensorEndEvent),
                    "both queues share one layout");

@@ -9,6 +9,8 @@
 #ifndef MAUL2D_SRC_STATE_CHECKS_H
 #define MAUL2D_SRC_STATE_CHECKS_H
 
+#include "maul2d/base.h"
+
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -61,7 +63,7 @@ typedef struct m2StateBounds
 
 // Checks count elements of elementSize bytes (an inline field: one element
 // of the field's size) against one rule.
-bool m2StateCheckElements(const uint8_t* data, size_t count, size_t elementSize, m2Check check,
-                          m2StateBounds bounds);
+M2_NODISCARD bool m2StateCheckElements(const uint8_t* data, size_t count, size_t elementSize,
+                                       m2Check check, m2StateBounds bounds);
 
 #endif // MAUL2D_SRC_STATE_CHECKS_H

@@ -13,7 +13,7 @@ m2Aabb m2ShapeTightAabb(const m2World* world, int32_t shapeIndex);
 int32_t m2ShapeTreeIndex(const m2World* world, int32_t shapeIndex);
 // Refits a treed shape's fat box around its tight box at its body's pose
 // when the tight box has left it. Returns whether the box moved.
-bool m2RefitProxy(m2World* world, int32_t shapeIndex);
+M2_NODISCARD bool m2RefitProxy(m2World* world, int32_t shapeIndex);
 // Refits every treed shape of a body and marks the ones that moved.
 void m2RefitBodyProxies(m2World* world, int32_t bodyIndex);
 void m2PushMoved(m2World* world, int32_t shapeIndex);

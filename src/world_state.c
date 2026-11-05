@@ -469,7 +469,7 @@ static size_t ExtentCount(const m2World* world, uint8_t extent)
     return 0;
 }
 
-static bool Present(const m2World* world, uint8_t flags)
+M2_NODISCARD static bool Present(const m2World* world, uint8_t flags)
 {
     if ((flags & M2_STATE_PARTICLES) != 0 && world->particles.particleCapacity == 0)
     {
@@ -489,7 +489,7 @@ static void** FieldPointer(m2World* world, const m2StateArray* array)
 
 // The bytes an allocated array takes, or false when the size does not
 // fit a size_t.
-static bool ArrayBytes(const m2World* world, const m2StateArray* array, size_t* bytes)
+M2_NODISCARD static bool ArrayBytes(const m2World* world, const m2StateArray* array, size_t* bytes)
 {
     size_t count = 0;
     return !ckd_add(&count, ExtentCount(world, array->extent), (size_t)array->extra) &&
@@ -546,7 +546,7 @@ void m2StateFree(m2World* world)
 }
 
 // Whether an array is snapshot state in this world.
-static bool InSnapshot(const m2World* world, const m2StateArray* array)
+M2_NODISCARD static bool InSnapshot(const m2World* world, const m2StateArray* array)
 {
     return (array->flags & M2_STATE_SNAPSHOT) != 0 && Present(world, array->flags);
 }
@@ -555,7 +555,8 @@ static bool InSnapshot(const m2World* world, const m2StateArray* array)
 // slot of its extent; false when that does not fit a size_t. The measure
 // and the walk size every array here, so a world measures to exactly the
 // bytes its walk copies.
-static bool SnapshotArrayBytes(const m2World* world, const m2StateArray* array, size_t* bytes)
+M2_NODISCARD static bool SnapshotArrayBytes(const m2World* world, const m2StateArray* array,
+                                            size_t* bytes)
 {
     *bytes = array->elementSize;
     return (array->flags & M2_STATE_POINTER) == 0 ||
@@ -608,8 +609,8 @@ size_t m2StateWalk(m2World* world, uint8_t* out, const uint8_t* in, int directio
     return cursor;
 }
 
-static bool CheckBlock(const m2World* world, const m2StateArray* array, const uint8_t* data,
-                       size_t count)
+M2_NODISCARD static bool CheckBlock(const m2World* world, const m2StateArray* array,
+                                    const uint8_t* data, size_t count)
 {
     m2StateBounds bounds = {(int64_t)ExtentCount(world, array->range),
                             (int64_t)world->shapes.shapeCapacity};

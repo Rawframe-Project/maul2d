@@ -120,7 +120,7 @@ m2Rot m2MulRot(m2Rot q, m2Rot r)
     return result;
 }
 
-static M2_NOINLINE bool IsNormalizedRotWorker(m2Rot q)
+M2_NODISCARD static M2_NOINLINE bool IsNormalizedRotWorker(m2Rot q)
 {
     float mag2 = q.c * q.c + q.s * q.s;
     float tolerance = 4.0f * 1.19209290e-7f; // 4 * FLT_EPSILON

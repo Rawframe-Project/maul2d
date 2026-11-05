@@ -49,8 +49,8 @@ typedef struct Touch
 } Touch;
 
 // The contact between particle p and shape, if any.
-static bool TouchShape(const m2World* world, m2Pos2 p, int32_t shape, float h,
-                       float particleInvMass, Touch* out)
+M2_NODISCARD static bool TouchShape(const m2World* world, m2Pos2 p, int32_t shape, float h,
+                                    float particleInvMass, Touch* out)
 {
     int32_t body = world->shapes.shapeBody[shape];
     m2Transform xf = world->bodies.transforms[body];

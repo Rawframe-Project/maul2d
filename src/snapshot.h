@@ -13,6 +13,6 @@
 // Whether a world of these capacities has a snapshot size a size_t can
 // hold. It reads the capacities alone, so m2CreateWorld asks before it
 // allocates. Only a 32-bit target can say no.
-bool m2SnapshotFits(const m2World* world);
+M2_NODISCARD bool m2SnapshotFits(const m2World* world);
 
 #endif // MAUL2D_SRC_SNAPSHOT_H

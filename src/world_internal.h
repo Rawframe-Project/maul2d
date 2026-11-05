@@ -423,7 +423,7 @@ static inline void m2CountDrops(int32_t* counter, int64_t drops)
 
 // Whether a list call's array and capacity make sense: a capacity of 0
 // or more, and an array unless the capacity is 0, which measures.
-static inline bool m2ListOutputValid(const void* items, int32_t capacity)
+M2_NODISCARD static inline bool m2ListOutputValid(const void* items, int32_t capacity)
 {
     return capacity >= 0 && (items != NULL || capacity == 0);
 }
@@ -475,7 +475,7 @@ m2StatePrefix m2MakeStatePrefix(uint32_t magic, uint32_t formatVersion, int32_t 
 
 // Whether a caller's byte count of 0 or more can describe memory on this
 // target, that is, whether a size_t holds it. Only a 32-bit target says no.
-static inline bool m2SizeFitsMemory(int64_t bytes)
+M2_NODISCARD static inline bool m2SizeFitsMemory(int64_t bytes)
 {
 #if SIZE_MAX < INT64_MAX
     return bytes <= (int64_t)SIZE_MAX;

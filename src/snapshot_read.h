@@ -16,7 +16,7 @@
 #include <stdint.h>
 #include <string.h>
 
-static inline bool InPool(int32_t index, int32_t capacity)
+M2_NODISCARD static inline bool InPool(int32_t index, int32_t capacity)
 {
     return index >= 0 && index < capacity;
 }

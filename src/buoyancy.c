@@ -469,7 +469,7 @@ static void SaturateLoad(m2World* world, int32_t b)
     world->bodies.torques[b] = m2SaturateF(world->bodies.torques[b], M2_FORCE_LIMIT);
 }
 
-static bool InWater(const m2World* world, int32_t b, int32_t v)
+M2_NODISCARD static bool InWater(const m2World* world, int32_t b, int32_t v)
 {
     if (world->bodies.alive[b] == 0 || world->bodies.types[b] != (uint8_t)m2_dynamicBody ||
         world->bodies.asleep[b] != 0 || world->bodies.disabled[b] != 0)
