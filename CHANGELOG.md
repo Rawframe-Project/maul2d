@@ -9,6 +9,19 @@ minor release, and its entry says what changes. A snapshot or journal
 tape is read within the minor version that wrote it and refused
 across minor versions.
 
+## [1.3.1](https://github.com/Rawframe-Project/maul2d/compare/v1.3.0...v1.3.1) (2026-11-05)
+
+This release makes the compiler check that the library never drops the result of one of its own internal `bool` functions by mistake. Nothing a program sees changes: no golden line moves, and the snapshot and journal formats keep their versions.
+
+### Fixed
+
+- Every internal function that returns `bool` carries `M2_NODISCARD` ([#342](https://github.com/Rawframe-Project/maul2d/pull/342)). 231 of them lacked it, so a call that dropped such a result could go on past a refusal, or with an out value left unset, and no compiler warned. With the mark, GCC 14 found 25 calls that drop a result. Each one is meant to, so each now says so with `(void)`:
+  - 19 setters, whose parameter channel has already counted the misuse;
+  - 5 second writes of a pair, which cannot fail once the first has passed;
+  - 1 corner contact step in the polygon manifold, whose result nothing reads.
+
+  `tools/check_nodiscard.py` keeps every new internal `bool` function marked.
+
 ## [1.3.0](https://github.com/Rawframe-Project/maul2d/compare/v1.2.2...v1.3.0) (2026-11-05)
 
 This release adds four calls and settings from the 1.0 API review: a motor joint's budgets change at run time, a water volume's game data changes after creation, a chain's material reads back, and each body has its own sleep threshold. It also makes `M2_NODISCARD` warn under GCC 14's C23. Every golden line moves, but only by value: no result moves. `M2_SNAPSHOT_VERSION` goes from 8 to 9 and `M2_JOURNAL_VERSION` from 9 to 10. As in every minor release, snapshots and tapes written by 1.2 are refused with `m2_errorVersion`.
