@@ -462,7 +462,7 @@ typedef union m2OpPayload
 
 // Whether a record of 1 + bytes fits a tape of capacity bytes written up
 // to cursor (0 <= cursor <= capacity).
-bool m2JournalRecordFits(int64_t cursor, int64_t capacity, int64_t bytes);
+M2_NODISCARD bool m2JournalRecordFits(int64_t cursor, int64_t capacity, int64_t bytes);
 void m2JournalRecord(m2World* world, uint8_t op, const void* payload, int32_t bytes);
 void m2JournalRecordRestore(m2World* world, const void* snapshot, int64_t size);
 void m2JournalRecordShatter(m2World* world, m2BodyId bodyId, const m2Polygon* pieces,
@@ -489,8 +489,8 @@ typedef bool m2ReplayApplyFn(m2ReplayCursor* cursor, const m2OpPayload* payload)
 // Whether a record's tail of count elements of elementBytes each lies
 // within the tape after the cursor; the tail's size, reckoned in 64 bits
 // so no count can wrap it, goes to bytesOut.
-bool m2ReplayTailFits(const m2ReplayCursor* r, int32_t count, int32_t elementBytes,
-                      int64_t* bytesOut);
+M2_NODISCARD bool m2ReplayTailFits(const m2ReplayCursor* r, int32_t count, int32_t elementBytes,
+                                   int64_t* bytesOut);
 
 typedef struct m2JournalCommand
 {

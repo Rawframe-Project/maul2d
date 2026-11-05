@@ -201,7 +201,7 @@ static M2_NOINLINE void MotorJointSetBudgetWorker(m2World* world, m2JointId join
     {
         return; // TypedJointSlot refused
     }
-    m2SetJointParamInternal(world, jointId, param, budget);
+    (void)m2SetJointParamInternal(world, jointId, param, budget);
 }
 
 void m2MotorJoint_SetMaxForce(m2World* world, m2JointId jointId, float maxForce)

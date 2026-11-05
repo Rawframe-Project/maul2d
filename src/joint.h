@@ -91,7 +91,8 @@ float m2PulleyLiveLength(const m2World* world, int32_t index, int32_t side);
 
 // The journaled parameter channel (codes in journal.h) and the destroy
 // shared with the solver's break pass.
-bool m2SetJointParamInternal(m2World* world, m2JointId jointId, uint8_t param, float value);
+M2_NODISCARD bool m2SetJointParamInternal(m2World* world, m2JointId jointId, uint8_t param,
+                                          float value);
 void m2DestroyJointInternal(m2World* world, int32_t index);
 
 #endif // MAUL2D_SRC_JOINT_H

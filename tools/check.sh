@@ -86,6 +86,8 @@ source_checks() {
     python3 tools/check_lengths.py
     python3 tools/check_guide.py
     python3 tools/check_float_env.py
+    python3 tools/check_nodiscard.py --self-test
+    python3 tools/check_nodiscard.py
     python3 tools/check_records.py --self-test
     python3 tools/check_records.py
     python3 tools/check_patch_results.py --self-test

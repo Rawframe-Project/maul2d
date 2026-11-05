@@ -130,7 +130,7 @@ static M2_NOINLINE void GearJointSetRatioWorker(m2World* world, m2JointId jointI
     {
         return;
     }
-    m2SetJointParamInternal(world, jointId, m2_jointParamGearRatio, ratio);
+    (void)m2SetJointParamInternal(world, jointId, m2_jointParamGearRatio, ratio);
 }
 
 void m2GearJoint_SetRatio(m2World* world, m2JointId jointId, float ratio)

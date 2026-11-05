@@ -39,7 +39,7 @@ int32_t m2RefuseList(const m2World* world, void* items, int32_t capacity, size_t
 // Whether a refusal is on a replay's own path: the tape's data at fault,
 // not the caller's code. Host code the replay runs (a task hook, the
 // allocator) is the caller's.
-static bool TapeDriven(const m2World* world)
+M2_NODISCARD static bool TapeDriven(const m2World* world)
 {
     return world != NULL && world->replaying != 0 && HostCodeDepth(world) == 0;
 }

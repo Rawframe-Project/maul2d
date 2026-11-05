@@ -104,19 +104,19 @@ static inline float m2ClampF(float a, float lo, float hi)
 // Finite checks for caller input and invariants. NaN compares false
 // and infinity minus infinity is NaN, so x - x == 0 refuses NaN and
 // both infinities in one test without libm.
-static inline bool m2FiniteF(float x)
+M2_NODISCARD static inline bool m2FiniteF(float x)
 {
     return x - x == 0.0f; // NOLINT(misc-redundant-expression): the finite test
 }
-static inline bool m2FiniteD(double x)
+M2_NODISCARD static inline bool m2FiniteD(double x)
 {
     return x - x == 0.0; // NOLINT(misc-redundant-expression): the finite test
 }
-static inline bool m2FiniteVec2(m2Vec2 v)
+M2_NODISCARD static inline bool m2FiniteVec2(m2Vec2 v)
 {
     return m2FiniteF(v.x) && m2FiniteF(v.y);
 }
-static inline bool m2FinitePos2(m2Pos2 p)
+M2_NODISCARD static inline bool m2FinitePos2(m2Pos2 p)
 {
     return m2FiniteD(p.x) && m2FiniteD(p.y);
 }
@@ -305,107 +305,107 @@ static inline m2Result m2CheckBreakLimit(float x)
 
 // The same checks as a yes or no, for restore, replay and the setters
 // that return nothing.
-static inline bool m2LocalVec2(m2Vec2 v)
+M2_NODISCARD static inline bool m2LocalVec2(m2Vec2 v)
 {
     return m2CheckLocalVec2(v) == m2_success;
 }
-static inline bool m2LocalLength(float x)
+M2_NODISCARD static inline bool m2LocalLength(float x)
 {
     return m2CheckLocalLength(x) == m2_success;
 }
-static inline bool m2WithinF(float x, float lo, float hi)
+M2_NODISCARD static inline bool m2WithinF(float x, float lo, float hi)
 {
     return x >= lo && x <= hi;
 }
-static inline bool m2ValidSpeed(float x)
+M2_NODISCARD static inline bool m2ValidSpeed(float x)
 {
     return m2CheckSpeed(x) == m2_success;
 }
-static inline bool m2ValidVelocity(m2Vec2 v)
+M2_NODISCARD static inline bool m2ValidVelocity(m2Vec2 v)
 {
     return m2CheckVelocity(v) == m2_success;
 }
-static inline bool m2ValidAcceleration(m2Vec2 a)
+M2_NODISCARD static inline bool m2ValidAcceleration(m2Vec2 a)
 {
     return m2CheckAcceleration(a) == m2_success;
 }
-static inline bool m2ValidGravityScale(float x)
+M2_NODISCARD static inline bool m2ValidGravityScale(float x)
 {
     return m2CheckGravityScale(x) == m2_success;
 }
-static inline bool m2ValidRate(float x)
+M2_NODISCARD static inline bool m2ValidRate(float x)
 {
     return m2CheckRate(x) == m2_success;
 }
-static inline bool m2ValidCoefficient(float x)
+M2_NODISCARD static inline bool m2ValidCoefficient(float x)
 {
     return m2CheckCoefficient(x) == m2_success;
 }
-static inline bool m2ValidRestitution(float x)
+M2_NODISCARD static inline bool m2ValidRestitution(float x)
 {
     return m2CheckRestitution(x) == m2_success;
 }
-static inline bool m2ValidDensity(float x)
+M2_NODISCARD static inline bool m2ValidDensity(float x)
 {
     return m2CheckDensity(x) == m2_success;
 }
-static inline bool m2ValidRatio(float x)
+M2_NODISCARD static inline bool m2ValidRatio(float x)
 {
     return m2CheckRatio(x) == m2_success;
 }
-static inline bool m2ValidMass(float x)
+M2_NODISCARD static inline bool m2ValidMass(float x)
 {
     return m2CheckMass(x) == m2_success;
 }
-static inline bool m2ValidInertia(float x)
+M2_NODISCARD static inline bool m2ValidInertia(float x)
 {
     return m2CheckInertia(x) == m2_success;
 }
-static inline bool m2ValidForce(float x)
+M2_NODISCARD static inline bool m2ValidForce(float x)
 {
     return m2CheckForce(x) == m2_success;
 }
-static inline bool m2ValidForceVec(m2Vec2 f)
+M2_NODISCARD static inline bool m2ValidForceVec(m2Vec2 f)
 {
     return m2CheckForceVec(f) == m2_success;
 }
-static inline bool m2ValidMaxForce(float x)
+M2_NODISCARD static inline bool m2ValidMaxForce(float x)
 {
     return m2CheckMaxForce(x) == m2_success;
 }
-static inline bool m2ValidSleepThreshold(float x)
+M2_NODISCARD static inline bool m2ValidSleepThreshold(float x)
 {
     return m2CheckSleepThreshold(x) == m2_success;
 }
-static inline bool m2ValidImpulse(float x)
+M2_NODISCARD static inline bool m2ValidImpulse(float x)
 {
     return m2CheckImpulse(x) == m2_success;
 }
-static inline bool m2ValidImpulseVec(m2Vec2 j)
+M2_NODISCARD static inline bool m2ValidImpulseVec(m2Vec2 j)
 {
     return m2CheckImpulseVec(j) == m2_success;
 }
-static inline bool m2ValidAngle(float x)
+M2_NODISCARD static inline bool m2ValidAngle(float x)
 {
     return m2CheckAngle(x) == m2_success;
 }
-static inline bool m2ValidReach(float x)
+M2_NODISCARD static inline bool m2ValidReach(float x)
 {
     return m2CheckReach(x) == m2_success;
 }
-static inline bool m2ValidSpan(float x)
+M2_NODISCARD static inline bool m2ValidSpan(float x)
 {
     return m2CheckSpan(x) == m2_success;
 }
-static inline bool m2ValidFraction(float x)
+M2_NODISCARD static inline bool m2ValidFraction(float x)
 {
     return m2CheckFraction(x) == m2_success;
 }
-static inline bool m2ValidRatchetTooth(float x)
+M2_NODISCARD static inline bool m2ValidRatchetTooth(float x)
 {
     return m2CheckRatchetTooth(x) == m2_success;
 }
-static inline bool m2ValidBreakLimit(float x)
+M2_NODISCARD static inline bool m2ValidBreakLimit(float x)
 {
     return m2CheckBreakLimit(x) == m2_success;
 }
@@ -431,7 +431,7 @@ static inline float m2SaturateF(float x, float limit)
 // A caller box: finite corners, the lower one at or below the upper one
 // on both axes. A box of one point is valid; an inverted one contains no
 // point, so it is a swapped pair of corners.
-static inline bool m2ValidWorldAabb(m2WorldAabb box)
+M2_NODISCARD static inline bool m2ValidWorldAabb(m2WorldAabb box)
 {
     return m2FinitePos2(box.lowerBound) && m2FinitePos2(box.upperBound) &&
            box.lowerBound.x <= box.upperBound.x && box.lowerBound.y <= box.upperBound.y;
@@ -439,7 +439,7 @@ static inline bool m2ValidWorldAabb(m2WorldAabb box)
 
 // A caller rotation that is stored or used as given must already be a
 // unit rotation (m2MakeRot builds one); anything else would shear.
-static inline bool m2UnitRot(m2Rot q)
+M2_NODISCARD static inline bool m2UnitRot(m2Rot q)
 {
     float length2 = q.c * q.c + q.s * q.s;
     return m2FiniteF(q.c) && m2FiniteF(q.s) && length2 > 0.999f && length2 < 1.001f;

@@ -132,8 +132,9 @@ static int32_t CheckPool(uint8_t* marks, const Pool* pool)
 
 // Each end of `count` links, `ends` arrays of particle slots, is a live
 // particle.
-static bool LinksJoinLive(const m2World* world, const uint8_t* alive, const uint8_t* const* ends,
-                          int32_t endCount, int32_t count, int32_t capacity)
+M2_NODISCARD static bool LinksJoinLive(const m2World* world, const uint8_t* alive,
+                                       const uint8_t* const* ends, int32_t endCount, int32_t count,
+                                       int32_t capacity)
 {
     if (count < 0 || count > capacity)
     {
@@ -158,7 +159,7 @@ static bool LinksJoinLive(const m2World* world, const uint8_t* alive, const uint
 // corners within one lattice stride of their centroid on each axis. The
 // header has matched the snapshot's particle radius to this world's, and
 // the counts are already in range.
-static bool LinkShapesInRange(const m2World* world, const uint8_t* in)
+M2_NODISCARD static bool LinkShapesInRange(const m2World* world, const uint8_t* in)
 {
     float diameter = 2.0f * world->particles.particleRadius;
     float stride = 0.75f * diameter; // the fill's lattice stride
@@ -194,7 +195,7 @@ static bool LinkShapesInRange(const m2World* world, const uint8_t* in)
 // Every flag byte or word holds only the bits the library defines: a
 // joint's flags, a body's linear locks and, in a world with particles,
 // each particle's behavior flags.
-static bool CheckFlagBits(const m2World* world, const uint8_t* in)
+M2_NODISCARD static bool CheckFlagBits(const m2World* world, const uint8_t* in)
 {
     const uint8_t* jointFlags = M2_IN(joints.jointFlags);
     for (int32_t j = 0; j < world->joints.jointCapacity; ++j)
@@ -230,7 +231,7 @@ static bool CheckFlagBits(const m2World* world, const uint8_t* in)
 // Springs and triads join live particles only, as a particle's death
 // leaves them: one with a dead end would push that slot's velocity and
 // latch onto the next particle emitted there.
-static bool CheckParticleLinks(const m2World* world, const uint8_t* in)
+M2_NODISCARD static bool CheckParticleLinks(const m2World* world, const uint8_t* in)
 {
     const uint8_t* alive = M2_IN(particles.particleAlive);
     const uint8_t* springs[2] = {M2_IN(particles.particleSpringA),
@@ -248,7 +249,7 @@ static bool CheckParticleLinks(const m2World* world, const uint8_t* in)
 
 // Each live water volume's box passes the test m2CreateWaterVolume puts its
 // def's box to (m2WaterBoxValid), since no call changes the box later.
-static bool VolumeBoxesHaveArea(const m2World* world, const uint8_t* in)
+M2_NODISCARD static bool VolumeBoxesHaveArea(const m2World* world, const uint8_t* in)
 {
     const uint8_t* alive = M2_IN(volumes.wvAlive);
     const uint8_t* lowers = M2_IN(volumes.wvLower);
@@ -268,7 +269,7 @@ static bool VolumeBoxesHaveArea(const m2World* world, const uint8_t* in)
 
 // The particle and water volume pools, which exist only in worlds that
 // have them.
-static bool CheckFluidPools(m2World* world, const uint8_t* in)
+M2_NODISCARD static bool CheckFluidPools(m2World* world, const uint8_t* in)
 {
     uint8_t* marks = world->restoreMarks;
     if (world->particles.particleCapacity > 0)
@@ -310,7 +311,7 @@ static bool CheckFluidPools(m2World* world, const uint8_t* in)
     return true;
 }
 
-static bool CheckPools(m2World* world, const uint8_t* in)
+M2_NODISCARD static bool CheckPools(m2World* world, const uint8_t* in)
 {
     uint8_t* marks = world->restoreMarks;
     const Pool bodies = {M2_IN(bodies.alive),
@@ -366,7 +367,7 @@ static bool CheckPools(m2World* world, const uint8_t* in)
 // Each live body's shape list holds only its own live shapes and ends
 // within the pool; together the lists hold every live shape, so no shape
 // is on two lists and none is missing. A dead body owns no list.
-static bool CheckShapeLists(const m2World* world, const uint8_t* in)
+M2_NODISCARD static bool CheckShapeLists(const m2World* world, const uint8_t* in)
 {
     const uint8_t* bodyAlive = M2_IN(bodies.alive);
     const uint8_t* heads = M2_IN(bodies.bodyShapeHead);
@@ -403,7 +404,7 @@ static bool CheckShapeLists(const m2World* world, const uint8_t* in)
 
 // A live chain belongs to a live body, and a live shape of a chain shares
 // the chain's body.
-static bool CheckChains(const m2World* world, const uint8_t* in)
+M2_NODISCARD static bool CheckChains(const m2World* world, const uint8_t* in)
 {
     const uint8_t* bodyAlive = M2_IN(bodies.alive);
     const uint8_t* chainAlive = M2_IN(chains.chainAlive);
@@ -449,7 +450,7 @@ typedef struct JointFields
 
 // The motor and limit kinds keep angle limits (revolute) or translation
 // limits (prismatic, wheel) in lower and upper.
-static bool LimitsValid(const JointFields* f)
+M2_NODISCARD static bool LimitsValid(const JointFields* f)
 {
     if (f->type == (uint8_t)m2_revoluteJoint)
     {
@@ -465,7 +466,7 @@ static bool LimitsValid(const JointFields* f)
 // Accumulated state the step grows without a bound (a gear's phase in
 // reference, a ratchet's angle and tooth in upper and lower) stays any
 // finite value, so every snapshot a world writes restores.
-static bool JointKindValid(const JointFields* f)
+M2_NODISCARD static bool JointKindValid(const JointFields* f)
 {
     switch ((m2JointType)f->type)
     {
@@ -503,7 +504,7 @@ static bool JointKindValid(const JointFields* f)
     return false;
 }
 
-static bool CheckJoints(const m2World* world, const uint8_t* in)
+M2_NODISCARD static bool CheckJoints(const m2World* world, const uint8_t* in)
 {
     const uint8_t* bodyAlive = M2_IN(bodies.alive);
     const uint8_t* jointAlive = M2_IN(joints.jointAlive);
@@ -541,7 +542,7 @@ static bool CheckJoints(const m2World* world, const uint8_t* in)
 // Every live shape's geometry is one the library would keep: valid for its
 // type, and a polygon exactly as the library builds it from its vertices,
 // normals included.
-static bool CheckGeometry(const m2World* world, const uint8_t* in)
+M2_NODISCARD static bool CheckGeometry(const m2World* world, const uint8_t* in)
 {
     const uint8_t* shapeAlive = M2_IN(shapes.shapeAlive);
     const uint8_t* geometries = M2_IN(shapes.shapeGeometry);
@@ -588,7 +589,8 @@ static m2MassData IncomingShapeMass(const void* context, int32_t shape)
 
 // Mass data set by m2Body_SetMassData: a dynamic body's, with inverses a
 // float can invert back, as the setter's own rules leave them.
-static bool OverrideValid(float invMass, float invInertia, bool dynamic, bool fixedRotation)
+M2_NODISCARD static bool OverrideValid(float invMass, float invInertia, bool dynamic,
+                                       bool fixedRotation)
 {
     return dynamic && m2MassInversesValid(invMass, invInertia) &&
            (!fixedRotation || invInertia == 0.0f);
@@ -596,7 +598,7 @@ static bool OverrideValid(float invMass, float invInertia, bool dynamic, bool fi
 
 // Every live body's mass data is what its shapes give it, bit for bit, or
 // a valid override: derived data a world would never hold cannot land.
-static bool CheckMass(const m2World* world, const uint8_t* in)
+M2_NODISCARD static bool CheckMass(const m2World* world, const uint8_t* in)
 {
     const uint8_t* alive = M2_IN(bodies.alive);
     const uint8_t* types = M2_IN(bodies.types);
@@ -652,8 +654,8 @@ typedef struct Leaves
 
 // A node as reached from its parent: its own rules, and its children's
 // links back to it.
-static bool CheckNode(const uint8_t* nodes, int32_t capacity, int32_t index, int32_t tree,
-                      const Leaves* leaves)
+M2_NODISCARD static bool CheckNode(const uint8_t* nodes, int32_t capacity, int32_t index,
+                                   int32_t tree, const Leaves* leaves)
 {
     m2TreeNode node = ReadNode(nodes, index);
     if (node.height == 0)
@@ -756,7 +758,7 @@ static int32_t WalkFreeList(const uint8_t* nodes, int32_t capacity, int32_t head
 // exactly the ones the walk visits, and the free list holds the rest. Each
 // live shape of an enabled body has a leaf in its body type's tree, and no
 // other shape has a proxy.
-static bool CheckTrees(const m2World* world, const uint8_t* in)
+M2_NODISCARD static bool CheckTrees(const m2World* world, const uint8_t* in)
 {
     const Leaves leaves = {M2_IN(shapes.shapeAlive),   M2_IN(shapes.shapeBody),
                            M2_IN(broadphase.proxyIds), M2_IN(bodies.types),
@@ -812,7 +814,7 @@ static bool CheckTrees(const m2World* world, const uint8_t* in)
 // only a dynamic body sleeps, both ways into sleep zero its velocities and
 // every call that moves a body wakes it. The step reads both: the solver
 // takes a static body's velocity, and waking keeps a sleeper's.
-static bool CheckStillBodies(const m2World* world, const uint8_t* in)
+M2_NODISCARD static bool CheckStillBodies(const m2World* world, const uint8_t* in)
 {
     const uint8_t* alive = M2_IN(bodies.alive);
     const uint8_t* types = M2_IN(bodies.types);
@@ -839,7 +841,7 @@ static bool CheckStillBodies(const m2World* world, const uint8_t* in)
 
 // Every live body keeps a positive sleep threshold: its def and its
 // setter store the default for 0. With 0, a body would never rest.
-static bool CheckSleepThresholds(const m2World* world, const uint8_t* in)
+M2_NODISCARD static bool CheckSleepThresholds(const m2World* world, const uint8_t* in)
 {
     const uint8_t* alive = M2_IN(bodies.alive);
     const uint8_t* thresholds = M2_IN(bodies.sleepThresholds);
@@ -859,7 +861,7 @@ static bool CheckSleepThresholds(const m2World* world, const uint8_t* in)
 // shape's tight box at the body's pose, by the step's own computation and
 // test. Awake bodies' boxes lag their poses by the last step in every
 // snapshot, and the next step refits them first.
-static bool CheckRestingBoxes(const m2World* world, const uint8_t* in)
+M2_NODISCARD static bool CheckRestingBoxes(const m2World* world, const uint8_t* in)
 {
     const uint8_t* alive = M2_IN(shapes.shapeAlive);
     const uint8_t* owners = M2_IN(shapes.shapeBody);

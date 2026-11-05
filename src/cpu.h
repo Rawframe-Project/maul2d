@@ -8,6 +8,8 @@
 #ifndef MAUL2D_SRC_CPU_H
 #define MAUL2D_SRC_CPU_H
 
+#include "maul2d/base.h"
+
 #include <stdbool.h>
 
 // The backend the library's vector code was built for: "avx2", "neon"
@@ -17,13 +19,13 @@ const char* m2GetSimdBackend(void);
 
 // Whether this CPU runs the built backend.
 // NOLINTNEXTLINE(readability-redundant-declaration): base.h may declare it
-bool m2IsCpuBackendSupported(void);
+M2_NODISCARD bool m2IsCpuBackendSupported(void);
 
 // The CPU check without a world: stores the backend's name in *backend
 // when backend is not null and returns whether this CPU runs it (when it
 // does not, the build should be configured scalar). Safe from any thread;
 // it keeps no state.
 // NOLINTNEXTLINE(readability-redundant-declaration): base.h may declare it
-bool m2CheckCpu(const char** backend);
+M2_NODISCARD bool m2CheckCpu(const char** backend);
 
 #endif

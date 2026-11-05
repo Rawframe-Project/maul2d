@@ -38,7 +38,7 @@ m2BodyMass m2BodyMassFromShapes(uint8_t type, bool fixedRotation, const m2MassSh
 // inverse of an inertia within [M2_MIN_INERTIA, M2_INERTIA_LIMIT].
 // m2Body_SetMassData and the snapshot check share it, so what one accepts
 // the other does.
-bool m2MassInversesValid(float invMass, float invInertia);
+M2_NODISCARD bool m2MassInversesValid(float invMass, float invInertia);
 
 // Sets a body's inverse mass, inverse inertia and center of mass from its
 // shapes, in shape-list order, and drops any override.

@@ -88,7 +88,7 @@ static float DistanceToShape(const m2World* world, int32_t shape, m2Pos2 wp, flo
 // Whether a shape the sweep overlaps may stop the bullet body: not a
 // sensor, not on the ghost side of a one-way chain, not the bullet itself
 // or another bullet, and allowed by the collision filters.
-static bool BulletMayHit(const m2World* world, int32_t body, int32_t shape)
+M2_NODISCARD static bool BulletMayHit(const m2World* world, int32_t body, int32_t shape)
 {
     if (world->shapes.shapeSensor[shape] != 0)
     {

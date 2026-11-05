@@ -78,20 +78,20 @@ void m2TreeBeginQuery(m2TreeCursor* cursor, const m2DynamicTree* tree, const m2T
                       m2Aabb aabb);
 // Writes the next overlapping leaf's userData and returns true, or
 // returns false when the query is exhausted.
-bool m2TreeNextQuery(m2TreeCursor* cursor, int32_t* userData);
+M2_NODISCARD bool m2TreeNextQuery(m2TreeCursor* cursor, int32_t* userData);
 
 // Offers value to kept, the lowest values offered so far in ascending
 // order, at most capacity of them (*count): a full set drops its largest
 // for a lower value and ignores a higher one.
 void m2TreeKeepLowest(int32_t* kept, int32_t* count, int32_t capacity, int32_t value);
 
-static inline bool m2Aabb_Overlaps(m2Aabb a, m2Aabb b)
+M2_NODISCARD static inline bool m2Aabb_Overlaps(m2Aabb a, m2Aabb b)
 {
     return a.lowerBound.x <= b.upperBound.x && a.lowerBound.y <= b.upperBound.y &&
            b.lowerBound.x <= a.upperBound.x && b.lowerBound.y <= a.upperBound.y;
 }
 
-static inline bool m2Aabb_Contains(m2Aabb outer, m2Aabb inner)
+M2_NODISCARD static inline bool m2Aabb_Contains(m2Aabb outer, m2Aabb inner)
 {
     return outer.lowerBound.x <= inner.lowerBound.x && outer.lowerBound.y <= inner.lowerBound.y &&
            inner.upperBound.x <= outer.upperBound.x && inner.upperBound.y <= outer.upperBound.y;

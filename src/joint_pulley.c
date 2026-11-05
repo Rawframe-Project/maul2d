@@ -153,7 +153,7 @@ static M2_NOINLINE void PulleyJointSetRatioWorker(m2World* world, m2JointId join
     {
         return;
     }
-    m2SetJointParamInternal(world, jointId, m2_jointParamPulleyRatio, ratio);
+    (void)m2SetJointParamInternal(world, jointId, m2_jointParamPulleyRatio, ratio);
 }
 
 void m2PulleyJoint_SetRatio(m2World* world, m2JointId jointId, float ratio)

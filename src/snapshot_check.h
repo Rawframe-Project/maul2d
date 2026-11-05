@@ -18,6 +18,6 @@
 // owner lists, the broadphase trees, the moved list and the pairs all
 // agree. Reads the block in place and writes only world->restoreMarks and
 // world->contacts.pairScratch.
-bool m2SnapshotCheck(m2World* world, const uint8_t* in);
+M2_NODISCARD bool m2SnapshotCheck(m2World* world, const uint8_t* in);
 
 #endif // MAUL2D_SRC_SNAPSHOT_CHECK_H

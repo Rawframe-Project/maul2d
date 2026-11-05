@@ -29,13 +29,13 @@ m2Softness m2StiffJointSoftness(float h)
     return m2MakeSoft(M2_JOINT_HERTZ, M2_JOINT_DAMPING_RATIO, h);
 }
 
-static bool Awake(const m2World* world, int32_t body)
+M2_NODISCARD static bool Awake(const m2World* world, int32_t body)
 {
     return world->bodies.types[body] == (uint8_t)m2_dynamicBody && world->bodies.asleep[body] == 0;
 }
 
 // True when the joint has rows to solve this step.
-static bool JointSolves(const m2World* world, int32_t j)
+M2_NODISCARD static bool JointSolves(const m2World* world, int32_t j)
 {
     int32_t bodyA = world->joints.jointBodyA[j];
     int32_t bodyB = world->joints.jointBodyB[j];

@@ -40,14 +40,14 @@ static double DecompCross(m2Vec2 a, m2Vec2 b, m2Vec2 c)
 
 // Inclusive point-in-triangle for a CCW triangle: boundary counts as
 // inside, which makes the ear test conservative.
-static bool DecompPointInTriangle(m2Vec2 a, m2Vec2 b, m2Vec2 c, m2Vec2 p)
+M2_NODISCARD static bool DecompPointInTriangle(m2Vec2 a, m2Vec2 b, m2Vec2 c, m2Vec2 p)
 {
     return DecompCross(a, b, p) >= 0.0 && DecompCross(b, c, p) >= 0.0 &&
            DecompCross(c, a, p) >= 0.0;
 }
 
 // Whether p, collinear with segment ab, lies on it, endpoints included.
-static bool DecompOnSegment(m2Vec2 a, m2Vec2 b, m2Vec2 p)
+M2_NODISCARD static bool DecompOnSegment(m2Vec2 a, m2Vec2 b, m2Vec2 p)
 {
     return (a.x <= b.x ? a.x <= p.x && p.x <= b.x : b.x <= p.x && p.x <= a.x) &&
            (a.y <= b.y ? a.y <= p.y && p.y <= b.y : b.y <= p.y && p.y <= a.y);
@@ -57,7 +57,7 @@ static bool DecompOnSegment(m2Vec2 a, m2Vec2 b, m2Vec2 p)
 // the other (a vertex on an edge, a repeated vertex, a collinear
 // overlap). An outline whose edges meet anywhere but at their shared
 // corners is not simple, and its pieces could cover what it cuts out.
-static bool DecompSegmentsMeet(m2Vec2 a, m2Vec2 b, m2Vec2 c, m2Vec2 d)
+M2_NODISCARD static bool DecompSegmentsMeet(m2Vec2 a, m2Vec2 b, m2Vec2 c, m2Vec2 d)
 {
     double d1 = DecompCross(c, d, a);
     double d2 = DecompCross(c, d, b);
@@ -76,7 +76,7 @@ static bool DecompSegmentsMeet(m2Vec2 a, m2Vec2 b, m2Vec2 c, m2Vec2 d)
 // it arrived on: a spike of zero width. The edge test alone would catch a
 // fold through a different cross product when the fold overshoots, and
 // rounding can tell the two apart, so the corner is tested exactly here.
-static bool DecompFoldsBack(m2Vec2 a, m2Vec2 b, m2Vec2 c)
+M2_NODISCARD static bool DecompFoldsBack(m2Vec2 a, m2Vec2 b, m2Vec2 c)
 {
     double dot = ((double)b.x - (double)a.x) * ((double)c.x - (double)b.x) +
                  ((double)b.y - (double)a.y) * ((double)c.y - (double)b.y);
@@ -86,7 +86,7 @@ static bool DecompFoldsBack(m2Vec2 a, m2Vec2 b, m2Vec2 c)
 // Whether p lies within M2_LINEAR_SLOP of segment ab. Closer than that,
 // a vertex touches the edge for the solver, and float rounding in the
 // pieces can make them cross it.
-static bool DecompNear(m2Vec2 a, m2Vec2 b, m2Vec2 p)
+M2_NODISCARD static bool DecompNear(m2Vec2 a, m2Vec2 b, m2Vec2 p)
 {
     double ex = (double)b.x - (double)a.x;
     double ey = (double)b.y - (double)a.y;
@@ -107,7 +107,7 @@ static bool DecompNear(m2Vec2 a, m2Vec2 b, m2Vec2 p)
 // Whether an outline is simple: no corner folds back, no two edges meet
 // except adjacent ones at their shared corner, and no corner comes within
 // M2_LINEAR_SLOP of an edge it does not end.
-static bool DecompSimple(const m2Vec2* points, int32_t count)
+M2_NODISCARD static bool DecompSimple(const m2Vec2* points, int32_t count)
 {
     for (int32_t i = 0; i < count; ++i)
     {
@@ -144,7 +144,7 @@ static bool DecompSimple(const m2Vec2* points, int32_t count)
 // convexity test of the merge works in double, the checks in float: a
 // corner that turns by a hair in double can be straight or reflex in
 // float.
-static bool DecompPieceValid(const m2Vec2* points, const m2DecompPiece* piece)
+M2_NODISCARD static bool DecompPieceValid(const m2Vec2* points, const m2DecompPiece* piece)
 {
     m2Vec2 verts[M2_MAX_POLYGON_VERTICES];
     for (int32_t k = 0; k < piece->n; ++k)
@@ -200,7 +200,7 @@ static int32_t DecompOpposite(const int32_t* triangle, int32_t u, int32_t v)
 // (v, u, x) to the quad's other diagonal, when the quad is strictly
 // convex and the worse of the two new triangles is better than the worse
 // of the two old ones. Returns whether it flipped.
-static bool DecompFlip(const m2Vec2* points, int32_t* s, int32_t* o, int32_t e)
+M2_NODISCARD static bool DecompFlip(const m2Vec2* points, int32_t* s, int32_t* o, int32_t e)
 {
     int32_t u = s[e];
     int32_t v = s[(e + 1) % 3];

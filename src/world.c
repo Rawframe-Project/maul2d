@@ -99,7 +99,7 @@ static m2Result WorldDefCheck(const m2WorldDef* def)
 // shape slot, which no tree can run out of: a tree of L leaves holds
 // 2L - 1 nodes, a live shape is at most one leaf, and a restore proves
 // the same of a snapshot's trees (snapshot_check.c), so no insert fails.
-static bool ApplyWorldDef(m2World* world, const m2WorldDef* def)
+M2_NODISCARD static bool ApplyWorldDef(m2World* world, const m2WorldDef* def)
 {
     int32_t shapeCap = def->shapeCapacity;
     int32_t particleCap = def->particleCapacity;
@@ -317,7 +317,7 @@ static void OpenEventWindow(m2World* world)
 // nothing was teleported, the pipeline provably changes no state (frozen
 // pairs copy themselves, islands rebuild to the same roots, the solver
 // has no constraints), so the step can skip it bit-identically.
-static bool WorldIsHibernating(const m2World* world)
+M2_NODISCARD static bool WorldIsHibernating(const m2World* world)
 {
     if (world->broadphase.movedCount != 0 || world->particles.particleCount != 0)
     {

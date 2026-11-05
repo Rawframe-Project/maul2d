@@ -24,7 +24,7 @@ m2PairSide m2ShapePairSide(const m2World* world, int32_t shapeIndex);
 // Whether the broadphase pairs two shapes of different bodies by their
 // kinds, their bodies' types and their filters. The joints between their bodies have the last word
 // (m2JointsForbidPair).
-bool m2SidesMayPair(const m2PairSide* a, const m2PairSide* b);
+M2_NODISCARD bool m2SidesMayPair(const m2PairSide* a, const m2PairSide* b);
 
 void m2RefilterJointedBodies(m2World* world, int32_t bodyA, int32_t bodyB);
 void m2UpdatePairs(m2World* world);

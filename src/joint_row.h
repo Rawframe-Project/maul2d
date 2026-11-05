@@ -158,8 +158,9 @@ void m2SolveSpringPair(m2Vec2 armA, m2Vec2 armB, m2JointBodies* b, m2Vec2 gap, f
 // its inertia, since they are then coupled almost one to one. Returns
 // false, changing nothing, when the block is singular (neither body
 // turns); the caller then solves the rows apart.
-bool m2SolveWeldBlock(m2Vec2 armA, m2Vec2 armB, m2JointBodies* b, m2Vec2 bias, float angleBias,
-                      m2RowDrive drive, m2Vec2* accumulated, float* accumulatedAngle);
+M2_NODISCARD bool m2SolveWeldBlock(m2Vec2 armA, m2Vec2 armB, m2JointBodies* b, m2Vec2 bias,
+                                   float angleBias, m2RowDrive drive, m2Vec2* accumulated,
+                                   float* accumulatedAngle);
 
 // Pushes a weld's point impulse and angle impulse together, each body's
 // spin changed once by their summed torque.

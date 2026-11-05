@@ -21,7 +21,7 @@
         }                                                                                          \
     } while (0)
 
-static bool ValidBody(const m2World* world, int32_t i)
+M2_NODISCARD static bool ValidBody(const m2World* world, int32_t i)
 {
     m2Transform xf = world->bodies.transforms[i];
     M2_CHECK_INVARIANT(m2FinitePos2(xf.p));
@@ -33,7 +33,7 @@ static bool ValidBody(const m2World* world, int32_t i)
     return true;
 }
 
-static bool ValidBodies(const m2World* world)
+M2_NODISCARD static bool ValidBodies(const m2World* world)
 {
     for (int32_t i = 0; i < world->bodies.maxBodyIndex; ++i)
     {
@@ -42,12 +42,12 @@ static bool ValidBodies(const m2World* world)
     return true;
 }
 
-static bool LiveBody(const m2World* world, int32_t body)
+M2_NODISCARD static bool LiveBody(const m2World* world, int32_t body)
 {
     return body >= 0 && body < world->bodies.bodyCapacity && world->bodies.alive[body] != 0;
 }
 
-static bool ValidJoint(const m2World* world, int32_t i)
+M2_NODISCARD static bool ValidJoint(const m2World* world, int32_t i)
 {
     M2_CHECK_INVARIANT(world->joints.jointType[i] <= 10);
     M2_CHECK_INVARIANT(LiveBody(world, world->joints.jointBodyA[i]));
@@ -56,7 +56,7 @@ static bool ValidJoint(const m2World* world, int32_t i)
 }
 
 // Shapes and joints point at live bodies; contact pairs stay in key order.
-static bool ValidLinks(const m2World* world)
+M2_NODISCARD static bool ValidLinks(const m2World* world)
 {
     for (int32_t i = 0; i < world->shapes.maxShapeIndex; ++i)
     {
@@ -76,7 +76,7 @@ static bool ValidLinks(const m2World* world)
 }
 
 // Springs and triads join live particles only.
-static bool ValidParticleLinks(const m2World* world)
+M2_NODISCARD static bool ValidParticleLinks(const m2World* world)
 {
     const uint8_t* alive = world->particles.particleAlive;
     for (int32_t k = 0; k < world->particles.particleSpringCount; ++k)
@@ -93,7 +93,7 @@ static bool ValidParticleLinks(const m2World* world)
     return true;
 }
 
-static bool ValidParticles(const m2World* world)
+M2_NODISCARD static bool ValidParticles(const m2World* world)
 {
     if (world->particles.particleCapacity == 0)
     {
@@ -118,7 +118,7 @@ static bool ValidParticles(const m2World* world)
 
 // The invariant walk: everything a healthy world must be able to
 // say about itself, checked loudly. Pure reader.
-static M2_NOINLINE bool WorldValidateWorker(const m2World* world)
+M2_NODISCARD static M2_NOINLINE bool WorldValidateWorker(const m2World* world)
 {
     if (world == NULL)
     {

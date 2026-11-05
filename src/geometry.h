@@ -31,11 +31,11 @@ typedef struct m2ShapeGeometry
 _Static_assert(sizeof(m2Polygon) == 136, "polygon layout is ABI");
 _Static_assert(sizeof(m2ShapeGeometry) == 140, "geometry union must be padding-free");
 
-bool m2ValidateCircle(const m2Circle* circle);
-bool m2ValidateCapsule(const m2Capsule* capsule);
-bool m2ValidateSegment(const m2Segment* segment);
+M2_NODISCARD bool m2ValidateCircle(const m2Circle* circle);
+M2_NODISCARD bool m2ValidateCapsule(const m2Capsule* capsule);
+M2_NODISCARD bool m2ValidateSegment(const m2Segment* segment);
 // m2ValidatePolygon is internal; the validator family is not public API.
-bool m2ValidatePolygon(const m2Polygon* polygon);
+M2_NODISCARD bool m2ValidatePolygon(const m2Polygon* polygon);
 
 // The same checks with the status a call returns: coordinates or a radius
 // past M2_LOCAL_LIMIT, or a polygon past M2_MAX_POLYGON_VERTICES, are
@@ -65,12 +65,12 @@ m2Polygon m2CanonicalPolygon(const m2Polygon* polygon);
 
 // Rebuilds a polygon geometry from its vertices; other shapes stay as
 // they are. False when the vertices do not make a polygon.
-bool m2CanonicalizeGeometry(m2ShapeGeometry* geometry);
+M2_NODISCARD bool m2CanonicalizeGeometry(m2ShapeGeometry* geometry);
 
 // Whether a geometry is one the library would keep: each shape passes its
 // creation check, a chain segment's ghosts are finite, and a polygon is
 // exactly its canonical form. Restore asks this of every live shape.
-bool m2GeometryIsCanonical(const m2ShapeGeometry* geometry);
+M2_NODISCARD bool m2GeometryIsCanonical(const m2ShapeGeometry* geometry);
 
 m2Aabb m2ComputeShapeAabb(const m2ShapeGeometry* geometry, m2Transform xf);
 m2MassData m2ComputeShapeMass(const m2ShapeGeometry* geometry, float density);

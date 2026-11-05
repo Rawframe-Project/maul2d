@@ -224,7 +224,7 @@ static int32_t MonotoneChain(m2Vec2* ps, int32_t n, m2Vec2* hull)
 
 // Whether every chain point from after a to before b, cyclically, lies
 // within two linear slops of the line through chain[a] and chain[b].
-static bool SpanIsFlat(const m2Vec2* chain, int32_t n, int32_t a, int32_t b)
+M2_NODISCARD static bool SpanIsFlat(const m2Vec2* chain, int32_t n, int32_t a, int32_t b)
 {
     for (int32_t j = (a + 1) % n; j != b; j = (j + 1) % n)
     {

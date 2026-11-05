@@ -201,8 +201,8 @@ static float Dot(m2Vec2 a, m2Vec2 b)
 // The point closest to the wish on the planes of set (k of them),
 // pushed by each: solves the Gram system G lambda = -(s + N w). False
 // when the set is degenerate or a push would pull.
-static bool RestOn(m2Vec2 wish, const m2MoverPlane* planes, const int32_t* set, int32_t k,
-                   m2Vec2* d, uint32_t* pressed)
+M2_NODISCARD static bool RestOn(m2Vec2 wish, const m2MoverPlane* planes, const int32_t* set,
+                                int32_t k, m2Vec2* d, uint32_t* pressed)
 {
     float lambda[2] = {0.0f, 0.0f};
     if (k == 1)

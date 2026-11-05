@@ -16,7 +16,7 @@
 // would never act. m2CreateWaterVolume takes only such a box, no call
 // changes it later, and a restore holds every live volume to the same
 // test.
-static inline bool m2WaterBoxValid(m2WorldAabb box)
+M2_NODISCARD static inline bool m2WaterBoxValid(m2WorldAabb box)
 {
     return m2ValidWorldAabb(box) && box.lowerBound.x < box.upperBound.x &&
            box.lowerBound.y < box.upperBound.y;

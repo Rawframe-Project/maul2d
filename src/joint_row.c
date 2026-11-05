@@ -247,7 +247,7 @@ typedef struct m2WeldMass
 // near-equal products: det K = m^2 (iA + iB) + m iA iB |a - b|^2, and each
 // cofactor is expanded the same way. Returns false when the block is
 // singular (neither body turns) or too stiff to multiply.
-static bool WeldMass(m2Vec2 armA, m2Vec2 armB, const m2JointBodies* b, m2WeldMass* out)
+M2_NODISCARD static bool WeldMass(m2Vec2 armA, m2Vec2 armB, const m2JointBodies* b, m2WeldMass* out)
 {
     double ax = (double)armA.x;
     double ay = (double)armA.y;

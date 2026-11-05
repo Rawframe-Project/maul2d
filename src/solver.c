@@ -19,7 +19,7 @@
 #include <string.h>
 
 // A body the integrator moves this substep.
-static bool Moving(const m2World* world, int32_t i)
+M2_NODISCARD static bool Moving(const m2World* world, int32_t i)
 {
     return world->bodies.alive[i] != 0 && world->bodies.types[i] != (uint8_t)m2_staticBody &&
            world->bodies.asleep[i] == 0 && world->bodies.disabled[i] == 0;
