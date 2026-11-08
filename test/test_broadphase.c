@@ -71,6 +71,47 @@ static void TestFullPairTableIsCounted(void)
     m2DestroyWorld(world);
 }
 
+static void TestFullTableMergeIsCounted(void)
+{
+    // Twenty-four discs locked on one spot want 276 pairs; a world of 24
+    // shapes keeps 192. Locked, they never leave their fat boxes, so the
+    // pairs that fit stay without being met again. One disc teleported a
+    // millimeter meets its 23 neighbors anew: they fit the candidate
+    // scratch, so every pair lost now is lost where the surviving pairs
+    // and the new ones merge into the full table, and is counted there.
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 24;
+    def.shapeCapacity = 24;
+    def.gravity = (m2Vec2){0.0f, 0.0f};
+    m2World* world = NewWorld(&def);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2BodyId last = m2_nullBodyId;
+    for (int32_t i = 0; i < 24; ++i)
+    {
+        m2BodyDef bd = m2DefaultBodyDef();
+        bd.type = m2_dynamicBody;
+        bd.position = (m2Pos2){0.001 * (double)i, 0.0};
+        bd.motionLocks = (m2MotionLocks){true, true, true};
+        m2Circle disc = {{0.0f, 0.0f}, 0.5f};
+        last = NewBody(world, &bd);
+        NewCircleShape(world, last, &sd, &disc);
+    }
+    Step(world, 1.0f / 60.0f, 1);
+    m2Counters c = m2World_GetCounters(world);
+    CHECK(c.contactCount == 192 && c.contactCount + c.pairsDropped == 276,
+          "the table fills, and the 84 pairs past it are counted");
+    Step(world, 1.0f / 60.0f, 1);
+    c = m2World_GetCounters(world);
+    CHECK(c.contactCount == 192 && c.pairsDropped == 0,
+          "with nothing moving, the pairs stay and nothing is dropped");
+    m2Body_SetTransform(world, last, (m2Pos2){0.024, 0.0}, m2MakeRot(0.0f));
+    Step(world, 1.0f / 60.0f, 1);
+    c = m2World_GetCounters(world);
+    CHECK(c.contactCount == 192 && c.pairsDropped > 0 && c.pairsDropped <= 23,
+          "the merge into the full table counts each pair it drops");
+    m2DestroyWorld(world);
+}
+
 static void TestDuplicateCandidatesDoNotCrowdTheTable(void)
 {
     // Seventeen discs on one spot make 136 distinct pairs, which fit a
@@ -158,6 +199,7 @@ static void TestFullShapePoolFitsEveryTree(void)
 
 int main(void)
 {
+    TestFullTableMergeIsCounted();
     TestWideMoverPairsEverything();
     TestFullPairTableIsCounted();
     TestDuplicateCandidatesDoNotCrowdTheTable();

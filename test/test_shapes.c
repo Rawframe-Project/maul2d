@@ -866,8 +866,54 @@ static void TestNullGeometryIsRefused(void)
     m2DestroyWorld(world);
 }
 
+// m2ComputeHull refuses a null cloud, a null output and fewer than three
+// points with m2_errorInvalid, leaving the output as it was.
+static void TestHullRefusesTooLittle(void)
+{
+    m2Vec2 cloud[3] = {{0.0f, 0.0f}, {1.0f, 0.0f}, {0.0f, 1.0f}};
+    m2Polygon hull = m2MakeBox(2.0f, 2.0f);
+    CHECK(m2ComputeHull(NULL, 3, 0.0f, &hull) == m2_errorInvalid, "a null cloud is refused");
+    CHECK(m2ComputeHull(cloud, 2, 0.0f, &hull) == m2_errorInvalid, "and two points");
+    CHECK(m2ComputeHull(cloud, 2, 1.0e30f, &hull) == m2_errorInvalid,
+          "two points are too few before the radius is checked");
+    CHECK(m2ComputeHull(cloud, 3, 0.0f, NULL) == m2_errorInvalid, "and a null output");
+    CHECK(hull.count == 4 && hull.vertices[0].x == -2.0f, "each leaves the output as it was");
+    CHECK(m2ComputeHull(cloud, 3, 0.0f, &hull) == m2_success && hull.count == 3,
+          "three points make a triangle");
+}
+
+// A geometry reader on a shape of another type counts one misuse and
+// reads zero.
+static void TestGeometryReadersCheckTheType(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2BodyId body = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Circle ball = {{1.0f, 2.0f}, 0.5f};
+    m2ShapeId circle = NewCircleShape(world, body, &sd, &ball);
+    m2Polygon unit = m2MakeBox(0.5f, 0.5f);
+    m2ShapeId box = NewPolygonShape(world, body, &sd, &unit);
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+    m2Circle asCircle = m2CircleShape_GetCircle(world, box);
+    m2Polygon asPolygon = m2PolygonShape_GetPolygon(world, circle);
+    m2Capsule asCapsule = m2CapsuleShape_GetCapsule(world, circle);
+    m2Segment asSegment = m2SegmentShape_GetSegment(world, box);
+    CHECK(asCircle.radius == 0.0f && asCircle.center.x == 0.0f && asPolygon.count == 0 &&
+              asCapsule.radius == 0.0f && asSegment.point2.x == 0.0f,
+          "a reader of another type reads zero");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 4, "each counting one misuse");
+    CHECK(m2CircleShape_GetCircle(world, circle).center.y == 2.0f &&
+              m2World_GetCounters(world).misuseCount == misuse + 4,
+          "the matching reader reads the circle and counts nothing");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
+    TestHullRefusesTooLittle();
+    TestGeometryReadersCheckTheType();
     TestGrownStaticShapeCollides();
     TestNullGeometryIsRefused();
     TestGeometrySettersMatchCreation();

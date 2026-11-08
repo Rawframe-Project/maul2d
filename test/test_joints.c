@@ -3170,8 +3170,266 @@ static void TestJointSwitchesAndRefusals(void)
     m2DestroyWorld(world);
 }
 
+// Makes one joint of the given type between a and b from its default def;
+// the pulley's ground anchors sit above the bodies.
+static m2Result CreateJointOfType(m2World* world, m2JointType type, m2BodyId a, m2BodyId b,
+                                  m2JointId* out)
+{
+    switch (type)
+    {
+    case m2_distanceJoint:
+    {
+        m2DistanceJointDef d = m2DefaultDistanceJointDef();
+        d.bodyIdA = a;
+        d.bodyIdB = b;
+        return m2CreateDistanceJoint(world, &d, out);
+    }
+    case m2_revoluteJoint:
+    {
+        m2RevoluteJointDef d = m2DefaultRevoluteJointDef();
+        d.bodyIdA = a;
+        d.bodyIdB = b;
+        return m2CreateRevoluteJoint(world, &d, out);
+    }
+    case m2_prismaticJoint:
+    {
+        m2PrismaticJointDef d = m2DefaultPrismaticJointDef();
+        d.bodyIdA = a;
+        d.bodyIdB = b;
+        return m2CreatePrismaticJoint(world, &d, out);
+    }
+    case m2_weldJoint:
+    {
+        m2WeldJointDef d = m2DefaultWeldJointDef();
+        d.bodyIdA = a;
+        d.bodyIdB = b;
+        return m2CreateWeldJoint(world, &d, out);
+    }
+    case m2_wheelJoint:
+    {
+        m2WheelJointDef d = m2DefaultWheelJointDef();
+        d.bodyIdA = a;
+        d.bodyIdB = b;
+        return m2CreateWheelJoint(world, &d, out);
+    }
+    case m2_filterJoint:
+    {
+        m2FilterJointDef d = m2DefaultFilterJointDef();
+        d.bodyIdA = a;
+        d.bodyIdB = b;
+        return m2CreateFilterJoint(world, &d, out);
+    }
+    case m2_motorJoint:
+    {
+        m2MotorJointDef d = m2DefaultMotorJointDef();
+        d.bodyIdA = a;
+        d.bodyIdB = b;
+        return m2CreateMotorJoint(world, &d, out);
+    }
+    case m2_mouseJoint:
+    {
+        m2MouseJointDef d = m2DefaultMouseJointDef();
+        d.bodyIdA = a;
+        d.bodyIdB = b;
+        return m2CreateMouseJoint(world, &d, out);
+    }
+    case m2_gearJoint:
+    {
+        m2GearJointDef d = m2DefaultGearJointDef();
+        d.bodyIdA = a;
+        d.bodyIdB = b;
+        return m2CreateGearJoint(world, &d, out);
+    }
+    case m2_pulleyJoint:
+    {
+        m2PulleyJointDef d = m2DefaultPulleyJointDef();
+        d.bodyIdA = a;
+        d.bodyIdB = b;
+        d.groundAnchorA = (m2Pos2){-1.0, 4.0};
+        d.groundAnchorB = (m2Pos2){1.0, 4.0};
+        return m2CreatePulleyJoint(world, &d, out);
+    }
+    default:
+    {
+        m2RatchetJointDef d = m2DefaultRatchetJointDef();
+        d.bodyIdA = a;
+        d.bodyIdB = b;
+        return m2CreateRatchetJoint(world, &d, out);
+    }
+    }
+}
+
+// A full joint pool refuses every joint type's create with
+// m2_errorCapacity, the null id and no misuse, and changes nothing; with
+// the slot free again, each type is made.
+static void TestJointCreatesAtCapacity(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    def.jointCapacity = 1;
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    m2BodyId a = NewBody(world, &bd);
+    bd.position = (m2Pos2){1.0, 0.0};
+    m2BodyId b = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Circle ball = {{0.0f, 0.0f}, 0.25f};
+    NewCircleShape(world, a, &sd, &ball);
+    NewCircleShape(world, b, &sd, &ball);
+    m2JointId filler = m2_nullJointId;
+    CHECK(CreateJointOfType(world, m2_revoluteJoint, a, b, &filler) == m2_success,
+          "one joint fills the pool");
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+    uint64_t hash = m2World_Hash(world);
+    int32_t refused = 0;
+    for (int32_t type = m2_distanceJoint; type <= m2_ratchetJoint; ++type)
+    {
+        m2JointId made = {7, 7};
+        refused += CreateJointOfType(world, (m2JointType)type, a, b, &made) == m2_errorCapacity &&
+                   made.index1 == 0;
+    }
+    CHECK(refused == 11, "a full pool refuses each of the 11 joint types with the null id");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse && m2World_Hash(world) == hash &&
+              m2World_GetCounters(world).jointCount == 1,
+          "counting no misuse and changing nothing");
+    CHECK(m2DestroyJoint(world, filler) == m2_success, "the filler goes");
+    int32_t made = 0;
+    for (int32_t type = m2_distanceJoint; type <= m2_ratchetJoint; ++type)
+    {
+        m2JointId joint = m2_nullJointId;
+        made += CreateJointOfType(world, (m2JointType)type, a, b, &joint) == m2_success &&
+                m2Joint_GetType(world, joint) == (m2JointType)type &&
+                m2DestroyJoint(world, joint) == m2_success;
+    }
+    CHECK(made == 11, "with the slot free, each type is made");
+    m2DestroyWorld(world);
+}
+
+// The argument checks a host reaches that no other test does: each
+// refusal counts one misuse and changes nothing.
+static void TestJointArgumentRefusals(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    def.jointCapacity = 4;
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(world, &bd);
+    bd.type = m2_dynamicBody;
+    bd.position = (m2Pos2){0.0, 1.0};
+    m2BodyId box = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon unit = m2MakeBox(0.5f, 0.5f);
+    NewPolygonShape(world, box, &sd, &unit);
+    m2DistanceJointDef dd = m2DefaultDistanceJointDef();
+    dd.bodyIdA = ground;
+    dd.bodyIdB = box;
+    m2JointId rope = NewDistanceJoint(world, &dd);
+    m2DistanceJoint_SetLengthRange(world, rope, 0.5f, 2.0f);
+    m2MouseJointDef md = m2DefaultMouseJointDef();
+    md.bodyIdA = ground;
+    md.bodyIdB = box;
+    md.target = (m2Pos2){0.0, 1.0};
+    m2JointId hand = NewMouseJoint(world, &md);
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+    uint64_t hash = m2World_Hash(world);
+
+    m2DistanceJoint_SetLengthRange(world, rope, NAN, 2.0f);
+    m2DistanceJoint_SetLengthRange(world, rope, 0.5f, INFINITY);
+    float lo = 0.0f;
+    float hi = 0.0f;
+    m2DistanceJoint_GetLengthRange(world, rope, &lo, &hi);
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 2 && lo == 0.5f && hi == 2.0f,
+          "a NaN or infinite length range counts one misuse each and keeps the range");
+    m2MouseJoint_SetTarget(world, hand, (m2Pos2){(double)NAN, 1.0});
+    m2MouseJoint_SetTarget(world, hand, (m2Pos2){0.0, (double)INFINITY});
+    m2Pos2 target = m2MouseJoint_GetTarget(world, hand);
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 4 && target.x == 0.0 &&
+              target.y == 1.0,
+          "a target that is not finite counts one misuse each and keeps the target");
+
+    m2JointId made = {7, 7};
+    m2GearJointDef gd = m2DefaultGearJointDef();
+    gd.bodyIdA = ground;
+    gd.bodyIdB = box;
+    gd.ratio = NAN;
+    CHECK(m2CreateGearJoint(world, &gd, &made) == m2_errorInvalid && made.index1 == 0,
+          "a gear with a NaN ratio is refused");
+    m2PrismaticJointDef pd = m2DefaultPrismaticJointDef();
+    pd.bodyIdA = box;
+    pd.bodyIdB = box;
+    made = (m2JointId){7, 7};
+    CHECK(m2CreatePrismaticJoint(world, &pd, &made) == m2_errorInvalid && made.index1 == 0,
+          "a prismatic joint from a body to itself is refused");
+    m2WheelJointDef wd = m2DefaultWheelJointDef();
+    wd.bodyIdA = ground;
+    wd.bodyIdB = box;
+    wd.localAxisA = (m2Vec2){0.0f, 0.0f};
+    made = (m2JointId){7, 7};
+    CHECK(m2CreateWheelJoint(world, &wd, &made) == m2_errorInvalid && made.index1 == 0,
+          "a wheel joint with no axis is refused");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 7 && m2World_Hash(world) == hash &&
+              m2World_GetCounters(world).jointCount == 2,
+          "each create refusal counts one misuse, and nothing changed");
+    m2DestroyWorld(world);
+}
+
+// A joint reader asked for what the joint's kind does not carry reads zero
+// and counts one misuse: the axis of a revolute joint, a filter joint's
+// spring, a distance joint's constraint stiffness, a revolute joint's weld
+// spring. A revolute joint's own spring reads back.
+static void TestJointReadersCheckTheKind(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    def.jointCapacity = 4;
+    m2World* world = NewWorld(&def);
+    m2BodyDef bd = m2DefaultBodyDef();
+    m2BodyId ground = NewBody(world, &bd);
+    bd.type = m2_dynamicBody;
+    bd.position = (m2Pos2){0.0, 1.0};
+    m2BodyId box = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon unit = m2MakeBox(0.5f, 0.5f);
+    NewPolygonShape(world, box, &sd, &unit);
+    m2RevoluteJointDef rd = m2DefaultRevoluteJointDef();
+    rd.bodyIdA = ground;
+    rd.bodyIdB = box;
+    m2JointId pin = NewRevoluteJoint(world, &rd);
+    m2Joint_SetSpringHertz(world, pin, 3.0f);
+    m2FilterJointDef fd = m2DefaultFilterJointDef();
+    fd.bodyIdA = ground;
+    fd.bodyIdB = box;
+    m2JointId filter = NewFilterJoint(world, &fd);
+    m2DistanceJointDef dd = m2DefaultDistanceJointDef();
+    dd.bodyIdA = ground;
+    dd.bodyIdB = box;
+    m2JointId rope = NewDistanceJoint(world, &dd);
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+
+    m2Vec2 axis = m2Joint_GetLocalAxisA(world, pin);
+    CHECK(axis.x == 0.0f && axis.y == 0.0f, "a revolute joint has no axis to read");
+    CHECK(m2Joint_GetSpringHertz(world, filter) == 0.0f, "a filter joint has no spring");
+    CHECK(m2Joint_GetConstraintHertz(world, rope) == 0.0f,
+          "a distance joint has no constraint stiffness");
+    CHECK(m2WeldJoint_GetLinearSpringHertz(world, pin) == 0.0f,
+          "a revolute joint has no weld spring");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 4, "each counting one misuse");
+    CHECK(m2Joint_GetSpringHertz(world, pin) == 3.0f &&
+              m2World_GetCounters(world).misuseCount == misuse + 4,
+          "a revolute joint's own spring reads back and counts nothing");
+    m2DestroyWorld(world);
+}
+
 int main(void)
 {
+    TestJointReadersCheckTheKind();
+    TestJointCreatesAtCapacity();
+    TestJointArgumentRefusals();
     TestFarApartJointsStayFinite();
     TestJointSwitchesAndRefusals();
     TestVanishingSpringsStayFinite();
