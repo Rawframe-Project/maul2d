@@ -34,7 +34,7 @@ env:
 jobs:
   # Whether anything beyond documentation changed; the builds skip when not.
   changes:
-    uses: Rawframe-Project/.github/.github/workflows/changes.yml@972ea41c6abf2652d3b067e57bf0713f1661cf0e # v0.0.51
+    uses: Rawframe-Project/.github/.github/workflows/changes.yml@374693ea0c34a6b078b3cc545ab4adb74a98f92a # v0.0.57
     permissions:
       pull-requests: read
 
@@ -49,10 +49,10 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: Rawframe-Project/.github/.github/actions/docs-check@972ea41c6abf2652d3b067e57bf0713f1661cf0e # v0.0.51
+      - uses: Rawframe-Project/.github/.github/actions/docs-check@374693ea0c34a6b078b3cc545ab4adb74a98f92a # v0.0.57
 
   zizmor:
-    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@972ea41c6abf2652d3b067e57bf0713f1661cf0e # v0.0.51
+    uses: Rawframe-Project/.github/.github/workflows/zizmor.yml@374693ea0c34a6b078b3cc545ab4adb74a98f92a # v0.0.57
     permissions:
       contents: read
 
@@ -162,7 +162,7 @@ jobs:
           - { preset: macos-clang, runner: macos-15 }
           - { preset: windows-clang-cl, runner: windows-2025 }
           - { preset: windows-arm64-clang-cl, runner: windows-11-arm }
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@972ea41c6abf2652d3b067e57bf0713f1661cf0e # v0.0.51
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@374693ea0c34a6b078b3cc545ab4adb74a98f92a # v0.0.57
     permissions:
       contents: read
     with:
@@ -175,7 +175,7 @@ jobs:
   testbed:
     needs: changes
     if: needs.changes.outputs.code == 'true'
-    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@972ea41c6abf2652d3b067e57bf0713f1661cf0e # v0.0.51
+    uses: Rawframe-Project/.github/.github/workflows/cpp.yml@374693ea0c34a6b078b3cc545ab4adb74a98f92a # v0.0.57
     permissions:
       contents: read
     with:
@@ -356,7 +356,7 @@ jobs:
   prune-caches:
     needs: [build, testbed, fuzz]
     if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
-    uses: Rawframe-Project/.github/.github/workflows/cache-prune.yml@972ea41c6abf2652d3b067e57bf0713f1661cf0e # v0.0.51
+    uses: Rawframe-Project/.github/.github/workflows/cache-prune.yml@374693ea0c34a6b078b3cc545ab4adb74a98f92a # v0.0.57
     permissions:
       actions: write
 
