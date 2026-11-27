@@ -763,6 +763,50 @@ static void TestAllHitsSortWhateverTheTreeOffers(void)
     m2DestroyWorld(world);
 }
 
+// A closest cast walks the static tree before the dynamic one, so a static
+// box offers its hit first. A dynamic twin in the lower slot, standing where
+// it stands, ties on the fraction and still wins; with the slots the other
+// way round the static box keeps it.
+static void TestClosestTiesWhateverTheTreeOrder(void)
+{
+    m2QueryFilter all = m2DefaultQueryFilter();
+    m2Circle ball = {{0.0f, 0.0f}, 0.2f};
+    m2Capsule pill = {{-0.1f, 0.0f}, {0.1f, 0.0f}, 0.2f};
+    m2Polygon block = m2MakeBox(0.2f, 0.2f);
+    m2Transform start = {{0.0, 0.0}, {1.0f, 0.0f}};
+    m2Vec2 path = {8.0f, 0.0f};
+    for (int32_t dynamicFirst = 1; dynamicFirst >= 0; --dynamicFirst)
+    {
+        m2WorldDef def = m2DefaultWorldDef();
+        def.bodyCapacity = 2;
+        def.shapeCapacity = 2;
+        m2World* world = NewWorld(&def);
+        m2BodyDef bd = m2DefaultBodyDef();
+        bd.position = (m2Pos2){4.0, 0.0};
+        m2ShapeDef sd = m2DefaultShapeDef();
+        m2Polygon box = m2MakeBox(0.5f, 1.0f);
+        m2ShapeId shapes[2];
+        for (int32_t i = 0; i < 2; ++i)
+        {
+            bd.type = (i == 0) == (dynamicFirst != 0) ? m2_dynamicBody : m2_staticBody;
+            shapes[i] = NewPolygonShape(world, NewBody(world, &bd), &sd, &box);
+        }
+        m2CastHit ray;
+        m2CastHit circle;
+        m2CastHit capsule;
+        m2CastHit polygon;
+        bool hits = m2World_CastRayClosest(world, start.p, path, all, &ray) &&
+                    m2World_CastCircleClosest(world, &ball, start, path, all, &circle) &&
+                    m2World_CastCapsuleClosest(world, &pill, start, path, all, &capsule) &&
+                    m2World_CastPolygonClosest(world, &block, start, path, all, &polygon);
+        CHECK(hits && SameShape(ray.shapeId, shapes[0]) && SameShape(circle.shapeId, shapes[0]) &&
+                  SameShape(capsule.shapeId, shapes[0]) && SameShape(polygon.shapeId, shapes[0]),
+              dynamicFirst != 0 ? "a dynamic box in the lower slot wins the tie"
+                                : "a static box in the lower slot keeps the tie");
+        m2DestroyWorld(world);
+    }
+}
+
 // What a query's tree walk reaches but must not report: a shape its filter
 // does not see, a shape whose box it crosses but whose body it misses, and
 // a chain link it touches from the ghost side. An all-hits sweep that
@@ -1397,6 +1441,7 @@ int main(void)
     TestRayInsideRoundedPolygon();
     TestAllHitsBeyondSixtyFour();
     TestAllHitsSortWhateverTheTreeOffers();
+    TestClosestTiesWhateverTheTreeOrder();
     TestQueriesPassOverWhatTheyMustNotSee();
     TestQueryFilters();
     TestContactData();

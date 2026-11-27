@@ -282,7 +282,10 @@ m2CastResult m2ShapeCastProxy(const m2DistanceProxy* proxyA, const m2DistancePro
             return out; // separating or sliding past: no hit
         }
         fraction += (d.distance - target) / approach;
-        if (fraction >= maxFraction)
+        // A hit at maxFraction itself counts, as a ray's does: a closest
+        // cast passes its best fraction so far, and a shape that ties it
+        // must reach the tie rule.
+        if (fraction > maxFraction)
         {
             return out;
         }
