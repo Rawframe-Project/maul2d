@@ -3364,6 +3364,15 @@ static void TestJointArgumentRefusals(void)
     made = (m2JointId){7, 7};
     CHECK(m2CreatePrismaticJoint(world, &pd, &made) == m2_errorInvalid && made.index1 == 0,
           "a prismatic joint from a body to itself is refused");
+    pd.bodyIdA = ground;
+    pd.localAxisA = (m2Vec2){0.0f, 0.0f};
+    made = (m2JointId){7, 7};
+    CHECK(m2CreatePrismaticJoint(world, &pd, &made) == m2_errorInvalid && made.index1 == 0,
+          "a prismatic joint with no axis is refused");
+    pd.localAxisA = (m2Vec2){1.0e-8f, 0.0f};
+    made = (m2JointId){7, 7};
+    CHECK(m2CreatePrismaticJoint(world, &pd, &made) == m2_errorInvalid && made.index1 == 0,
+          "a prismatic axis shorter than float epsilon is refused");
     m2WheelJointDef wd = m2DefaultWheelJointDef();
     wd.bodyIdA = ground;
     wd.bodyIdB = box;
@@ -3371,7 +3380,7 @@ static void TestJointArgumentRefusals(void)
     made = (m2JointId){7, 7};
     CHECK(m2CreateWheelJoint(world, &wd, &made) == m2_errorInvalid && made.index1 == 0,
           "a wheel joint with no axis is refused");
-    CHECK(m2World_GetCounters(world).misuseCount == misuse + 7 && m2World_Hash(world) == hash &&
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 9 && m2World_Hash(world) == hash &&
               m2World_GetCounters(world).jointCount == 2,
           "each create refusal counts one misuse, and nothing changed");
     m2DestroyWorld(world);
