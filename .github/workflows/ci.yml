@@ -214,7 +214,11 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # Emscripten is pinned, so a new release reaches the build only
+      # through a pull request that moves this version.
       - uses: emscripten-core/setup-emsdk@4528d102f7230f0e7b276855c01ea1159be0e984 # v16
+        with:
+          version: 7.0.1
       - name: Build
         run: |
           cmake --preset web-emscripten
