@@ -44,7 +44,10 @@ typedef struct Bits
 // The library's arithmetic, out of line so it stays inside the entry.
 static M2_NOINLINE Bits Compute(void)
 {
-    Bits bits = {s_tiny * s_eighth, s_subnormal * s_large, s_one + s_nudge, s_one + s_quarter};
+    // One read of s_one: two reads of a volatile in one initializer are
+    // unsequenced.
+    double one = s_one;
+    Bits bits = {s_tiny * s_eighth, s_subnormal * s_large, one + s_nudge, one + s_quarter};
     return bits;
 }
 
