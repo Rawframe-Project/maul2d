@@ -57,9 +57,15 @@ function(maul_apply_flags target)
         # target, never a C library call (on 32-bit x86, an x87 one). It
         # comes after -fno-fast-math, which in GCC turns errno math back on.
         # Trapping math is left at each compiler's default (on in GCC, off
-        # in Clang): GCC's -fno-fast-math turns it back on anyway.
+        # in Clang): GCC's -fno-fast-math turns it back on anyway. So the
+        # unsafe optimizations are turned off one by one, not through
+        # -fno-unsafe-math-optimizations, which in Clang also turns trapping
+        # math on: strict floating-point exceptions, which Clang refuses on
+        # 32-bit ARM and which no Maul library reads. GCC's options come
+        # out the same either way.
         target_compile_options(${target} PRIVATE
-            -ffp-contract=off -fno-fast-math -fno-unsafe-math-optimizations -fno-math-errno
+            -ffp-contract=off -fno-fast-math -fno-associative-math -fno-reciprocal-math
+            -fsigned-zeros -fno-math-errno
             -Wall -Wextra -Wshadow -Wdouble-promotion -Wfloat-conversion
             $<$<COMPILE_LANGUAGE:C>:-Wmissing-prototypes>)
         # A 64-bit value cut to 32 bits, where pointers are 64 bits (a

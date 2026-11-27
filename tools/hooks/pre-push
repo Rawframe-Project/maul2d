@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: MIT
+# Copyright (c) 2026 Sirac Ozmen
+# Runs the changed tier before every push, so a change that breaks the
+# library is caught here instead of in CI. Install once per checkout:
+#   git config core.hooksPath tools/hooks
+# Inside the Rawframe workspace it takes a slot of the workspace's heavy-job
+# wrapper, and on Windows it runs on Linux, in the workspace's WSL
+# distribution (tools/linux.sh); elsewhere it runs directly.
+set -euo pipefail
+root=$(git rev-parse --show-toplevel)
+workspace=""
+dir=$root
+while [ "$dir" != "$(dirname "$dir")" ]; do
+    dir=$(dirname "$dir")
+    if [ -f "$dir/tools/heavy.sh" ] && [ -f "$dir/tools/linux.sh" ]; then
+        workspace=$dir
+        break
+    fi
+done
+[ -n "$workspace" ] || exec "$root/tools/check.sh" changed
+cd "$root"
+case "$(uname -s)" in
+MINGW* | MSYS* | CYGWIN*) exec "$workspace/tools/heavy.sh" "$workspace/tools/linux.sh" tools/check.sh changed ;;
+*) exec "$workspace/tools/heavy.sh" "$root/tools/check.sh" changed ;;
+esac

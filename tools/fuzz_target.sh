@@ -14,7 +14,9 @@
 # machine that ran it. Every run's log is public in CI, and libFuzzer
 # prints a finding's input there as bytes, text and Base64, so on a
 # finding this reports only the target, the kind of each finding (crash,
-# leak, timeout, oom), the sanitizers' runtime error lines and the
+# leak, timeout, oom), the sanitizers' runtime error lines, the
+# harness's own "FILE:LINE: expectation failed: ..." lines (the promise
+# it broke and the values that broke it, never the input's bytes) and the
 # report from its "==PID== ERROR:" line to its "SUMMARY:" line, all
 # taken from the log above libFuzzer's first input dump.
 #
@@ -105,6 +107,7 @@ head=$(sed -E '/^(MS: [0-9]|0x[0-9a-fA-F]{1,2},|artifact_prefix=|Base64: )/,$d' 
   find "$crashes" -maxdepth 1 -type f -newer "$stamp" -printf '%f\n' |
     sed 's/-.*//' | sort | uniq -c
   grep -E -m 5 '^[^ ]+:[0-9]+:[0-9]+: runtime error: ' <<<"$head" || true
+  grep -E -m 5 '^[^ ]+:[0-9]+: expectation failed: ' <<<"$head" || true
   # head may close the pipe early on a long report; that is not an error.
   sed -n '/^==[0-9]*== *ERROR: /,/^SUMMARY: /p' <<<"$head" | head -n 80 || true
 } >"$report"
