@@ -3038,10 +3038,13 @@ static void TestStaleIdsInStatusCalls(void)
     CHECK(m2CreateDistanceJoint(world, &jd, &madeJoint) == m2_errorStale,
           "a joint to a stale body is m2_errorStale");
     CHECK(madeJoint.index1 == 0, "and leaves the null id");
+    CHECK(m2Body_SetTargetTransform(world, body, (m2Pos2){1.0, 0.0}, (m2Rot){1.0f, 0.0f},
+                                    1.0f / 60.0f) == m2_errorStale,
+          "a target transform on a stale body is m2_errorStale");
     CHECK(m2Body_GetPosition(world, body).x == 0.0 && m2Body_GetMass(world, body) == 0.0f,
           "a stale getter returns the zeroed value");
     CHECK(!m2Body_IsValid(world, body), "a validity query counts nothing");
-    CHECK(m2World_GetCounters(world).misuseCount == misuse + 4, "each stale use counts once");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 5, "each stale use counts once");
     m2DestroyWorld(world);
 }
 
@@ -3642,6 +3645,16 @@ static void TestEveryRefusalHasAReason(void)
     CHECK(m2World_Step(world, INFINITY, 4) == m2_errorLimit, "an infinite dt is past the bound");
     CHECK(m2World_GetStepCount(world) == stepsBefore, "and none of them steps");
     CHECK(m2World_Step(NULL, 1.0f / 60.0f, 4) == m2_errorInvalid, "a null world is invalid");
+    // A writer with a valid output argument still refuses a null world and
+    // zeroes what it would have written.
+    m2Polygon piece = m2MakeBox(0.5f, 0.5f);
+    int32_t pieceCount = 7;
+    CHECK(m2Body_Shatter(NULL, a, &piece, 1, NULL, 0, &pieceCount) == m2_errorInvalid &&
+              pieceCount == 0,
+          "a shatter in a null world is invalid and makes no body");
+    int64_t tapeBytes = 7;
+    CHECK(m2World_StopJournal(NULL, &tapeBytes) == m2_errorInvalid && tapeBytes == 0,
+          "stopping a null world's journal is invalid and gives no tape");
     m2JointId staleJoint = {1, 1};
     CHECK(m2DistanceJoint_GetLength(world, staleJoint) == 0.0f, "a stale joint read returns zero");
     CHECK(m2World_GetCounters(world).misuseCount == misuseBefore + 6,

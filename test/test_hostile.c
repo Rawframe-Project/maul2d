@@ -1870,6 +1870,29 @@ static void TestChainRefusals(void)
     CHECK(m2CreateChain(world, ground, &chain, &made) == m2_errorInvalid,
           "a zero-length segment refuses as invalid input");
     pts[1] = (m2Vec2){1.0f, 0.0f};
+    // The point counts m2ChainDef documents: an open chain needs 4, a loop
+    // 3, and both need points.
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+    uint64_t hash = m2World_Hash(world);
+    chain.points = NULL;
+    made = (m2ChainId){7, 7};
+    CHECK(m2CreateChain(world, ground, &chain, &made) == m2_errorInvalid && made.index1 == 0,
+          "a chain with no points refuses as invalid input");
+    chain.points = pts;
+    chain.count = 3;
+    made = (m2ChainId){7, 7};
+    CHECK(m2CreateChain(world, ground, &chain, &made) == m2_errorInvalid && made.index1 == 0,
+          "an open chain of 3 points refuses as invalid input");
+    chain.isLoop = true;
+    chain.count = 2;
+    made = (m2ChainId){7, 7};
+    CHECK(m2CreateChain(world, ground, &chain, &made) == m2_errorInvalid && made.index1 == 0,
+          "a loop of 2 points refuses as invalid input");
+    CHECK(m2World_GetCounters(world).misuseCount == misuse + 3 && m2World_Hash(world) == hash &&
+              m2World_GetCounters(world).shapeCount == 0,
+          "each counts one misuse and changes nothing");
+    chain.isLoop = false;
+    chain.count = 4;
     m2Circle ball = {{0.0f, 0.0f}, 0.5f};
     m2ShapeDef sd = m2DefaultShapeDef();
     for (int32_t i = 0; i < 4; ++i)
