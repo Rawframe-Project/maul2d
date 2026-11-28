@@ -559,6 +559,9 @@ static void DoRandomOp(m2World* world)
             jd.enableLimit = true;
             jd.lowerTranslation = -0.5f - (float)Pick(10) * 0.1f;
             jd.upperTranslation = 0.5f + (float)Pick(10) * 0.1f;
+            jd.enableSpring = Pick(2) == 0;
+            jd.springHertz = (float)Pick(8);
+            jd.springDampingRatio = (float)Pick(3) * 0.5f;
             made = NewPrismaticJoint(world, &jd);
         }
         else if (type == 3)
@@ -899,10 +902,10 @@ static void DoRandomOp(m2World* world)
         {
             float hertz = (float)Pick(30) * 0.5f;
             m2JointType type = m2Joint_GetType(world, joint);
-            if (type == m2_distanceJoint)
+            if (type == m2_distanceJoint || type == m2_prismaticJoint)
             {
-                // A distance joint the walk tunes is a spring exactly while
-                // it has a frequency, as its create made it.
+                // A distance or prismatic joint the walk tunes is a spring
+                // exactly while it has a frequency.
                 m2Joint_EnableSpring(world, joint, hertz > 0.0f);
                 m2Joint_SetSpringHertz(world, joint, hertz);
             }

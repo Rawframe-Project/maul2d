@@ -537,6 +537,84 @@ static void TestPrismaticSlider(void)
     m2DestroyWorld(world);
 }
 
+// A prismatic spring along a vertical axis carries a platform's weight:
+// set by frequency, it gives g / (2 pi f)^2 of travel whatever the mass.
+// Its settings read back; switched off, the platform falls to its stop;
+// a def with a NaN spring frequency is refused.
+static void TestPrismaticSpring(void)
+{
+    m2WorldDef def = m2DefaultWorldDef();
+    def.bodyCapacity = 4;
+    def.shapeCapacity = 4;
+    def.jointCapacity = 2;
+    m2World* world = NewWorld(&def);
+    m2World_SetGravity(world, (m2Vec2){0.0f, -10.0f});
+    m2BodyDef ad = m2DefaultBodyDef();
+    ad.position = (m2Pos2){0.0, 4.0};
+    m2BodyId frame = NewBody(world, &ad);
+    m2BodyDef bd = m2DefaultBodyDef();
+    bd.type = m2_dynamicBody;
+    bd.position = (m2Pos2){0.0, 4.0};
+    m2BodyId platform = NewBody(world, &bd);
+    m2ShapeDef sd = m2DefaultShapeDef();
+    m2Polygon deck = m2MakeBox(0.5f, 0.1f);
+    NewPolygonShape(world, platform, &sd, &deck);
+
+    m2PrismaticJointDef jd = m2DefaultPrismaticJointDef();
+    CHECK(!jd.enableSpring && jd.springHertz == 0.0f && jd.springDampingRatio == 0.0f,
+          "the default def has no spring");
+    jd.bodyIdA = frame;
+    jd.bodyIdB = platform;
+    jd.localAxisA = (m2Vec2){0.0f, 1.0f};
+    jd.enableLimit = true;
+    jd.lowerTranslation = -1.5f;
+    jd.upperTranslation = 1.0f;
+    jd.enableSpring = true;
+    jd.springHertz = 2.0f;
+    jd.springDampingRatio = 1.0f;
+    m2JointId slider = NewPrismaticJoint(world, &jd);
+    CHECK(m2Joint_IsSpringEnabled(world, slider) && m2Joint_GetSpringHertz(world, slider) == 2.0f &&
+              m2Joint_GetSpringDampingRatio(world, slider) == 1.0f,
+          "the spring's settings read back");
+
+    for (int32_t i = 0; i < 240; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+    }
+    double omega = 2.0 * 3.14159265358979 * 2.0;
+    double expected = 10.0 / (omega * omega);
+    double sag = 4.0 - m2Body_GetPosition(world, platform).y;
+    CHECK(fabs(sag - expected) < 0.02 * expected, "the spring sags by g / (2 pi f)^2");
+    CHECK(m2Joint_GetReactionForce(world, slider) > 0.0f, "the spring carries the weight");
+
+    m2Joint_SetSpringHertz(world, slider, 1.0f);
+    for (int32_t i = 0; i < 300; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+    }
+    sag = 4.0 - m2Body_GetPosition(world, platform).y;
+    CHECK(fabs(sag - expected * 4.0) < 0.02 * expected * 4.0,
+          "a softer spring set at run time sags four times as far");
+
+    m2Joint_EnableSpring(world, slider, false);
+    CHECK(!m2Joint_IsSpringEnabled(world, slider) && m2Joint_GetSpringHertz(world, slider) == 1.0f,
+          "the disabled spring reads back, its frequency kept");
+    for (int32_t i = 0; i < 240; ++i)
+    {
+        Step(world, 1.0f / 60.0f, 4);
+    }
+    double y = m2Body_GetPosition(world, platform).y;
+    CHECK(y > 4.0 - 1.55 && y < 4.0 - 1.42, "without its spring the platform falls to its stop");
+
+    uint64_t misuse = m2World_GetCounters(world).misuseCount;
+    jd.springHertz = NAN;
+    m2JointId made = {7, 7};
+    CHECK(m2CreatePrismaticJoint(world, &jd, &made) == m2_errorInvalid && made.index1 == 0 &&
+              m2World_GetCounters(world).misuseCount == misuse + 1,
+          "a NaN spring frequency is refused");
+    m2DestroyWorld(world);
+}
+
 static void TestPrismaticMotor(void)
 {
     // The motor hoists the platform against gravity to the upper stop
@@ -3504,6 +3582,7 @@ int main(void)
     TestRevoluteMotor();
     TestRevoluteLimit();
     TestPrismaticSlider();
+    TestPrismaticSpring();
     TestPrismaticMotor();
     TestPrismaticStressStability();
     TestWeldRigid();

@@ -215,7 +215,8 @@ m2JointId m2FinishJoint(m2World* world, int32_t index, uint8_t type, int32_t bod
      (1u << m2_revoluteJoint) | (1u << m2_prismaticJoint) | (1u << m2_weldJoint) |                 \
      (1u << m2_gearJoint) | (1u << m2_pulleyJoint) | (1u << m2_ratchetJoint))
 #define M2_SECOND_PAIR_KINDS                                                                       \
-    ((1u << m2_revoluteJoint) | (1u << m2_motorJoint) | (1u << m2_weldJoint))
+    ((1u << m2_revoluteJoint) | (1u << m2_prismaticJoint) | (1u << m2_motorJoint) |                \
+     (1u << m2_weldJoint))
 
 int32_t m2JointTuningSlot(const m2World* world, m2JointId jointId, m2JointTuning tuning,
                           bool* secondOut)
@@ -232,7 +233,7 @@ int32_t m2JointTuningSlot(const m2World* world, m2JointId jointId, m2JointTuning
         break;
     case m2_tuneSpring:
         first = (1u << m2_distanceJoint) | (1u << m2_wheelJoint) | (1u << m2_mouseJoint);
-        second = (1u << m2_revoluteJoint) | (1u << m2_motorJoint);
+        second = (1u << m2_revoluteJoint) | (1u << m2_prismaticJoint) | (1u << m2_motorJoint);
         break;
     case m2_tuneWeldLinear:
         first = 1u << m2_weldJoint;
@@ -325,9 +326,9 @@ static void ApplyJointSwitch(m2World* world, int32_t index, uint8_t param, bool 
     {
         j->jointImpulse[index].y = 0.0f;
     }
-    else if (type == (uint8_t)m2_revoluteJoint)
+    else if (type == (uint8_t)m2_revoluteJoint || type == (uint8_t)m2_prismaticJoint)
     {
-        j->jointSpringImpulse[index] = 0.0f; // the angular spring's own row
+        j->jointSpringImpulse[index] = 0.0f; // the spring's own row
     }
 }
 

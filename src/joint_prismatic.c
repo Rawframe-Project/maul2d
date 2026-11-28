@@ -2,7 +2,7 @@
 // Copyright (c) 2026 Sirac Ozmen
 //
 // The prismatic joint: a slider along an axis fixed in body A, with
-// an optional motor and translation limits.
+// an optional spring, motor and translation limits.
 
 #include "body.h"
 #include "broadphase.h"
@@ -37,6 +37,8 @@ static m2Result DefCheck(const m2PrismaticJointDef* def)
     result = m2BothChecks(result, m2CheckLocalVec2(def->localAxisA));
     result = m2BothChecks(result, m2CheckRate(def->constraintHertz));
     result = m2BothChecks(result, m2CheckCoefficient(def->constraintDampingRatio));
+    result = m2BothChecks(result, m2CheckRate(def->springHertz));
+    result = m2BothChecks(result, m2CheckCoefficient(def->springDampingRatio));
     result = m2BothChecks(result, m2CheckSpeed(def->motorSpeed));
     result = m2BothChecks(result, m2CheckMaxForce(def->maxMotorEffort));
     result = m2BothChecks(result, m2CheckReach(def->lowerTranslation));
@@ -65,6 +67,9 @@ static void RecordPrismaticJointDef(m2PrismaticJointDef* out, const m2PrismaticJ
     out->userData = def->userData;
     out->enableConnectedCollision = def->enableConnectedCollision;
     out->internalValue = def->internalValue;
+    out->enableSpring = def->enableSpring;
+    out->springHertz = def->springHertz;
+    out->springDampingRatio = def->springDampingRatio;
 }
 
 static M2_NOINLINE m2Result CreatePrismaticJointWorker(m2World* world,
@@ -120,8 +125,11 @@ static M2_NOINLINE m2Result CreatePrismaticJointWorker(m2World* world,
     {
         m2RefilterJointedBodies(world, bodyA, bodyB);
     }
-    world->joints.jointFlags[index] =
-        (def->enableMotor ? M2_JOINT_MOTOR : 0u) | (def->enableLimit ? M2_JOINT_LIMIT : 0u);
+    world->joints.jointFlags[index] = (def->enableMotor ? M2_JOINT_MOTOR : 0u) |
+                                      (def->enableLimit ? M2_JOINT_LIMIT : 0u) |
+                                      (def->enableSpring ? M2_JOINT_SPRING : 0u);
+    world->joints.jointHertz2[index] = def->springHertz;
+    world->joints.jointDamping2[index] = def->springDampingRatio;
     world->joints.jointMotorSpeed[index] = def->motorSpeed;
     world->joints.jointMaxMotor[index] = def->maxMotorEffort;
     world->joints.jointLower[index] = def->lowerTranslation;
@@ -153,12 +161,20 @@ m2Result m2CreatePrismaticJoint(m2World* world, const m2PrismaticJointDef* def, 
 // --- Solver ---------------------------------------------------------------
 //
 // The slide axis is fixed in A and turns with it. Along the axis: the
-// motor (motorImpulse) and the limits; across it, the perpendicular row
-// and the angle row as one coupled pair (impulse).
+// spring (springImpulse), the motor (motorImpulse) and the limits; across
+// it, the perpendicular row and the angle row as one coupled pair
+// (impulse). The spring pulls the travel toward 0, the separation at
+// creation, in every pass.
 
 static void PreparePrismatic(m2World* world, m2JointConstraint* c, const m2JointFrame* f)
 {
-    c->axis = m2RotateVec2(f->qA, world->joints.jointLocalAxisA[f->joint]);
+    int32_t j = f->joint;
+    c->axis = m2RotateVec2(f->qA, world->joints.jointLocalAxisA[j]);
+    c->linearSpring = (c->flags & M2_JOINT_SPRING) != 0 && world->joints.jointHertz2[j] > 0.0f;
+    if (c->linearSpring)
+    {
+        c->spring = m2MakeSoft(world->joints.jointHertz2[j], world->joints.jointDamping2[j], f->h);
+    }
 }
 
 static void SlideRows(const m2JointConstraint* c, const m2JointPose* pose, m2JointRow* along,
@@ -182,7 +198,7 @@ static void WarmStartPrismatic(const m2JointConstraint* c, const m2JointPose* po
     float travel;
     float offAxis;
     SlideRows(c, pose, &along, cross, &travel, &offAxis);
-    m2PushRow(&along, b, c->motorImpulse);
+    m2PushRow(&along, b, c->springImpulse + c->motorImpulse);
     m2WarmStartLimits(c, &along, b);
     m2PushRow(&cross[0], b, c->impulse.x);
     m2PushRow(&cross[1], b, c->impulse.y);
@@ -196,6 +212,11 @@ static void SolvePrismatic(m2JointConstraint* c, const m2JointPose* pose, m2Join
     float travel;
     float offAxis;
     SlideRows(c, pose, &along, cross, &travel, &offAxis);
+    if (c->linearSpring)
+    {
+        m2SolveRow(&along, b, m2SpringDrive(c->spring, travel), &c->springImpulse, -M2_ROW_FREE,
+                   M2_ROW_FREE);
+    }
     if ((c->flags & M2_JOINT_MOTOR) != 0)
     {
         m2SolveRow(&along, b, m2RigidDrive(-c->motorSpeed), &c->motorImpulse, -c->maxMotorImpulse,
@@ -214,8 +235,8 @@ static void SolvePrismatic(m2JointConstraint* c, const m2JointPose* pose, m2Join
 static void PrismaticReaction(const m2World* world, int32_t j, float invH, float* force,
                               float* torque)
 {
-    // The perpendicular row and the axial motor and limits as force, the
-    // angle row as torque.
+    // The perpendicular row and the axial spring, motor and limits as
+    // force, the angle row as torque.
     m2Vec2 impulse = world->joints.jointImpulse[j];
     float axial = world->joints.jointSpringImpulse[j] + world->joints.jointMotorImpulse[j] +
                   world->joints.jointLowerImpulse[j] - world->joints.jointUpperImpulse[j];

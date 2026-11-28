@@ -846,6 +846,17 @@ static void TestTapeBoolsAreZeroOrOne(void)
     bytes = StopJournal(world);
     ExpectByteRefused(world, tape, bytes, recordStart, offsetof(m2RevoluteJointDef, enableMotor),
                       "a joint def's bool of 29 is refused");
+
+    // A bool a def gained at its end is checked as well.
+    m2PrismaticJointDef slide = m2DefaultPrismaticJointDef();
+    slide.bodyIdA = body;
+    slide.bodyIdB = other;
+    CHECK(StartJournal(world, tape, capacity), "the journal starts a fourth time");
+    recordStart = m2World_GetJournalBaseSize(world);
+    NewPrismaticJoint(world, &slide);
+    bytes = StopJournal(world);
+    ExpectByteRefused(world, tape, bytes, recordStart, offsetof(m2PrismaticJointDef, enableSpring),
+                      "a prismatic def's spring bool of 29 is refused");
     free(tape);
     m2DestroyWorld(world);
 }
@@ -990,6 +1001,9 @@ static void FilledPrismaticJointDef(m2PrismaticJointDef* to, const m2PrismaticJo
     to->userData = from->userData;
     to->enableConnectedCollision = from->enableConnectedCollision;
     to->internalValue = from->internalValue;
+    to->enableSpring = from->enableSpring;
+    to->springHertz = from->springHertz;
+    to->springDampingRatio = from->springDampingRatio;
 }
 
 static void FilledWeldJointDef(m2WeldJointDef* to, const m2WeldJointDef* from, uint8_t fill)
