@@ -9,6 +9,18 @@ minor release, and its entry says what changes. A snapshot or journal
 tape is read within the minor version that wrote it and refused
 across minor versions.
 
+## [1.4.0](https://github.com/Rawframe-Project/maul2d/compare/v1.3.2...v1.4.0) (2026-11-28)
+
+
+### Added
+
+* **joints:** give the prismatic joint a spring along its axis ([#377](https://github.com/Rawframe-Project/maul2d/issues/377)) ([02a637d](https://github.com/Rawframe-Project/maul2d/commit/02a637d5f0a556f715ab4ffcbc67413788776dcc))
+
+
+### Fixed
+
+* **joints:** let a distance spring pull in every solver pass ([#374](https://github.com/Rawframe-Project/maul2d/issues/374)) ([47543bf](https://github.com/Rawframe-Project/maul2d/commit/47543bf4419364081c27727e9b49c6f170c60ef9)), closes [#373](https://github.com/Rawframe-Project/maul2d/issues/373)
+
 ## [1.3.2](https://github.com/Rawframe-Project/maul2d/compare/v1.3.1...v1.3.2) (2026-11-28)
 
 This release fixes which shape a closest sweep reports when two shapes tie, and stops the library's float flags from turning on trapping math under Clang. Nothing a step computes changes: no golden line moves, and the snapshot and journal formats keep their versions.
