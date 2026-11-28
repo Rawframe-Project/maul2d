@@ -9,6 +9,13 @@ minor release, and its entry says what changes. A snapshot or journal
 tape is read within the minor version that wrote it and refused
 across minor versions.
 
+## [1.3.2](https://github.com/Rawframe-Project/maul2d/compare/v1.3.1...v1.3.2) (2026-11-28)
+
+
+### Fixed
+
+* **query:** break a closest sweep's tie to the lower shape across trees ([#368](https://github.com/Rawframe-Project/maul2d/issues/368)) ([3b0b7d4](https://github.com/Rawframe-Project/maul2d/commit/3b0b7d48c086ba93efcd8d79e6b139b32ca3f82b)), closes [#367](https://github.com/Rawframe-Project/maul2d/issues/367)
+
 ## [1.3.1](https://github.com/Rawframe-Project/maul2d/compare/v1.3.0...v1.3.1) (2026-11-05)
 
 This release makes the compiler check that the library never drops the result of one of its own internal `bool` functions by mistake. Nothing a program sees changes: no golden line moves, and the snapshot and journal formats keep their versions.
