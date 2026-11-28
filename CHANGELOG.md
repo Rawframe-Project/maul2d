@@ -9,6 +9,31 @@ minor release, and its entry says what changes. A snapshot or journal
 tape is read within the minor version that wrote it and refused
 across minor versions.
 
+## [1.4.0](https://github.com/Rawframe-Project/maul2d/compare/v1.3.2...v1.4.0) (2026-11-28)
+
+This release fixes the distance joint's spring, which held its weight almost rigidly, and gives the prismatic joint a spring along its axis. A distance spring now settles where it should, so worlds with distance springs step to other results: two golden lines move. `M2_JOURNAL_VERSION` goes from 10 to 11; `M2_SNAPSHOT_VERSION` stays 9. As in every minor release, snapshots and tapes written by 1.3 are refused with `m2_errorVersion`.
+
+### Changed
+
+- **Results:** a distance joint with its spring on steps to other results ([#374](https://github.com/Rawframe-Project/maul2d/pull/374)); see Fixed. A distance joint without a spring (a rod, a slack rope or a strut) steps exactly as before. Two golden lines move, the same in the scalar and AVX2 builds:
+  - `JOURNAL` hashes the seeded API walk's worlds, which make distance springs and, from this release, prismatic springs ([#377](https://github.com/Rawframe-Project/maul2d/pull/377)) and the writers 1.3.0 added ([#376](https://github.com/Rawframe-Project/maul2d/pull/376)).
+  - `JOURNAL_TAPE` hashes a tape's bytes, which carry the new journal version and an embedded snapshot taken after those steps.
+
+  | Line | 1.3.2 | 1.4.0 |
+  |---|---|---|
+  | `JOURNAL` | `3479f22aa69c1583` | `74b56dc450dc10c1` |
+  | `JOURNAL_TAPE` | `5a657a1f11dfaf87` | `66aa6a5a5b5abeeb` |
+
+- **Formats:** `M2_JOURNAL_VERSION` goes from 10 to 11 ([#377](https://github.com/Rawframe-Project/maul2d/pull/377)): the prismatic joint's create record holds its def, which gained the spring's fields, and grows from 96 to 112 bytes. The snapshot's layout is unchanged.
+
+### Added
+
+- **Prismatic spring:** `m2PrismaticJointDef` gains `enableSpring`, `springHertz` and `springDampingRatio`, at its end ([#377](https://github.com/Rawframe-Project/maul2d/pull/377)). The spring pulls the travel along the axis back toward the separation at creation; set by frequency, it stretches under a hanging weight by g / (2 pi f)^2 whatever the mass. `m2Joint_EnableSpring`, `m2Joint_SetSpringHertz`, `m2Joint_SetSpringDampingRatio` and their readers take a prismatic joint. Off by default, so an existing def behaves as before.
+
+### Fixed
+
+- **Distance spring:** a distance joint with `enableSpring` and a `springHertz` above 0 now stretches under load as its frequency says ([#374](https://github.com/Rawframe-Project/maul2d/pull/374)). The solver held the spring rigid in its relax passes, so it barely stretched and crept for seconds: a ball on a 1 m spring of 2 Hz sat at 1.016 m after 4 s instead of 1.063 m, and at 1 Hz at 1.019 m instead of 1.253 m. The spring now pulls in every pass, as the other joints' springs do.
+
 ## [1.3.2](https://github.com/Rawframe-Project/maul2d/compare/v1.3.1...v1.3.2) (2026-11-28)
 
 This release fixes which shape a closest sweep reports when two shapes tie, and stops the library's float flags from turning on trapping math under Clang. Nothing a step computes changes: no golden line moves, and the snapshot and journal formats keep their versions.
