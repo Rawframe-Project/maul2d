@@ -176,14 +176,11 @@ static m2ShapeId RandomShape(m2World* world)
     return ids[Pick((uint32_t)n)];
 }
 
-// The writers 1.3.0 added, on a path the canonical seeds never take:
-// test_walk.c and fuzz_walk.c set it, test_golden.c does not, so the
-// promises cover these writers while M2_JOURNAL_HASH stays as pinned.
-static bool s_walkLateWriters;
-
 // The pool RunScenario makes; the walk never destroys it.
 static m2WaterVolumeId s_walkPool;
 
+// The writers 1.3.0 added, one draw in ten of every walk, the canonical
+// seeds of M2_JOURNAL_HASH included.
 static void DoLateWriterOp(m2World* world)
 {
     uint32_t which = Pick(5);
@@ -284,7 +281,7 @@ static void DoLateWriterOp(m2World* world)
 
 static void DoRandomOp(m2World* world)
 {
-    if (s_walkLateWriters && Pick(10) == 0)
+    if (Pick(10) == 0)
     {
         DoLateWriterOp(world);
         return;

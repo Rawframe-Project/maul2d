@@ -31,7 +31,6 @@ int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size)
             abort();
         }
     }
-    s_walkLateWriters = true;
     s_walkBytes = data;
     s_walkByteCount = size;
     uint64_t seed = 0x5EED5EEDull;
