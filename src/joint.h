@@ -38,9 +38,11 @@ int32_t m2TypedJointSlot(const m2World* world, m2JointId jointId, uint8_t type);
 #define M2_MAX_MOTOR_KINDS (M2_MOTOR_LIMIT_KINDS | (1u << m2_motorJoint))
 
 // The joint kinds with a spring toggle: a distance joint's spring, rope or
-// strut, a wheel's suspension and a revolute joint's angular spring.
+// strut, a wheel's suspension, a revolute joint's angular spring and a
+// prismatic joint's spring along its axis.
 #define M2_SPRING_KINDS                                                                            \
-    ((1u << m2_distanceJoint) | (1u << m2_wheelJoint) | (1u << m2_revoluteJoint))
+    ((1u << m2_distanceJoint) | (1u << m2_wheelJoint) | (1u << m2_revoluteJoint) |                 \
+     (1u << m2_prismaticJoint))
 
 // A joint keeps two stiffness pairs: the first (jointHertz, jointDamping)
 // and the second (jointHertz2, jointDamping2). Each public tuning names
@@ -48,7 +50,8 @@ int32_t m2TypedJointSlot(const m2World* world, m2JointId jointId, uint8_t type);
 // - constraint: the softness of the rows that hold a revolute, prismatic,
 //   gear, pulley or ratchet joint together, in the first pair;
 // - spring: a distance, wheel or mouse joint's spring in the first pair,
-//   a revolute's angular spring or a motor joint's drive in the second;
+//   a revolute's angular spring, a prismatic joint's spring or a motor
+//   joint's drive in the second;
 // - weld linear and weld angular: a weld's two springs, first and second.
 typedef enum m2JointTuning
 {

@@ -110,7 +110,8 @@ extern "C"
     /// A slider: body B moves along an axis fixed in body A's frame, and
     /// the relative rotation stays at its creation value. The motor drives
     /// the speed along the axis; the limits bound the travel from the
-    /// separation at creation.
+    /// separation at creation; the spring, when enabled, pulls the travel
+    /// back toward that separation.
     typedef struct m2PrismaticJointDef
     {
         m2BodyId bodyIdA;
@@ -129,6 +130,9 @@ extern "C"
         M2_ALIGN8 uint64_t userData;
         bool enableConnectedCollision;
         int32_t internalValue; // the cookie m2DefaultPrismaticJointDef sets
+        bool enableSpring;     // off by default; springHertz 0 is no spring force
+        float springHertz;     // the spring along the axis, toward the creation separation
+        float springDampingRatio;
     } m2PrismaticJointDef;
 
     /// Welds two bodies into one rigid piece: relative position and
@@ -601,13 +605,14 @@ extern "C"
                                                   float dampingRatio);
 
     /// Sets a joint's spring frequency: a distance joint's spring, a wheel's
-    /// suspension, a revolute joint's angular spring, a motor joint's drive, a
-    /// mouse joint's drag. A distance, wheel or revolute spring acts only while
-    /// it is enabled (m2Joint_EnableSpring). Another joint type, or a value out
+    /// suspension, a revolute joint's angular spring, a prismatic joint's
+    /// spring along its axis, a motor joint's drive, a mouse joint's drag. A
+    /// distance, wheel, revolute or prismatic spring acts only while it is
+    /// enabled (m2Joint_EnableSpring). Another joint type, or a value out
     /// of its range, counts one misuse. Journaled.
     ///
     /// @param world    The world.
-    /// @param jointId  A distance, wheel, revolute, motor or mouse joint.
+    /// @param jointId  A distance, wheel, revolute, prismatic, motor or mouse joint.
     /// @param hertz    The frequency; 0 is no spring force, or the hard servo
     ///                 on a motor joint.
     /// @par Thread safety
@@ -619,7 +624,8 @@ extern "C"
     /// Journaled.
     ///
     /// @param world         The world.
-    /// @param jointId       A distance, wheel, revolute, motor or mouse joint.
+    /// @param jointId       A distance, wheel, revolute, prismatic, motor or mouse
+    ///                      joint.
     /// @param dampingRatio  The ratio, at least 0.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
@@ -819,7 +825,7 @@ extern "C"
     /// Reads the frequency m2Joint_SetSpringHertz sets.
     ///
     /// @param world    The world.
-    /// @param jointId  A distance, wheel, revolute, motor or mouse joint.
+    /// @param jointId  A distance, wheel, revolute, prismatic, motor or mouse joint.
     /// @return  The frequency; 0 for another joint type or a stale id, which
     ///         count one misuse.
     /// @par Thread safety
@@ -830,7 +836,7 @@ extern "C"
     /// Reads the damping ratio m2Joint_SetSpringDampingRatio sets.
     ///
     /// @param world    The world.
-    /// @param jointId  A distance, wheel, revolute, motor or mouse joint.
+    /// @param jointId  A distance, wheel, revolute, prismatic, motor or mouse joint.
     /// @return  The ratio; 0 for another joint type or a stale id, which count
     ///         one misuse.
     /// @par Thread safety
@@ -924,22 +930,24 @@ extern "C"
 
     /// Turns a joint's spring on or off: a distance joint's, which makes a
     /// rod a spring (or, at spring hertz 0, a slack rope or a strut), a
-    /// wheel's suspension, or a revolute joint's angular spring. A wheel's
-    /// or revolute joint's spring row drops its accumulated impulse; a
-    /// distance joint's rod and spring share the rest row, which keeps it.
+    /// wheel's suspension, a revolute joint's angular spring, or a prismatic
+    /// joint's spring along its axis. A wheel's, revolute or prismatic
+    /// joint's spring row drops its accumulated impulse; a distance joint's
+    /// rod and spring share the rest row, which keeps it.
     /// Another joint type counts one misuse. Journaled.
     ///
     /// @param world    The world.
-    /// @param jointId  A distance, wheel or revolute joint.
+    /// @param jointId  A distance, wheel, revolute or prismatic joint.
     /// @param enable   True to turn the spring on.
     /// @par Thread safety
     /// Safe from any thread; a world is used by one thread at a time.
     M2_API void m2Joint_EnableSpring(m2World* world, m2JointId jointId, bool enable);
 
-    /// Tells whether a distance, wheel or revolute joint's spring is on.
+    /// Tells whether a distance, wheel, revolute or prismatic joint's spring is
+    /// on.
     ///
     /// @param world    The world.
-    /// @param jointId  A distance, wheel or revolute joint.
+    /// @param jointId  A distance, wheel, revolute or prismatic joint.
     /// @return True when its spring is on; false for another joint type or
     ///         a stale id, which count one misuse.
     /// @par Thread safety

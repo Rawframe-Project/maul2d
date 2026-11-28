@@ -522,6 +522,7 @@ static const uint16_t s_revoluteBools[] = {
     M2_AT(m2OpCreateRevoluteJoint, def.enableLimit),
     M2_AT(m2OpCreateRevoluteJoint, def.enableConnectedCollision)};
 static const uint16_t s_prismaticBools[] = {
+    M2_AT(m2OpCreatePrismaticJoint, def.enableSpring),
     M2_AT(m2OpCreatePrismaticJoint, def.enableMotor),
     M2_AT(m2OpCreatePrismaticJoint, def.enableLimit),
     M2_AT(m2OpCreatePrismaticJoint, def.enableConnectedCollision)};

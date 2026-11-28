@@ -233,7 +233,7 @@ M2_PIN_AT(m2RevoluteJointDef, userData, 72);
 M2_PIN_AT(m2RevoluteJointDef, enableConnectedCollision, 80);
 M2_PIN_AT(m2RevoluteJointDef, internalValue, 84);
 
-M2_PIN_SIZE(m2PrismaticJointDef, 88);
+M2_PIN_SIZE(m2PrismaticJointDef, 104);
 M2_PIN_AT(m2PrismaticJointDef, bodyIdA, 0);
 M2_PIN_AT(m2PrismaticJointDef, bodyIdB, 8);
 M2_PIN_AT(m2PrismaticJointDef, localAnchorA, 16);
@@ -250,6 +250,9 @@ M2_PIN_AT(m2PrismaticJointDef, upperTranslation, 68);
 M2_PIN_AT(m2PrismaticJointDef, userData, 72);
 M2_PIN_AT(m2PrismaticJointDef, enableConnectedCollision, 80);
 M2_PIN_AT(m2PrismaticJointDef, internalValue, 84);
+M2_PIN_AT(m2PrismaticJointDef, enableSpring, 88);
+M2_PIN_AT(m2PrismaticJointDef, springHertz, 92);
+M2_PIN_AT(m2PrismaticJointDef, springDampingRatio, 96);
 
 M2_PIN_SIZE(m2WeldJointDef, 64);
 M2_PIN_AT(m2WeldJointDef, bodyIdA, 0);
@@ -510,9 +513,9 @@ M2_PIN_SIZE(m2OpCreateRevoluteJoint, 96);
 M2_PIN_AT(m2OpCreateRevoluteJoint, def, 0);
 M2_PIN_AT(m2OpCreateRevoluteJoint, expected, 88);
 
-M2_PIN_SIZE(m2OpCreatePrismaticJoint, 96);
+M2_PIN_SIZE(m2OpCreatePrismaticJoint, 112);
 M2_PIN_AT(m2OpCreatePrismaticJoint, def, 0);
-M2_PIN_AT(m2OpCreatePrismaticJoint, expected, 88);
+M2_PIN_AT(m2OpCreatePrismaticJoint, expected, 104);
 
 M2_PIN_SIZE(m2OpCreateWeldJoint, 72);
 M2_PIN_AT(m2OpCreateWeldJoint, def, 0);
