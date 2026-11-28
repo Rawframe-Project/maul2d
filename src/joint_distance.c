@@ -257,7 +257,11 @@ static void SolveDistance(m2JointConstraint* c, const m2JointPose* pose, m2Joint
     m2JointRow row = RopeRow(c, pose, &length);
     if ((c->flags & M2_JOINT_FREE_LENGTH) == 0)
     {
-        m2RowDrive drive = m2HeldDrive(c->soft, length - c->length, pass->biased);
+        // A spring pulls in every pass, as the other joints' springs do; only
+        // a rod's rest row relaxes rigid.
+        float C = length - c->length;
+        m2RowDrive drive = (c->flags & M2_JOINT_ROPE) != 0 ? m2SpringDrive(c->soft, C)
+                                                           : m2HeldDrive(c->soft, C, pass->biased);
         m2SolveRow(&row, b, drive, &c->impulse.x, -M2_ROW_FREE, M2_ROW_FREE);
     }
     if ((c->flags & M2_JOINT_HARD_RANGE) != 0)
