@@ -11,10 +11,12 @@ across minor versions.
 
 ## [1.3.2](https://github.com/Rawframe-Project/maul2d/compare/v1.3.1...v1.3.2) (2026-11-28)
 
+This release fixes which shape a closest sweep reports when two shapes tie, and stops the library's float flags from turning on trapping math under Clang. Nothing a step computes changes: no golden line moves, and the snapshot and journal formats keep their versions.
 
 ### Fixed
 
-* **query:** break a closest sweep's tie to the lower shape across trees ([#368](https://github.com/Rawframe-Project/maul2d/issues/368)) ([3b0b7d4](https://github.com/Rawframe-Project/maul2d/commit/3b0b7d48c086ba93efcd8d79e6b139b32ca3f82b)), closes [#367](https://github.com/Rawframe-Project/maul2d/issues/367)
+- **Queries:** a closest sweep (`m2World_CastCircleClosest`, `m2World_CastCapsuleClosest`, `m2World_CastPolygonClosest`) gives a tie to the lower shape index, as `m2CastHit` promises, also when the tied shapes sit on bodies of different types ([#368](https://github.com/Rawframe-Project/maul2d/pull/368)). The sweep walks the static bodies' shapes before the kinematic and dynamic ones, and it stopped testing a shape once that shape could only equal the best hit so far, so a dynamic body's shape in a lower slot lost a tie to a static one. `m2World_CastRayClosest` already kept the rule. The sweeps now also report a hit at exactly fraction 1, the end of the translation, as the ray casts always have; this holds for `m2World_CastCircleAll`, `m2World_CastCapsuleAll` and `m2World_CastPolygonAll` too. Only these queries change.
+- **Build:** under Clang, the library's float flags no longer turn trapping math on ([#362](https://github.com/Rawframe-Project/maul2d/pull/362)). They turned the unsafe float optimizations off with `-fno-unsafe-math-optimizations`, which in Clang also asks for strict floating-point exceptions; they now turn each optimization off on its own. GCC compiles with the same options as before, and every golden value is unchanged.
 
 ## [1.3.1](https://github.com/Rawframe-Project/maul2d/compare/v1.3.0...v1.3.1) (2026-11-05)
 
