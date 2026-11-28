@@ -48,9 +48,12 @@ Maul2D is at 1.y, and there is no 2.0.0. A program that builds against 1.y build
 
 - [The documentation](docs/README.md): using the library, how it works, maintaining it. Also on the [documentation site](https://rawframe-project.github.io/maul2d/).
 - [The API reference](https://rawframe-project.github.io/maul2d/api.html), generated from the headers.
-- [Contributing](https://github.com/Rawframe-Project/.github/blob/main/CONTRIBUTING.md).
 
 The engine's algorithms follow published work, listed in [references](docs/internals/references.md); the library uses no outside code. The testbed, which is not part of the library, is built on [raylib](https://github.com/raysan5/raylib) (zlib/libpng license), fetched when the testbed is configured.
+
+## Contributing
+
+Issues are welcome. Pull requests are accepted for issues a maintainer has approved; see [CONTRIBUTING.md](https://github.com/Rawframe-Project/.github/blob/main/CONTRIBUTING.md). The project is developed with AI coding agents, directed and reviewed by its maintainers; outside contributions follow the [AI policy](https://github.com/Rawframe-Project/.github/blob/main/AI_POLICY.md).
 
 ## License
 
