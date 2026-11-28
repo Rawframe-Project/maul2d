@@ -1286,6 +1286,55 @@ static void TestDistanceSpringToggleReadsBack(void)
     m2DestroyWorld(world);
 }
 
+// A ball hanging on a distance spring settles where the spring carries
+// its weight: the spring is set by frequency, so it stretches by
+// g / (2 pi f)^2 whatever the mass, with a range around it or without.
+// The spring pulls in every solver pass; held rigid in the relax passes,
+// it would barely sag and creep for seconds.
+static void TestDistanceSpringSagsByItsStiffness(void)
+{
+    const float hertz[2] = {1.0f, 2.0f};
+    for (int32_t ranged = 0; ranged < 2; ++ranged)
+    {
+        for (int32_t k = 0; k < 2; ++k)
+        {
+            m2WorldDef def = m2DefaultWorldDef();
+            def.bodyCapacity = 4;
+            def.shapeCapacity = 4;
+            def.jointCapacity = 2;
+            m2World* world = NewWorld(&def);
+            m2World_SetGravity(world, (m2Vec2){0.0f, -10.0f});
+            m2BodyDef hook = m2DefaultBodyDef();
+            m2BodyId anchor = NewBody(world, &hook);
+            m2BodyId ball = AddBall(world, 0.0, -1.0, 0.1f);
+            m2DistanceJointDef jd = m2DefaultDistanceJointDef();
+            jd.bodyIdA = anchor;
+            jd.bodyIdB = ball;
+            jd.length = 1.0f;
+            jd.enableSpring = true;
+            jd.springHertz = hertz[k];
+            jd.springDampingRatio = 1.0f;
+            if (ranged != 0)
+            {
+                jd.minLength = 0.5f;
+                jd.maxLength = 2.0f;
+            }
+            NewDistanceJoint(world, &jd);
+            for (int32_t i = 0; i < 240; ++i)
+            {
+                Step(world, 1.0f / 60.0f, 4);
+            }
+            double omega = 2.0 * 3.14159265358979 * (double)hertz[k];
+            double expected = 10.0 / (omega * omega);
+            double sag = -m2Body_GetPosition(world, ball).y - 1.0;
+            CHECK(fabs(sag - expected) < 0.02 * expected,
+                  ranged != 0 ? "a ranged distance spring sags by g / (2 pi f)^2"
+                              : "a distance spring sags by g / (2 pi f)^2");
+            m2DestroyWorld(world);
+        }
+    }
+}
+
 static void TestDistanceRange(void)
 {
     // The hard range rows run on the stiff default softness, so when
@@ -3470,6 +3519,7 @@ int main(void)
     TestMotorJointBudgets();
     TestMotorJointBudgetsRefuse();
     TestMotorSpring();
+    TestDistanceSpringSagsByItsStiffness();
     TestDistanceRange();
     TestDistanceSpringToggleReadsBack();
     TestGearJoint();
